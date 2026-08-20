@@ -1,0 +1,25 @@
+# Claude Code 로컬 세션
+.claude/
+
+# 의존성·가상환경
+node_modules/
+.venv/
+
+# 빌드 산출물
+dist/
+build/
+out/
+.next/
+__pycache__/
+*.pyc
+
+# 환경변수·시크릿
+.env
+.env.*
+!.env.example
+
+# 에디터·OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

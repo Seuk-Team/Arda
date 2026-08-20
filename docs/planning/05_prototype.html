@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATS — 지원자 관리 프로토타입</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{
+  --ink:#14171C; --ink-2:#3D444F; --ink-3:#727B87;
+  --paper:#E4E7EB; --panel:#FFFFFF; --line:#D8DCE2; --line-2:#EDEFF2;
+  --teal:#0F6B66; --teal-d:#0A4F4B; --teal-w:#E4EFEE;
+  --amber:#A9702A; --amber-w:#FBF2E5; --amber-l:#D2A25C;
+  --red:#A94F3E; --red-w:#F8ECE9;
+  --s0:#98A1AC; --s1:#5C8A8E; --s2:#2E7A76; --s3:#0F6B66; --s4:#A94F3E;
+  --r:7px; --r-s:5px;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --sans:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,system-ui,"Malgun Gothic",sans-serif;
+  --sh:0 1px 2px rgba(20,23,28,.05),0 1px 1px rgba(20,23,28,.03);
+  --sh-l:0 8px 28px rgba(20,23,28,.13),0 2px 6px rgba(20,23,28,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);background:var(--paper);color:var(--ink);
+  -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#C4CAD2;border-radius:9px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ── 상단 데모 바 ───────────────────────────── */
+.demobar{
+  flex:0 0 auto;display:flex;align-items:center;gap:14px;
+  padding:0 16px;height:46px;background:var(--ink);color:#EDEFF2;
+}
+.demobar .brand{font-weight:700;letter-spacing:-.01em;font-size:13.5px}
+.demobar .brand span{color:var(--s1);font-weight:500}
+.demobar .note{font-size:11.5px;color:#8A93A0;letter-spacing:.01em}
+.seg{margin-left:auto;display:flex;background:#252A33;border-radius:var(--r-s);padding:3px;gap:2px}
+.seg button{
+  padding:5px 15px;border-radius:4px;font-size:12.5px;font-weight:600;color:#8A93A0;
+  transition:background .15s,color .15s;
+}
+.seg button[aria-pressed="true"]{background:#3B424D;color:#fff}
+.legend{display:flex;gap:14px;align-items:center;font-size:11.5px;color:#8A93A0}
+.legend i{display:inline-block;width:15px;height:0;vertical-align:middle;margin-right:5px}
+.legend .l-ai{border-top:2px dashed var(--amber-l)}
+.legend .l-hu{border-top:2px solid var(--s1)}
+
+/* ── 스테이지 ─────────────────────────────── */
+.stage{flex:1 1 auto;min-height:0;display:flex;align-items:stretch;justify-content:center;padding:0}
+.stage.mobile{align-items:center;background:
+  radial-gradient(circle at 50% 40%,#EFF1F4 0%,var(--paper) 70%)}
+
+/* ══ 데스크톱 앱 ═════════════════════════════ */
+.app{flex:1;display:flex;min-width:0;background:var(--panel)}
+.app.hidden,.phone-wrap.hidden{display:none}
+
+.side{
+  flex:0 0 216px;background:#1B1F26;color:#A8B0BA;display:flex;flex-direction:column;
+  padding:18px 0 14px;
+}
+.side .logo{padding:0 18px 18px;display:flex;align-items:baseline;gap:8px}
+.side .logo b{color:#fff;font-size:16px;letter-spacing:-.02em}
+.side .logo em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--s1);
+  border:1px solid #33414A;padding:1px 5px;border-radius:3px;letter-spacing:.04em}
+.side nav{display:flex;flex-direction:column;gap:1px;padding:0 10px}
+.side nav button{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-s);
+  font-size:13.5px;color:#98A2AE;text-align:left;transition:background .13s,color .13s;
+}
+.side nav button:hover{background:#242A32;color:#D6DBE1}
+.side nav button[aria-current="true"]{background:#2A323B;color:#fff;font-weight:600}
+.side nav .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex:0 0 auto}
+.side nav button[aria-current="true"] .dot{opacity:1;background:var(--s1)}
+.side .count{margin-left:auto;font-family:var(--mono);font-size:11px;color:#6D7884}
+.side .me{margin-top:auto;padding:12px 18px 0;border-top:1px solid #262C34}
+.side .me b{display:block;color:#D6DBE1;font-size:12.5px;font-weight:600}
+.side .me span{font-size:11px;color:#6D7884}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:#F4F5F7}
+
+/* 헤더 */
+.head{padding:16px 22px 0;background:var(--panel);border-bottom:1px solid var(--line)}
+.head .row1{display:flex;align-items:flex-end;gap:12px;margin-bottom:14px}
+.head h1{font-size:20px;letter-spacing:-.025em;font-weight:700}
+.tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.03em;padding:3px 7px;border-radius:3px;
+  background:var(--teal-w);color:var(--teal-d);font-weight:600;text-transform:uppercase}
+.head .meta{margin-left:auto;font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+
+/* 시그니처: 비례 퍼널 레일 */
+.rail{display:flex;height:34px;border-radius:var(--r-s);overflow:hidden;margin-bottom:2px;
+  border:1px solid var(--line);background:var(--line-2)}
+.rail button{
+  position:relative;display:flex;align-items:center;gap:7px;padding:0 11px;min-width:0;
+  color:#fff;font-size:12px;font-weight:600;transition:filter .15s;overflow:hidden;white-space:nowrap;
+  border-right:1px solid rgba(255,255,255,.28);
+}
+.rail button:last-child{border-right:none}
+.rail button:hover{filter:brightness(1.09)}
+.rail button .n{font-family:var(--mono);font-size:11px;opacity:.82;font-weight:500}
+.rail button[data-dim="1"]{filter:saturate(.25) brightness(1.12);color:rgba(255,255,255,.9)}
+.railcap{display:flex;justify-content:space-between;padding:5px 1px 12px;
+  font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+
+/* 툴바 */
+.tools{display:flex;align-items:center;gap:8px;padding:11px 22px;background:var(--panel);
+  border-bottom:1px solid var(--line)}
+.search{position:relative;flex:0 0 268px}
+.search input{
+  width:100%;padding:7px 11px 7px 30px;border:1px solid var(--line);border-radius:var(--r-s);
+  background:#FAFBFC;font-size:13px;transition:border-color .15s,background .15s;
+}
+.search input:focus{outline:none;border-color:var(--teal);background:#fff}
+.search svg{position:absolute;left:9px;top:8px;color:var(--ink-3)}
+.chip{
+  padding:6px 11px;border:1px solid var(--line);border-radius:14px;font-size:12.5px;
+  color:var(--ink-2);background:var(--panel);transition:all .14s;white-space:nowrap;
+}
+.chip:hover{border-color:#B9C1CB}
+.chip[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600}
+.tools .sp{margin-left:auto}
+.btn{
+  padding:7px 13px;border-radius:var(--r-s);font-size:13px;font-weight:600;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);transition:all .14s;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.btn:hover{background:#F7F8FA;border-color:#B9C1CB}
+.btn-p{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn-p:hover{background:var(--teal-d);border-color:var(--teal-d)}
+.btn-ai{background:var(--amber-w);border:1px dashed var(--amber-l);color:var(--amber)}
+.btn-ai:hover{background:#F7EAD6;border-color:var(--amber)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* 칸반 */
+.board{flex:1;min-height:0;display:flex;gap:11px;padding:14px 22px 18px;overflow-x:auto}
+.col{flex:1 1 0;min-width:190px;display:flex;flex-direction:column;background:#EAECEF;
+  border-radius:var(--r);border:1px solid transparent;transition:background .15s,border-color .15s}
+.col.over{background:var(--teal-w);border-color:var(--s2)}
+.col h2{display:flex;align-items:center;gap:7px;padding:9px 11px 8px;font-size:12.5px;font-weight:700;
+  letter-spacing:-.01em}
+.col h2 .bar{width:3px;height:12px;border-radius:2px}
+.col h2 .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-weight:500}
+.col .list{flex:1;overflow-y:auto;padding:0 8px 8px;display:flex;flex-direction:column;gap:7px}
+.empty{padding:16px 10px;text-align:center;font-size:12px;color:#98A1AC;border:1px dashed #C6CCD4;
+  border-radius:var(--r-s);margin:2px}
+
+.card{
+  position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-s);
+  padding:10px 11px 9px 13px;cursor:grab;box-shadow:var(--sh);transition:box-shadow .14s,transform .14s,border-color .14s;
+}
+.card:hover{box-shadow:var(--sh-l);border-color:#BFC6CF}
+.card:active{cursor:grabbing}
+.card.dragging{opacity:.4}
+.card.sel{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-w)}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:5px 0 0 5px;background:var(--c,#98A1AC)}
+.card .top{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.card .nm{font-weight:700;font-size:13.5px;letter-spacing:-.01em}
+.card .clip{margin-left:auto;color:#A6AEB8}
+.card .sub{font-size:11.5px;color:var(--ink-3);margin-bottom:7px;font-family:var(--mono)}
+.card .tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.card .tags span{font-size:10.5px;padding:2px 6px;background:#EEF1F4;border-radius:3px;color:var(--ink-2);
+  font-family:var(--mono)}
+.card .foot{display:flex;align-items:center;gap:8px;font-size:11px}
+.stars{color:var(--s2);letter-spacing:.5px;font-size:11px}
+.stars.none{color:#B4BCC5}
+.aiscore{
+  margin-left:auto;display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border-radius:3px;
+  border:1px dashed var(--amber-l);background:var(--amber-w);color:var(--amber);
+  font-family:var(--mono);font-size:10.5px;font-weight:600;
+}
+.aiscore.pending{border-style:solid;border-color:var(--line);background:#F2F4F6;color:#98A1AC}
+@keyframes pop{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+.aiscore.new{animation:pop .3s cubic-bezier(.2,.9,.3,1.2)}
+
+/* 상세 패널 */
+.detail{
+  position:absolute;top:0;right:0;bottom:0;width:428px;background:var(--panel);
+  border-left:1px solid var(--line);box-shadow:-14px 0 32px rgba(20,23,28,.09);
+  display:flex;flex-direction:column;transform:translateX(100%);transition:transform .26s cubic-bezier(.32,.72,0,1);
+  z-index:20;
+}
+.detail.open{transform:none}
+.detail header{padding:16px 18px 13px;border-bottom:1px solid var(--line)}
+.detail .x{position:absolute;top:13px;right:14px;color:var(--ink-3);padding:4px;border-radius:4px}
+.detail .x:hover{background:var(--line-2);color:var(--ink)}
+.detail h3{font-size:19px;letter-spacing:-.025em;margin-bottom:4px}
+.detail .who{display:flex;align-items:center;gap:7px;margin-bottom:11px}
+.pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:11px;color:#fff;font-family:var(--mono)}
+.detail .sum{font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+.detail .body{flex:1;overflow-y:auto;padding:16px 18px 22px}
+.sec{margin-bottom:20px}
+.sec h4{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);
+  margin-bottom:9px;font-family:var(--mono);display:flex;align-items:center;gap:7px}
+.sec h4::after{content:"";flex:1;height:1px;background:var(--line-2)}
+.kv{display:grid;grid-template-columns:74px 1fr;gap:6px 10px;font-size:13px}
+.kv dt{color:var(--ink-3);font-size:12px}
+.kv dd{color:var(--ink)}
+.file{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);
+  border-radius:var(--r-s);background:#FAFBFC}
+.file .ic{width:30px;height:36px;border-radius:3px;background:var(--red);color:#fff;display:flex;
+  align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:var(--mono)}
+.file b{display:block;font-size:13px}
+.file span{font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+.file button{margin-left:auto;font-size:12px;color:var(--teal);font-weight:600;padding:5px 9px;
+  border-radius:4px}
+.file button:hover{background:var(--teal-w)}
+
+.aibox{border:1px dashed var(--amber-l);background:var(--amber-w);border-radius:var(--r-s);padding:12px}
+.aibox .hd{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.aibox .hd b{font-size:13px;color:var(--amber)}
+.aibox .hd .sc{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:17px;color:var(--amber)}
+.aibox ul{list-style:none;display:flex;flex-direction:column;gap:5px}
+.aibox li{font-size:12.5px;color:#6D5426;display:flex;gap:7px;line-height:1.45}
+.aibox li::before{content:"—";color:var(--amber-l);flex:0 0 auto}
+.aibox .warn{margin-top:10px;padding-top:9px;border-top:1px dashed var(--amber-l);
+  font-size:11.5px;color:var(--amber);font-family:var(--mono)}
+
+.tl{display:flex;flex-direction:column;gap:0}
+.tl .it{display:flex;gap:11px;padding-bottom:14px;position:relative}
+.tl .it:last-child{padding-bottom:0}
+.tl .it::before{content:"";position:absolute;left:5px;top:14px;bottom:0;width:1px;background:var(--line)}
+.tl .it:last-child::before{display:none}
+.tl .d{width:11px;height:11px;border-radius:50%;margin-top:3px;flex:0 0 auto;border:2px solid var(--panel);
+  box-shadow:0 0 0 1px currentColor}
+.tl .d.ai{border-style:dashed}
+.tl b{display:block;font-size:13px;font-weight:600}
+.tl span{font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
+
+.rev{border:1px solid var(--line);border-radius:var(--r-s);padding:11px;margin-bottom:8px;background:#FAFBFC}
+.rev .hd{display:flex;align-items:center;margin-bottom:5px}
+.rev .hd b{font-size:12.5px}
+.rev .hd .st{margin-left:auto;color:var(--s2);font-size:11px}
+.rev p{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.addrev{display:flex;gap:7px;margin-top:10px}
+.addrev input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-s);font-size:13px}
+.addrev input:focus{outline:none;border-color:var(--teal)}
+.rate{display:flex;gap:2px;margin-bottom:8px}
+.rate button{font-size:17px;color:#C9D0D8;line-height:1;padding:1px}
+.rate button.on{color:var(--s2)}
+
+.detail footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;background:#FAFBFC}
+.detail footer select{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-s);
+  background:var(--panel);font-size:13px;font-weight:600}
+
+/* 에이전트 콘솔 */
+.agent{
+  position:absolute;left:50%;bottom:22px;transform:translateX(-50%) translateY(140%);
+  width:min(660px,calc(100% - 60px));background:#1B1F26;border-radius:10px;
+  box-shadow:0 18px 44px rgba(20,23,28,.34);z-index:30;overflow:hidden;
+  transition:transform .3s cubic-bezier(.32,.72,0,1);
+}
+.agent.open{transform:translateX(-50%)}
+.agent .in{display:flex;align-items:center;gap:10px;padding:12px 14px}
+.agent .in .pr{font-family:var(--mono);color:var(--amber-l);font-size:13px;font-weight:600}
+.agent input{flex:1;background:none;border:none;color:#EDEFF2;font-size:14px}
+.agent input:focus{outline:none}
+.agent input::placeholder{color:#68727E}
+.agent .go{padding:5px 11px;border-radius:5px;background:#2F3742;color:#C4CCD6;font-size:12px;font-weight:600}
+.agent .go:hover{background:#3B434F;color:#fff}
+.agent .presets{display:flex;gap:6px;padding:0 14px 12px;flex-wrap:wrap}
+.agent .presets button{font-size:11.5px;color:#8A93A0;border:1px solid #333B45;padding:4px 9px;
+  border-radius:12px;font-family:var(--mono)}
+.agent .presets button:hover{border-color:var(--amber-l);color:var(--amber-l)}
+.agent .log{border-top:1px solid #2A313A;padding:11px 14px;max-height:190px;overflow-y:auto;display:none}
+.agent .log.on{display:block}
+.agent .step{display:flex;gap:9px;font-size:12.5px;color:#A8B0BA;padding:3px 0;font-family:var(--mono);
+  align-items:flex-start}
+.agent .step .k{color:var(--s1);flex:0 0 auto;font-weight:600}
+.agent .step.done .k{color:var(--amber-l)}
+.agent .step em{font-style:normal;color:#EDEFF2}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.agent .step{animation:fadein .22s ease}
+
+/* 토스트 */
+.toasts{position:absolute;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:40}
+.toast{
+  display:flex;align-items:center;gap:10px;background:var(--ink);color:#EDEFF2;padding:11px 15px;
+  border-radius:var(--r-s);font-size:13px;box-shadow:var(--sh-l);animation:fadein .24s ease;
+  max-width:330px;
+}
+.toast .m{width:6px;height:6px;border-radius:50%;background:var(--s1);flex:0 0 auto}
+.toast.ai .m{background:var(--amber-l)}
+
+/* ══ 모바일 ═════════════════════════════════ */
+.phone-wrap{display:flex;gap:26px;align-items:center;padding:20px}
+.phone{
+  width:352px;height:722px;background:#0E1116;border-radius:42px;padding:11px;
+  box-shadow:0 26px 60px rgba(20,23,28,.3),0 0 0 1px #2A313A;position:relative;flex:0 0 auto;
+}
+.screen{width:100%;height:100%;background:#F4F5F7;border-radius:32px;overflow:hidden;
+  display:flex;flex-direction:column;position:relative}
+.notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:104px;height:24px;
+  background:#0E1116;border-radius:0 0 14px 14px;z-index:12}
+.statusbar{flex:0 0 auto;height:38px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 22px 0 24px;font-family:var(--mono);font-size:11.5px;font-weight:600;background:var(--panel)}
+.statusbar .r{display:flex;gap:5px;align-items:center;color:var(--ink-2)}
+
+.m-head{background:var(--panel);padding:6px 16px 0;border-bottom:1px solid var(--line)}
+.m-head .t{display:flex;align-items:flex-start;gap:8px;margin-bottom:11px}
+.m-head h2{font-size:16.5px;letter-spacing:-.02em}
+.m-head .s{font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:2px}
+.m-head .ib{margin-left:auto;color:var(--ink-2);padding:5px;border-radius:5px}
+.m-head .ib:hover{background:var(--line-2)}
+.m-rail{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-bottom:10px}
+.m-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;scrollbar-width:none}
+.m-tabs::-webkit-scrollbar{display:none}
+.m-tabs button{flex:0 0 auto;padding:5px 11px;border-radius:13px;font-size:12.5px;
+  border:1px solid var(--line);color:var(--ink-2);background:var(--panel);font-weight:500}
+.m-tabs button[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:700}
+.m-list{flex:1;overflow-y:auto;padding:11px 13px 14px;display:flex;flex-direction:column;gap:8px}
+.m-card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:11px 12px 10px 14px;box-shadow:var(--sh);cursor:pointer}
+.m-card:active{background:#FAFBFC}
+.m-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:7px 0 0 7px;
+  background:var(--c,#98A1AC)}
+.m-card .r1{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+.m-card .nm{font-weight:700;font-size:14.5px;letter-spacing:-.01em}
+.m-card .sub{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);margin-bottom:8px}
+.m-card .tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.m-card .tags span{font-size:10.5px;padding:2px 6px;background:#EEF1F4;border-radius:3px;
+  font-family:var(--mono);color:var(--ink-2)}
+.m-card .foot{display:flex;align-items:center;gap:8px}
+.m-tabbar{flex:0 0 auto;display:flex;background:var(--panel);border-top:1px solid var(--line);
+  padding:7px 0 15px}
+.m-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+  font-size:10.5px;color:#98A1AC;font-weight:600}
+.m-tabbar button[aria-current="true"]{color:var(--teal)}
+
+.m-detail{position:absolute;inset:0;background:#F4F5F7;display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .27s cubic-bezier(.32,.72,0,1);z-index:14}
+.m-detail.open{transform:none}
+.m-detail .top{background:var(--panel);padding:38px 16px 13px;border-bottom:1px solid var(--line)}
+.m-detail .back{font-size:13px;color:var(--ink-3);margin-bottom:9px;display:flex;align-items:center;gap:5px}
+.m-detail h3{font-size:19px;letter-spacing:-.025em;display:flex;align-items:center;gap:8px}
+.m-detail .sm{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);margin-top:4px}
+.m-detail .body{flex:1;overflow-y:auto;padding:13px 13px 16px}
+.mcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;
+  margin-bottom:9px}
+.mcard h5{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+  font-family:var(--mono);margin-bottom:9px;font-weight:700}
+.m-detail .acts{flex:0 0 auto;display:flex;gap:8px;padding:11px 13px 18px;background:var(--panel);
+  border-top:1px solid var(--line)}
+.m-detail .acts .btn{flex:1;justify-content:center}
+
+.m-form label{display:block;font-size:12px;font-weight:700;margin:0 0 5px}
+.m-form label i{color:var(--red);font-style:normal}
+.m-form input,.m-form select{width:100%;padding:10px 11px;border:1px solid var(--line);
+  border-radius:var(--r-s);background:var(--panel);font-size:13.5px;margin-bottom:13px}
+.m-form input:focus,.m-form select:focus{outline:none;border-color:var(--teal)}
+.drop{border:1px dashed var(--teal);background:var(--teal-w);border-radius:var(--r);padding:12px;
+  margin-bottom:13px}
+.drop .r{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.bar{height:5px;border-radius:3px;background:#C9DDDB;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--teal);width:0;transition:width .25s linear}
+.drop .st{font-size:11px;color:var(--teal-d);font-family:var(--mono);margin-top:6px}
+.agree{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--ink-2)}
+.agree button{width:19px;height:19px;border-radius:4px;border:1.5px solid #B4BCC5;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;color:#fff;margin-top:1px}
+.agree button.on{background:var(--teal);border-color:var(--teal)}
+
+.caption{flex:0 0 auto;width:158px;align-self:flex-start;margin-top:78px}
+.caption h4{font-size:13px;font-weight:700;margin-bottom:7px;letter-spacing:-.01em}
+.caption p{font-size:12px;color:var(--ink-3);line-height:1.6}
+.caption hr{border:none;border-top:1px solid #CDD3DA;margin:13px 0}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+@media (max-width:1180px){.detail{width:380px}.side{flex-basis:190px}}
+@media (max-width:900px){.caption{display:none}}
+</style>
+</head>
+<body>
+
+<div class="demobar">
+  <div class="brand">ATS 프로토타입 <span>· 지원자 관리</span></div>
+  <div class="legend">
+    <span><i class="l-ai"></i>AI 제안 (점선·앰버)</span>
+    <span><i class="l-hu"></i>사람 확정 (실선·청록)</span>
+  </div>
+  <div class="seg" role="group" aria-label="화면 전환">
+    <button id="tPC" aria-pressed="true">PC</button>
+    <button id="tMO" aria-pressed="false">모바일</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+
+<!-- ══════════ PC ══════════ -->
+<div class="app" id="appPC" style="position:relative">
+  <aside class="side">
+    <div class="logo"><b>Hire</b><em>ATS</em></div>
+    <nav>
+      <button><span class="dot"></span>대시보드</button>
+      <button aria-current="true"><span class="dot"></span>지원자<span class="count" id="navCount">48</span></button>
+      <button><span class="dot"></span>채용 공고<span class="count">3</span></button>
+      <button><span class="dot"></span>평가 현황</button>
+      <button><span class="dot"></span>설정</button>
+    </nav>
+    <div class="me"><b>김채용</b><span>인사팀 · 채용담당자</span></div>
+  </aside>
+
+  <div class="main">
+    <div class="head">
+      <div class="row1">
+        <h1>백엔드 개발자 (신입)</h1>
+        <span class="tag">진행중</span>
+        <div class="meta" id="headMeta">마감 D-12 · 총 <b id="tot">14</b>명</div>
+      </div>
+      <div class="rail" id="rail"></div>
+      <div class="railcap"><span>단계별 인원 비율</span><span id="railHint">막대를 눌러 단계만 보기</span></div>
+    </div>
+
+    <div class="tools">
+      <div class="search">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7">
+          <circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5 14 14"/></svg>
+        <input id="q" type="search" placeholder="이름 · 학교 · 기술스택 검색" aria-label="지원자 검색">
+      </div>
+      <button class="chip" data-sk="Python">Python</button>
+      <button class="chip" data-sk="AWS">AWS</button>
+      <button class="chip" data-sk="FastAPI">FastAPI</button>
+      <button class="chip" data-sk="React">React</button>
+      <button class="chip" id="chipNew">신입만</button>
+      <div class="sp"></div>
+      <button class="btn btn-ai" id="btnAI">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M8 1.5v13M1.5 8h13" stroke-dasharray="2 1.6"/></svg>
+        AI 서류 검토
+      </button>
+      <button class="btn" id="btnAgent">에이전트 <span class="mono" style="font-size:11px;color:var(--ink-3)">⌘K</span></button>
+    </div>
+
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- 상세 -->
+  <aside class="detail" id="detail" aria-hidden="true">
+    <button class="x" id="dClose" aria-label="닫기">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    <header>
+      <h3 id="dName">—</h3>
+      <div class="who"><span class="pill" id="dPill">—</span><span class="sum mono" id="dSum">—</span></div>
+    </header>
+    <div class="body" id="dBody"></div>
+    <footer>
+      <select id="dStage" aria-label="단계 변경"></select>
+      <button class="btn btn-p" id="dApply">변경하고 메일 보내기</button>
+    </footer>
+  </aside>
+
+  <!-- 에이전트 -->
+  <div class="agent" id="agent">
+    <div class="in">
+      <span class="pr">›</span>
+      <input id="aIn" placeholder="하고 싶은 작업을 문장으로 적어주세요" aria-label="에이전트 명령">
+      <button class="go" id="aGo">실행</button>
+    </div>
+    <div class="presets">
+      <button data-c="Python 2년 이상이고 AWS 경험 있는 사람 서류 합격 처리하고 안내 메일 초안 써줘">복합 작업 예시</button>
+      <button data-c="평가가 아직 없는 지원자만 보여줘">평가 미완료 조회</button>
+      <button data-c="면접 단계에 있는 사람들 평균 점수 알려줘">단계 요약</button>
+    </div>
+    <div class="log" id="aLog"></div>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+</div>
+
+<!-- ══════════ 모바일 ══════════ -->
+<div class="phone-wrap hidden" id="appMO">
+  <div class="caption">
+    <h4>지원자 목록</h4>
+    <p>PC의 칸반을 축소하면 컬럼이 좁아져 못 쓴다. 모바일은 단계 탭 + 리스트로 간다.</p>
+    <hr>
+    <p>상단 5px 막대는 PC의 퍼널 레일을 압축한 것. 같은 정보, 다른 밀도.</p>
+  </div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r">5G ▮▮▮</span></div>
+      <div class="m-head">
+        <div class="t">
+          <div>
+            <h2>백엔드 개발자(신입)</h2>
+            <div class="s">총 14명 · 마감 D-12</div>
+          </div>
+          <button class="ib" aria-label="검색">
+            <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7">
+              <circle cx="7" cy="7" r="4.6"/><path d="M10.5 10.5 14 14"/></svg></button>
+        </div>
+        <div class="m-rail" id="mRail"></div>
+        <div class="m-tabs" id="mTabs"></div>
+      </div>
+      <div class="m-list" id="mList"></div>
+      <div class="m-tabbar">
+        <button><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2.5" width="12" height="11" rx="1.6"/><path d="M2 6h12"/></svg>공고</button>
+        <button aria-current="true"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5.6" r="2.7"/><path d="M2.8 13.6c.7-2.7 2.7-4 5.2-4s4.5 1.3 5.2 4"/></svg>지원자</button>
+        <button><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2l1.8 3.9 4.2.5-3.1 2.9.85 4.2L8 11.5 4.25 13.5l.85-4.2L2 6.4l4.2-.5z"/></svg>평가</button>
+        <button><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.8M8 12.6v1.8M14.4 8h-1.8M3.4 8H1.6"/></svg>설정</button>
+      </div>
+
+      <!-- 상세 -->
+      <div class="m-detail" id="mDetail">
+        <div class="top">
+          <button class="back" id="mBack">‹ 목록</button>
+          <h3><span id="mName">—</span><span class="pill" id="mPill">—</span></h3>
+          <div class="sm" id="mSum">—</div>
+        </div>
+        <div class="body" id="mBody"></div>
+        <div class="acts">
+          <button class="btn" id="mPrev">이전 단계</button>
+          <button class="btn btn-p" id="mNext">다음 단계 + 메일</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar"><span>9:41</span><span class="r">5G ▮▮▮</span></div>
+      <div style="background:var(--teal);color:#fff;padding:16px 17px 15px">
+        <div class="mono" style="font-size:11px;opacity:.72;letter-spacing:.04em">우리회사 채용</div>
+        <div style="font-size:18.5px;font-weight:700;letter-spacing:-.02em;margin:4px 0 5px">백엔드 개발자 (신입)</div>
+        <div class="mono" style="font-size:11px;opacity:.72">서울 · 정규직 · 마감 2026.09.30</div>
+      </div>
+      <div class="m-list m-form" style="padding:15px 16px">
+        <label>이름 <i>*</i></label>
+        <input id="fName" value="김지원">
+        <label>연락처 <i>*</i></label>
+        <input id="fTel" value="010-1234-5678">
+        <label>이메일 <i>*</i></label>
+        <input id="fMail" value="jiwon@example.com">
+        <label>최종 학력 <i>*</i></label>
+        <select><option>선택하세요</option><option selected>4년제 졸업</option><option>전문학사</option><option>석사 이상</option></select>
+        <label>이력서 첨부 <i>*</i></label>
+        <div class="drop">
+          <div class="r">
+            <div class="ic" style="width:29px;height:35px;border-radius:3px;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;font-family:var(--mono)">PDF</div>
+            <div><b style="font-size:13px;display:block">김지원_이력서.pdf</b>
+              <span class="mono" style="font-size:11px;color:var(--ink-3)">1.8 MB</span></div>
+          </div>
+          <div class="bar"><i id="upBar"></i></div>
+          <div class="st" id="upSt">업로드 대기 중</div>
+        </div>
+        <div class="agree" style="margin-bottom:14px">
+          <button id="agreeBtn" class="on" aria-pressed="true">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M2.5 6.2l2.4 2.4L9.5 3.8"/></svg></button>
+          <span>개인정보 수집·이용에 동의합니다. 수집 항목은 채용 판단에 필요한 범위로 제한됩니다.</span>
+        </div>
+        <button class="btn btn-p" id="fSubmit" style="width:100%;justify-content:center;padding:11px">지원서 보내기</button>
+        <div id="fDone" style="display:none;margin-top:13px;padding:12px;border:1px solid var(--s2);
+             background:var(--teal-w);border-radius:var(--r);font-size:12.5px;color:var(--teal-d)">
+          접수됐습니다. 확인 메일을 보냈어요. 진행 상황은 메일 링크에서 볼 수 있습니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption" style="margin-top:120px">
+    <h4>지원 폼</h4>
+    <p>지원자용 외부 링크 화면. 파일은 서버를 거치지 않고 S3로 직접 올라간다.</p>
+    <hr>
+    <p>업로드 진행률이 보이는 이유는 presigned URL로 브라우저가 직접 전송하기 때문.</p>
+  </div>
+</div>
+
+</div>
+
+<script>
+"use strict";
+const STAGES=[
+  {id:"applied", name:"지원 접수", c:"var(--s0)"},
+  {id:"screen",  name:"서류 검토", c:"var(--s1)"},
+  {id:"itv",     name:"면접",     c:"var(--s2)"},
+  {id:"offer",   name:"최종 합격", c:"var(--s3)"},
+  {id:"reject",  name:"불합격",   c:"var(--s4)"}
+];
+const SI=id=>STAGES.findIndex(s=>s.id===id);
+
+let DATA=[
+ {id:1,n:"박지훈",edu:"OO대 컴퓨터공학",exp:0,sk:["Python","FastAPI","PostgreSQL"],st:"applied",r:0,ai:null,d:"09.02",cm:[]},
+ {id:2,n:"이수민",edu:"부트캠프 수료",exp:0,sk:["Django","React"],st:"applied",r:0,ai:null,d:"09.02",cm:[]},
+ {id:3,n:"최다은",edu:"OO대 4학년",exp:0,sk:["Java","Spring"],st:"applied",r:0,ai:null,d:"09.03",cm:[]},
+ {id:4,n:"장민호",edu:"OO대 정보통신",exp:1,sk:["Python","AWS","Docker"],st:"applied",r:0,ai:null,d:"09.03",cm:[]},
+ {id:5,n:"서예린",edu:"OO여대 소프트웨어",exp:0,sk:["Python","FastAPI","AWS"],st:"applied",r:0,ai:null,d:"09.04",cm:[]},
+ {id:6,n:"정우진",edu:"OO대 컴퓨터공학",exp:1,sk:["Python","AWS","Redis"],st:"screen",r:4,ai:null,d:"09.02",
+  cm:[{w:"박팀장",t:"서류 검토",s:4,b:"프로젝트 규모는 작지만 기술 선택 이유가 문서에 남아 있음."}]},
+ {id:7,n:"한서연",edu:"OO대 소프트웨어",exp:0,sk:["Go","Kubernetes"],st:"screen",r:3,ai:null,d:"09.04",cm:[]},
+ {id:8,n:"오지호",edu:"OO대 전기전자",exp:2,sk:["Python","FastAPI","AWS","Docker"],st:"screen",r:0,ai:null,d:"09.05",cm:[]},
+ {id:9,n:"김도현",edu:"OO대 컴퓨터공학",exp:2,sk:["Python","FastAPI","Kubernetes","AWS"],st:"itv",r:5,ai:null,d:"09.02",
+  cm:[{w:"이면접",t:"기술 면접",s:5,b:"동시성 질문에 답이 명확. 락 선택 근거를 수치로 설명함."},
+      {w:"박팀장",t:"1차 면접",s:4,b:"커뮤니케이션 좋음. 인프라 경험은 상대적으로 얕음."}]},
+ {id:10,n:"오세진",edu:"OO대학원 석사",exp:1,sk:["PyTorch","Python"],st:"itv",r:4,ai:null,d:"09.03",
+  cm:[{w:"이면접",t:"기술 면접",s:4,b:"연구 경험은 탄탄. 서비스 개발 경험이 적음."}]},
+ {id:11,n:"신유나",edu:"OO대 컴퓨터공학",exp:1,sk:["Python","React","AWS"],st:"itv",r:0,ai:null,d:"09.05",cm:[]},
+ {id:12,n:"윤하늘",edu:"OO대 소프트웨어",exp:1,sk:["FastAPI","Python","PostgreSQL"],st:"offer",r:5,ai:null,d:"09.01",
+  cm:[{w:"이면접",t:"최종 면접",s:5,b:"팀 합류 시 즉시 투입 가능하다는 판단."}]},
+ {id:13,n:"강민수",edu:"OO대 경영",exp:0,sk:["PHP"],st:"reject",r:2,ai:null,d:"09.02",
+  cm:[{w:"박팀장",t:"서류 검토",s:2,b:"직무 관련 경험을 확인하기 어려움."}]},
+ {id:14,n:"임채원",edu:"부트캠프 수료",exp:0,sk:["JavaScript","React"],st:"reject",r:2,ai:null,d:"09.04",cm:[]}
+];
+
+/* 상태 */
+let filters={q:"",sk:new Set(),newOnly:false,only:null};
+let selId=null, aiDone=false, mSelId=null;
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+/* ── 유틸 ── */
+function visible(){
+  return DATA.filter(p=>{
+    if(filters.only&&p.st!==filters.only) return false;
+    if(filters.newOnly&&p.exp>0) return false;
+    for(const s of filters.sk) if(!p.sk.includes(s)) return false;
+    const q=filters.q.trim().toLowerCase();
+    if(q&&!(p.n.toLowerCase().includes(q)||p.edu.toLowerCase().includes(q)
+       ||p.sk.some(s=>s.toLowerCase().includes(q)))) return false;
+    return true;
+  });
+}
+function stars(n){return n?"★".repeat(n)+"☆".repeat(5-n):"평가 전"}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function toast(msg,ai){
+  const t=document.createElement("div");
+  t.className="toast"+(ai?" ai":"");
+  t.innerHTML='<span class="m"></span><span>'+esc(msg)+'</span>';
+  $("#toasts").appendChild(t);
+  setTimeout(()=>{t.style.transition="opacity .3s";t.style.opacity=0;
+    setTimeout(()=>t.remove(),320)},3000);
+}
+/* AI 서류 점수: 직무 요건 매칭 — 결정이 아니라 근거 */
+const REQ=["Python","FastAPI","AWS","PostgreSQL","Docker"];
+function aiEval(p){
+  const hit=p.sk.filter(s=>REQ.includes(s));
+  let sc=42+hit.length*11+Math.min(p.exp,2)*7;
+  if(p.edu.includes("컴퓨터")||p.edu.includes("소프트웨어")) sc+=6;
+  sc=Math.max(28,Math.min(96,sc));
+  const rs=[];
+  if(hit.length) rs.push("요건 기술 "+hit.length+"/"+REQ.length+" 일치 ("+hit.join(", ")+")");
+  else rs.push("요건 기술과 겹치는 항목 없음");
+  rs.push(p.exp?("관련 경력 "+p.exp+"년 기재"):"경력 기재 없음 (신입 공고 기준 감점 아님)");
+  rs.push("자기소개서에서 직무 관련 서술 "+(hit.length>1?"충분":"부족"));
+  return {sc,rs};
+}
+
+/* ── 퍼널 레일 ── */
+function drawRail(){
+  const rail=$("#rail"); rail.innerHTML="";
+  const mr=$("#mRail"); mr.innerHTML="";
+  STAGES.forEach(s=>{
+    const n=DATA.filter(p=>p.st===s.id).length;
+    const w=Math.max(n,0.6);
+    const b=document.createElement("button");
+    b.style.flex=w+" 1 0";b.style.background=s.c;
+    b.dataset.dim=(filters.only&&filters.only!==s.id)?"1":"0";
+    b.innerHTML='<span>'+s.name+'</span><span class="n">'+n+'</span>';
+    b.title=s.name+" "+n+"명 — 눌러서 이 단계만 보기";
+    b.onclick=()=>{filters.only=(filters.only===s.id)?null:s.id;renderAll()};
+    rail.appendChild(b);
+    const m=document.createElement("i");
+    m.style.cssText="flex:"+w+" 1 0;background:"+s.c;mr.appendChild(m);
+  });
+}
+
+/* ── 칸반 ── */
+function drawBoard(){
+  const board=$("#board"); board.innerHTML="";
+  const vis=visible();
+  STAGES.forEach(s=>{
+    if(filters.only&&filters.only!==s.id) return;
+    const col=document.createElement("section");
+    col.className="col"; col.dataset.st=s.id;
+    const all=DATA.filter(p=>p.st===s.id).length;
+    let list=vis.filter(p=>p.st===s.id);
+    if(aiDone) list=list.slice().sort((a,b)=>(b.ai?.sc||0)-(a.ai?.sc||0));
+    col.innerHTML='<h2><i class="bar" style="background:'+s.c+'"></i>'+s.name+
+      '<span class="n">'+list.length+(list.length!==all?" / "+all:"")+'</span></h2>';
+    const wrap=document.createElement("div"); wrap.className="list";
+    if(!list.length){
+      const e=document.createElement("div"); e.className="empty";
+      e.textContent = all? "조건에 맞는 지원자 없음" : "카드를 여기로 옮기세요";
+      wrap.appendChild(e);
+    }
+    list.forEach(p=>wrap.appendChild(cardEl(p,s)));
+    col.appendChild(wrap);
+    col.addEventListener("dragover",e=>{e.preventDefault();col.classList.add("over")});
+    col.addEventListener("dragleave",()=>col.classList.remove("over"));
+    col.addEventListener("drop",e=>{
+      e.preventDefault();col.classList.remove("over");
+      const id=+e.dataTransfer.getData("text/plain");
+      move(id,s.id);
+    });
+    board.appendChild(col);
+  });
+  $("#tot").textContent=DATA.length;
+  $("#navCount").textContent=DATA.length;
+}
+function cardEl(p,s){
+  const el=document.createElement("article");
+  el.className="card"+(p.id===selId?" sel":"");
+  el.draggable=true; el.style.setProperty("--c",s.c); el.tabIndex=0;
+  const ai=p.ai
+    ? '<span class="aiscore'+(p.ai.fresh?" new":"")+'">AI '+p.ai.sc+'</span>'
+    : (aiDone?'<span class="aiscore pending">미검토</span>':"");
+  el.innerHTML=
+    '<div class="top"><span class="nm">'+esc(p.n)+'</span>'+
+      '<svg class="clip" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5.5 6 10.5a2 2 0 0 0 2.8 2.8l5.2-5.2a3.6 3.6 0 0 0-5-5L3.4 8.4a5 5 0 0 0 7 7l3.4-3.4"/></svg></div>'+
+    '<div class="sub">'+esc(p.edu)+' · '+(p.exp?p.exp+"년":"신입")+'</div>'+
+    '<div class="tags">'+p.sk.slice(0,3).map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>'+
+    '<div class="foot"><span class="stars'+(p.r?"":" none")+'">'+stars(p.r)+'</span>'+ai+'</div>';
+  if(p.ai) p.ai.fresh=false;
+  el.addEventListener("dragstart",e=>{
+    e.dataTransfer.setData("text/plain",p.id);el.classList.add("dragging")});
+  el.addEventListener("dragend",()=>el.classList.remove("dragging"));
+  el.addEventListener("click",()=>openDetail(p.id));
+  el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDetail(p.id)}});
+  return el;
+}
+function move(id,st,quiet){
+  const p=DATA.find(x=>x.id===id); if(!p||p.st===st) return;
+  const from=STAGES[SI(p.st)].name, to=STAGES[SI(st)].name;
+  p.st=st;
+  p.cm.unshift({sys:true,w:"김채용",t:to+" 이동",b:from+" → "+to});
+  renderAll();
+  if(!quiet) toast(p.n+" · "+to+"으로 변경. 안내 메일을 보냈습니다.");
+}
+
+/* ── 상세 ── */
+function openDetail(id){
+  selId=id; const p=DATA.find(x=>x.id===id); if(!p) return;
+  const s=STAGES[SI(p.st)];
+  $("#dName").textContent=p.n;
+  const pill=$("#dPill"); pill.textContent=s.name; pill.style.background=s.c;
+  $("#dSum").textContent=p.d+" 지원 · "+(p.exp?p.exp+"년":"신입")+" · 백엔드(신입)";
+  const sel=$("#dStage"); sel.innerHTML=STAGES.map(x=>
+    '<option value="'+x.id+'"'+(x.id===p.st?" selected":"")+'>'+x.name+'</option>').join("");
+  const ai=p.ai?
+    '<div class="sec"><h4>AI 서류 검토</h4><div class="aibox">'+
+      '<div class="hd"><b>요건 매칭 점수</b><span class="sc">'+p.ai.sc+'</span></div>'+
+      '<ul>'+p.ai.rs.map(r=>"<li>"+esc(r)+"</li>").join("")+'</ul>'+
+      '<div class="warn">참고 자료입니다. 합격·불합격은 담당자가 확정합니다.</div>'+
+    '</div></div>' : "";
+  $("#dBody").innerHTML=
+    '<div class="sec"><h4>지원 정보</h4><dl class="kv">'+
+      '<dt>연락처</dt><dd class="mono">010-****-'+(1000+p.id*7)+'</dd>'+
+      '<dt>이메일</dt><dd class="mono">'+esc(p.n.slice(1))+'@example.com</dd>'+
+      '<dt>학력</dt><dd>'+esc(p.edu)+'</dd>'+
+      '<dt>경력</dt><dd>'+(p.exp?p.exp+"년 (백엔드)":"신입")+'</dd>'+
+      '<dt>기술</dt><dd>'+p.sk.join(" · ")+'</dd></dl></div>'+
+    '<div class="sec"><h4>첨부</h4><div class="file"><span class="ic">PDF</span>'+
+      '<div><b>'+esc(p.n)+'_이력서.pdf</b><span>1.2 MB · S3 저장</span></div>'+
+      '<button onclick="alert(\'presigned URL로 다운로드합니다.\\n서버를 거치지 않고 S3에서 직접 내려받습니다.\')">내려받기</button></div></div>'+
+    ai+
+    '<div class="sec"><h4>단계 이력</h4><div class="tl">'+timeline(p)+'</div></div>'+
+    '<div class="sec"><h4>평가 '+(p.r?'<span class="mono" style="text-transform:none;letter-spacing:0;color:var(--s2)">평균 '+p.r+'.0</span>':"")+'</h4>'+
+      p.cm.filter(c=>!c.sys).map(c=>
+        '<div class="rev"><div class="hd"><b>'+esc(c.w)+' · '+esc(c.t)+'</b>'+
+        '<span class="st">'+stars(c.s)+'</span></div><p>'+esc(c.b)+'</p></div>').join("")+
+      '<div class="rate" id="rate">'+[1,2,3,4,5].map(i=>'<button data-v="'+i+'">★</button>').join("")+'</div>'+
+      '<div class="addrev"><input id="cIn" placeholder="평가를 남기세요"><button class="btn" id="cAdd">등록</button></div>'+
+    '</div>';
+  let pick=0;
+  $$("#rate button").forEach(b=>b.onclick=()=>{
+    pick=+b.dataset.v; $$("#rate button").forEach(x=>x.classList.toggle("on",+x.dataset.v<=pick))});
+  $("#cAdd").onclick=()=>{
+    const v=$("#cIn").value.trim();
+    if(!v){toast("평가 내용을 적어주세요");return}
+    if(!pick){toast("점수를 선택해주세요");return}
+    p.cm.unshift({w:"김채용",t:"서류 검토",s:pick,b:v});
+    p.r=Math.round(p.cm.filter(c=>c.s).reduce((a,c)=>a+c.s,0)/p.cm.filter(c=>c.s).length);
+    openDetail(id); renderAll(); toast("평가를 등록했습니다.");
+  };
+  $("#detail").classList.add("open"); $("#detail").setAttribute("aria-hidden","false");
+  drawBoard();
+}
+function timeline(p){
+  const ev=[];
+  p.cm.filter(c=>c.sys).forEach(c=>ev.push({b:c.t,s:c.b+" · "+c.w,c:"var(--s2)"}));
+  if(p.ai) ev.push({b:"AI 서류 검토 완료",s:"점수 "+p.ai.sc+" · 자동",c:"var(--amber-l)",ai:1});
+  ev.push({b:"지원 접수",s:p.d+" · 지원자 제출",c:"var(--s0)"});
+  return ev.map(e=>'<div class="it"><span class="d'+(e.ai?" ai":"")+'" style="color:'+e.c+
+    ';background:'+(e.ai?"var(--amber-w)":e.c)+'"></span><div><b>'+esc(e.b)+
+    '</b><span>'+esc(e.s)+'</span></div></div>').join("");
+}
+$("#dClose").onclick=()=>{$("#detail").classList.remove("open");
+  $("#detail").setAttribute("aria-hidden","true");selId=null;drawBoard()};
+$("#dApply").onclick=()=>{
+  if(!selId) return;
+  const to=$("#dStage").value; const p=DATA.find(x=>x.id===selId);
+  if(p.st===to){toast("이미 "+STAGES[SI(to)].name+" 단계입니다.");return}
+  move(selId,to); openDetail(selId);
+};
+
+/* ── AI 서류 검토 (제안만, 확정은 사람) ── */
+$("#btnAI").onclick=()=>{
+  const targets=DATA.filter(p=>!p.ai&&p.st!=="reject");
+  if(!targets.length){toast("검토할 새 지원자가 없습니다.",1);return}
+  $("#btnAI").disabled=true;
+  toast("이력서 "+targets.length+"건을 읽는 중…",1);
+  let i=0;
+  const iv=setInterval(()=>{
+    const p=targets[i++];
+    if(!p){clearInterval(iv);aiDone=true;$("#btnAI").disabled=false;
+      drawBoard();
+      toast("검토 완료. 점수순으로 정렬했습니다. 합불은 담당자가 확정하세요.",1);
+      return}
+    p.ai=aiEval(p); p.ai.fresh=true;
+    drawBoard();
+  },170);
+};
+
+/* ── 에이전트 ── */
+const agent=$("#agent");
+function openAgent(v){agent.classList.toggle("open",v);if(v)setTimeout(()=>$("#aIn").focus(),120)}
+$("#btnAgent").onclick=()=>openAgent(!agent.classList.contains("open"));
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openAgent(true)}
+  if(e.key==="Escape"){openAgent(false);
+    $("#detail").classList.remove("open");$("#detail").setAttribute("aria-hidden","true")}
+});
+$$(".agent .presets button").forEach(b=>b.onclick=()=>{$("#aIn").value=b.dataset.c;runAgent()});
+$("#aGo").onclick=runAgent;
+$("#aIn").addEventListener("keydown",e=>{if(e.key==="Enter")runAgent()});
+
+function step(k,t){
+  const d=document.createElement("div");
+  d.className="step"; d.innerHTML='<span class="k">'+k+'</span><em>'+t+'</em>';
+  $("#aLog").appendChild(d); $("#aLog").scrollTop=99999; return d;
+}
+function runAgent(){
+  const cmd=$("#aIn").value.trim(); if(!cmd) return;
+  const log=$("#aLog"); log.innerHTML=""; log.classList.add("on");
+  step("입력",esc(cmd));
+  const sk=["Python","AWS","FastAPI","React","Docker","Kubernetes"].filter(s=>cmd.includes(s));
+  const m=cmd.match(/(\d+)\s*년/); const yr=m?+m[1]:null;
+  setTimeout(()=>{
+    if(cmd.includes("평균")){
+      const t=DATA.filter(p=>p.st==="itv"&&p.r);
+      const avg=t.length?(t.reduce((a,p)=>a+p.r,0)/t.length).toFixed(1):"—";
+      step("조회","stage=면접 · 평가 있는 지원자 "+t.length+"명");
+      setTimeout(()=>step("결과","평균 "+avg+"점 · "+t.map(p=>p.n+"("+p.r+")").join(", ")),420);
+      return;
+    }
+    if(cmd.includes("평가")&&(cmd.includes("없")||cmd.includes("미완"))){
+      const t=DATA.filter(p=>!p.r&&p.st!=="reject");
+      step("조회","평가 코멘트가 0건인 지원자 검색");
+      setTimeout(()=>{
+        step("결과",t.length+"명 · "+t.map(p=>p.n).join(", "));
+        filters={q:"",sk:new Set(),newOnly:false,only:null};
+        DATA.forEach(p=>{}); renderAll();
+        step("적용","목록을 해당 지원자로 좁혔습니다");
+        DATA_FILTER_IDS=t.map(p=>p.id); applyIdFilter(); },420);
+      return;
+    }
+    /* 복합 작업: 검색 → 필터 → 상태변경 → 문서생성 */
+    step("계획","검색 → 조건 필터 → 단계 변경 → 메일 초안 (4단계)");
+    setTimeout(()=>{
+      const t=DATA.filter(p=>p.st==="applied"
+        &&sk.every(s=>p.sk.includes(s))
+        &&(yr===null||p.exp>=yr));
+      step("① 검색","현재 공고 지원 접수 단계 "+DATA.filter(p=>p.st==="applied").length+"명");
+      setTimeout(()=>{
+        step("② 필터",(sk.join("+")||"조건 없음")+(yr?" · 경력 "+yr+"년 이상":"")+" → "+t.length+"명");
+        setTimeout(()=>{
+          if(!t.length){step("중단","조건에 맞는 지원자가 없습니다. 조건을 낮춰보세요.");return}
+          t.forEach(p=>move(p.id,"screen",true));
+          step("③ 단계 변경",t.map(p=>p.n).join(", ")+" → 서류 검토");
+          setTimeout(()=>{
+            const d=step("④ 메일 초안","");
+            d.querySelector("em").innerHTML=
+              '제목: [우리회사] 서류 전형 결과 안내<br>'+
+              '본문: 지원해 주셔서 감사합니다. 서류 전형에 합격하셨음을 알려드립니다. '+
+              '면접 일정은 별도 안내드릴 예정입니다.<br>'+
+              '<span style="color:var(--amber-l)">→ 담당자 확인 후 발송됩니다. 자동 발송하지 않습니다.</span>';
+            toast("에이전트가 "+t.length+"명을 서류 검토로 옮기고 메일 초안을 만들었습니다.",1);
+          },520);
+        },480);
+      },420);
+    },420);
+  },380);
+}
+let DATA_FILTER_IDS=null;
+function applyIdFilter(){drawBoard()}
+
+/* ── 필터 UI ── */
+$("#q").addEventListener("input",e=>{filters.q=e.target.value;renderAll()});
+$$(".chip[data-sk]").forEach(b=>b.onclick=()=>{
+  const s=b.dataset.sk;
+  filters.sk.has(s)?filters.sk.delete(s):filters.sk.add(s);
+  b.setAttribute("aria-pressed",filters.sk.has(s));renderAll()});
+$("#chipNew").onclick=()=>{
+  filters.newOnly=!filters.newOnly;
+  $("#chipNew").setAttribute("aria-pressed",filters.newOnly);renderAll()};
+
+/* ── 모바일 ── */
+function drawMobile(){
+  const tabs=$("#mTabs"); tabs.innerHTML="";
+  const mk=(lb,id)=>{
+    const b=document.createElement("button");
+    const n=id?DATA.filter(p=>p.st===id).length:DATA.length;
+    b.textContent=lb+" "+n; b.setAttribute("aria-pressed",filters.only===id);
+    b.onclick=()=>{filters.only=id;renderAll()};
+    tabs.appendChild(b);
+  };
+  mk("전체",null); STAGES.forEach(s=>mk(s.name,s.id));
+  const list=$("#mList"); list.innerHTML="";
+  const vis=visible();
+  if(!vis.length){
+    list.innerHTML='<div class="empty">이 단계에는 아직 지원자가 없습니다.</div>';return}
+  vis.forEach(p=>{
+    const s=STAGES[SI(p.st)];
+    const el=document.createElement("article");
+    el.className="m-card"; el.style.setProperty("--c",s.c); el.tabIndex=0;
+    el.innerHTML=
+      '<div class="r1"><span class="nm">'+esc(p.n)+'</span>'+
+        '<span class="pill" style="margin-left:auto;background:'+s.c+'">'+s.name+'</span></div>'+
+      '<div class="sub">'+esc(p.edu)+' · '+(p.exp?p.exp+"년":"신입")+'</div>'+
+      '<div class="tags">'+p.sk.slice(0,3).map(t=>"<span>"+esc(t)+"</span>").join("")+'</div>'+
+      '<div class="foot"><span class="stars'+(p.r?"":" none")+'">'+stars(p.r)+'</span>'+
+        (p.ai?'<span class="aiscore" style="margin-left:auto">AI '+p.ai.sc+'</span>'
+             :'<span class="mono" style="margin-left:auto;font-size:11px;color:var(--ink-3)">'+p.d+'</span>')+
+      '</div>';
+    el.onclick=()=>openM(p.id);
+    list.appendChild(el);
+  });
+}
+function openM(id){
+  mSelId=id; const p=DATA.find(x=>x.id===id); const s=STAGES[SI(p.st)];
+  $("#mName").textContent=p.n;
+  const pill=$("#mPill"); pill.textContent=s.name; pill.style.background=s.c;
+  $("#mSum").textContent=p.d+" 지원 · "+(p.exp?p.exp+"년":"신입");
+  $("#mBody").innerHTML=
+    '<div class="mcard"><h5>지원 정보</h5><dl class="kv">'+
+      '<dt>학력</dt><dd>'+esc(p.edu)+'</dd><dt>경력</dt><dd>'+(p.exp?p.exp+"년":"신입")+'</dd>'+
+      '<dt>기술</dt><dd>'+p.sk.join(" · ")+'</dd></dl></div>'+
+    '<div class="mcard"><h5>첨부</h5><div class="file"><span class="ic">PDF</span>'+
+      '<div><b>'+esc(p.n)+'_이력서.pdf</b><span>1.2 MB · S3</span></div></div></div>'+
+    (p.ai?'<div class="mcard" style="border-style:dashed;border-color:var(--amber-l);background:var(--amber-w)">'+
+      '<h5 style="color:var(--amber)">AI 서류 검토 · '+p.ai.sc+'점</h5>'+
+      '<ul style="list-style:none;display:flex;flex-direction:column;gap:5px">'+
+      p.ai.rs.map(r=>'<li style="font-size:12.5px;color:#6D5426">— '+esc(r)+'</li>').join("")+
+      '</ul><div style="margin-top:9px;font-size:11px;color:var(--amber)" class="mono">확정은 담당자가 합니다</div></div>':"")+
+    '<div class="mcard"><h5>단계 이력</h5><div class="tl">'+timeline(p)+'</div></div>'+
+    '<div class="mcard"><h5>평가</h5>'+
+      (p.cm.filter(c=>!c.sys).length?p.cm.filter(c=>!c.sys).map(c=>
+        '<div class="rev"><div class="hd"><b>'+esc(c.w)+'</b><span class="st">'+stars(c.s)+'</span></div>'+
+        '<p>'+esc(c.b)+'</p></div>').join(""):'<div class="empty">아직 평가가 없습니다.</div>')+
+    '</div>';
+  $("#mDetail").classList.add("open");
+}
+$("#mBack").onclick=()=>$("#mDetail").classList.remove("open");
+$("#mNext").onclick=()=>{
+  const p=DATA.find(x=>x.id===mSelId); const i=SI(p.st);
+  if(i>=3){toast("마지막 단계입니다.");return}
+  move(p.id,STAGES[i+1].id); openM(p.id);
+};
+$("#mPrev").onclick=()=>{
+  const p=DATA.find(x=>x.id===mSelId); const i=SI(p.st);
+  if(i<=0){toast("첫 단계입니다.");return}
+  move(p.id,STAGES[i-1].id); openM(p.id);
+};
+
+/* 지원 폼 */
+$("#agreeBtn").onclick=e=>{
+  const b=e.currentTarget; const on=b.classList.toggle("on");
+  b.setAttribute("aria-pressed",on)};
+$("#fSubmit").onclick=()=>{
+  if(!$("#agreeBtn").classList.contains("on")){
+    $("#upSt").textContent="개인정보 수집에 동의해야 보낼 수 있습니다";
+    $("#upSt").style.color="var(--red)";return}
+  let v=0; $("#fSubmit").disabled=true;
+  $("#upSt").style.color=""; 
+  const iv=setInterval(()=>{
+    v+=Math.random()*16+6; if(v>=100){v=100;clearInterval(iv);
+      $("#upSt").textContent="업로드 완료 · S3 저장됨";
+      $("#fDone").style.display="block"; $("#fSubmit").disabled=false;
+      $("#fSubmit").textContent="접수 완료";
+      return}
+    $("#upSt").textContent="S3로 직접 업로드 중 "+Math.floor(v)+"%";
+    $("#upBar").style.width=v+"%";
+  },160);
+};
+
+/* ── 전환 ── */
+$("#tPC").onclick=()=>swap(true);
+$("#tMO").onclick=()=>swap(false);
+function swap(pc){
+  $("#tPC").setAttribute("aria-pressed",pc); $("#tMO").setAttribute("aria-pressed",!pc);
+  $("#appPC").classList.toggle("hidden",!pc); $("#appMO").classList.toggle("hidden",pc);
+  $("#stage").classList.toggle("mobile",!pc);
+}
+function renderAll(){drawRail();drawBoard();drawMobile()}
+renderAll();
+</script>
+</body>
+</html>
