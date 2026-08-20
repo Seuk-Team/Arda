@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arda 토큰 시트 — 조각 0 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ============ 토큰 후보 v2 — 새싹 연두 + 흰색 ============ */
+:root{
+  /* 중립 — 흰색이 주인공이 되도록 바탕을 한 톤 누름 */
+  --bg:#F4F7F0;          /* 녹기 한 방울 섞인 흰색: 순백 패널의 받침 */
+  --bg-elev:#FFFFFF;     /* 주 컬러 흰색: 카드·패널의 얼굴 */
+  --bg-sunken:#EBF0E5;   /* 인풋·트랙: 패널보다 한 단계 아래 */
+  --text:#1B2117;        /* 잎 그림자 톤의 잉크: 순검정 대신 팔레트와 같은 계열 */
+  --text-sub:#5C6654;    /* 보조 텍스트: 위계용 최소 1단계 */
+  --border:#DCE3D4;      /* 라인: 녹기 있는 옅은 회녹 */
+  --border-soft:#EAEFE4;
+
+  /* 연두 — 정확히 2단계 (밝은 연두는 흰 바탕 위 글자 대비 미달이라 역할 분리) */
+  --sprout:#8CC63F;      /* 새싹 연두: 면·채움·레일·하이라이트용 */
+  --sprout-soft:#EFF7E2; /* 연두 워시: 합격 뱃지 배경·hover 배경 */
+  --leaf:#3A6B21;        /* 짙은 잎초록: 버튼·링크·강조 글자용 (AA 대비 확보) */
+  --leaf-strong:#2C5218; /* leaf의 hover/press */
+
+  /* 판단·의미색 — 색은 판단에만 */
+  --neutral:#8A9284;     /* 진행 중(접수·서류·면접) 공용 무채: 판단 전엔 색 없음 */
+  --danger:#A9503C;      /* 불합격·실패: 종료 신호, 연두의 보색 계열이라 오독 없음 */
+  --danger-soft:#F7ECE8;
+  --ai:#A9702A;          /* AI 제안: 앰버 점선 규약 (제안=주의 색) */
+  --ai-soft:#FBF2E5;
+
+  /* 타이포 — IBM Plex Sans KR (확정) + IBM Plex Mono (세트 제안) */
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --font-display:22px; --font-h1:18px; --font-h2:16px;
+  --font-body:15px; --font-sm:13px; --font-caption:12px; --font-num:13px;
+
+  /* 간격 4px 배수 / 테두리 / radius / 그림자 */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
+  --border-w:1px;
+  --r-card:8px; --r-ctl:6px; --r-pill:999px;
+  --sh-card:0 1px 2px rgba(27,33,23,.06),0 1px 1px rgba(27,33,23,.04);
+  --sh-overlay:0 8px 28px rgba(27,33,23,.14),0 2px 6px rgba(27,33,23,.06);
+
+  /* 텍스트 그림자 — 글자에 딱 붙는 1px 하드 오프셋 (떨어져 뜨는 그림자 금지) */
+  --ts-heading:0 1px 0 rgba(27,33,23,.34);  /* 밝은 배경 위 어두운 글자 */
+  --ts-onfill:0 1px 0 rgba(0,0,0,.62);      /* 채움 배경 위 밝은 글자 */
+  /* 대형 타이틀 전용 스트로크: 8방향 1px 외곽 + 붙은 2px 밑단 (외곽과 이어져 일체) */
+  --stroke-display:-1px -1px 0 rgba(20,26,16,.9), 1px -1px 0 rgba(20,26,16,.9),
+                   -1px 1px 0 rgba(20,26,16,.9), 1px 1px 0 rgba(20,26,16,.9),
+                   -1px 0 0 rgba(20,26,16,.9), 1px 0 0 rgba(20,26,16,.9),
+                   0 -1px 0 rgba(20,26,16,.9), 0 2px 0 rgba(20,26,16,.9);
+
+  /* 모션 / 레이어 */
+  --dur-fast:120ms; --dur-base:200ms; --dur-slow:320ms; --ease:cubic-bezier(.2,0,0,1);
+  --z-base:0; --z-sticky:10; --z-dropdown:20; --z-modal:30; --z-toast:40; --z-drag:50;
+}
+@media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; animation:none !important; } }
+
+*{ box-sizing:border-box; margin:0; }
+body{ background:var(--bg); color:var(--text); font-family:var(--sans); font-size:var(--font-body);
+      line-height:1.6; word-break:keep-all; padding:var(--sp-6) var(--sp-5); max-width:960px; margin:0 auto; }
+h1{ font-size:var(--font-display); font-weight:700; letter-spacing:-.01em; text-shadow:var(--ts-heading); }
+h2{ font-size:var(--font-h1); font-weight:700; margin:var(--sp-7) 0 var(--sp-3); padding-bottom:var(--sp-2);
+    border-bottom:var(--border-w) solid var(--border); text-wrap:balance; text-shadow:var(--ts-heading); }
+.ts-h{ text-shadow:var(--ts-heading); }
+.display-stroked{ font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
+                  color:#fff; text-shadow:var(--stroke-display); white-space:nowrap; }
+.sub{ color:var(--text-sub); font-size:var(--font-sm); margin-top:var(--sp-1); }
+.num{ font-family:var(--mono); font-size:var(--font-num); font-variant-numeric:tabular-nums; }
+.why{ font-size:var(--font-caption); color:var(--text-sub); }
+
+.grid{ display:grid; gap:var(--sp-2); grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); }
+.swatch{ background:var(--bg-elev); border:var(--border-w) solid var(--border); border-radius:var(--r-card); overflow:hidden; box-shadow:var(--sh-card); }
+.swatch .chip{ height:48px; }
+.swatch .meta{ padding:var(--sp-2) var(--sp-3); }
+.swatch .name{ font-size:var(--font-sm); font-weight:600; white-space:nowrap; }
+.swatch .hex{ font-family:var(--mono); font-size:var(--font-caption); color:var(--text-sub); }
+
+.typerow{ display:flex; align-items:baseline; gap:var(--sp-4); padding:var(--sp-3) 0; border-bottom:var(--border-w) solid var(--border-soft); }
+.typerow .tag{ width:110px; flex:none; font-family:var(--mono); font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
+
+.panel{ background:var(--bg-elev); border:var(--border-w) solid var(--border); border-radius:var(--r-card); box-shadow:var(--sh-card); padding:var(--sp-4); }
+.row{ display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:center; }
+
+.btn{ font:inherit; font-size:var(--font-sm); font-weight:600; white-space:nowrap; padding:0 var(--sp-4); height:36px;
+      border-radius:var(--r-ctl); border:var(--border-w) solid transparent; cursor:pointer;
+      text-shadow:var(--ts-onfill);
+      transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn:active{ transform:translateY(1px); }
+.btn-primary{ background:var(--leaf); color:#fff; }
+.btn-primary:hover{ background:var(--leaf-strong); }
+.btn-secondary{ background:var(--bg-elev); color:var(--text); border-color:var(--border); text-shadow:var(--ts-heading); }
+.btn-secondary:hover{ background:var(--bg-sunken); }
+.btn-danger{ background:var(--danger); color:#fff; }
+.btn-danger:hover{ filter:brightness(.9); }
+.btn:disabled{ background:var(--bg-sunken); color:var(--text-sub); border-color:var(--border-soft); cursor:not-allowed; transform:none; text-shadow:none; }
+
+.badge{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border-radius:var(--r-pill);
+        font-size:var(--font-caption); font-weight:600; white-space:nowrap; }
+.badge-progress{ background:var(--bg-sunken); color:var(--text-sub); border:var(--border-w) solid var(--border); }
+.badge-progress .dot{ width:6px; height:6px; border-radius:50%; background:var(--neutral); }
+.badge-accepted{ background:var(--sprout-soft); color:var(--leaf); border:var(--border-w) solid var(--sprout); }
+.badge-accepted .dot{ width:6px; height:6px; border-radius:50%; background:var(--sprout); }
+.badge-rejected{ background:var(--danger-soft); color:var(--danger); border:var(--border-w) solid var(--danger); }
+.badge-rejected .dot{ width:6px; height:6px; border-radius:50%; background:var(--danger); }
+
+.ai-box{ border:1.5px dashed var(--ai); background:var(--ai-soft); border-radius:var(--r-card); padding:var(--sp-3) var(--sp-4); }
+.human-box{ border:1.5px solid var(--leaf); background:var(--sprout-soft); border-radius:var(--r-card); padding:var(--sp-3) var(--sp-4); }
+
+.card{ width:250px; background:var(--bg-elev); border:var(--border-w) solid var(--border); border-radius:var(--r-card);
+       box-shadow:var(--sh-card); padding:var(--sp-3) var(--sp-4);
+       transition:box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); cursor:grab; }
+.card:hover{ box-shadow:var(--sh-overlay); transform:translateY(-1px); }
+.card.is-accepted{ border-left:3px solid var(--sprout); }
+.card.is-rejected{ border-left:3px solid var(--danger); opacity:.85; }
+.card .name{ font-size:var(--font-h2); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .meta{ color:var(--text-sub); font-size:var(--font-sm); margin-top:2px; }
+.tags{ display:flex; gap:var(--sp-1); margin-top:var(--sp-2); flex-wrap:nowrap; overflow:hidden; }
+.tag-chip{ font-size:var(--font-caption); background:var(--bg-sunken); color:var(--text-sub); border-radius:var(--r-ctl); padding:2px 8px; white-space:nowrap; }
+.tag-more{ font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; align-self:center; }
+.stars{ color:var(--ai); font-size:var(--font-caption); letter-spacing:2px; margin-top:var(--sp-2); }
+
+.rail{ display:flex; height:10px; border-radius:var(--r-pill); overflow:hidden; gap:2px; }
+.rail-labels{ display:flex; justify-content:space-between; margin-top:var(--sp-2); font-size:var(--font-caption); color:var(--text-sub); }
+.rail-labels span{ white-space:nowrap; }
+
+.toast{ display:inline-flex; align-items:center; gap:var(--sp-3); background:var(--text); color:#fff; border-radius:var(--r-ctl);
+        padding:var(--sp-3) var(--sp-4); box-shadow:var(--sh-overlay); font-size:var(--font-sm); white-space:nowrap;
+        text-shadow:var(--ts-onfill); }
+.toast.ok::before{ content:""; width:8px; height:8px; border-radius:50%; background:var(--sprout); }
+.toast.err::before{ content:""; width:8px; height:8px; border-radius:50%; background:var(--danger); }
+</style>
+</head>
+<body>
+
+<h1>Arda 토큰 — 조각 0 <span class="num">v5</span></h1>
+<p class="sub">새싹 연두 + 흰색 · 색은 판단에만 · IBM Plex Sans KR · 그림자는 글자에 딱 붙는 1px 하드 오프셋, 대형 타이틀만 스트로크. 색마다 선택 이유를 붙였다.</p>
+
+<h2>1. 팔레트 (색 = 8개, 각자 이유 있음)</h2>
+<div class="grid">
+  <div class="swatch"><div class="chip" style="background:var(--bg)"></div><div class="meta"><div class="name">--bg</div><div class="hex">#F4F7F0</div><div class="why">순백 패널이 떠 보이게 하는 받침</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--bg-elev);border-bottom:1px solid var(--border-soft)"></div><div class="meta"><div class="name">--bg-elev</div><div class="hex">#FFFFFF</div><div class="why">주 컬러 흰색 — 카드·패널의 얼굴</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--text)"></div><div class="meta"><div class="name">--text</div><div class="hex">#1B2117</div><div class="why">순검정 대신 잎 그림자 톤 잉크</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--sprout)"></div><div class="meta"><div class="name">--sprout</div><div class="hex">#8CC63F</div><div class="why">새싹 연두 — 면·레일·합격 전용</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--leaf)"></div><div class="meta"><div class="name">--leaf</div><div class="hex">#3A6B21</div><div class="why">연두는 글자 대비 미달 → 글자·버튼용 짙은 잎</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--neutral)"></div><div class="meta"><div class="name">--neutral</div><div class="hex">#8A9284</div><div class="why">판단 전(접수·서류·면접) 공용 — 색 없음이 의미</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--danger)"></div><div class="meta"><div class="name">--danger</div><div class="hex">#A9503C</div><div class="why">불합격·실패 — 연두의 보색 계열, 종료 신호</div></div></div>
+  <div class="swatch"><div class="chip" style="background:var(--ai)"></div><div class="meta"><div class="name">--ai</div><div class="hex">#A9702A</div><div class="why">AI 제안 — 앰버 점선 규약(제안=주의)</div></div></div>
+</div>
+
+<h2>2. 타이포 — IBM Plex Sans KR + IBM Plex Mono(세트 제안)</h2>
+<div class="typerow"><span class="tag">display 22</span><span class="ts-h" style="font-size:var(--font-display);font-weight:700;letter-spacing:-.01em">백엔드 개발자 (신입) — Backend Engineer</span></div>
+<div class="typerow"><span class="tag">h1 18</span><span class="ts-h" style="font-size:var(--font-h1);font-weight:700">지원자 상세 · Applicant Detail</span></div>
+<div class="typerow"><span class="tag">h2 16</span><span class="ts-h" style="font-size:var(--font-h2);font-weight:700">평가 코멘트 · 김도현</span></div>
+<div class="typerow"><span class="tag">body 15</span><span>동시성 질문에 답이 명확했고, 실무 투입이 가능한 수준입니다. Handles concurrency clearly.</span></div>
+<div class="typerow"><span class="tag">sm 13</span><span style="font-size:var(--font-sm);color:var(--text-sub)">컴공 졸업 · 신입 · Python / FastAPI</span></div>
+<div class="typerow"><span class="tag">caption 12</span><span style="font-size:var(--font-caption);color:var(--text-sub)">09.02 시스템 · 지원 접수</span></div>
+<div class="typerow"><span class="tag">num mono 13</span><span class="num">총 48명 · D-12 · 2026.09.02 · 평균 4.5 / 5</span></div>
+<div class="typerow" style="border-bottom:none"><span class="tag">display+스트로크</span>
+  <span style="background:var(--sprout);border-radius:var(--r-card);padding:var(--sp-2) var(--sp-4);display:inline-block">
+    <span class="display-stroked">백엔드 개발자 (신입)</span>
+  </span>
+</div>
+<p class="why" style="margin-top:var(--sp-1)">스트로크는 대형 타이틀 전용 — 흰 글자 + 8방향 1px 검정 외곽 + 이어지는 2px 밑단. 색 채움 배경(히어로·배너) 위에서만 쓴다.</p>
+
+<h2>3. 단계 표현 — 색은 판단에만</h2>
+<p class="sub" style="margin-bottom:var(--sp-3)">진행 중(접수·서류·면접)은 무채색 + 라벨. 합격만 연두, 불합격만 적갈. 판단이 내려지기 전의 카드에는 색을 주지 않는다.</p>
+<div class="panel">
+  <div class="row" style="margin-bottom:var(--sp-4)">
+    <span class="badge badge-progress"><span class="dot"></span>지원 접수</span>
+    <span class="badge badge-progress"><span class="dot"></span>서류 검토</span>
+    <span class="badge badge-progress"><span class="dot"></span>면접</span>
+    <span class="badge badge-accepted"><span class="dot"></span>최종 합격</span>
+    <span class="badge badge-rejected"><span class="dot"></span>불합격</span>
+  </div>
+  <div class="row">
+    <div class="card">
+      <div class="name">김도현</div>
+      <div class="meta">경력 2년 · OO대 컴퓨터공학</div>
+      <div class="tags"><span class="tag-chip">Python</span><span class="tag-chip">FastAPI</span><span class="tag-chip">K8s</span><span class="tag-more">+2</span></div>
+      <div class="stars">★★★★★ <span class="num" style="color:var(--text-sub)">4.5</span></div>
+    </div>
+    <div class="card is-accepted">
+      <div class="name">윤하늘</div>
+      <div class="meta">경력 1년 · FastAPI</div>
+      <div class="tags"><span class="tag-chip">FastAPI</span></div>
+      <div class="stars">★★★★★ <span class="num" style="color:var(--text-sub)">5.0</span></div>
+    </div>
+    <div class="card is-rejected">
+      <div class="name">아주아주아주아주 긴 이름의 지원자</div>
+      <div class="meta">신입 · PHP</div>
+      <div class="tags"><span class="tag-chip">PHP</span><span class="tag-more">+6</span></div>
+      <div class="stars" style="color:var(--text-sub)">평가 전</div>
+    </div>
+  </div>
+</div>
+
+<h2>4. 컨트롤</h2>
+<div class="panel">
+  <div class="row">
+    <button class="btn btn-primary">합격 처리 + 메일</button>
+    <button class="btn btn-secondary">단계 변경</button>
+    <button class="btn btn-danger">불합격 처리</button>
+    <button class="btn btn-primary" disabled>합격 처리 + 메일</button>
+  </div>
+</div>
+
+<h2>5. AI 규약 (불변) — 앰버 점선 = 제안 / 잎초록 실선 = 사람 확정</h2>
+<div class="row">
+  <div class="ai-box" style="flex:1;min-width:240px">
+    <strong style="color:var(--ai);font-size:var(--font-sm)">AI 제안</strong>
+    <div style="font-size:var(--font-sm);margin-top:var(--sp-1)">서류 적합도 <span class="num">82</span> · 확정은 담당자가 합니다</div>
+  </div>
+  <div class="human-box" style="flex:1;min-width:240px">
+    <strong style="color:var(--leaf);font-size:var(--font-sm)">사람 확정</strong>
+    <div style="font-size:var(--font-sm);margin-top:var(--sp-1)">서류 합격 · <span class="num">09.05</span> 김채용</div>
+  </div>
+</div>
+
+<h2>6. 퍼널 레일 (시그니처) — 자라나는 새싹</h2>
+<p class="sub" style="margin-bottom:var(--sp-3)">진행 구간은 무채 농도, 끝에서 합격만 연두로 "피어난다". 폭 = 인원 비율.</p>
+<div class="panel">
+  <div class="rail">
+    <div style="flex:18;background:#C9CFC3"></div>
+    <div style="flex:12;background:#AEB6A8"></div>
+    <div style="flex:9;background:var(--neutral)"></div>
+    <div style="flex:3;background:var(--sprout)"></div>
+    <div style="flex:6;background:var(--danger)"></div>
+  </div>
+  <div class="rail-labels">
+    <span>접수 <span class="num">18</span></span><span>서류 <span class="num">12</span></span>
+    <span>면접 <span class="num">9</span></span><span>합격 <span class="num">3</span></span>
+    <span>불합격 <span class="num">6</span></span>
+  </div>
+</div>
+
+<h2>7. 피드백 (토스트)</h2>
+<div class="row">
+  <span class="toast ok">면접 단계로 이동 · 안내 메일 발송됨</span>
+  <span class="toast err">이동 실패 · 원래 단계로 되돌렸습니다</span>
+</div>
+
+<p class="sub" style="margin:var(--sp-7) 0 var(--sp-4)">모션 fast 120 / base 200 / slow 320ms · ease(.2,0,0,1) · reduced-motion 대응. 간격 4px 배수, radius 8/6, 테두리 1px — v1과 동일 유지.</p>
+
+</body>
+</html>
