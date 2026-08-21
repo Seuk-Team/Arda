@@ -14,17 +14,20 @@
   --sidebar-line:#A8CD6E;  /* 사이드바 오른쪽 경계선: 배경보다 한 단계 진한 연두 1px */
   --border-w:1px;
   --sidebar-w:216px;
+  --content-x:48px;
   --text:#1B2117;
   --text-sub:#5C6654;
   --leaf:#3A6B21;
+  --danger:#A9503C;
   --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
   --font-num:14px;
   --font-display:26px; --font-h1:22px; --font-body:16px; --font-sm:14px;
   --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
-  --r-ctl:6px;
+  --r-ctl:6px; --r-card:8px;
   --bg-elev:#FFFFFF;
   --ts-heading:0 1px 0 rgba(27,33,23,.34);
-  --dur-fast:120ms; --ease:cubic-bezier(.2,0,0,1);
+  --ts-onfill:0 1px 0 rgba(0,0,0,.62);
+  --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
 }
 @media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
 *{ box-sizing:border-box; margin:0; }
@@ -56,7 +59,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .head{ flex:none; min-height:96px; background:var(--bg-elev);
        border-bottom:var(--border-w) solid #DCE3D4;
-       padding:var(--sp-4) var(--sp-5); }
+       padding:var(--sp-4) var(--content-x); }
 .head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
               color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
               overflow:hidden; text-overflow:ellipsis; }
@@ -77,14 +80,134 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .badge-open{ background:#EFF7E2; color:var(--leaf); border:var(--border-w) solid #8CC63F; }
 .head-meta{ font-family:var(--sans); font-size:var(--font-num); font-variant-numeric:tabular-nums;
             color:var(--text-sub); white-space:nowrap; flex:none; }
-.funnel{ display:grid; column-gap:2px; margin:0 var(--sp-8);
+.btn{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+      height:40px; padding:0 var(--sp-4); border-radius:var(--r-ctl); border:var(--border-w) solid transparent;
+      cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.btn:active{ transform:translateY(1px); }
+.btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn-primary{ background:var(--leaf); color:#fff; text-shadow:var(--ts-onfill); }
+.btn-primary:hover{ background:#2C5218; }
+.head-top .btn{ margin-left:auto; align-self:center; }
+
+.toolbar{ flex:none; min-height:64px; background:var(--bg-elev);
+          border-bottom:var(--border-w) solid #DCE3D4;
+          display:flex; align-items:center; gap:var(--sp-3); padding:0 var(--content-x); }
+.search{ display:flex; align-items:center; gap:var(--sp-2); flex:0 1 480px; min-width:260px;
+         height:40px; padding:0 var(--sp-3); border-radius:var(--r-ctl);
+         background:#EBF0E5; border:var(--border-w) solid transparent;
+         transition:background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.search:focus-within{ background:var(--bg-elev); border-color:var(--leaf); }
+.dd{ position:relative; flex:none; height:100%; display:flex; align-items:center; }
+.dd-btn{ display:flex; align-items:center; gap:6px; border:none; background:none; cursor:pointer;
+         font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text-sub);
+         padding:0 var(--sp-1); height:100%; }
+.dd-btn span{ width:calc(var(--font-sm) * 3); text-align:left; white-space:nowrap; }
+.dd-btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.dd-btn svg{ width:12px; height:12px; stroke:var(--text-sub); fill:none; stroke-width:2;
+             stroke-linecap:round; stroke-linejoin:round;
+             transition:transform var(--dur-base, 200ms) var(--ease); }
+.dd.open .dd-btn svg{ transform:rotate(180deg); }
+.dd-menu{ position:absolute; top:calc(100% + 6px); left:calc(-1 * var(--sp-3)); min-width:132px;
+          margin:0; padding:var(--sp-1); list-style:none; z-index:20;
+          background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+          box-shadow:0 8px 28px rgba(27,33,23,.14), 0 2px 6px rgba(27,33,23,.06);
+          opacity:0; transform:translateY(-6px); pointer-events:none;
+          transition:opacity var(--dur-base, 200ms) var(--ease), transform var(--dur-base, 200ms) var(--ease); }
+.dd.open .dd-menu{ opacity:1; transform:none; pointer-events:auto; }
+.dd-menu li{ padding:10px var(--sp-3); border-radius:4px; cursor:pointer; white-space:nowrap;
+             font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
+             transition:background var(--dur-fast) var(--ease); }
+.dd-menu li:hover{ background:#EFF7E2; }
+.dd-menu li.sel{ color:var(--leaf); font-weight:700; }
+.search .sep{ width:1px; height:20px; background:#DCE3D4; flex:none; }
+.search input{ border:none; background:none; outline:none; width:100%;
+               font-family:var(--sans); font-size:var(--font-sm); color:var(--text); }
+.search input::placeholder{ color:var(--text-sub); }
+.search .sx{ flex:none; width:22px; height:22px; border-radius:50%; cursor:pointer;
+             background:none; border:var(--border-w) solid var(--text-sub);
+             display:none; align-items:center; justify-content:center; padding:0;
+             transition:background var(--dur-fast) var(--ease); }
+.search .sx.on{ display:flex; }
+.search .sx:hover{ background:#EBF0E5; }
+.search .sx svg{ width:12px; height:12px; stroke:var(--text-sub); fill:none; stroke-width:2; stroke-linecap:round; }
+.search .sx:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+
+.vtoggle{ margin-left:auto; flex:none; display:flex; height:40px;
+          border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl); overflow:hidden; }
+.vtoggle button{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+                 border:none; background:var(--bg-elev); color:var(--text-sub); cursor:pointer;
+                 padding:0 var(--sp-4); transition:background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.vtoggle button:hover{ background:#EBF0E5; }
+.vtoggle button:focus-visible{ outline:2px solid var(--leaf); outline-offset:-2px; }
+.vtoggle button.on{ background:#EFF7E2; color:var(--leaf); text-shadow:var(--ts-heading); }
+.vtoggle button + button{ border-left:var(--border-w) solid #DCE3D4; }
+
+.content{ flex:1; min-height:0; overflow-y:auto; padding:var(--sp-5) var(--content-x); }
+.tpanel{ background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-card);
+         box-shadow:0 1px 2px rgba(27,33,23,.06), 0 1px 1px rgba(27,33,23,.04);
+         min-height:320px; overflow:hidden; }
+.trow{ display:grid; align-items:center; gap:var(--sp-3);
+       grid-template-columns:48px 104px 100px 80px minmax(180px,1fr) 72px 112px;
+       padding:0 var(--sp-6); }
+.thead{ height:48px; border-bottom:var(--border-w) solid #DCE3D4;
+        font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text-sub); }
+.thead span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.trow input[type=checkbox]{ width:18px; height:18px; accent-color:var(--leaf); cursor:pointer; margin:0 auto; }
+.t-num{ text-align:center; font-variant-numeric:tabular-nums; }
+.trow-item{ height:56px; border-bottom:var(--border-w) solid #EAEFE4; cursor:pointer;
+            font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
+            transition:background var(--dur-fast) var(--ease); }
+.trow-item:hover{ background:#F6F9F2; }
+.trow-item:focus-visible{ outline:2px solid var(--leaf); outline-offset:-2px; }
+.trow-item .name{ font-size:var(--font-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.trow-item .skills{ color:var(--text-sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tfoot{ display:flex; align-items:center; justify-content:space-between;
+        height:56px; padding:0 var(--sp-6); border-top:var(--border-w) solid #DCE3D4;
+        font-family:var(--sans); font-size:var(--font-sm); color:var(--text-sub);
+        font-variant-numeric:tabular-nums; }
+.tfoot .pager{ display:flex; gap:var(--sp-2); }
+.btn-page{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+           height:32px; padding:0 var(--sp-3); border-radius:var(--r-ctl);
+           background:var(--bg-elev); color:var(--text); border:var(--border-w) solid #DCE3D4;
+           cursor:pointer; transition:background var(--dur-fast) var(--ease); }
+.btn-page:hover{ background:#EBF0E5; }
+.btn-page:disabled{ color:var(--text-sub); background:#EBF0E5; cursor:not-allowed; }
+.btn-page:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn-page.num{ min-width:32px; padding:0; text-align:center; }
+.btn-page.cur{ background:var(--leaf); border-color:var(--leaf); color:#fff;
+               text-shadow:var(--ts-onfill); cursor:default; }
+.pager .gap{ align-self:center; color:var(--text-sub); padding:0 2px; }
+.stage{ white-space:nowrap; }
+
+.dpanel{ flex:none; width:0; overflow:hidden; position:relative;
+         background:var(--bg-elev); border-left:0 solid #DCE3D4;
+         transition:width var(--dur-base) var(--ease); }
+.dpanel.open{ width:420px; border-left-width:var(--border-w); }
+.dpanel .dinner{ width:420px; height:100%; position:relative; }
+@media (max-width:1100px){
+  .dpanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
+           border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
+           transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
+  .dpanel.open{ transform:none; }
+}
+.dpanel .dclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); width:36px; height:36px;
+                 display:flex; align-items:center; justify-content:center; cursor:pointer;
+                 background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+                 transition:background var(--dur-fast) var(--ease); }
+.dpanel .dclose:hover{ background:#EBF0E5; }
+.dpanel .dclose:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.dpanel .dclose svg{ width:18px; height:18px; stroke:var(--text); fill:none; stroke-width:2; stroke-linecap:round; }
+.stage-progress{ color:var(--text-sub); }
+.stage-accepted{ color:var(--leaf); font-weight:700; }
+.stage-rejected{ color:var(--danger, #A9503C); font-weight:700; }
+.funnel{ display:grid; column-gap:2px; margin:0;
          grid-template-columns:908fr 271fr 55fr 3fr 11fr; }
 .funnel .seg{ height:14px; border:none; padding:0; cursor:pointer;
               transition:opacity var(--dur-fast) var(--ease); }
 .funnel .seg:hover{ opacity:.75; }
 .funnel .seg:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
-.flabels{ position:relative; margin:var(--sp-3) var(--sp-8) 0; height:64px; }
-.flabels-top{ margin:var(--sp-5) var(--sp-8) var(--sp-3); }
+.flabels{ position:relative; margin:var(--sp-3) 0 0; height:64px; }
+.flabels-top{ margin:var(--sp-5) 0 var(--sp-3); }
 .fstack{ position:absolute; top:0; display:flex; flex-direction:column; align-items:center; gap:2px;
          font-family:var(--sans); font-size:var(--font-sm); color:var(--text-sub); white-space:nowrap; }
 .flabels-top .fstack{ top:auto; bottom:0; }
@@ -125,6 +248,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       <h1 class="title">백엔드 개발자 (신입)</h1>
       <span class="badge badge-open">진행중</span>
       <span class="head-meta">마감 D-12 · 총 1,248명</span>
+      <button class="btn btn-primary">+ 지원자 직접 등록</button>
     </div>
     <div class="flabels flabels-top"></div>
     <div class="funnel" aria-label="단계별 인원 비율 (클릭 시 해당 단계 필터)">
@@ -136,7 +260,117 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     </div>
     <div class="flabels"></div>
   </header>
+  <div class="toolbar">
+    <div class="search">
+      <div class="dd" id="dd">
+        <button class="dd-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="ddv">전체</span>
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <ul class="dd-menu" role="listbox">
+          <li role="option" class="sel">전체</li>
+          <li role="option">이름</li>
+          <li role="option">이메일</li>
+          <li role="option">스펙</li>
+        </ul>
+      </div>
+      <span class="sep"></span>
+      <input type="text" id="q" placeholder="검색어 입력">
+      <button class="sx" id="qx" aria-label="검색어 지우기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="vtoggle" role="group" aria-label="보기 방식">
+      <button class="on">목록</button>
+      <button>칸반</button>
+    </div>
+  </div>
+  <main class="content">
+    <div class="tpanel">
+      <div class="trow thead">
+        <input type="checkbox" aria-label="전체 선택">
+        <span>이름</span>
+        <span>단계</span>
+        <span class="t-num">경력</span>
+        <span>스펙</span>
+        <span class="t-num">평점</span>
+        <span class="t-num">지원일</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <input type="checkbox" aria-label="김도현 선택">
+        <span class="name">김도현</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">2년</span>
+        <span class="skills">OO대 컴퓨터공학 · Python · FastAPI · PostgreSQL</span>
+        <span class="t-num">4.5</span>
+        <span class="t-num">2026-03-12</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <input type="checkbox" aria-label="박지훈 선택">
+        <span class="name">박지훈</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">신입</span>
+        <span class="skills">컴퓨터공학 졸업 · Python · FastAPI</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026-03-11</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <input type="checkbox" aria-label="정우진 선택">
+        <span class="name">정우진</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">1년</span>
+        <span class="skills">OO대 소프트웨어학과 · Python · AWS · Docker</span>
+        <span class="t-num">4.0</span>
+        <span class="t-num">2026-03-11</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <input type="checkbox" aria-label="윤하늘 선택">
+        <span class="name">윤하늘</span>
+        <span class="stage stage-accepted">최종 합격</span>
+        <span class="t-num">1년</span>
+        <span class="skills">부트캠프 수료 · FastAPI · PostgreSQL</span>
+        <span class="t-num">5.0</span>
+        <span class="t-num">2026-03-10</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <input type="checkbox" aria-label="강민수 선택">
+        <span class="name">강민수</span>
+        <span class="stage stage-rejected">불합격</span>
+        <span class="t-num">신입</span>
+        <span class="skills">전자공학 졸업 · PHP</span>
+        <span class="t-num">2.0</span>
+        <span class="t-num">2026-03-09</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <input type="checkbox" aria-label="크리스토퍼 알렉산더 선택">
+        <span class="name">크리스토퍼 알렉산더 반 데 베르그</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">12년</span>
+        <span class="skills">석사 졸업 · Python · FastAPI · PostgreSQL · Docker · AWS · Kubernetes · Terraform · Kafka · Redis</span>
+        <span class="t-num">4.8</span>
+        <span class="t-num">2026-03-08</span>
+      </div>
+      <div class="tfoot">
+        <span>1,248명 중 1–20</span>
+        <span class="pager">
+          <button class="btn-page" disabled>이전</button>
+          <button class="btn-page num cur">1</button>
+          <button class="btn-page num">2</button>
+          <button class="btn-page num">3</button>
+          <button class="btn-page num">4</button>
+          <button class="btn-page num">5</button>
+          <span class="gap">…</span>
+          <button class="btn-page num">63</button>
+          <button class="btn-page">다음</button>
+        </span>
+      </div>
+    </div>
+  </main>
 </div>
+
+<aside class="dpanel" id="dpanel" aria-label="지원자 상세">
+  <div class="dinner">
+    <button class="dclose" id="dclose" aria-label="상세 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+</aside>
 
 <script>
 var FUNNEL_DATA=[
@@ -188,8 +422,46 @@ function layoutFunnel(){
     it.el.style.left=it.left+'px';
   });
 }
+var dd=document.getElementById('dd');
+if(dd){
+  var ddBtn=dd.querySelector('.dd-btn'), ddVal=document.getElementById('ddv');
+  ddBtn.addEventListener('click',function(e){
+    e.stopPropagation();
+    dd.classList.toggle('open');
+    ddBtn.setAttribute('aria-expanded', dd.classList.contains('open'));
+  });
+  dd.querySelectorAll('.dd-menu li').forEach(function(li){
+    li.addEventListener('click',function(){
+      dd.querySelectorAll('.dd-menu li').forEach(function(o){ o.classList.remove('sel'); });
+      li.classList.add('sel'); ddVal.textContent=li.textContent;
+      dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false');
+    });
+  });
+  document.addEventListener('click',function(){ dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false'); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false'); } });
+}
+var dp=document.getElementById('dpanel');
+if(dp){
+  document.querySelectorAll('.trow-item').forEach(function(r){
+    r.addEventListener('click',function(e){
+      if(e.target.type==='checkbox') return;
+      dp.classList.add('open');
+    });
+  });
+  document.getElementById('dclose').addEventListener('click',function(){ dp.classList.remove('open'); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') dp.classList.remove('open'); });
+}
+var q=document.getElementById('q'), qx=document.getElementById('qx');
+if(q&&qx){
+  q.addEventListener('input',function(){ qx.classList.toggle('on', q.value.length>0); });
+  qx.addEventListener('click',function(){ q.value=''; qx.classList.remove('on'); q.focus(); });
+}
 window.addEventListener('resize',layoutFunnel);
 window.addEventListener('load',layoutFunnel);
+if(window.ResizeObserver){
+  var _fn=document.querySelector('.funnel');
+  if(_fn) new ResizeObserver(function(){ layoutFunnel(); }).observe(_fn);
+}
 if(document.fonts) document.fonts.ready.then(layoutFunnel);
 layoutFunnel();
 </script>
