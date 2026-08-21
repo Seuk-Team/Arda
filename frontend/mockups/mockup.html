@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arda 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F7F0;
+  --sidebar-bg:#C7E49B;    /* 연두: 확실히 초록으로 읽히되 어둡지 않은 중간 톤 */
+  --sidebar-line:#A8CD6E;  /* 사이드바 오른쪽 경계선: 배경보다 한 단계 진한 연두 1px */
+  --border-w:1px;
+  --sidebar-w:216px;
+  --text:#1B2117;
+  --text-sub:#5C6654;
+  --leaf:#3A6B21;
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --font-num:14px;
+  --font-display:26px; --font-h1:22px; --font-body:16px; --font-sm:14px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
+  --r-ctl:6px;
+  --bg-elev:#FFFFFF;
+  --ts-heading:0 1px 0 rgba(27,33,23,.34);
+  --dur-fast:120ms; --ease:cubic-bezier(.2,0,0,1);
+}
+@media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
+*{ box-sizing:border-box; margin:0; }
+body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--sidebar-bg);
+          border-right:var(--border-w) solid var(--sidebar-line);
+          padding:var(--sp-4) var(--sp-2) 0; }
+.logo{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+       color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; padding:0 var(--sp-3); }
+.logo .seed{ color:var(--leaf); }
+.nav{ margin-top:var(--sp-6); display:flex; flex-direction:column; gap:2px; font-family:var(--sans); }
+.nav a{ display:flex; align-items:center; gap:var(--sp-3); min-height:48px; color:var(--text); text-decoration:none;
+        font-size:var(--font-body); font-weight:500;
+        padding:0 var(--sp-3); border-radius:var(--r-ctl); white-space:nowrap;
+        transition:background var(--dur-fast) var(--ease); }
+.nav a svg{ width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:1.8;
+            stroke-linecap:round; stroke-linejoin:round; }
+.sidebar{ display:flex; flex-direction:column; }
+.me{ margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2);
+     padding:var(--sp-3); border-top:var(--border-w) solid var(--sidebar-line);
+     font-family:var(--sans); white-space:nowrap; }
+.me .name{ font-size:var(--font-body); font-weight:600; color:var(--text); }
+.me .role{ font-size:var(--font-sm); color:var(--leaf); margin-top:2px; }
+.me .avatar{ width:44px; height:44px; flex:none; border-radius:50%; background:var(--bg-elev);
+             border:var(--border-w) solid var(--sidebar-line);
+             display:flex; align-items:center; justify-content:center;
+             font-size:var(--font-h2, 18px); font-weight:700; color:var(--leaf); }
+
+.main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.head{ flex:none; min-height:96px; background:var(--bg-elev);
+       border-bottom:var(--border-w) solid #DCE3D4;
+       padding:var(--sp-4) var(--sp-5); }
+.head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
+              color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; }
+.head-top{ display:flex; align-items:baseline; gap:var(--sp-3); min-width:0; }
+.head-top .title{ line-height:1.2; }
+.back{ align-self:center; }
+.back{ width:36px; height:36px; flex:none; display:flex; align-items:center; justify-content:center;
+       background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+       cursor:pointer; transition:background var(--dur-fast) var(--ease); }
+.back:hover{ background:#EBF0E5; }
+.back:active{ background:#DCE3D4; }
+.back:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.back svg{ width:20px; height:20px; stroke:var(--text); fill:none; stroke-width:2;
+           stroke-linecap:round; stroke-linejoin:round; }
+.badge{ display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 var(--sp-3);
+        border-radius:999px; font-family:var(--sans); font-size:var(--font-sm); font-weight:600;
+        white-space:nowrap; flex:none; }
+.badge-open{ background:#EFF7E2; color:var(--leaf); border:var(--border-w) solid #8CC63F; }
+.head-meta{ font-family:var(--sans); font-size:var(--font-num); font-variant-numeric:tabular-nums;
+            color:var(--text-sub); white-space:nowrap; flex:none; }
+.funnel{ display:grid; column-gap:2px; margin:0 var(--sp-8);
+         grid-template-columns:908fr 271fr 55fr 3fr 11fr; }
+.funnel .seg{ height:14px; border:none; padding:0; cursor:pointer;
+              transition:opacity var(--dur-fast) var(--ease); }
+.funnel .seg:hover{ opacity:.75; }
+.funnel .seg:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.flabels{ position:relative; margin:var(--sp-3) var(--sp-8) 0; height:64px; }
+.flabels-top{ margin:var(--sp-5) var(--sp-8) var(--sp-3); }
+.fstack{ position:absolute; top:0; display:flex; flex-direction:column; align-items:center; gap:2px;
+         font-family:var(--sans); font-size:var(--font-sm); color:var(--text-sub); white-space:nowrap; }
+.flabels-top .fstack{ top:auto; bottom:0; }
+.fstack .tri{ width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent;
+              border-bottom:6px solid var(--text-sub); }
+.fstack .tri.down{ border-bottom:none; border-top:6px solid var(--text-sub); }
+.fstack b{ font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+.nav a:hover{ background:rgba(58,107,33,.10); }
+.nav a:active{ background:var(--bg-elev); color:var(--leaf); }
+.nav a:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.nav a.active{ background:var(--bg-elev); color:var(--leaf); font-weight:700; text-shadow:var(--ts-heading); }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">Arda</div>
+  <nav class="nav">
+    <a href="#"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="#" class="active"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="#"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+  </nav>
+  <div class="me">
+    <div>
+      <div class="name">김채용</div>
+      <div class="role">채용담당자</div>
+    </div>
+    <div class="avatar">김</div>
+  </div>
+</aside>
+
+<div class="main" id="main">
+  <header class="head">
+    <div class="head-top">
+      <button class="back" aria-label="채용 공고 목록으로"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+      <h1 class="title">백엔드 개발자 (신입)</h1>
+      <span class="badge badge-open">진행중</span>
+      <span class="head-meta">마감 D-12 · 총 1,248명</span>
+    </div>
+    <div class="flabels flabels-top"></div>
+    <div class="funnel" aria-label="단계별 인원 비율 (클릭 시 해당 단계 필터)">
+      <button class="seg" style="background:#C9CFC3" title="지원 접수 908명"></button>
+      <button class="seg" style="background:#AEB6A8" title="서류 검토 271명"></button>
+      <button class="seg" style="background:#8A9284" title="면접 55명"></button>
+      <button class="seg" style="background:#8CC63F" title="최종 합격 3명"></button>
+      <button class="seg" style="background:#A9503C" title="불합격 11명"></button>
+    </div>
+    <div class="flabels"></div>
+  </header>
+</div>
+
+<script>
+var FUNNEL_DATA=[
+  {name:'지원 접수', count:'908'},
+  {name:'서류 검토', count:'271'},
+  {name:'면접', count:'55'},
+  {name:'최종 합격', count:'3'},
+  {name:'불합격', count:'11'}
+];
+function layoutFunnel(){
+  var funnel=document.querySelector('.funnel');
+  var bot=document.querySelector('.flabels:not(.flabels-top)');
+  var top=document.querySelector('.flabels-top');
+  if(!funnel||!bot||!top) return;
+  var segs=funnel.querySelectorAll('.seg');
+  var base=funnel.getBoundingClientRect();
+  if(!base.width){ requestAnimationFrame(layoutFunnel); return; }
+  bot.innerHTML=''; top.innerHTML='';
+  var GAP=2;
+  var items=FUNNEL_DATA.map(function(d,i){
+    var segR=segs[i].getBoundingClientRect();
+    var s=document.createElement('span'); s.className='fstack';
+    s.innerHTML='<span class="tri"></span><b>'+d.count+'</b><span>'+d.name+'</span>';
+    bot.appendChild(s);
+    return {el:s, d:d, c:segR.left-base.left+segR.width/2};
+  });
+  items.forEach(function(it){
+    it.w=it.el.offsetWidth;
+    it.left=it.c-it.w/2;
+  });
+  function hits(arr,it){
+    return arr.some(function(o){ return it.left<o.left+o.w+GAP && it.left+it.w>o.left-GAP; });
+  }
+  var sides={bot:[], top:[]};
+  items.forEach(function(it){
+    it.side = hits(sides.bot,it) ? (hits(sides.top,it) ? 'bot' : 'top') : 'bot';
+    var arr=sides[it.side];
+    arr.push(it);
+    for(var j=arr.length-2;j>=0;j--){
+      var need=arr[j+1].left-GAP-arr[j].w;
+      if(arr[j].left>need) arr[j].left=need;
+    }
+  });
+  items.forEach(function(it){
+    if(it.side==='top'){
+      it.el.innerHTML='<span>'+it.d.name+'</span><b>'+it.d.count+'</b><span class="tri down"></span>';
+      top.appendChild(it.el);
+    }
+    it.el.style.left=it.left+'px';
+  });
+}
+window.addEventListener('resize',layoutFunnel);
+window.addEventListener('load',layoutFunnel);
+if(document.fonts) document.fonts.ready.then(layoutFunnel);
+layoutFunnel();
+</script>
+</body>
+</html>
