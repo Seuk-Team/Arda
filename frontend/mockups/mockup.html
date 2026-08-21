@@ -197,6 +197,35 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .dpanel .dclose:hover{ background:#EBF0E5; }
 .dpanel .dclose:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .dpanel .dclose svg{ width:18px; height:18px; stroke:var(--text); fill:none; stroke-width:2; stroke-linecap:round; }
+.dhead{ display:flex; align-items:baseline; gap:var(--sp-3); padding:var(--sp-5) var(--sp-5) var(--sp-4);
+        border-bottom:var(--border-w) solid #DCE3D4; padding-right:72px; }
+.dhead .dname{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+               color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dhead .stage{ font-family:var(--sans); font-size:var(--font-sm); flex:none; }
+.dsec{ padding:var(--sp-4) var(--sp-5); border-bottom:var(--border-w) solid #EAEFE4; }
+.dsec h2{ font-family:var(--sans); font-size:var(--font-h2); font-weight:700; color:var(--text);
+          text-shadow:var(--ts-heading); margin-bottom:var(--sp-3); }
+.dlist{ display:grid; grid-template-columns:88px 1fr; row-gap:var(--sp-2); column-gap:var(--sp-4);
+        font-family:var(--sans); font-size:var(--font-sm); }
+.dlist dt{ color:var(--text-sub); white-space:nowrap; }
+.dlist dd{ margin:0; color:var(--text); overflow-wrap:break-word; font-variant-numeric:tabular-nums; }
+.fcard{ display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3);
+        border:var(--border-w) solid #DCE3D4; border-radius:var(--r-card); }
+.fcard .ficon{ width:40px; height:40px; flex:none; border-radius:var(--r-ctl);
+               background:#EBF0E5; display:flex; align-items:center; justify-content:center; }
+.fcard .ficon svg{ width:20px; height:20px; stroke:var(--leaf); fill:none; stroke-width:1.8;
+                   stroke-linecap:round; stroke-linejoin:round; }
+.fcard .fmeta{ min-width:0; flex:1; font-family:var(--sans); }
+.fcard .fname{ display:block; font-size:var(--font-sm); font-weight:600; color:var(--text);
+               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fcard .fsub{ display:block; font-size:12px; color:var(--text-sub); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.btn-dl{ flex:none; height:32px; padding:0 var(--sp-3); border-radius:var(--r-ctl);
+         font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+         background:var(--bg-elev); color:var(--text); border:var(--border-w) solid #DCE3D4;
+         cursor:pointer; text-shadow:var(--ts-heading);
+         transition:background var(--dur-fast) var(--ease); }
+.btn-dl:hover{ background:#EBF0E5; }
+.btn-dl:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .stage-progress{ color:var(--text-sub); }
 .stage-accepted{ color:var(--leaf); font-weight:700; }
 .stage-rejected{ color:var(--danger, #A9503C); font-weight:700; }
@@ -294,7 +323,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">평점</span>
         <span class="t-num">지원일</span>
       </div>
-      <div class="trow trow-item" tabindex="0">
+      <div class="trow trow-item" tabindex="0" data-phone="010-****-1234" data-email="dohyun@example.com" data-birth="1999" data-gender="남" data-edu="OO대학교 컴퓨터공학과" data-career="2년 (백엔드)" data-skills="Python · FastAPI · PostgreSQL · Docker">
         <input type="checkbox" aria-label="김도현 선택">
         <span class="name">김도현</span>
         <span class="stage stage-progress">면접</span>
@@ -303,7 +332,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">4.5</span>
         <span class="t-num">2026-03-12</span>
       </div>
-      <div class="trow trow-item" tabindex="0">
+      <div class="trow trow-item" tabindex="0" data-phone="010-****-5821" data-email="jihoon.p@example.com" data-birth="2001" data-gender="남" data-edu="OO대학교 컴퓨터공학과 졸업" data-career="신입" data-skills="Python · FastAPI">
         <input type="checkbox" aria-label="박지훈 선택">
         <span class="name">박지훈</span>
         <span class="stage stage-progress">지원 접수</span>
@@ -312,7 +341,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">—</span>
         <span class="t-num">2026-03-11</span>
       </div>
-      <div class="trow trow-item" tabindex="0">
+      <div class="trow trow-item" tabindex="0" data-phone="010-****-3390" data-email="woojin@example.com" data-birth="2000" data-gender="남" data-edu="OO대학교 소프트웨어학과" data-career="1년 (백엔드)" data-skills="Python · AWS · Docker">
         <input type="checkbox" aria-label="정우진 선택">
         <span class="name">정우진</span>
         <span class="stage stage-progress">서류 검토</span>
@@ -321,7 +350,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">4.0</span>
         <span class="t-num">2026-03-11</span>
       </div>
-      <div class="trow trow-item" tabindex="0">
+      <div class="trow trow-item" tabindex="0" data-phone="010-****-7745" data-email="haneul@example.com" data-birth="2002" data-gender="여" data-edu="부트캠프 수료" data-career="1년 (백엔드)" data-skills="FastAPI · PostgreSQL">
         <input type="checkbox" aria-label="윤하늘 선택">
         <span class="name">윤하늘</span>
         <span class="stage stage-accepted">최종 합격</span>
@@ -330,7 +359,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">5.0</span>
         <span class="t-num">2026-03-10</span>
       </div>
-      <div class="trow trow-item" tabindex="0">
+      <div class="trow trow-item" tabindex="0" data-phone="010-****-2216" data-email="minsu.k@example.com" data-birth="1998" data-gender="남" data-edu="OO대학교 전자공학과" data-career="신입" data-skills="PHP">
         <input type="checkbox" aria-label="강민수 선택">
         <span class="name">강민수</span>
         <span class="stage stage-rejected">불합격</span>
@@ -339,7 +368,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">2.0</span>
         <span class="t-num">2026-03-09</span>
       </div>
-      <div class="trow trow-item" tabindex="0">
+      <div class="trow trow-item" tabindex="0" data-phone="010-****-9013" data-email="c.vandeberg@example.com" data-birth="1990" data-gender="남" data-edu="OO대학원 컴퓨터공학 석사" data-career="12년 (백엔드·인프라)" data-skills="Python · FastAPI · PostgreSQL · Docker · AWS · Kubernetes · Terraform · Kafka · Redis">
         <input type="checkbox" aria-label="크리스토퍼 알렉산더 선택">
         <span class="name">크리스토퍼 알렉산더 반 데 베르그</span>
         <span class="stage stage-progress">면접</span>
@@ -369,6 +398,33 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 <aside class="dpanel" id="dpanel" aria-label="지원자 상세">
   <div class="dinner">
     <button class="dclose" id="dclose" aria-label="상세 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="dhead">
+      <span class="dname">김도현</span>
+      <span class="stage stage-progress">면접</span>
+    </div>
+    <div class="dsec">
+      <h2>지원 정보</h2>
+      <dl class="dlist">
+        <dt>연락처</dt><dd data-f="phone">010-****-1234</dd>
+        <dt>이메일</dt><dd data-f="email">dohyun@example.com</dd>
+        <dt>출생년도</dt><dd data-f="birth">1999</dd>
+        <dt>성별</dt><dd data-f="gender">남</dd>
+        <dt>학력</dt><dd data-f="edu">OO대학교 컴퓨터공학과</dd>
+        <dt>경력</dt><dd data-f="career">2년 (백엔드)</dd>
+        <dt>기술</dt><dd data-f="skills">Python · FastAPI · PostgreSQL · Docker</dd>
+      </dl>
+    </div>
+    <div class="dsec">
+      <h2>첨부 파일</h2>
+      <div class="fcard">
+        <span class="ficon"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg></span>
+        <span class="fmeta">
+          <span class="fname" id="dfname">김도현_이력서.pdf</span>
+          <span class="fsub" id="dforig">원본: resume_final_v3.pdf · 1.2 MB</span>
+        </span>
+        <button class="btn-dl">다운로드</button>
+      </div>
+    </div>
   </div>
 </aside>
 
@@ -442,9 +498,19 @@ if(dd){
 }
 var dp=document.getElementById('dpanel');
 if(dp){
+  var dName=dp.querySelector('.dname'), dStage=dp.querySelector('.dhead .stage');
   document.querySelectorAll('.trow-item').forEach(function(r){
     r.addEventListener('click',function(e){
       if(e.target.type==='checkbox') return;
+      var rn=r.querySelector('.name'), rs=r.querySelector('.stage');
+      if(rn&&dName) dName.textContent=rn.textContent;
+      if(rs&&dStage){ dStage.textContent=rs.textContent; dStage.className=rs.className; }
+      var fn=document.getElementById('dfname');
+      if(rn&&fn) fn.textContent=rn.textContent+'_이력서.pdf';
+      dp.querySelectorAll('.dlist dd[data-f]').forEach(function(dd){
+        var v=r.getAttribute('data-'+dd.getAttribute('data-f'));
+        dd.textContent = v!==null ? v : '—';
+      });
       dp.classList.add('open');
     });
   });
