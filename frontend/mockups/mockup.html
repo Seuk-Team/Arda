@@ -18,15 +18,23 @@
   --text:#1B2117;
   --text-sub:#5C6654;
   --leaf:#3A6B21;
+  --leaf-strong:#2C5218;
   --danger:#A9503C;
+  --ai:#A9702A;            /* AI 제안 — 앰버 점선 규약 (05-design 확정) */
+  --ai-soft:#FBF2E5;       /* AI 제안 워시 */
   --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
   --font-num:14px;
-  --font-display:26px; --font-h1:22px; --font-body:16px; --font-sm:14px;
+  --font-display:26px; --font-h1:22px; --font-h2:18px; --font-body:16px; --font-sm:14px; --font-caption:12px;
   --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
   --r-ctl:6px; --r-card:8px;
   --bg-elev:#FFFFFF;
+  --border:#DCE3D4;
+  --border-soft:#EAEFE4;
+  --bg-sunken:#EBF0E5;     /* 인풋·트랙: 패널보다 한 단계 아래 */
+  --sunken-hover:#DCE3D4;  /* sunken 바탕 위 hover 채움: 한 톤 진하게 */
   --ts-heading:0 1px 0 rgba(27,33,23,.34);
   --ts-onfill:0 1px 0 rgba(0,0,0,.62);
+  --z-sticky:10;
   --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
 }
 @media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
@@ -183,21 +191,22 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
          background:var(--bg-elev); border-left:0 solid #DCE3D4;
          transition:width var(--dur-base) var(--ease); }
 .dpanel.open{ width:420px; border-left-width:var(--border-w); }
-.dpanel .dinner{ width:420px; height:100%; position:relative; }
+.dpanel .dinner{ width:420px; height:100%; overflow-y:auto; overscroll-behavior:contain; }
 @media (max-width:1100px){
   .dpanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
            border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
            transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
   .dpanel.open{ transform:none; }
 }
-.dpanel .dclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); width:36px; height:36px;
+.dpanel .dclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); z-index:var(--z-sticky); width:36px; height:36px;
                  display:flex; align-items:center; justify-content:center; cursor:pointer;
                  background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
                  transition:background var(--dur-fast) var(--ease); }
 .dpanel .dclose:hover{ background:#EBF0E5; }
 .dpanel .dclose:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .dpanel .dclose svg{ width:18px; height:18px; stroke:var(--text); fill:none; stroke-width:2; stroke-linecap:round; }
-.dhead{ display:flex; align-items:baseline; gap:var(--sp-3); padding:var(--sp-5) var(--sp-5) var(--sp-4);
+.dhead{ position:sticky; top:0; z-index:var(--z-sticky); background:var(--bg-elev);
+        display:flex; align-items:baseline; gap:var(--sp-3); padding:var(--sp-5) var(--sp-5) var(--sp-4);
         border-bottom:var(--border-w) solid #DCE3D4; padding-right:72px; }
 .dhead .dname{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
                color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -209,6 +218,48 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         font-family:var(--sans); font-size:var(--font-sm); }
 .dlist dt{ color:var(--text-sub); white-space:nowrap; }
 .dlist dd{ margin:0; color:var(--text); overflow-wrap:break-word; font-variant-numeric:tabular-nums; }
+.aibox{ min-height:120px; padding:var(--sp-4); border:var(--border-w) dashed var(--ai);
+        border-radius:var(--r-card); background:var(--ai-soft); }
+.aibox .aibody{ font-size:var(--font-sm); line-height:1.55; color:var(--text); word-break:keep-all; }
+.aibox .aibody + .aibody{ margin-top:var(--sp-2); }
+.aibox .aibody b{ font-weight:600; }
+.aibox .aicap{ font-family:var(--sans); font-size:var(--font-caption); font-weight:500; color:var(--text-sub);
+               white-space:nowrap; margin-bottom:var(--sp-3); }
+.notebox{ padding:var(--sp-3); border-radius:var(--r-card); background:var(--bg-sunken); }
+.ninput{ display:block; width:100%; min-height:76px; resize:vertical; margin-bottom:var(--sp-2);
+         padding:var(--sp-3); border:var(--border-w) solid var(--border); border-radius:var(--r-ctl);
+         background:var(--bg-elev); font-family:var(--sans); font-size:var(--font-sm); line-height:1.55;
+         color:var(--text); transition:border-color var(--dur-fast) var(--ease); }
+.ninput::placeholder{ color:var(--text-sub); }
+.ninput:hover{ border-color:#C7D0BC; }
+.ninput:focus-visible{ outline:2px solid var(--leaf); outline-offset:1px; border-color:var(--leaf); }
+.nactions{ display:flex; justify-content:flex-end; margin-bottom:var(--sp-3); }
+.btn-primary:disabled{ background:#C7D0BC; color:var(--text-sub); text-shadow:none; cursor:not-allowed; }
+.btn-primary:disabled:active{ transform:none; }
+.note + .note{ margin-top:var(--sp-2); }
+.note[hidden]{ display:none; }
+.nmore{ display:flex; align-items:center; justify-content:center; width:100%; margin-top:var(--sp-2);
+        height:44px; border:var(--border-w) solid transparent; border-radius:var(--r-ctl);
+        background:transparent; cursor:pointer; transition:background var(--dur-fast) var(--ease); }
+.nmore svg{ width:28px; height:28px; stroke:var(--leaf); fill:none; stroke-width:2.2;
+            stroke-linecap:round; stroke-linejoin:round;
+            transition:transform var(--dur-base) var(--ease); }
+.nmore[aria-expanded="true"] svg{ transform:rotate(180deg); }
+.nmore:hover{ background:var(--sunken-hover); }
+.nmore:hover svg{ stroke:var(--leaf-strong); }
+.nmore:active{ background:var(--bg-elev); }
+.nmore:active svg{ transform:translateY(1px); }
+.nmore[aria-expanded="true"]:active svg{ transform:rotate(180deg) translateY(1px); }
+.nmore:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.note{ padding:var(--sp-3); border-radius:var(--r-ctl); background:var(--bg-elev); font-family:var(--sans); }
+.note .nmeta{ display:flex; align-items:baseline; gap:var(--sp-2); margin-bottom:var(--sp-2); }
+.note .nauthor{ font-size:var(--font-sm); font-weight:600; color:var(--text); white-space:nowrap; }
+.note .ndate{ font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap;
+              font-variant-numeric:tabular-nums; }
+.note .nentry{ margin-top:var(--sp-3); padding-top:var(--sp-3);
+               border-top:var(--border-w) solid var(--border-soft); }
+.note .nentry .ndate{ display:block; margin-bottom:var(--sp-2); }
+.note .nbody{ font-size:var(--font-sm); line-height:1.55; color:var(--text); word-break:keep-all; }
 .fcard{ display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3);
         border:var(--border-w) solid #DCE3D4; border-radius:var(--r-card); }
 .fcard .ficon{ width:40px; height:40px; flex:none; border-radius:var(--r-ctl);
@@ -403,6 +454,13 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       <span class="stage stage-progress">면접</span>
     </div>
     <div class="dsec">
+      <div class="aibox"><p class="aicap">AI 요약 · 확정은 담당자가 합니다</p>
+        <p class="aibody"><b>요지</b> — 트래픽이 몰리는 서비스에서 API 응답 지연을 줄인 경험을 중심으로 서술. 문제 정의 → 측정 → 개선 순으로 근거를 제시합니다.</p>
+        <p class="aibody"><b>적합</b> — 공고 요구 스택(Python · FastAPI · PostgreSQL)을 모두 실무에서 사용했고, 요구 경력 2년 이상을 충족합니다.</p>
+        <p class="aibody"><b>확인 필요</b> — 처리한 데이터 규모와 개선 폭이 수치 없이 서술돼 있어 면접에서 확인이 필요합니다.</p>
+      </div>
+    </div>
+    <div class="dsec">
       <h2>지원 정보</h2>
       <dl class="dlist">
         <dt>연락처</dt><dd data-f="phone">010-****-1234</dd>
@@ -423,6 +481,30 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
           <span class="fsub" id="dforig">원본: resume_final_v3.pdf · 1.2 MB</span>
         </span>
         <button class="btn-dl">다운로드</button>
+      </div>
+    </div>
+    <div class="dsec">
+      <h2>메모</h2>
+      <div class="notebox">
+        <textarea class="ninput" rows="3" aria-label="메모 입력" placeholder="이 지원자에 대한 메모를 남깁니다"></textarea>
+        <div class="nactions"><button class="btn btn-primary" id="nadd" disabled>등록</button></div>
+        <div class="note">
+          <div class="nmeta"><span class="nauthor">김채용</span><span class="ndate">2026.03.12</span></div>
+          <p class="nbody">1차 면접 통과. 실무 질문 답변이 구체적이었고, 대용량 트래픽 처리 경험은 2차에서 확인 필요.</p>
+          <div class="nentry">
+            <span class="ndate">2026.03.11</span>
+            <p class="nbody">면접 일정 조율 완료. 현재 재직 중이라 평일 저녁만 가능하다고 함.</p>
+          </div>
+        </div>
+        <div class="note">
+          <div class="nmeta"><span class="nauthor">이서연</span><span class="ndate">2026.03.10</span></div>
+          <p class="nbody">서류 기준 백엔드 스택이 공고 요건과 일치. 팀 프로젝트 협업 경험 서술이 구체적이라 면접 진행 제안합니다.</p>
+        </div>
+        <div class="note" hidden>
+          <div class="nmeta"><span class="nauthor">김채용</span><span class="ndate">2026.03.09</span></div>
+          <p class="nbody">지원 접수 확인. 이력서 첨부 누락 없음, 연락처로 수신 확인 완료.</p>
+        </div>
+        <button class="nmore" id="nmore" aria-expanded="false" aria-label="이전 메모 더 보기"><svg viewBox="0 0 24 24"><path d="M6 6l6 6 6-6"/><path d="M6 13l6 6 6-6"/></svg></button>
       </div>
     </div>
   </div>
@@ -515,6 +597,31 @@ if(dp){
     });
   });
   document.getElementById('dclose').addEventListener('click',function(){ dp.classList.remove('open'); });
+
+  var ni=document.querySelector('.ninput'), na=document.getElementById('nadd');
+  ni.addEventListener('input',function(){ na.disabled = ni.value.trim()===''; });
+
+  var nm=document.getElementById('nmore'), NOTE_LIMIT=2;
+  function foldNotes(collapse){
+    var seen=0, hid=0;
+    dp.querySelectorAll('.note').forEach(function(card){
+      var extras=card.querySelectorAll('.nentry');
+      var headHidden = collapse && seen>=NOTE_LIMIT; seen++;
+      if(headHidden) hid++;
+      extras.forEach(function(e){
+        var h = collapse && seen>=NOTE_LIMIT; seen++;
+        e.hidden=h; if(h) hid++;
+      });
+      card.hidden=headHidden;
+    });
+    nm.hidden = hid===0 && collapse;
+    nm.setAttribute('aria-label', collapse ? '이전 메모 '+hid+'개 더 보기' : '접기');
+    nm.setAttribute('aria-expanded', collapse ? 'false' : 'true');
+  }
+  foldNotes(true);
+  nm.addEventListener('click',function(){
+    foldNotes(nm.getAttribute('aria-expanded')==='true');
+  });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape') dp.classList.remove('open'); });
 }
 var q=document.getElementById('q'), qx=document.getElementById('qx');
