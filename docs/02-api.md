@@ -37,6 +37,8 @@
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
 | GET | /postings/{id}/applications | 지원자 목록 | D1. 쿼리: `q`(이름/이메일 검색, H1) · `stage`(H2) · 페이지네이션 |
+
+- **검색 범위 = 이름·이메일 확정.** 자소서 본문·메모 전문 검색은 H 복합 필터 튜닝 완료 후 여유가 있을 때만 `pg_trgm` GIN 인덱스로 확장한다. 스키마 변경이 아니라 인덱스+쿼리 추가라 미루는 비용이 없다. (한국어는 Postgres 기본 FTS로 형태소 분석이 안 되고, 자소서 5천 자 × 10만 건이면 인덱스 용량·쓰기 비용이 커진다)
 | POST | /postings/{id}/applications | 담당자 직접 등록 | D6, recruiter+ |
 | GET | /applications/{id} | 지원자 상세 | D4 |
 | PATCH | /applications/{id}/stage | 단계 변경 | D3. 이력 기록(D5) + 메일 큐 발행(G1) 트리거 |
@@ -48,6 +50,17 @@
 |---|---|---|---|
 | POST | /applications/{id}/evaluations | 평가 작성 (점수+코멘트) | E1 |
 | GET | /applications/{id}/evaluations | 평가 목록 + 평균 | E2 |
+
+## 메모 (담당자 서술형 — 기능 번호 미지정)
+
+| 메서드 | 경로 | 기능 | 비고 |
+|---|---|---|---|
+| GET | /applications/{id}/notes | 메모 목록 | 최신순. 작성자 이름·시각 포함 |
+| POST | /applications/{id}/notes | 메모 작성 | 작성자 = 토큰의 사용자 |
+| PATCH | /notes/{id} | 메모 수정 | 작성자 본인만(403). `If-Unmodified-Since` 또는 본문 `updated_at`으로 덮어쓰기 감지 → 409 ([ADR-0005](adr/0005-실시간-공동편집-제외.md)) |
+| DELETE | /notes/{id} | 메모 삭제 | 작성자 본인만(403) |
+
+- 평가(E)와 별도 엔드포인트다. 메모는 점수가 없고, 지원자당 여러 사람이 각자 행을 쌓는다.
 
 ## 파일 (F)
 

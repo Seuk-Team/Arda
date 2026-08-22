@@ -15,9 +15,11 @@ erDiagram
     job_postings ||--o{ applications : "지원"
     applications ||--o{ stage_history : "이력"
     applications ||--o{ evaluations : "평가"
+    applications ||--o{ application_notes : "메모"
     applications ||--o{ files : "첨부"
     applications ||--o{ email_logs : "발송"
     users ||--o{ evaluations : "작성"
+    users ||--o{ application_notes : "작성"
     users ||--o{ interviewer_assignments : "배정됨"
     applications ||--o{ interviewer_assignments : "배정"
 ```
@@ -71,6 +73,9 @@ erDiagram
 | career_years | smallint | | 경력 연차 (신입=0) |
 | skills | text[] | | 기술 태그. 예: `{Python,FastAPI}` |
 | self_intro | text | | 자기소개서 |
+| ai_summary | text | | 담당자용 AI 요약 — 자소서 요지 + 공고 요건 대비 적합/우려. NULL = 미생성 |
+| ai_summary_at | timestamptz | | 생성 시각. 공고 요건 변경 시 재생성 판단 기준 |
+| ai_summary_model | varchar(50) | | 생성 모델명 — 발표 때 근거 제시용 |
 | current_stage | varchar(20) | NOT NULL, default `applied` | 위 stage enum |
 | privacy_agreed_at | timestamptz | NOT NULL | 개인정보 동의 시각 (C3) |
 | source | varchar(20) | NOT NULL, default `form` | `form`(외부 지원) / `manual`(담당자 등록, D6) |
@@ -78,6 +83,7 @@ erDiagram
 
 - UNIQUE `(job_posting_id, email)` — 중복 지원 방지(C6, 권장이지만 제약 하나로 끝나므로 처음부터 포함)
 - 인덱스: `(job_posting_id, current_stage)` — 칸반·단계 필터(H2). 검색(H1)·10만 건 튜닝용 추가 인덱스는 B 담당이 측정 후 제안(스키마 합의 대상)
+- AI 요약은 접수 시 1회 생성해 저장하고, 상세 패널은 저장값을 즉시 표시한다. 패널 열 때마다 생성하지 않는다(연속 심사 지연·호출 비용·재현성). 재생성은 명시적 버튼으로만. 요약이 공고 요건에 종속되지만 지원서 1건은 공고 1건에 묶이므로 별도 테이블 없이 applications에 직접 둔다.
 
 ## stage_history — 단계 변경 이력 (D5)
 
@@ -104,6 +110,22 @@ erDiagram
 | created_at / updated_at | timestamptz | NOT NULL | |
 
 비고: E4 항목 분리(권장) → `category` 컬럼 추가 여지. E5 본인만 수정은 코드에서 `evaluator_id` 검사.
+
+## application_notes — 담당자 메모 (기능 번호 미지정)
+
+평가(`evaluations`)와 분리한다. 저쪽은 점수 1~5가 필수인 평가 행이라, 점수 없는 서술형 기록이 섞이면 평가 목록·평균이 오염된다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| application_id | bigint | FK → applications.id, NOT NULL | |
+| author_id | bigint | FK → users.id, NOT NULL | 작성자 |
+| body | text | NOT NULL | 서술형 메모 |
+| created_at / updated_at | timestamptz | NOT NULL | |
+
+- 인덱스 `(application_id, created_at DESC)` — 상세 패널 최신순 표시
+- 수정·삭제는 작성자 본인만(코드에서 `author_id` 검사)
+- **한 문서를 공동 편집하지 않고 각자 행을 추가하는 구조** — 동시 편집 충돌 처리가 필요 없다([ADR-0005](adr/0005-실시간-공동편집-제외.md))
 
 ## files — 이력서 파일 (F1·F2)
 
