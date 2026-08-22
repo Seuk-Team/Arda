@@ -115,11 +115,12 @@ erDiagram
 | filename | varchar(255) | NOT NULL | 원본 파일명 |
 | size_bytes | bigint | NOT NULL | |
 | content_type | varchar(100) | NOT NULL | |
+| kind | varchar(20) | NOT NULL | `resume`(이력서) / `cover_letter`(자기소개서) — 지원자는 이 2종을 제출 |
 | created_at | timestamptz | NOT NULL | |
 
 업로드는 presigned URL로 브라우저 → S3 직행. 서버는 키 발급과 이 레코드만 만든다.
 
-비고: 화면 표시는 규격 파일명(`{지원자명}_{유형}.pdf`)을 코드에서 생성해 쓰고, `filename`(원본)은 보존해 보조 표기한다. 파일 유형(이력서/포트폴리오) 판별 컬럼 `kind`는 에이전트 기능 도입 시 추가 여지.
+비고: 화면 표시는 규격 파일명(`{지원자명}_{유형}.{확장자}`)을 코드에서 생성해 쓰고, `filename`(원본)은 보존해 보조 표기한다. 허용 형식 pdf·docx·hwp(hwpx). 자소서가 이력서에 포함된 경우 `resume` 1건만 존재할 수 있다.
 
 ## email_logs — 메일 발송 (G1~G3)
 
