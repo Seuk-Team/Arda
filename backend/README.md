@@ -1,6 +1,14 @@
 # backend — FastAPI 서버
 
-> 아직 코드 없음. 스키마([../docs/01-erd.md](../docs/01-erd.md)) 확정 후 스캐폴딩한다.
+> 모델(테이블 정의)까지 있음. 라우터·서비스는 아직 없다.
+
+```bash
+uv sync
+```
+
+- `app/models.py` — [../docs/01-erd.md](../docs/01-erd.md)를 그대로 옮긴 테이블 9개. **문서가 기준이고, 어긋나면 문서를 고친 뒤 여기를 맞춘다.**
+- `app/db.py` — 엔진·세션·`Base`. 스키마가 굳기 전까지는 마이그레이션을 쌓지 않고 `create_all`로 만들고 지운다.
+- DB 접속 정보는 `.env`(git 제외)에 넣는다. 키 이름은 `.env.example` 참고.
 
 - Python 3.12 · uv · FastAPI · SQLAlchemy · PostgreSQL
 - API 목록: [../docs/02-api.md](../docs/02-api.md) / 문서는 Swagger(`/docs`) 자동 생성
