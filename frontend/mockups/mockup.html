@@ -236,6 +236,8 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .nactions{ display:flex; justify-content:flex-end; margin-bottom:var(--sp-3); }
 .btn-primary:disabled{ background:#C7D0BC; color:var(--text-sub); text-shadow:none; cursor:not-allowed; }
 .btn-primary:disabled:active{ transform:none; }
+.dfoot{ position:sticky; bottom:0; z-index:var(--z-sticky); min-height:72px;
+        background:var(--bg-elev); border-top:var(--border-w) solid var(--border); }
 .note + .note{ margin-top:var(--sp-2); }
 .note[hidden]{ display:none; }
 .nmore{ display:flex; align-items:center; justify-content:center; width:100%; margin-top:var(--sp-2);
@@ -507,6 +509,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <button class="nmore" id="nmore" aria-expanded="false" aria-label="이전 메모 더 보기"><svg viewBox="0 0 24 24"><path d="M6 6l6 6 6-6"/><path d="M6 13l6 6 6-6"/></svg></button>
       </div>
     </div>
+    <div class="dfoot"></div>
   </div>
 </aside>
 
