@@ -8,6 +8,8 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.52.4",
+    "pyjwt>=2.13.0",
+    "bcrypt>=5.0.0",
 ]
 
 [tool.uv]

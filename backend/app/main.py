@@ -28,5 +28,6 @@ def health():
 
 
 # 라우터는 여기에 한 줄씩 추가한다. 각 라우터가 자기 prefix 를 갖는다.
-# 예: from app.api.postings import router as postings_router
-#     app.include_router(postings_router)
+from app.api.auth import router as auth_router  # noqa: E402
+
+app.include_router(auth_router)
