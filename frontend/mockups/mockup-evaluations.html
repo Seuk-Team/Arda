@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arda 목업 — 평가 현황</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F7F0;
+  --sidebar-bg:#C7E49B;
+  --sidebar-line:#A8CD6E;
+  --border-w:1px;
+  --sidebar-w:216px;
+  --content-x:48px;
+  --text:#1B2117;
+  --text-sub:#5C6654;
+  --leaf:#3A6B21;
+  --leaf-strong:#2C5218;
+  --danger:#A9503C;
+  --ai:#A9702A;
+  --ai-soft:#FBF2E5;
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --font-num:14px;
+  --font-display:26px; --font-h1:22px; --font-h2:18px; --font-body:16px; --font-sm:14px; --font-caption:12px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
+  --r-ctl:6px; --r-card:8px;
+  --bg-elev:#FFFFFF;
+  --border:#DCE3D4;
+  --border-soft:#EAEFE4;
+  --bg-sunken:#EBF0E5;
+  --sunken-hover:#DCE3D4;
+  --ts-heading:0 1px 0 rgba(27,33,23,.34);
+  --ts-onfill:0 1px 0 rgba(0,0,0,.62);
+  --z-sticky:10;
+  --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
+}
+@media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
+*{ box-sizing:border-box; margin:0; }
+body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
+
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--sidebar-bg);
+          border-right:var(--border-w) solid var(--sidebar-line);
+          padding:var(--sp-4) var(--sp-2) 0;
+          display:flex; flex-direction:column; }
+.logo{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+       color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; padding:0 var(--sp-3); }
+.logo .seed{ color:var(--leaf); }
+.nav{ margin-top:var(--sp-6); display:flex; flex-direction:column; gap:2px; font-family:var(--sans); }
+.nav a{ display:flex; align-items:center; gap:var(--sp-3); min-height:48px; color:var(--text); text-decoration:none;
+        font-size:var(--font-body); font-weight:500;
+        padding:0 var(--sp-3); border-radius:var(--r-ctl); white-space:nowrap;
+        transition:background var(--dur-fast) var(--ease); }
+.nav a svg{ width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:1.8;
+            stroke-linecap:round; stroke-linejoin:round; }
+.nav a:hover{ background:rgba(58,107,33,.10); }
+.nav a:active{ background:var(--bg-elev); color:var(--leaf); }
+.nav a:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.nav a.active{ background:var(--bg-elev); color:var(--leaf); font-weight:700; text-shadow:var(--ts-heading); }
+.me{ margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2);
+     padding:var(--sp-3); border-top:var(--border-w) solid var(--sidebar-line);
+     font-family:var(--sans); white-space:nowrap; }
+.me .name{ font-size:var(--font-body); font-weight:600; color:var(--text); }
+.me .role{ font-size:var(--font-sm); color:var(--leaf); margin-top:2px; }
+.me .avatar{ width:44px; height:44px; flex:none; border-radius:50%; background:var(--bg-elev);
+             border:var(--border-w) solid var(--sidebar-line);
+             display:flex; align-items:center; justify-content:center;
+             font-size:var(--font-h2, 18px); font-weight:700; color:var(--leaf); }
+
+.main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.head{ flex:none; min-height:96px; background:var(--bg-elev);
+       border-bottom:var(--border-w) solid #DCE3D4;
+       padding:var(--sp-4) var(--content-x);
+       display:flex; align-items:center; }
+.head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
+              color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; }
+.head-top{ display:flex; align-items:baseline; gap:var(--sp-3); min-width:0; width:100%; }
+.head-top .title{ line-height:1.2; }
+.head-meta{ font-family:var(--sans); font-size:var(--font-num); font-variant-numeric:tabular-nums;
+            color:var(--text-sub); white-space:nowrap; flex:none; }
+
+.content{ flex:1; min-height:0; overflow-y:auto; padding:var(--sp-5) var(--content-x); }
+.tpanel{ background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-card);
+         box-shadow:0 1px 2px rgba(27,33,23,.06), 0 1px 1px rgba(27,33,23,.04);
+         min-height:320px; overflow:hidden; }
+.trow{ display:grid; align-items:center; gap:var(--sp-3);
+       grid-template-columns:140px minmax(160px,1fr) 100px 112px;
+       padding:0 var(--sp-6); }
+.thead{ height:48px; border-bottom:var(--border-w) solid #DCE3D4;
+        font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text-sub); }
+.thead span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t-num{ text-align:center; font-variant-numeric:tabular-nums; }
+.trow-item{ height:56px; border-bottom:var(--border-w) solid #EAEFE4; cursor:pointer;
+            font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
+            transition:background var(--dur-fast) var(--ease); }
+.trow-item:hover{ background:#F6F9F2; }
+.trow-item:focus-visible{ outline:2px solid var(--leaf); outline-offset:-2px; }
+.trow-item .name{ font-size:var(--font-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stage{ white-space:nowrap; }
+.stage-progress{ color:var(--text-sub); }
+.stage-accepted{ color:var(--leaf); font-weight:700; }
+.stage-rejected{ color:var(--danger, #A9503C); font-weight:700; }
+
+.dpanel{ flex:none; width:0; overflow:hidden; position:relative;
+         background:var(--bg-elev); border-left:0 solid #DCE3D4;
+         transition:width var(--dur-base) var(--ease); }
+.dpanel.open{ width:420px; border-left-width:var(--border-w); }
+.dpanel .dinner{ width:420px; height:100%; overflow-y:auto; overscroll-behavior:contain; }
+@media (max-width:1100px){
+  .dpanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
+           border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
+           transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
+  .dpanel.open{ transform:none; }
+}
+.dpanel .dclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); z-index:var(--z-sticky); width:36px; height:36px;
+                 display:flex; align-items:center; justify-content:center; cursor:pointer;
+                 background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+                 transition:background var(--dur-fast) var(--ease); }
+.dpanel .dclose:hover{ background:#EBF0E5; }
+.dpanel .dclose:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.dpanel .dclose svg{ width:18px; height:18px; stroke:var(--text); fill:none; stroke-width:2; stroke-linecap:round; }
+.dhead{ position:sticky; top:0; z-index:var(--z-sticky); background:var(--bg-elev);
+        display:flex; align-items:baseline; gap:var(--sp-3); padding:var(--sp-5) var(--sp-5) var(--sp-4);
+        border-bottom:var(--border-w) solid #DCE3D4; padding-right:72px; }
+.dhead .dname{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+               color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dhead .stage{ font-family:var(--sans); font-size:var(--font-sm); flex:none; }
+.dsec{ padding:var(--sp-4) var(--sp-5); border-bottom:var(--border-w) solid #EAEFE4; }
+.dsec h2{ font-family:var(--sans); font-size:var(--font-h2); font-weight:700; color:var(--text);
+          text-shadow:var(--ts-heading); margin-bottom:var(--sp-3); }
+.dlist{ display:grid; grid-template-columns:88px 1fr; row-gap:var(--sp-2); column-gap:var(--sp-4);
+        font-family:var(--sans); font-size:var(--font-sm); }
+.dlist dt{ color:var(--text-sub); white-space:nowrap; }
+.dlist dd{ margin:0; color:var(--text); overflow-wrap:break-word; font-variant-numeric:tabular-nums; }
+
+.ninput{ display:block; width:100%; min-height:76px; resize:vertical; margin-bottom:var(--sp-2);
+         padding:var(--sp-3); border:var(--border-w) solid var(--border); border-radius:var(--r-ctl);
+         background:var(--bg-elev); font-family:var(--sans); font-size:var(--font-sm); line-height:1.55;
+         color:var(--text); transition:border-color var(--dur-fast) var(--ease); }
+.ninput::placeholder{ color:var(--text-sub); }
+.ninput:hover{ border-color:#C7D0BC; }
+.ninput:focus-visible{ outline:2px solid var(--leaf); outline-offset:1px; border-color:var(--leaf); }
+.nactions{ display:flex; justify-content:flex-end; margin-bottom:var(--sp-3); }
+
+.btn{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+      height:40px; padding:0 var(--sp-4); border-radius:var(--r-ctl); border:var(--border-w) solid transparent;
+      cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.btn:active{ transform:translateY(1px); }
+.btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn-primary{ background:var(--leaf); color:#fff; text-shadow:var(--ts-onfill); }
+.btn-primary:hover{ background:#2C5218; }
+.btn-primary:disabled{ background:#C7D0BC; color:var(--text-sub); text-shadow:none; cursor:not-allowed; }
+.btn-primary:disabled:active{ transform:none; }
+
+.rate{ display:flex; gap:var(--sp-2); }
+.rate button{ width:44px; height:44px; border-radius:var(--r-ctl); cursor:pointer;
+              border:var(--border-w) solid var(--border); background:var(--bg-elev);
+              font-family:var(--sans); font-size:var(--font-body); font-weight:600; color:var(--text);
+              font-variant-numeric:tabular-nums;
+              transition:background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.rate button:hover{ background:var(--bg-sunken); }
+.rate button:active{ transform:translateY(1px); }
+.rate button:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.rate button[aria-pressed="true"]{ background:var(--leaf); border-color:var(--leaf); color:#fff;
+                                   text-shadow:var(--ts-onfill); }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">Arda</div>
+  <nav class="nav">
+    <a href="#"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="#"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="#"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="#" class="active"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+  </nav>
+  <div class="me">
+    <div>
+      <div class="name">김채용</div>
+      <div class="role">면접관</div>
+    </div>
+    <div class="avatar">김</div>
+  </div>
+</aside>
+
+<div class="main">
+  <header class="head">
+    <div class="head-top">
+      <h1 class="title">평가 현황</h1>
+      <span class="head-meta" style="margin-left:auto;">평가 대기 12명</span>
+    </div>
+  </header>
+  <main class="content">
+    <div class="tpanel">
+      <div class="trow thead">
+        <span>이름</span>
+        <span>공고</span>
+        <span>단계</span>
+        <span class="t-num">배정일</span>
+      </div>
+      <div class="trow trow-item" tabindex="0" data-edu="OO대학교 컴퓨터공학과" data-career="2년 (백엔드)" data-skills="Python · FastAPI · PostgreSQL">
+        <span class="name">김도현</span>
+        <span>백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">2026.08.20</span>
+      </div>
+      <div class="trow trow-item" tabindex="0" data-edu="OO대학교 시각디자인학과" data-career="1년 (프론트엔드)" data-skills="React · TypeScript · Figma">
+        <span class="name">박서연</span>
+        <span>프론트엔드 개발자</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">2026.08.21</span>
+      </div>
+      <div class="trow trow-item" tabindex="0" data-edu="OO대학교 소프트웨어학과" data-career="신입" data-skills="Java · Spring Boot">
+        <span class="name">이준호</span>
+        <span>백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">2026.08.19</span>
+      </div>
+      <div class="trow trow-item" tabindex="0" data-edu="OO대학교 통계학과" data-career="3년 (데이터)" data-skills="Python · SQL · Spark">
+        <span class="name">최유진</span>
+        <span>데이터 엔지니어</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">2026.08.22</span>
+      </div>
+      <div class="trow trow-item" tabindex="0" data-edu="부트캠프 수료" data-career="1년 (백엔드)" data-skills="Python · Django · PostgreSQL">
+        <span class="name">정민재</span>
+        <span>백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">2026.08.18</span>
+      </div>
+      <div class="trow trow-item" tabindex="0" data-edu="OO대학교 컴퓨터공학과" data-career="2년 (프론트엔드)" data-skills="Vue · JavaScript · CSS">
+        <span class="name">한소희</span>
+        <span>프론트엔드 개발자</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">2026.08.23</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<aside class="dpanel open" id="dpanel" aria-label="평가 패널">
+  <div class="dinner">
+    <button class="dclose" id="dclose" aria-label="패널 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="dhead">
+      <span class="dname">김도현</span>
+      <span class="stage stage-progress">면접</span>
+    </div>
+    <div class="dsec">
+      <h2>지원 정보</h2>
+      <dl class="dlist">
+        <dt>학력</dt><dd data-f="edu">OO대학교 컴퓨터공학과</dd>
+        <dt>경력</dt><dd data-f="career">2년 (백엔드)</dd>
+        <dt>기술</dt><dd data-f="skills">Python · FastAPI · PostgreSQL</dd>
+      </dl>
+    </div>
+    <div class="dsec">
+      <h2>평가</h2>
+      <div class="rate" role="group" aria-label="평가 점수">
+        <button type="button" aria-pressed="false">1</button>
+        <button type="button" aria-pressed="false">2</button>
+        <button type="button" aria-pressed="false">3</button>
+        <button type="button" aria-pressed="false">4</button>
+        <button type="button" aria-pressed="false">5</button>
+      </div>
+      <textarea class="ninput" rows="3" aria-label="평가 코멘트 입력" placeholder="평가 코멘트를 입력합니다" style="margin-top:var(--sp-3);"></textarea>
+      <div class="nactions"><button class="btn btn-primary" id="nadd" disabled>등록</button></div>
+      <p style="font-family:var(--sans); font-size:var(--font-caption); color:var(--text-sub);">등록하면 다음 지원자로 넘어갑니다</p>
+    </div>
+  </div>
+</aside>
+
+<script>
+var dp=document.getElementById('dpanel');
+var dName=dp.querySelector('.dname'), dStage=dp.querySelector('.dhead .stage');
+var addBtn=document.getElementById('nadd');
+
+document.querySelectorAll('.trow-item').forEach(function(r){
+  r.addEventListener('click',function(){
+    var rn=r.querySelector('.name'), rs=r.querySelector('.stage');
+    if(rn&&dName) dName.textContent=rn.textContent;
+    if(rs&&dStage){ dStage.textContent=rs.textContent; dStage.className=rs.className; }
+    dp.querySelectorAll('.dlist dd[data-f]').forEach(function(dd){
+      var v=r.getAttribute('data-'+dd.getAttribute('data-f'));
+      dd.textContent = v!==null ? v : '—';
+    });
+    dp.querySelectorAll('.rate button').forEach(function(b){ b.setAttribute('aria-pressed','false'); });
+    addBtn.disabled=true;
+    dp.classList.add('open');
+  });
+});
+
+document.getElementById('dclose').addEventListener('click',function(){ dp.classList.remove('open'); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') dp.classList.remove('open'); });
+
+dp.querySelectorAll('.rate button').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    dp.querySelectorAll('.rate button').forEach(function(b){ b.setAttribute('aria-pressed','false'); });
+    btn.setAttribute('aria-pressed','true');
+    addBtn.disabled=false;
+  });
+});
+</script>
+</body>
+</html>
