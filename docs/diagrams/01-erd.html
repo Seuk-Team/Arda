@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  01-erd.html — docs/01-erd.md 의 시각화. 이 파일이 수정 가능한 원본이다.
+  01-erd.png 는 이 파일을 브라우저 폭 1400px 로 렌더해 2배 배율로 캡처한 것.
+  스키마가 바뀌면 이 파일을 고친 뒤 PNG 를 다시 뽑는다.
+-->
+<title>Arda 스키마 지도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --ground: #EAEEEF;
+    --surface: #FFFFFF;
+    --surface-2: #F4F7F7;
+    --ink: #111A1C;
+    --ink-2: #47585E;
+    --ink-3: #7A8B91;
+    --line: #D3DCDE;
+    --line-2: #E4EBEC;
+    --accent: #14666E;
+    --accent-soft: #DBEAEB;
+    --clay: #9C5029;
+    --clay-soft: #F2E2D8;
+    --good: #1C7355;
+    --good-soft: #DCEDE6;
+    --warn: #8C6210;
+    --warn-soft: #F3E8D0;
+
+    --f-sans: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+    --f-mono: "IBM Plex Mono", "IBM Plex Sans KR", ui-monospace, "Consolas", monospace;
+
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+    --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 72px;
+    --r: 3px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0C1214;
+      --surface: #141D20;
+      --surface-2: #1A2427;
+      --ink: #E5EDEE;
+      --ink-2: #9BADB3;
+      --ink-3: #6B7D83;
+      --line: #263437;
+      --line-2: #1F2C2F;
+      --accent: #58B4B9;
+      --accent-soft: #10312F;
+      --clay: #CD8A5E;
+      --clay-soft: #2E1E16;
+      --good: #4EB891;
+      --good-soft: #102E26;
+      --warn: #CBA24C;
+      --warn-soft: #2C2313;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0C1214;
+    --surface: #141D20;
+    --surface-2: #1A2427;
+    --ink: #E5EDEE;
+    --ink-2: #9BADB3;
+    --ink-3: #6B7D83;
+    --line: #263437;
+    --line-2: #1F2C2F;
+    --accent: #58B4B9;
+    --accent-soft: #10312F;
+    --clay: #CD8A5E;
+    --clay-soft: #2E1E16;
+    --good: #4EB891;
+    --good-soft: #102E26;
+    --warn: #CBA24C;
+    --warn-soft: #2C2313;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: var(--sp-7) var(--sp-5) var(--sp-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-8);
+  }
+
+  /* ---------- header ---------- */
+
+  .head { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(30px, 5vw, 46px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+
+  .lede {
+    margin: 0;
+    max-width: 60ch;
+    color: var(--ink-2);
+  }
+
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--warn-soft);
+    border-left: 3px solid var(--warn);
+    border-radius: 0 var(--r) var(--r) 0;
+  }
+
+  .status strong { color: var(--ink); font-weight: 600; }
+  .status span { color: var(--ink-2); font-size: 14px; }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-5);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+
+  .meta b {
+    font-family: var(--f-mono);
+    font-weight: 500;
+    color: var(--ink-2);
+    font-size: 12px;
+  }
+
+  /* ---------- section ---------- */
+
+  section { display: flex; flex-direction: column; gap: var(--sp-5); }
+
+  .sec-head { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+  h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--f-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .sec-head p {
+    margin: 0;
+    max-width: 68ch;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+
+  /* ---------- stage rail ---------- */
+
+  .rail-box {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: var(--sp-6) var(--sp-5) var(--sp-5);
+    overflow-x: auto;
+  }
+
+  .rail {
+    display: flex;
+    align-items: stretch;
+    gap: var(--sp-2);
+    min-width: 620px;
+  }
+
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--accent);
+    border-radius: var(--r);
+  }
+
+  .stage:nth-child(1) { border-top-color: var(--ink-3); }
+  .stage.is-good { border-top-color: var(--good); background: var(--good-soft); }
+
+  .stage code {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .stage em {
+    font-style: normal;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+
+  .arrow {
+    align-self: center;
+    font-family: var(--f-mono);
+    color: var(--ink-3);
+    font-size: 14px;
+  }
+
+  .reject {
+    margin-top: var(--sp-4);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 620px;
+  }
+
+  .reject-line {
+    flex: 1;
+    height: 0;
+    border-top: 1px dashed var(--clay);
+  }
+
+  .reject-node {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--clay-soft);
+    border: 1px solid var(--clay);
+    border-radius: var(--r);
+    white-space: nowrap;
+  }
+
+  .reject-node code { font-family: var(--f-mono); font-size: 13px; font-weight: 500; color: var(--ink); }
+  .reject-node em { font-style: normal; font-size: 12px; color: var(--ink-2); }
+
+  .rules {
+    margin: var(--sp-5) 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+
+  .rules li { padding-left: var(--sp-4); position: relative; }
+  .rules li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 10px;
+    width: 6px; height: 1px;
+    background: var(--ink-3);
+  }
+  .rules code, .cd {
+    font-family: var(--f-mono);
+    font-size: 0.88em;
+    color: var(--ink);
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+    border: 1px solid var(--line-2);
+  }
+
+  /* ---------- map ---------- */
+
+  .map-box {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: var(--sp-5);
+    overflow-x: auto;
+  }
+
+  svg.map { display: block; width: 100%; min-width: 900px; height: auto; }
+
+  .n-box { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
+  .n-box-hub { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  .n-name { font-family: var(--f-mono); font-size: 14px; font-weight: 500; fill: var(--ink); }
+  .n-name-hub { font-size: 16px; font-weight: 600; }
+  .n-gloss { font-family: var(--f-sans); font-size: 11.5px; fill: var(--ink-2); }
+  .n-fn { font-family: var(--f-mono); font-size: 10.5px; fill: var(--ink-3); }
+  .edge { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+  .edge-cap { font-family: var(--f-mono); font-size: 10px; fill: var(--ink-3); }
+  .u-pill { fill: var(--clay-soft); stroke: var(--clay); stroke-width: 1; }
+  .u-text { font-family: var(--f-mono); font-size: 10px; font-weight: 500; fill: var(--clay); }
+  .star { font-family: var(--f-sans); font-size: 11px; fill: var(--accent); font-weight: 600; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3) var(--sp-5);
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--line-2);
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+
+  .lg { display: flex; align-items: center; gap: var(--sp-2); }
+  .lg-line { width: 26px; height: 0; border-top: 1.5px solid var(--accent); }
+  .lg-pill {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--clay);
+    background: var(--clay-soft);
+    border: 1px solid var(--clay);
+    border-radius: 2px;
+    padding: 1px 5px;
+  }
+
+  /* ---------- full erd ---------- */
+
+  .erd-wrap {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: var(--sp-5);
+    overflow-x: auto;
+  }
+
+  .erd-canvas { position: relative; width: 1200px; height: 1080px; }
+  .erd-edges { position: absolute; inset: 0; width: 1200px; height: 1080px; }
+
+  .e-own { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+  .e-actor { fill: none; stroke: var(--clay); stroke-width: 1.2; stroke-dasharray: 5 4; }
+  .sym-own { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+  .sym-own-c { fill: var(--surface); stroke: var(--accent); stroke-width: 1.4; }
+  .sym-actor { fill: none; stroke: var(--clay); stroke-width: 1.3; }
+  .sym-actor-c { fill: var(--surface); stroke: var(--clay); stroke-width: 1.3; }
+
+  .ent {
+    position: absolute;
+    box-sizing: border-box;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+
+  .ent.is-hub { border-color: var(--accent); }
+
+  .ent-h {
+    height: 26px;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0 10px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .ent.is-hub .ent-h { background: var(--accent-soft); color: var(--accent); }
+
+  .ent-h span {
+    margin-left: auto;
+    font-family: var(--f-sans);
+    font-size: 10.5px;
+    font-weight: 400;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  .ent-r {
+    height: 18px;
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    font-family: var(--f-mono);
+  }
+
+  .ent-r .k {
+    font-size: 8.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: transparent;
+  }
+  .ent-r .k.pk { color: var(--accent); }
+  .ent-r .k.fk { color: var(--clay); }
+  .ent-r .k.uq { color: var(--ink-3); }
+
+  .ent-r .rn {
+    font-size: 11px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ent-r .rn.key { font-weight: 600; }
+  .ent-r .rn.long { font-size: 10px; letter-spacing: -0.01em; }
+
+  .ent-r .rt {
+    font-size: 9.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  .erd-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3) var(--sp-5);
+    margin-top: var(--sp-5);
+    padding-top: var(--sp-4);
+    border-top: 1px solid var(--line-2);
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .erd-legend .lg svg { display: block; }
+
+  /* ---------- table cards ---------- */
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: var(--sp-4);
+    align-items: start;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: var(--sp-4) var(--sp-5) var(--sp-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .card.is-hub {
+    grid-column: 1 / -1;
+    border-color: var(--accent);
+    border-top: 3px solid var(--accent);
+  }
+
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-2) var(--sp-3);
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .card-head h3 {
+    margin: 0;
+    font-family: var(--f-mono);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .card-head .gloss { font-size: 13px; color: var(--ink-2); }
+
+  .fn {
+    margin-left: auto;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+
+  .card > .note {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+
+  .cols { display: flex; flex-direction: column; }
+
+  .col {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px var(--sp-3);
+    padding: var(--sp-2) 0;
+    border-top: 1px solid var(--line-2);
+  }
+  .col:first-child { border-top: 0; }
+
+  .c-name {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+  .c-name.is-key { font-weight: 600; }
+
+  .c-type {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--ink-3);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .c-meta {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-1) var(--sp-2);
+  }
+
+  .c-desc { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+
+  .chip {
+    font-family: var(--f-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 2px;
+    border: 1px solid var(--line);
+    color: var(--ink-3);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+
+  .chip.pk { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .chip.fk { color: var(--clay); border-color: var(--clay); background: var(--clay-soft); }
+  .chip.ai { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+
+  .card-foot {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    line-height: 1.5;
+  }
+
+  .card-foot li { padding-left: var(--sp-4); position: relative; }
+  .card-foot li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 9px;
+    width: 6px; height: 1px;
+    background: var(--ink-3);
+  }
+  .card-foot li.warn::before { background: var(--clay); }
+  .card-foot .tag {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--clay);
+    margin-right: var(--sp-2);
+  }
+
+  .hub-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 var(--sp-6); }
+
+  /* ---------- open items ---------- */
+
+  .open {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--sp-4);
+  }
+
+  .item {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  .item.is-blocking {
+    border-color: var(--clay);
+    border-left: 3px solid var(--clay);
+    background: var(--surface);
+  }
+
+  .item h4 {
+    margin: 0;
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .item p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.55; }
+
+  .item .kind {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .item.is-blocking .kind { color: var(--clay); }
+
+  .ext {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+
+  .ext-row {
+    display: grid;
+    grid-template-columns: 92px minmax(180px, 1fr) 2fr;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border-top: 1px solid var(--line-2);
+    font-size: 13px;
+    align-items: baseline;
+  }
+  .ext-row:first-child { border-top: 0; }
+
+  .ext-row .no {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+  .ext-row .what { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink); }
+  .ext-row .how { color: var(--ink-2); font-size: 13px; }
+
+  footer {
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+
+  @media (max-width: 640px) {
+    .wrap { padding: var(--sp-5) var(--sp-4) var(--sp-7); gap: var(--sp-7); }
+    .ext-row { grid-template-columns: 1fr; gap: var(--sp-1); }
+    .fn { margin-left: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <div class="eyebrow">docs / 01-erd.md</div>
+    <h1>Arda 스키마 지도</h1>
+    <p class="lede">채용 지원자 관리 시스템(ATS)의 테이블 9개 — 소유 관계, 단계 전환 규칙, 확정 전에 정리할 미결 사항.</p>
+    <div class="status">
+      <strong>초안</strong>
+      <span>UI 완성 후 화면 기준으로 검증·확정한다. 확정 이후 변경은 전원 합의로만.</span>
+    </div>
+    <div class="meta">
+      <span><b>기준</b> 필수 23기능</span>
+      <span><b>테이블</b> 9</span>
+      <span><b>원본</b> docs/01-erd.md</span>
+      <span><b>구현</b> backend/app/models.py — 어긋나면 문서가 기준</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head">
+      <h2>단계 — 고정 enum</h2>
+      <p><span class="cd">applications.current_stage</span> 가 갖는 값. DB enum이 아니라 체크 제약 + 코드 상수로 관리해 마이그레이션 부담을 줄인다.</p>
+    </div>
+    <div class="rail-box">
+      <div class="rail">
+        <div class="stage"><code>applied</code><em>지원 접수</em></div>
+        <div class="arrow">→</div>
+        <div class="stage"><code>screening</code><em>서류 검토</em></div>
+        <div class="arrow">→</div>
+        <div class="stage"><code>interview</code><em>면접</em></div>
+        <div class="arrow">→</div>
+        <div class="stage is-good"><code>accepted</code><em>최종 합격</em></div>
+      </div>
+      <div class="reject">
+        <div class="reject-node"><code>rejected</code><em>불합격</em></div>
+        <div class="reject-line"></div>
+        <span class="edge-cap" style="font-family:var(--f-sans);font-size:12px;color:var(--ink-2)">어느 단계에서든 진입 가능</span>
+      </div>
+      <ul class="rules">
+        <li>전진은 순서대로만. 뒤로 이동은 담당자 권한.</li>
+        <li>전환 규칙은 DB가 아니라 <strong>백엔드 서비스 레이어에서 강제</strong>한다.</li>
+        <li>단계 커스터마이징(B8)은 범위 밖. 검수 플로우 도입 시 <code>applied</code> 앞에 <code>pending_review</code> 추가 여지.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>관계 요약 — 소유 스파인</h2>
+      <p>실제 소유 관계는 한 줄기다: <span class="cd">job_postings</span> → <span class="cd">applications</span> → 자식 6개. <span class="cd">users</span> 는 이 줄기에 얹히지 않고 5개 테이블이 <strong>행위자로 참조</strong>하므로, 선으로 긋지 않고 각 테이블에 참조 배지로 표시했다.</p>
+    </div>
+    <div class="map-box">
+      <svg class="map" viewBox="0 0 940 476" role="img" aria-label="job_postings에서 applications로, 다시 자식 테이블 6개로 이어지는 소유 관계 다이어그램">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"></path>
+          </marker>
+        </defs>
+
+        <!-- edges: spine -->
+        <path class="edge" marker-end="url(#ar)" d="M 196 232 L 292 232"></path>
+        <text class="edge-cap" x="244" y="224" text-anchor="middle">1:N</text>
+
+        <!-- edges: applications -> 6 children -->
+        <path class="edge" marker-end="url(#ar)" d="M 500 232 C 560 232, 560 44, 622 44"></path>
+        <path class="edge" marker-end="url(#ar)" d="M 500 232 C 560 232, 560 118, 622 118"></path>
+        <path class="edge" marker-end="url(#ar)" d="M 500 232 C 560 232, 560 192, 622 192"></path>
+        <path class="edge" marker-end="url(#ar)" d="M 500 232 C 560 232, 560 266, 622 266"></path>
+        <path class="edge" marker-end="url(#ar)" d="M 500 232 C 560 232, 560 340, 622 340"></path>
+        <path class="edge" marker-end="url(#ar)" d="M 500 232 C 560 232, 560 414, 622 414"></path>
+        <text class="edge-cap" x="548" y="226" text-anchor="middle">1:N ×6</text>
+
+        <!-- job_postings -->
+        <rect class="n-box" x="16" y="204" width="180" height="56" rx="3"></rect>
+        <text class="n-name" x="30" y="228">job_postings</text>
+        <text class="n-gloss" x="30" y="246">채용 공고</text>
+        <rect class="u-pill" x="146" y="212" width="42" height="15" rx="2"></rect>
+        <text class="u-text" x="167" y="223" text-anchor="middle">users</text>
+
+        <!-- applications hub -->
+        <rect class="n-box-hub" x="292" y="192" width="208" height="80" rx="3"></rect>
+        <text class="star" x="308" y="216">★ 핵심 테이블</text>
+        <text class="n-name n-name-hub" x="308" y="240">applications</text>
+        <text class="n-gloss" x="308" y="258">지원서 — 지원자 정보 포함</text>
+
+        <!-- children -->
+        <rect class="n-box" x="622" y="22" width="302" height="44" rx="3"></rect>
+        <text class="n-name" x="638" y="42">stage_history</text>
+        <text class="n-gloss" x="638" y="58">단계 변경 이력 (D5)</text>
+        <rect class="u-pill" x="866" y="30" width="42" height="15" rx="2"></rect>
+        <text class="u-text" x="887" y="41" text-anchor="middle">users</text>
+
+        <rect class="n-box" x="622" y="96" width="302" height="44" rx="3"></rect>
+        <text class="n-name" x="638" y="116">evaluations</text>
+        <text class="n-gloss" x="638" y="132">평가 — 점수 1~5 + 코멘트 (E1·E2)</text>
+        <rect class="u-pill" x="866" y="104" width="42" height="15" rx="2"></rect>
+        <text class="u-text" x="887" y="115" text-anchor="middle">users</text>
+
+        <rect class="n-box" x="622" y="170" width="302" height="44" rx="3"></rect>
+        <text class="n-name" x="638" y="190">application_notes</text>
+        <text class="n-gloss" x="638" y="206">담당자 메모 — 점수 없는 서술형</text>
+        <rect class="u-pill" x="866" y="178" width="42" height="15" rx="2"></rect>
+        <text class="u-text" x="887" y="189" text-anchor="middle">users</text>
+
+        <rect class="n-box" x="622" y="244" width="302" height="44" rx="3"></rect>
+        <text class="n-name" x="638" y="264">files</text>
+        <text class="n-gloss" x="638" y="280">이력서·자소서 — S3 (F1·F2)</text>
+
+        <rect class="n-box" x="622" y="318" width="302" height="44" rx="3"></rect>
+        <text class="n-name" x="638" y="338">email_logs</text>
+        <text class="n-gloss" x="638" y="354">메일 발송 — SQS 큐·재시도 (G1~G3)</text>
+
+        <rect class="n-box" x="622" y="392" width="302" height="44" rx="3"></rect>
+        <text class="n-name" x="638" y="412">interviewer_assignments</text>
+        <text class="n-gloss" x="638" y="428">면접관 배정 — A3 권한의 근거</text>
+        <rect class="u-pill" x="852" y="400" width="56" height="15" rx="2"></rect>
+        <text class="u-text" x="880" y="411" text-anchor="middle">users ×2</text>
+      </svg>
+
+      <div class="legend">
+        <span class="lg"><span class="lg-line"></span> 소유 FK — 부모가 사라지면 자식도 의미를 잃는다</span>
+        <span class="lg"><span class="lg-pill">users</span> 행위자 참조 — 작성자·변경자·배정자</span>
+        <span class="lg">1:N — 전부 일대다. 다대다 조인 테이블은 <span class="cd">interviewer_assignments</span> 하나뿐</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>ERD — 전체</h2>
+      <p>까마귀발 표기. 부모 쪽 <strong>||</strong> = 정확히 하나, 자식 쪽 <strong>○&lt;</strong> = 0개 이상. 전부 1:N이고 다대다 조인 테이블은 <span class="cd">interviewer_assignments</span> 하나뿐이다. <span class="cd">users</span> 참조 5개는 선이 엉키지 않게 <strong>아래·오른쪽 여백으로 돌려</strong> 그렸다 — 얽혀 보이는 것은 <span class="cd">users</span> 가 소유 줄기에 끼어 있어서가 아니라, 다섯 군데에서 행위자로 불려서다.</p>
+    </div>
+    <div class="erd-wrap">
+      <div class="erd-canvas">
+        <svg class="erd-edges" viewBox="0 0 1200 1080" role="img" aria-label="9개 테이블의 크로우풋 ERD. job_postings에서 applications로, applications에서 자식 테이블 6개로 일대다 관계가 이어지고, users는 5개 테이블에서 행위자로 참조된다.">
+
+          <!-- job_postings 1 --- N applications -->
+          <path class="e-own" d="M 154 196 V 330 H 327"></path>
+          <path class="sym-own" d="M 148 204 H 160 M 148 210 H 160"></path>
+          <path class="sym-own" d="M 350 330 L 336 323 M 350 330 L 336 330 M 350 330 L 336 337"></path>
+          <circle class="sym-own-c" cx="331" cy="330" r="3.5"></circle>
+
+          <!-- applications 1 --- N (6 children) -->
+          <path class="e-own" d="M 640 340 C 700 340, 706 88, 766 88"></path>
+          <path class="e-own" d="M 640 385 C 700 385, 706 246, 766 246"></path>
+          <path class="e-own" d="M 640 430 C 700 430, 706 395, 766 395"></path>
+          <path class="e-own" d="M 640 475 C 700 475, 706 562, 766 562"></path>
+          <path class="e-own" d="M 640 520 C 700 520, 706 756, 766 756"></path>
+          <path class="e-own" d="M 640 565 C 700 565, 706 923, 766 923"></path>
+
+          <path class="sym-own" d="M 648 334 V 346 M 654 334 V 346"></path>
+          <path class="sym-own" d="M 648 379 V 391 M 654 379 V 391"></path>
+          <path class="sym-own" d="M 648 424 V 436 M 654 424 V 436"></path>
+          <path class="sym-own" d="M 648 469 V 481 M 654 469 V 481"></path>
+          <path class="sym-own" d="M 648 514 V 526 M 654 514 V 526"></path>
+          <path class="sym-own" d="M 648 559 V 571 M 654 559 V 571"></path>
+
+          <path class="sym-own" d="M 790 88 L 776 81 M 790 88 L 776 88 M 790 88 L 776 95"></path>
+          <circle class="sym-own-c" cx="771" cy="88" r="3.5"></circle>
+          <path class="sym-own" d="M 790 246 L 776 239 M 790 246 L 776 246 M 790 246 L 776 253"></path>
+          <circle class="sym-own-c" cx="771" cy="246" r="3.5"></circle>
+          <path class="sym-own" d="M 790 395 L 776 388 M 790 395 L 776 395 M 790 395 L 776 402"></path>
+          <circle class="sym-own-c" cx="771" cy="395" r="3.5"></circle>
+          <path class="sym-own" d="M 790 562 L 776 555 M 790 562 L 776 562 M 790 562 L 776 569"></path>
+          <circle class="sym-own-c" cx="771" cy="562" r="3.5"></circle>
+          <path class="sym-own" d="M 790 756 L 776 749 M 790 756 L 776 756 M 790 756 L 776 763"></path>
+          <circle class="sym-own-c" cx="771" cy="756" r="3.5"></circle>
+          <path class="sym-own" d="M 790 923 L 776 916 M 790 923 L 776 923 M 790 923 L 776 930"></path>
+          <circle class="sym-own-c" cx="771" cy="923" r="3.5"></circle>
+
+          <!-- users 1 --- N job_postings.created_by -->
+          <path class="e-actor" d="M 284 584 H 344 V 136 H 308"></path>
+          <path class="sym-actor" d="M 288 578 V 590 M 293 578 V 590"></path>
+          <path class="sym-actor" d="M 284 136 L 298 129 M 284 136 L 298 136 M 284 136 L 298 143"></path>
+          <circle class="sym-actor-c" cx="304" cy="136" r="3.5"></circle>
+
+          <!-- users 1 --- N (행위자 참조 5개, 하단·우측 버스 경유) -->
+          <path class="e-actor" d="M 284 596 H 336 V 1010 H 1100 V 940 H 1093"></path>
+          <path class="e-actor" d="M 284 612 H 326 V 1020 H 1112 V 906 H 1093"></path>
+          <path class="e-actor" d="M 284 628 H 316 V 1030 H 1124 V 408 H 1093"></path>
+          <path class="e-actor" d="M 284 644 H 306 V 1040 H 1136 V 259 H 1093"></path>
+          <path class="e-actor" d="M 284 660 H 296 V 1050 H 1148 V 101 H 1093"></path>
+
+          <path class="sym-actor" d="M 288 590 V 602 M 293 590 V 602"></path>
+          <path class="sym-actor" d="M 288 606 V 618 M 293 606 V 618"></path>
+          <path class="sym-actor" d="M 288 622 V 634 M 293 622 V 634"></path>
+          <path class="sym-actor" d="M 288 638 V 650 M 293 638 V 650"></path>
+          <path class="sym-actor" d="M 288 654 V 666 M 293 654 V 666"></path>
+
+          <path class="sym-actor" d="M 1080 940 L 1092 933 M 1080 940 L 1092 940 M 1080 940 L 1092 947"></path>
+          <circle class="sym-actor-c" cx="1097" cy="940" r="3.5"></circle>
+          <path class="sym-actor" d="M 1080 906 L 1092 899 M 1080 906 L 1092 906 M 1080 906 L 1092 913"></path>
+          <circle class="sym-actor-c" cx="1097" cy="906" r="3.5"></circle>
+          <path class="sym-actor" d="M 1080 408 L 1092 401 M 1080 408 L 1092 408 M 1080 408 L 1092 415"></path>
+          <circle class="sym-actor-c" cx="1097" cy="408" r="3.5"></circle>
+          <path class="sym-actor" d="M 1080 259 L 1092 252 M 1080 259 L 1092 259 M 1080 259 L 1092 266"></path>
+          <circle class="sym-actor-c" cx="1097" cy="259" r="3.5"></circle>
+          <path class="sym-actor" d="M 1080 101 L 1092 94 M 1080 101 L 1092 101 M 1080 101 L 1092 108"></path>
+          <circle class="sym-actor-c" cx="1097" cy="101" r="3.5"></circle>
+        </svg>
+
+        <div class="ent" style="left:24px; top:60px; width:260px; height:136px;">
+          <div class="ent-h">job_postings<span>채용 공고</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">title</span><span class="rt">varchar(200)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">description</span><span class="rt">text</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">status</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">created_by</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn long">created_at / updated_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:24px; top:560px; width:260px; height:136px;">
+          <div class="ent-h">users<span>내부 사용자</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k uq">UQ</span><span class="rn">email</span><span class="rt">varchar(255)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">password_hash</span><span class="rt">varchar(255)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">name</span><span class="rt">varchar(50)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">role</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">created_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent is-hub" style="left:350px; top:300px; width:290px; height:316px;">
+          <div class="ent-h">applications<span>지원서 · ★ 핵심</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">job_posting_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">name</span><span class="rt">varchar(50)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">email</span><span class="rt">varchar(255)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">phone</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">education</span><span class="rt">varchar(100)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">career_years</span><span class="rt">smallint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">skills</span><span class="rt">text[]</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">self_intro</span><span class="rt">text</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">ai_summary</span><span class="rt">text</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">ai_summary_at</span><span class="rt">timestamptz</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">ai_summary_model</span><span class="rt">varchar(50)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">current_stage</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">privacy_agreed_at</span><span class="rt">timestamptz</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">source</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn long">created_at / updated_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:790px; top:20px; width:290px; height:136px;">
+          <div class="ent-h">stage_history<span>단계 변경 이력</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">application_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">from_stage</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">to_stage</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">changed_by</span><span class="rt">bigint · NULL 허용</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">created_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:790px; top:178px; width:290px; height:136px;">
+          <div class="ent-h">evaluations<span>평가</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">application_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">evaluator_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">score</span><span class="rt">smallint · 1~5</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">comment</span><span class="rt">text</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn long">created_at / updated_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:790px; top:336px; width:290px; height:118px;">
+          <div class="ent-h">application_notes<span>담당자 메모</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">application_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">author_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">body</span><span class="rt">text</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn long">created_at / updated_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:790px; top:476px; width:290px; height:172px;">
+          <div class="ent-h">files<span>이력서 파일</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">application_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">s3_key</span><span class="rt">varchar(500)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">filename</span><span class="rt">varchar(255)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">size_bytes</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">content_type</span><span class="rt">varchar(100)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">kind</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">created_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:790px; top:670px; width:290px; height:172px;">
+          <div class="ent-h">email_logs<span>메일 발송</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">application_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">to_email</span><span class="rt">varchar(255)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">stage</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">status</span><span class="rt">varchar(20)</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">retry_count</span><span class="rt">smallint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">sent_at</span><span class="rt">timestamptz</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">created_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+        <div class="ent" style="left:790px; top:864px; width:290px; height:118px;">
+          <div class="ent-h">interviewer_assignments<span>면접관 배정</span></div>
+          <div class="ent-r"><span class="k pk">PK</span><span class="rn key">id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">application_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">interviewer_id</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k fk">FK</span><span class="rn key">assigned_by</span><span class="rt">bigint</span></div>
+          <div class="ent-r"><span class="k"></span><span class="rn">created_at</span><span class="rt">timestamptz</span></div>
+        </div>
+
+      </div>
+
+      <div class="erd-legend">
+        <span class="lg">
+          <svg width="58" height="14" viewBox="0 0 58 14" aria-hidden="true">
+            <path class="e-own" d="M 8 7 H 44"></path>
+            <path class="sym-own" d="M 12 2 V 12 M 17 2 V 12"></path>
+            <path class="sym-own" d="M 54 7 L 44 2 M 54 7 L 44 7 M 54 7 L 44 12"></path>
+            <circle class="sym-own-c" cx="41" cy="7" r="3"></circle>
+          </svg>
+          1:N 소유 FK — 부모가 사라지면 자식도 의미를 잃는다
+        </span>
+        <span class="lg">
+          <svg width="58" height="14" viewBox="0 0 58 14" aria-hidden="true">
+            <path class="e-actor" d="M 8 7 H 44"></path>
+            <path class="sym-actor" d="M 12 2 V 12 M 17 2 V 12"></path>
+            <path class="sym-actor" d="M 54 7 L 44 2 M 54 7 L 44 7 M 54 7 L 44 12"></path>
+            <circle class="sym-actor-c" cx="41" cy="7" r="3"></circle>
+          </svg>
+          users 참조 — 작성자 · 변경자 · 배정자
+        </span>
+        <span class="lg"><span class="chip pk">pk</span> <span class="chip fk">fk</span> <span class="chip">uq</span> 키 · 유니크</span>
+        <span class="lg">복합 UNIQUE 2개는 표기 밖 — <span class="cd">applications(job_posting_id, email)</span> · <span class="cd">interviewer_assignments(application_id, interviewer_id)</span></span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>테이블 9</h2>
+      <p>표 순서는 원본 문서와 같다. <span class="cd">PK</span> <span class="cd">FK</span> <span class="cd">UQ</span> <span class="cd">NN</span> <span class="cd">IDX</span> 는 제약, <span class="cd">AI</span> 는 AI 생성 컬럼.</p>
+    </div>
+
+    <div class="grid">
+
+      <article class="card">
+        <div class="card-head">
+          <h3>users</h3>
+          <span class="gloss">내부 사용자</span>
+          <span class="fn">A1 · A2</span>
+        </div>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name">email</span><span class="c-type">varchar(255)</span><span class="c-meta"><span class="chip">uq</span><span class="chip">nn</span><span class="c-desc">로그인 ID</span></span></div>
+          <div class="col"><span class="c-name">password_hash</span><span class="c-type">varchar(255)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">bcrypt</span></span></div>
+          <div class="col"><span class="c-name">name</span><span class="c-type">varchar(50)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">role</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc"><span class="cd">admin</span> / <span class="cd">recruiter</span> / <span class="cd">interviewer</span></span></span></div>
+          <div class="col"><span class="c-name">created_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">default now()</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>A5 로그인 이력은 <span class="cd">login_logs</span> 별도 테이블로 추가 — 이 스키마 변경 없음.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>job_postings</h3>
+          <span class="gloss">채용 공고</span>
+          <span class="fn">B1 · B2</span>
+        </div>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name">title</span><span class="c-type">varchar(200)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">description</span><span class="c-type">text</span><span class="c-meta"><span class="c-desc">공고 본문</span></span></div>
+          <div class="col"><span class="c-name">status</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc"><span class="cd">draft</span> / <span class="cd">open</span> / <span class="cd">closed</span></span></span></div>
+          <div class="col"><span class="c-name is-key">created_by</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → users</span></span></div>
+          <div class="col"><span class="c-name">created_at / updated_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>B3 지원자 수는 <strong>집계 쿼리로</strong> 낸다 — 컬럼을 두지 않는다.</li>
+          <li>B4 마감일 → <span class="cd">deadline date</span>, B6 공개 링크 → <span class="cd">public_token</span> 추가 여지.</li>
+        </ul>
+      </article>
+
+      <article class="card is-hub">
+        <div class="card-head">
+          <h3>applications</h3>
+          <span class="gloss">지원서 — ★ 핵심 테이블</span>
+          <span class="fn">C1 · D1 · D6</span>
+        </div>
+        <p class="note">지원자는 로그인 없이 지원하므로(C1) 지원자 정보를 별도 인물 테이블로 나누지 않고 지원서에 포함한다. D11 인재풀을 하게 되면 그때 <span class="cd">applicants</span> 분리 — 전원 합의 필요.</p>
+        <div class="hub-cols">
+          <div class="cols">
+            <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+            <div class="col"><span class="c-name is-key">job_posting_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → job_postings</span><span class="chip">nn</span></span></div>
+            <div class="col"><span class="c-name">name</span><span class="c-type">varchar(50)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+            <div class="col"><span class="c-name">email</span><span class="c-type">varchar(255)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+            <div class="col"><span class="c-name">phone</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+            <div class="col"><span class="c-name">education</span><span class="c-type">varchar(100)</span><span class="c-meta"><span class="c-desc">최종 학력</span></span></div>
+            <div class="col"><span class="c-name">career_years</span><span class="c-type">smallint</span><span class="c-meta"><span class="c-desc">경력 연차 (신입 = 0)</span></span></div>
+            <div class="col"><span class="c-name">skills</span><span class="c-type">text[]</span><span class="c-meta"><span class="c-desc">기술 태그. 예: <span class="cd">{Python,FastAPI}</span></span></span></div>
+            <div class="col"><span class="c-name">self_intro</span><span class="c-type">text</span><span class="c-meta"><span class="c-desc">자기소개서</span></span></div>
+          </div>
+          <div class="cols">
+            <div class="col"><span class="c-name">ai_summary</span><span class="c-type">text</span><span class="c-meta"><span class="chip ai">ai</span><span class="c-desc">자소서 요지 + 공고 요건 대비 적합/우려. NULL = 미생성</span></span></div>
+            <div class="col"><span class="c-name">ai_summary_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip ai">ai</span><span class="c-desc">생성 시각 — 공고 요건 변경 시 재생성 판단 기준</span></span></div>
+            <div class="col"><span class="c-name">ai_summary_model</span><span class="c-type">varchar(50)</span><span class="c-meta"><span class="chip ai">ai</span><span class="c-desc">생성 모델명 — 발표 때 근거 제시용</span></span></div>
+            <div class="col"><span class="c-name">current_stage</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">default <span class="cd">applied</span> · 위 stage enum</span></span></div>
+            <div class="col"><span class="c-name">privacy_agreed_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">개인정보 동의 시각 (C3)</span></span></div>
+            <div class="col"><span class="c-name">source</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">default <span class="cd">form</span> — <span class="cd">form</span>(외부 지원) / <span class="cd">manual</span>(담당자 등록, D6)</span></span></div>
+            <div class="col"><span class="c-name">created_at / updated_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          </div>
+        </div>
+        <ul class="card-foot">
+          <li>UNIQUE <span class="cd">(job_posting_id, email)</span> — 중복 지원 방지(C6). 권장 기능이지만 제약 하나로 끝나므로 처음부터 포함.</li>
+          <li>인덱스 <span class="cd">(job_posting_id, current_stage)</span> — 칸반·단계 필터(H2).</li>
+          <li class="warn"><span class="tag">합의 필요</span>검색(H1)·10만 건 튜닝용 <strong>추가 인덱스는 B 담당이 측정 후 제안</strong> — 스키마 합의 대상이다.</li>
+          <li>AI 요약은 접수 시 1회 생성해 저장하고, 상세 패널은 저장값을 즉시 표시한다. 패널을 열 때마다 생성하지 않는다 — 연속 심사 지연·호출 비용·재현성 때문. 재생성은 명시적 버튼으로만.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>stage_history</h3>
+          <span class="gloss">단계 변경 이력</span>
+          <span class="fn">D5</span>
+        </div>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name is-key">application_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → applications</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">from_stage</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="c-desc">최초 접수 시 NULL</span></span></div>
+          <div class="col"><span class="c-name">to_stage</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name is-key">changed_by</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → users</span><span class="c-desc">NULL = 시스템(외부 지원 접수)</span></span></div>
+          <div class="col"><span class="c-name">created_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>D8 불합격 사유 → <span class="cd">reason text</span> 추가 여지.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>evaluations</h3>
+          <span class="gloss">평가</span>
+          <span class="fn">E1 · E2</span>
+        </div>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name is-key">application_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → applications</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name is-key">evaluator_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → users</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">score</span><span class="c-type">smallint</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">1~5 체크 제약</span></span></div>
+          <div class="col"><span class="c-name">comment</span><span class="c-type">text</span><span class="c-meta"></span></div>
+          <div class="col"><span class="c-name">created_at / updated_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>E4 항목 분리 → <span class="cd">category</span> 추가 여지.</li>
+          <li>E5 본인만 수정은 코드에서 <span class="cd">evaluator_id</span> 검사.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>application_notes</h3>
+          <span class="gloss">담당자 메모</span>
+          <span class="fn">기능 번호 미지정</span>
+        </div>
+        <p class="note">평가와 분리한다. 저쪽은 점수 1~5가 필수인 평가 행이라, 점수 없는 서술형 기록이 섞이면 평가 목록·평균이 오염된다.</p>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name is-key">application_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → applications</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name is-key">author_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → users</span><span class="chip">nn</span><span class="c-desc">작성자</span></span></div>
+          <div class="col"><span class="c-name">body</span><span class="c-type">text</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">서술형 메모</span></span></div>
+          <div class="col"><span class="c-name">created_at / updated_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>인덱스 <span class="cd">(application_id, created_at DESC)</span> — 상세 패널 최신순 표시.</li>
+          <li>수정·삭제는 작성자 본인만 — 코드에서 <span class="cd">author_id</span> 검사.</li>
+          <li>한 문서를 공동 편집하지 않고 <strong>각자 행을 추가하는 구조</strong> — 동시 편집 충돌 처리가 필요 없다 (ADR-0005).</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>files</h3>
+          <span class="gloss">이력서 파일</span>
+          <span class="fn">F1 · F2</span>
+        </div>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name is-key">application_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → applications</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">s3_key</span><span class="c-type">varchar(500)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">버킷 내 경로 — 이름 미결</span></span></div>
+          <div class="col"><span class="c-name">filename</span><span class="c-type">varchar(255)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">원본 파일명</span></span></div>
+          <div class="col"><span class="c-name">size_bytes</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">content_type</span><span class="c-type">varchar(100)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">kind</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc"><span class="cd">resume</span> / <span class="cd">cover_letter</span> — 지원자는 이 2종을 제출</span></span></div>
+          <div class="col"><span class="c-name">created_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>업로드는 presigned URL로 브라우저 → S3 직행. <strong>서버는 키 발급과 이 레코드만 만든다.</strong></li>
+          <li>화면 표시는 규격 파일명 <span class="cd">{지원자명}_{유형}.{확장자}</span> 을 코드에서 생성해 쓰고, <span class="cd">filename</span>(원본)은 보존해 보조 표기.</li>
+          <li>허용 형식 pdf · docx · hwp(hwpx). 자소서가 이력서에 포함된 경우 <span class="cd">resume</span> 1건만 존재할 수 있다.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>email_logs</h3>
+          <span class="gloss">메일 발송</span>
+          <span class="fn">G1 ~ G3</span>
+        </div>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name is-key">application_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → applications</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">to_email</span><span class="c-type">varchar(255)</span><span class="c-meta"><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">stage</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">어떤 단계 변경 건인지</span></span></div>
+          <div class="col"><span class="c-name">status</span><span class="c-type">varchar(20)</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">default <span class="cd">queued</span> — <span class="cd">queued</span> / <span class="cd">sent</span> / <span class="cd">failed</span></span></span></div>
+          <div class="col"><span class="c-name">retry_count</span><span class="c-type">smallint</span><span class="c-meta"><span class="chip">nn</span><span class="c-desc">default 0</span></span></div>
+          <div class="col"><span class="c-name">sent_at</span><span class="c-type">timestamptz</span><span class="c-meta"></span></div>
+          <div class="col"><span class="c-name">created_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>흐름: 단계 변경 → 레코드 생성 + SQS 발행 → 워커가 SES 발송 → <span class="cd">status</span> 갱신. 실패 시 재시도(G3), 상한 초과 시 <span class="cd">failed</span>.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h3>interviewer_assignments</h3>
+          <span class="gloss">면접관 배정</span>
+          <span class="fn">A3</span>
+        </div>
+        <p class="note">면접관은 <strong>본인이 배정된 지원자만</strong> 조회할 수 있다(A3, 필수). 이를 강제하려면 배정 관계가 필요하다.</p>
+        <div class="cols">
+          <div class="col"><span class="c-name is-key">id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip pk">pk</span></span></div>
+          <div class="col"><span class="c-name is-key">application_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → applications</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name is-key">interviewer_id</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → users</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name is-key">assigned_by</span><span class="c-type">bigint</span><span class="c-meta"><span class="chip fk">fk → users</span><span class="chip">nn</span></span></div>
+          <div class="col"><span class="c-name">created_at</span><span class="c-type">timestamptz</span><span class="c-meta"><span class="chip">nn</span></span></div>
+        </div>
+        <ul class="card-foot">
+          <li>UNIQUE <span class="cd">(application_id, interviewer_id)</span>.</li>
+        </ul>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>확정 전에 정리할 것</h2>
+      <p>초안이 확정으로 바뀌기 전에 답이 나와야 하는 항목. 아래 하나는 시점이 지나면 비용이 급격히 오른다.</p>
+    </div>
+
+    <div class="open">
+      <div class="item is-blocking">
+        <span class="kind">미결 · 지금이 가장 싸다</span>
+        <h4>files.s3_key → storage_path ?</h4>
+        <p>S3를 쓰지 않고 로컬 디스크 저장으로 가면 <span class="cd">s3_key</span> 가 <span class="cd">storage_path</span> 로 바뀐다. <strong>지금 바꾸면 한 줄</strong>이고, API·화면이 올라간 뒤면 그것들까지 따라간다.</p>
+      </div>
+      <div class="item is-blocking">
+        <span class="kind">합의 대상</span>
+        <h4>검색 인덱스 (H1)</h4>
+        <p>10만 건 튜닝용 추가 인덱스는 B 담당이 <strong>측정한 뒤</strong> 제안한다. 측정 없이 미리 넣지 않는다. 스키마 합의를 거쳐야 들어간다.</p>
+      </div>
+      <div class="item is-blocking">
+        <span class="kind">조건부 대공사</span>
+        <h4>applicants 분리 (D11)</h4>
+        <p>인재풀을 하게 되면 지원자 정보를 <span class="cd">applications</span> 에서 떼어내야 한다. <strong>전원 합의 필요</strong> — 이 문서에서 가장 큰 변경이다.</p>
+      </div>
+    </div>
+
+    <div class="ext">
+      <div class="ext-row"><span class="no">A5</span><span class="what">login_logs</span><span class="how">로그인 이력 — 별도 테이블로 추가. 기존 스키마 변경 없음</span></div>
+      <div class="ext-row"><span class="no">B4</span><span class="what">job_postings.deadline</span><span class="how">마감일 + 자동 마감</span></div>
+      <div class="ext-row"><span class="no">B6</span><span class="what">job_postings.public_token</span><span class="how">외부 접근용 공개 지원 링크</span></div>
+      <div class="ext-row"><span class="no">D8</span><span class="what">stage_history.reason</span><span class="how">불합격 사유 기록</span></div>
+      <div class="ext-row"><span class="no">E4</span><span class="what">evaluations.category</span><span class="how">평가 항목 분리 — 기술 / 커뮤니케이션 / 컬처핏</span></div>
+      <div class="ext-row"><span class="no">—</span><span class="what">stage: pending_review</span><span class="how">에이전트 정리 → 담당자 검수 플로우 도입 시 <span class="cd">applied</span> 앞에 추가. 검수 승인 시점에 공식 접수로 진입</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>원본: <b>docs/01-erd.md</b> · 구현: <b>backend/app/models.py</b> — 둘이 어긋나면 문서가 기준이다. 문서를 먼저 고치고 모델을 맞춘다.</span>
+    <span>확정 이후의 모든 변경은 전원 합의로만. 팀 채널에 제안 → 합의 → 문서 갱신 → 마이그레이션 → 코드.</span>
+  </footer>
+
+</div>
+</body>
+</html>
