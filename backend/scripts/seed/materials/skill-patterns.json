@@ -1,0 +1,148 @@
+[
+  {
+    "track": "backend",
+    "skills": [
+      "Python",
+      "FastAPI",
+      "Django",
+      "PostgreSQL",
+      "Redis",
+      "Docker"
+    ]
+  },
+  {
+    "track": "frontend",
+    "skills": [
+      "JavaScript",
+      "TypeScript",
+      "React",
+      "Next.js",
+      "CSS",
+      "Webpack"
+    ]
+  },
+  {
+    "track": "mobile-android",
+    "skills": [
+      "Kotlin",
+      "Java",
+      "Android SDK",
+      "Jetpack Compose",
+      "Retrofit"
+    ]
+  },
+  {
+    "track": "mobile-ios",
+    "skills": [
+      "Swift",
+      "SwiftUI",
+      "UIKit",
+      "Xcode",
+      "Combine"
+    ]
+  },
+  {
+    "track": "devops",
+    "skills": [
+      "Kubernetes",
+      "Terraform",
+      "AWS",
+      "Jenkins",
+      "Prometheus",
+      "Ansible"
+    ]
+  },
+  {
+    "track": "data-engineer",
+    "skills": [
+      "Python",
+      "Spark",
+      "Airflow",
+      "Kafka",
+      "SQL",
+      "BigQuery"
+    ]
+  },
+  {
+    "track": "data-scientist",
+    "skills": [
+      "Python",
+      "Pandas",
+      "scikit-learn",
+      "PyTorch",
+      "SQL",
+      "Jupyter"
+    ]
+  },
+  {
+    "track": "qa",
+    "skills": [
+      "Selenium",
+      "Cypress",
+      "JIRA",
+      "TestRail",
+      "Postman"
+    ]
+  },
+  {
+    "track": "security",
+    "skills": [
+      "침해대응",
+      "네트워크 보안",
+      "SIEM",
+      "취약점 진단",
+      "Python"
+    ]
+  },
+  {
+    "track": "pm",
+    "skills": [
+      "Jira",
+      "Confluence",
+      "Notion",
+      "Figma",
+      "SQL",
+      "Amplitude"
+    ]
+  },
+  {
+    "track": "designer-ui",
+    "skills": [
+      "Figma",
+      "Sketch",
+      "Adobe XD",
+      "Photoshop",
+      "Illustrator"
+    ]
+  },
+  {
+    "track": "embedded",
+    "skills": [
+      "C",
+      "C++",
+      "RTOS",
+      "임베디드 리눅스",
+      "회로 설계"
+    ]
+  },
+  {
+    "track": "game",
+    "skills": [
+      "Unity",
+      "C#",
+      "Unreal Engine",
+      "C++",
+      "게임 물리"
+    ]
+  },
+  {
+    "track": "network",
+    "skills": [
+      "Cisco",
+      "TCP/IP",
+      "라우팅",
+      "방화벽",
+      "네트워크 모니터링"
+    ]
+  }
+]
