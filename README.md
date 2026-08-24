@@ -18,26 +18,23 @@ Seuk의 팀 프로젝트입니다.
 
 | 문서                                             | 내용                                                              |
 | ------------------------------------------------ | ----------------------------------------------------------------- |
-| [docs/00-overview.md](docs/00-overview.md)       | 프로젝트 개요 · 범위 · 스택                                       |
-| [docs/01-erd.md](docs/01-erd.md)                 | 테이블 정의서 (초안 — **UI 완성 후 확정, 이후 변경은 전원 합의**) |
-| [docs/02-api.md](docs/02-api.md)                 | API 엔드포인트 목록                                               |
-| [docs/03-conventions.md](docs/03-conventions.md) | 브랜치 · 커밋 · PR · 이슈 규칙                                    |
-| [docs/04-team.md](docs/04-team.md)               | 역할 분배 · 담당 모듈                                             |
-| [docs/05-design.md](docs/05-design.md)           | 디자인 규칙 (토큰 · 타이포 · 상태 · 작업 절차)                    |
-| [docs/adr/](docs/adr/)                           | 기술 결정 기록 (왜 안 썼는가 포함)                                |
-| [docs/tasks/](docs/tasks/)                       | 작업 지시서 (기능 번호 단위)                                      |
-| [docs/planning/](docs/planning/)                 | 원본 기획 문서 · 동작 프로토타입                                  |
+| [docs/00_overview/](docs/00_overview)            | 핵심 공용 문서 — 개요 `00` · ERD `01` · API `02` · 협업 규칙 `03` · 팀 `04` · 디자인 `05` · 주차별 계획 `06` |
+| [docs/01_role/](docs/01_role)                    | **도메인별 로드맵 — 각자 자기 것부터 읽는다** (범위·마일스톤·작업 큐) |
+| [docs/02_tasks/](docs/02_tasks)                  | 작업 지시서 (기능 번호 단위)                                      |
+| [docs/03_decision/](docs/03_decision)                      | 기술 결정 기록 (왜 안 썼는가 포함)                                |
+| [docs/04_planning/](docs/04_planning)            | 원본 기획 문서 · 동작 프로토타입                                  |
 
 ## 구조
 
 ```
-backend/    FastAPI 서버
+backend/    FastAPI 서버 (backend/app/agent/ 는 에이전트 도메인)
 frontend/   React 앱 (Vercel 배포)
+mobile/     모바일 앱 (Expo — 예정)
 infra/      Docker · AWS · CI/CD
 docs/       위 문서 전부
 ```
 
 ## 시작하기
 
-작업 전에 [CLAUDE.md](CLAUDE.md)(작업 규칙)와 자기 담당 [docs/tasks/](docs/tasks/) 지시서를 먼저 읽는다.
-기능은 번호로 부른다 (예: D3 = 드래그로 단계 이동) — 전체 목록은 [docs/planning/00_summary_ko.md](docs/planning/00_summary_ko.md) 6장.
+작업 전에 [CLAUDE.md](CLAUDE.md)(작업 규칙)와 **자기 도메인의 [docs/01_role/](docs/01_role) 로드맵**을 먼저 읽는다. 도메인·오너는 [docs/00_overview/04-team.md](docs/00_overview/04-team.md).
+기능은 번호로 부른다 (예: D3 = 드래그로 단계 이동) — 전체 목록은 [docs/04_planning/00_summary_ko.md](docs/04_planning/00_summary_ko.md) 6장.

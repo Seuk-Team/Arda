@@ -1,1 +1,29 @@
+# 용도: PR 리뷰어 자동 지정. 승인 강제가 아니다 — 강제 규칙은 docs/03-conventions.md 리뷰 절.
+# 매칭은 "마지막 줄이 이긴다". 도메인 경계는 docs/04-team.md 표와 일치해야 한다.
+
+# 기본값 — 어디에도 안 걸리면 팀장
 * @bestcow
+
+# 도메인 폴더 = 오너
+/backend/ @woojeongalex
+/frontend/ @cloverky
+/mobile/ @minahdev
+/infra/ @bestcow
+
+# 백엔드 안의 에이전트 도메인 (backend/ 규칙보다 뒤에 둬서 이긴다)
+/backend/app/agent/ @suvisdev
+/backend/app/api/agent.py @suvisdev
+
+# 인터페이스·공용 — 팀장 (해당 폴더 규칙보다 뒤에 둬서 이긴다)
+/backend/app/models.py @bestcow
+/docs/ @bestcow
+/.github/ @bestcow
+/CLAUDE.md @bestcow
+/README.md @bestcow
+
+# 자기 로드맵은 자기 것 (docs/ 규칙보다 뒤에 둬서 이긴다)
+/docs/01_role/backend.md @woojeongalex
+/docs/01_role/frontend.md @cloverky
+/docs/01_role/agent.md @suvisdev
+/docs/01_role/app.md @minahdev
+/docs/01_role/infra.md @bestcow
