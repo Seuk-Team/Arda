@@ -58,7 +58,7 @@
 
 | # | 작업 | 기능 | 지시서 | 선행 | 담당 |
 |---|---|---|---|---|---|
-| 1 | 인증 — 회원가입·로그인·me | A1·A2 | [있음](../02_tasks/A1-A2-인증.md) | J0 ✅ · ERD | woojeongalex |
+| 1 | 인증 — 회원가입·로그인·me ✅ | A1·A2 | [있음](../02_tasks/A1-A2-인증.md) | J0 ✅ · ERD ✅ | woojeongalex |
 | 2 | 공고 CRUD API | B1·B2·B3 | [있음](../02_tasks/B2-공고-CRUD-API.md) | J0 · ERD | **(mi)** |
 | 3 | 지원서 제출 API (공개) | C1·C3·C6 | [있음](../02_tasks/C2-지원서-제출-API.md) | ERD | woojeongalex |
 | 4 | 지원자 목록·상세 API | D1·D4 | [있음](../02_tasks/D1-지원자-API.md) | 2번 | **(mi)** |
