@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arda 목업 · 지원자</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F7F0;
+  --sidebar-bg:#C7E49B;    /* 연두: 확실히 초록으로 읽히되 어둡지 않은 중간 톤 */
+  --sidebar-line:#A8CD6E;  /* 사이드바 오른쪽 경계선: 배경보다 한 단계 진한 연두 1px */
+  --border-w:1px;
+  --sidebar-w:216px;
+  --content-x:48px;
+  --text:#1B2117;
+  --text-sub:#5C6654;
+  --leaf:#3A6B21;
+  --leaf-strong:#2C5218;
+  --danger:#A9503C;
+  --ai:#A9702A;            /* AI 제안 — 앰버 점선 규약 (05-design 확정) */
+  --ai-soft:#FBF2E5;       /* AI 제안 워시 */
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --font-num:14px;
+  --font-display:26px; --font-h1:22px; --font-h2:18px; --font-body:16px; --font-sm:14px; --font-caption:12px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
+  --r-ctl:6px; --r-card:8px;
+  --bg-elev:#FFFFFF;
+  --border:#DCE3D4;
+  --border-soft:#EAEFE4;
+  --bg-sunken:#EBF0E5;     /* 인풋·트랙: 패널보다 한 단계 아래 */
+  --sunken-hover:#DCE3D4;  /* sunken 바탕 위 hover 채움: 한 톤 진하게 */
+  --ts-heading:0 1px 0 rgba(27,33,23,.34);
+  --ts-onfill:0 1px 0 rgba(0,0,0,.62);
+  --z-sticky:10;
+  --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
+}
+@media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
+*{ box-sizing:border-box; margin:0; }
+body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--sidebar-bg);
+          border-right:var(--border-w) solid var(--sidebar-line);
+          padding:var(--sp-4) var(--sp-2) 0; }
+.logo{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+       color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; padding:0 var(--sp-3); }
+.logo .seed{ color:var(--leaf); }
+.nav{ margin-top:var(--sp-6); display:flex; flex-direction:column; gap:2px; font-family:var(--sans); }
+.nav a{ display:flex; align-items:center; gap:var(--sp-3); min-height:48px; color:var(--text); text-decoration:none;
+        font-size:var(--font-body); font-weight:500;
+        padding:0 var(--sp-3); border-radius:var(--r-ctl); white-space:nowrap;
+        transition:background var(--dur-fast) var(--ease); }
+.nav a svg{ width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:1.8;
+            stroke-linecap:round; stroke-linejoin:round; }
+.sidebar{ display:flex; flex-direction:column; }
+.me{ margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2);
+     padding:var(--sp-3); border-top:var(--border-w) solid var(--sidebar-line);
+     font-family:var(--sans); white-space:nowrap; }
+.me .name{ font-size:var(--font-body); font-weight:600; color:var(--text); }
+.me .role{ font-size:var(--font-sm); color:var(--leaf); margin-top:2px; }
+.me .avatar{ width:44px; height:44px; flex:none; border-radius:50%; background:var(--bg-elev);
+             border:var(--border-w) solid var(--sidebar-line);
+             display:flex; align-items:center; justify-content:center;
+             font-size:var(--font-h2, 18px); font-weight:700; color:var(--leaf); }
+
+.main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.head{ flex:none; min-height:96px; background:var(--bg-elev);
+       border-bottom:var(--border-w) solid #DCE3D4;
+       padding:var(--sp-4) var(--content-x);
+       display:flex; flex-direction:column; justify-content:center; }
+.head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
+              color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; }
+.head-top{ display:flex; align-items:baseline; gap:var(--sp-3); min-width:0; }
+.head-top .title{ line-height:1.2; }
+.head-meta{ font-family:var(--sans); font-size:var(--font-num); font-variant-numeric:tabular-nums;
+            color:var(--text-sub); white-space:nowrap; flex:none; }
+
+.toolbar{ flex:none; min-height:64px; background:var(--bg-elev);
+          border-bottom:var(--border-w) solid #DCE3D4;
+          display:flex; align-items:center; gap:var(--sp-3); padding:0 var(--content-x); }
+.toolbar .head-meta{ margin-left:auto; }
+.search{ display:flex; align-items:center; gap:var(--sp-2); flex:0 1 480px; min-width:260px;
+         height:40px; padding:0 var(--sp-3); border-radius:var(--r-ctl);
+         background:#EBF0E5; border:var(--border-w) solid transparent;
+         transition:background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.search:focus-within{ background:var(--bg-elev); border-color:var(--leaf); }
+.dd{ position:relative; flex:none; height:100%; display:flex; align-items:center; }
+.dd-btn{ display:flex; align-items:center; gap:6px; border:none; background:none; cursor:pointer;
+         font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text-sub);
+         padding:0 var(--sp-1); height:100%; }
+.dd-btn span{ width:calc(var(--font-sm) * 3); text-align:left; white-space:nowrap; }
+.dd-btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.dd-btn svg{ width:12px; height:12px; stroke:var(--text-sub); fill:none; stroke-width:2;
+             stroke-linecap:round; stroke-linejoin:round;
+             transition:transform var(--dur-base, 200ms) var(--ease); }
+.dd.open .dd-btn svg{ transform:rotate(180deg); }
+.dd-menu{ position:absolute; top:calc(100% + 6px); left:calc(-1 * var(--sp-3)); min-width:132px;
+          margin:0; padding:var(--sp-1); list-style:none; z-index:20;
+          background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+          box-shadow:0 8px 28px rgba(27,33,23,.14), 0 2px 6px rgba(27,33,23,.06);
+          opacity:0; transform:translateY(-6px); pointer-events:none;
+          transition:opacity var(--dur-base, 200ms) var(--ease), transform var(--dur-base, 200ms) var(--ease); }
+.dd.open .dd-menu{ opacity:1; transform:none; pointer-events:auto; }
+.dd-menu li{ padding:10px var(--sp-3); border-radius:4px; cursor:pointer; white-space:nowrap;
+             font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
+             transition:background var(--dur-fast) var(--ease); }
+.dd-menu li:hover{ background:#EFF7E2; }
+.dd-menu li.sel{ color:var(--leaf); font-weight:700; }
+.search .sep{ width:1px; height:20px; background:#DCE3D4; flex:none; }
+.search input{ border:none; background:none; outline:none; width:100%;
+               font-family:var(--sans); font-size:var(--font-sm); color:var(--text); }
+.search input::placeholder{ color:var(--text-sub); }
+.search .sx{ flex:none; width:22px; height:22px; border-radius:50%; cursor:pointer;
+             background:none; border:var(--border-w) solid var(--text-sub);
+             display:none; align-items:center; justify-content:center; padding:0;
+             transition:background var(--dur-fast) var(--ease); }
+.search .sx.on{ display:flex; }
+.search .sx:hover{ background:#EBF0E5; }
+.search .sx svg{ width:12px; height:12px; stroke:var(--text-sub); fill:none; stroke-width:2; stroke-linecap:round; }
+.search .sx:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+
+.content{ flex:1; min-height:0; overflow-y:auto; padding:var(--sp-5) var(--content-x); }
+.tpanel{ background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-card);
+         box-shadow:0 1px 2px rgba(27,33,23,.06), 0 1px 1px rgba(27,33,23,.04);
+         min-height:320px; overflow:hidden; }
+.trow{ display:grid; align-items:center; gap:var(--sp-3);
+       grid-template-columns:120px minmax(160px,1fr) 88px 72px 64px 104px;
+       padding:0 var(--sp-6); }
+.thead{ height:48px; border-bottom:var(--border-w) solid #DCE3D4;
+        font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text-sub); }
+.thead span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t-num{ text-align:center; font-variant-numeric:tabular-nums; }
+.trow-item{ height:56px; border-bottom:var(--border-w) solid #EAEFE4; cursor:pointer;
+            font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
+            transition:background var(--dur-fast) var(--ease); }
+.trow-item:hover{ background:#F6F9F2; }
+.trow-item:focus-visible{ outline:2px solid var(--leaf); outline-offset:-2px; }
+.trow-item .name{ font-size:var(--font-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.trow-item .skills{ color:var(--text-sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tfoot{ display:flex; align-items:center; justify-content:space-between;
+        height:56px; padding:0 var(--sp-6); border-top:var(--border-w) solid #DCE3D4;
+        font-family:var(--sans); font-size:var(--font-sm); color:var(--text-sub);
+        font-variant-numeric:tabular-nums; }
+.tfoot .pager{ display:flex; gap:var(--sp-2); }
+.btn-page{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+           height:32px; padding:0 var(--sp-3); border-radius:var(--r-ctl);
+           background:var(--bg-elev); color:var(--text); border:var(--border-w) solid #DCE3D4;
+           cursor:pointer; transition:background var(--dur-fast) var(--ease); }
+.btn-page:hover{ background:#EBF0E5; }
+.btn-page:disabled{ color:var(--text-sub); background:#EBF0E5; cursor:not-allowed; }
+.btn-page:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn-page.num{ min-width:32px; padding:0; text-align:center; }
+.btn-page.cur{ background:var(--leaf); border-color:var(--leaf); color:#fff;
+               text-shadow:var(--ts-onfill); cursor:default; }
+.pager .gap{ align-self:center; color:var(--text-sub); padding:0 2px; }
+.stage{ white-space:nowrap; }
+.stage-progress{ color:var(--text-sub); }
+.stage-accepted{ color:var(--leaf); font-weight:700; }
+.stage-rejected{ color:var(--danger, #A9503C); font-weight:700; }
+.nav a:hover{ background:rgba(58,107,33,.10); }
+.nav a:active{ background:var(--bg-elev); color:var(--leaf); }
+.nav a:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.nav a.active{ background:var(--bg-elev); color:var(--leaf); font-weight:700; text-shadow:var(--ts-heading); }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">Arda</div>
+  <nav class="nav">
+    <a href="#"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="#"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="#" class="active"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+  </nav>
+  <div class="me">
+    <div>
+      <div class="name">김채용</div>
+      <div class="role">채용담당자</div>
+    </div>
+    <div class="avatar">김</div>
+  </div>
+</aside>
+
+<div class="main" id="main">
+  <header class="head">
+    <div class="head-top">
+      <h1 class="title">지원자</h1>
+    </div>
+  </header>
+  <div class="toolbar">
+    <div class="search">
+      <div class="dd" id="dd">
+        <button class="dd-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span id="ddv">전체</span>
+          <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <ul class="dd-menu" role="listbox">
+          <li role="option" class="sel">전체</li>
+          <li role="option">이름</li>
+          <li role="option">이메일</li>
+        </ul>
+      </div>
+      <span class="sep"></span>
+      <input type="text" id="q" placeholder="이름 또는 이메일 검색">
+      <button class="sx" id="qx" aria-label="검색어 지우기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <span class="head-meta">1,248건 · 0.14초</span>
+  </div>
+  <main class="content">
+    <div class="tpanel">
+      <div class="trow thead">
+        <span>이름</span>
+        <span>공고</span>
+        <span>단계</span>
+        <span class="t-num">경력</span>
+        <span class="t-num">평가</span>
+        <span class="t-num">지원일</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">김도현</span>
+        <span class="skills">백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">2년</span>
+        <span class="t-num">4.5</span>
+        <span class="t-num">2026.03.12</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">크리스토퍼 알렉산더 반 데 베르그</span>
+        <span class="skills">백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">12년</span>
+        <span class="t-num">4.8</span>
+        <span class="t-num">2026.03.12</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">윤하늘</span>
+        <span class="skills">프론트엔드 개발자</span>
+        <span class="stage stage-accepted">최종 합격</span>
+        <span class="t-num">1년</span>
+        <span class="t-num">5.0</span>
+        <span class="t-num">2026.03.11</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">박지훈</span>
+        <span class="skills">2026년 상반기 신입·경력 백엔드 개발자 공개채용 (플랫폼 서비스 부문 · 서울 본사 근무 · 정규직 전환형 인턴 포함 2차 모집)</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.11</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">정우진</span>
+        <span class="skills">데이터 엔지니어</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">1년</span>
+        <span class="t-num">4.0</span>
+        <span class="t-num">2026.03.11</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">강민수</span>
+        <span class="skills">프론트엔드 개발자</span>
+        <span class="stage stage-rejected">불합격</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">2.0</span>
+        <span class="t-num">2026.03.10</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">이서연</span>
+        <span class="skills">DevOps 엔지니어</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">4년</span>
+        <span class="t-num">4.2</span>
+        <span class="t-num">2026.03.10</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">한지우</span>
+        <span class="skills">데이터 엔지니어</span>
+        <span class="stage stage-accepted">최종 합격</span>
+        <span class="t-num">3년</span>
+        <span class="t-num">4.9</span>
+        <span class="t-num">2026.03.09</span>
+      </div>
+      <div class="tfoot">
+        <span>1,248명 중 1–8</span>
+        <span class="pager">
+          <button class="btn-page" disabled>이전</button>
+          <button class="btn-page num cur">1</button>
+          <button class="btn-page num">2</button>
+          <button class="btn-page num">3</button>
+          <button class="btn-page num">4</button>
+          <button class="btn-page num">5</button>
+          <span class="gap">…</span>
+          <button class="btn-page num">156</button>
+          <button class="btn-page">다음</button>
+        </span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+var dd=document.getElementById('dd');
+if(dd){
+  var ddBtn=dd.querySelector('.dd-btn'), ddVal=document.getElementById('ddv');
+  ddBtn.addEventListener('click',function(e){
+    e.stopPropagation();
+    dd.classList.toggle('open');
+    ddBtn.setAttribute('aria-expanded', dd.classList.contains('open'));
+  });
+  dd.querySelectorAll('.dd-menu li').forEach(function(li){
+    li.addEventListener('click',function(){
+      dd.querySelectorAll('.dd-menu li').forEach(function(o){ o.classList.remove('sel'); });
+      li.classList.add('sel'); ddVal.textContent=li.textContent;
+      dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false');
+    });
+  });
+  document.addEventListener('click',function(){ dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false'); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false'); } });
+}
+var q=document.getElementById('q'), qx=document.getElementById('qx');
+if(q&&qx){
+  q.addEventListener('input',function(){ qx.classList.toggle('on', q.value.length>0); });
+  qx.addEventListener('click',function(){ q.value=''; qx.classList.remove('on'); q.focus(); });
+}
+document.querySelectorAll('.trow-item').forEach(function(r){
+  r.addEventListener('click',function(){ location.href='mockup.html'; });
+  r.addEventListener('keydown',function(e){
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); location.href='mockup.html'; }
+  });
+});
+</script>
+</body>
+</html>
