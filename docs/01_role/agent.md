@@ -1,6 +1,6 @@
 # 에이전트 로드맵
 
-> **오너**: suvisdev · **폴더**: `backend/app/agent/` + `backend/app/api/agent.py` · **상태**: 초안 (팀장 검수 전)
+> **오너**: suvisdev · **폴더**: `backend/app/agent/` + `backend/app/api/agent.py` · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
 > 공통 규칙은 [04-team.md](../00_overview/04-team.md). **원칙 문서 필독**: [ADR-0003 AI는 추천까지만](../03_decision/0003-ai-추천만.md) · [ADR-0004 음성은 STT만](../03_decision/0004-음성-stt만.md) · [ADR-0008 정식 트랙 승격](../03_decision/0008-에이전트-앱-정식-트랙-승격.md) · [planning/00_summary_ko.md](../04_planning/00_summary_ko.md) 11~12장.
 
 ## 일정 · 운영 (전 도메인 공통)

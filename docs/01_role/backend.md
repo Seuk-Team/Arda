@@ -1,6 +1,6 @@
 # 백엔드 로드맵
 
-> **오너**: woojeongalex · **폴더**: `backend/` (단 `backend/app/agent/`는 에이전트 도메인) · **상태**: 초안 (팀장 검수 전)
+> **오너**: woojeongalex · **폴더**: `backend/` (단 `backend/app/agent/`는 에이전트 도메인) · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
 > 공통 규칙(오너제·리뷰·큐 사용법)은 [04-team.md](../00_overview/04-team.md), 브랜치·PR 규칙은 [03-conventions.md](../00_overview/03-conventions.md).
 
 ## 일정 · 운영 (전 도메인 공통)

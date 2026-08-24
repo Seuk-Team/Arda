@@ -1,6 +1,6 @@
 # 인프라·총괄 로드맵
 
-> **오너**: bestcow (팀장) · **폴더**: `infra/` · `.github/` · `docker-compose.yml` · AWS 리소스 전부 · **상태**: 초안
+> **오너**: bestcow (팀장) · **폴더**: `infra/` · `.github/` · `docker-compose.yml` · AWS 리소스 전부 · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
 > 공통 규칙은 [04-team.md](../00_overview/04-team.md).
 
 ## 일정 · 운영 (전 도메인 공통)
