@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arda 지원 폼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F7F0;
+  --sidebar-bg:#C7E49B;    /* 연두: 확실히 초록으로 읽히되 어둡지 않은 중간 톤 */
+  --sidebar-line:#A8CD6E;  /* 사이드바 오른쪽 경계선: 배경보다 한 단계 진한 연두 1px */
+  --border-w:1px;
+  --sidebar-w:216px;
+  --content-x:48px;
+  --text:#1B2117;
+  --text-sub:#5C6654;
+  --leaf:#3A6B21;
+  --leaf-strong:#2C5218;
+  --danger:#A9503C;
+  --ai:#A9702A;            /* AI 제안 — 앰버 점선 규약 (05-design 확정) */
+  --ai-soft:#FBF2E5;       /* AI 제안 워시 */
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --font-num:14px;
+  --font-display:26px; --font-h1:22px; --font-h2:18px; --font-body:16px; --font-sm:14px; --font-caption:12px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
+  --r-ctl:6px; --r-card:8px;
+  --bg-elev:#FFFFFF;
+  --border:#DCE3D4;
+  --border-soft:#EAEFE4;
+  --bg-sunken:#EBF0E5;     /* 인풋·트랙: 패널보다 한 단계 아래 */
+  --sunken-hover:#DCE3D4;  /* sunken 바탕 위 hover 채움: 한 톤 진하게 */
+  --sprout:#8CC63F;
+  --ts-heading:0 1px 0 rgba(27,33,23,.34);
+  --ts-onfill:0 1px 0 rgba(0,0,0,.62);
+  --z-sticky:10;
+  --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
+}
+@media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
+*{ box-sizing:border-box; margin:0; }
+body{ background:var(--bg); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:var(--sp-5); }
+
+.logo{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+       color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; }
+.logo .seed{ color:var(--leaf); }
+
+.badge{ display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 var(--sp-3);
+        border-radius:999px; font-family:var(--sans); font-size:var(--font-sm); font-weight:600;
+        white-space:nowrap; flex:none; }
+.badge-open{ background:#EFF7E2; color:var(--leaf); border:var(--border-w) solid #8CC63F; }
+.head-meta{ font-family:var(--sans); font-size:var(--font-num); font-variant-numeric:tabular-nums;
+            color:var(--text-sub); white-space:nowrap; flex:none; }
+
+.btn{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+      height:40px; padding:0 var(--sp-4); border-radius:var(--r-ctl); border:var(--border-w) solid transparent;
+      cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.btn:active{ transform:translateY(1px); }
+.btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn-primary{ background:var(--leaf); color:#fff; text-shadow:var(--ts-onfill); }
+.btn-primary:hover{ background:#2C5218; }
+.btn-primary:disabled{ background:#C7D0BC; color:var(--text-sub); text-shadow:none; cursor:not-allowed; }
+.btn-primary:disabled:active{ transform:none; }
+
+.card{ width:640px; max-width:100%; padding:var(--sp-6);
+       background:var(--bg-elev); border:var(--border-w) solid var(--border); border-radius:var(--r-card); }
+
+.phead{ display:flex; align-items:baseline; flex-wrap:wrap; gap:var(--sp-3); margin-bottom:var(--sp-6); }
+.phead .ptitle{ font-family:var(--sans); font-size:var(--font-h2); font-weight:700; color:var(--text);
+                text-shadow:var(--ts-heading); }
+
+.form{ display:flex; flex-direction:column; gap:var(--sp-4); }
+
+.tfield{ display:flex; flex-direction:column; gap:var(--sp-2); }
+.tfield label{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text); }
+.tinput{ width:100%; height:40px; padding:0 var(--sp-3);
+         border:var(--border-w) solid var(--border); border-radius:var(--r-ctl);
+         background:var(--bg-elev); font-family:var(--sans); font-size:var(--font-body); color:var(--text);
+         transition:border-color var(--dur-fast) var(--ease); }
+.tinput::placeholder{ color:var(--text-sub); }
+.tinput:hover{ border-color:var(--sunken-hover); }
+.tinput:focus-visible{ outline:2px solid var(--leaf); outline-offset:1px; border-color:var(--leaf); }
+.tinput:disabled{ background:var(--bg-sunken); color:var(--text-sub); cursor:not-allowed; }
+
+.ninput{ display:block; width:100%; min-height:76px; resize:vertical; margin-bottom:var(--sp-2);
+         padding:var(--sp-3); border:var(--border-w) solid var(--border); border-radius:var(--r-ctl);
+         background:var(--bg-elev); font-family:var(--sans); font-size:var(--font-sm); line-height:1.55;
+         color:var(--text); transition:border-color var(--dur-fast) var(--ease); }
+.ninput::placeholder{ color:var(--text-sub); }
+.ninput:hover{ border-color:#C7D0BC; }
+.ninput:focus-visible{ outline:2px solid var(--leaf); outline-offset:1px; border-color:var(--leaf); }
+
+.upload{ display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-3);
+         background:var(--bg-sunken); border-radius:var(--r-card); font-family:var(--sans); }
+.upload .ufile{ flex:1; min-width:0; font-size:var(--font-sm); color:var(--text);
+                white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.upload .ufile.empty{ color:var(--text-sub); }
+.upload .ubtn{ flex:none; height:32px; padding:0 var(--sp-3); border-radius:var(--r-ctl);
+               background:var(--bg-elev); border:var(--border-w) solid var(--border);
+               font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text);
+               white-space:nowrap; cursor:pointer; text-shadow:var(--ts-heading);
+               transition:background var(--dur-fast) var(--ease); }
+.upload .ubtn:hover{ background:var(--bg-sunken); }
+.upload .ubtn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+
+.prog{ height:6px; margin-top:var(--sp-2); border-radius:999px;
+       background:var(--bg-sunken); overflow:hidden; }
+.prog > span{ display:block; height:100%; background:var(--sprout); border-radius:999px;
+              transition:width var(--dur-base) var(--ease); }
+
+.upload-field{ display:flex; flex-direction:column; gap:var(--sp-2); }
+.upload-field label{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text); }
+.filehint{ font-family:var(--sans); font-size:var(--font-caption); color:var(--text-sub); }
+
+.agree{ display:flex; align-items:flex-start; gap:var(--sp-2); }
+.agree input[type=checkbox]{ width:18px; height:18px; margin-top:2px; flex:none;
+                              accent-color:var(--leaf); cursor:pointer; }
+.agree input[type=checkbox]:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.agree label{ font-family:var(--sans); font-size:var(--font-sm); color:var(--text); }
+.agree .req{ display:block; font-size:var(--font-caption); color:var(--text-sub); margin-top:2px; }
+
+.form .btn-primary{ width:100%; margin-top:var(--sp-2); }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="phead">
+    <span class="logo"><span class="seed">A</span>rda</span>
+    <span class="ptitle">백엔드 개발자 (신입)</span>
+    <span class="badge badge-open">진행중</span>
+    <span class="head-meta">마감 2026.03.31</span>
+  </div>
+
+  <form class="form" id="apply-form" novalidate>
+    <div class="tfield">
+      <label for="name">이름</label>
+      <input class="tinput" id="name" type="text" autocomplete="name" placeholder="홍길동">
+    </div>
+    <div class="tfield">
+      <label for="email">이메일</label>
+      <input class="tinput" id="email" type="email" autocomplete="email" placeholder="name@example.com">
+    </div>
+    <div class="tfield">
+      <label for="phone">연락처</label>
+      <input class="tinput" id="phone" type="tel" autocomplete="tel" placeholder="010-0000-0000">
+    </div>
+    <div class="tfield">
+      <label for="education">최종 학력</label>
+      <input class="tinput" id="education" type="text" placeholder="OO대학교 컴퓨터공학과">
+    </div>
+    <div class="tfield">
+      <label for="career">경력 연차</label>
+      <input class="tinput" id="career" type="text" placeholder="신입 또는 N년">
+    </div>
+
+    <div class="tfield">
+      <label for="self-intro">자기소개서</label>
+      <textarea class="ninput" id="self-intro" rows="6" placeholder="자기소개서를 입력해 주세요"></textarea>
+    </div>
+
+    <div class="upload-field">
+      <label id="resume-label">이력서</label>
+      <div class="upload">
+        <span class="ufile">김도현_이력서.pdf</span>
+        <button type="button" class="ubtn" aria-labelledby="resume-label">파일 선택</button>
+      </div>
+      <div class="prog"><span style="width:60%"></span></div>
+    </div>
+
+    <div class="upload-field">
+      <label id="cover-label">자기소개서 파일</label>
+      <div class="upload">
+        <span class="ufile empty">선택된 파일 없음</span>
+        <button type="button" class="ubtn" aria-labelledby="cover-label">파일 선택</button>
+      </div>
+    </div>
+
+    <p class="filehint">PDF · DOCX · HWP · 10MB 이하</p>
+
+    <div class="agree">
+      <input type="checkbox" id="privacy">
+      <label for="privacy">개인정보 수집·이용에 동의합니다.
+        <span class="req">동의하지 않으면 제출할 수 없습니다.</span>
+      </label>
+    </div>
+
+    <button class="btn btn-primary" id="submit" type="submit" disabled>지원서 제출</button>
+  </form>
+</div>
+
+<script>
+var privacy=document.getElementById('privacy'), submit=document.getElementById('submit');
+privacy.addEventListener('change', function(){ submit.disabled = !privacy.checked; });
+</script>
+</body>
+</html>
