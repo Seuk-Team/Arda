@@ -6,6 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
     "sqlalchemy>=2.0",
     "psycopg[binary]>=3.2",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
 ]
 
 [tool.uv]
