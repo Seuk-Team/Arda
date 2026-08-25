@@ -23,7 +23,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
@@ -121,6 +121,17 @@ class Application(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+    # ORM 관계 — 컬럼이 아니다. 스키마(01-erd.md)는 그대로이고 마이그레이션도 없다.
+    # 상세 조회(D1·D4)의 selectinload 용. 자식 → 부모 방향은 필요해질 때 추가한다.
+    stage_history: Mapped[list["StageHistory"]] = relationship(
+        order_by="StageHistory.created_at.desc()"
+    )
+    evaluations: Mapped[list["Evaluation"]] = relationship()
+    notes: Mapped[list["ApplicationNote"]] = relationship(
+        order_by="ApplicationNote.created_at.desc()"
+    )
+    files: Mapped[list["File"]] = relationship()
 
     __table_args__ = (
         # 중복 지원 방지 (C6)
