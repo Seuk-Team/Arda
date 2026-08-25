@@ -15,7 +15,7 @@ class AssignmentOut(BaseModel):
     id: int
     application_id: int
     interviewer_id: int
-    assigned_by: int | None = None  # TODO(A1): 토큰의 사용자로 채운다
+    assigned_by: int  # 배정한 담당자. 스키마상 NOT NULL 이다 (01-erd.md)
     created_at: datetime
 
 
