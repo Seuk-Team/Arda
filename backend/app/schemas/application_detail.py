@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StageHistoryOut(BaseModel):
@@ -88,3 +88,21 @@ class ApplicationDetail(BaseModel):
     files: list[FileOut] = []
 
     avg_score: float | None = None  # 평가 평균. 평가가 없으면 None
+
+
+class ManualApplicationCreate(BaseModel):
+    """담당자 직접 등록(D6) 요청 본문.
+
+    외부 지원(C1)과 달리 privacy_agreed_at 을 **받는다**. 서버가 now() 로 지어내지 않는다.
+    담당자가 대신 동의를 체크할 수 없기 때문이다 — 동의는 메일·전화로 이미 받았을 수 있고,
+    그 실제 시각이 기록돼야 한다. 서버 시각을 넣으면 동의한 적 없는 시각이 동의 기록이 된다.
+    """
+
+    name: str = Field(min_length=1, max_length=50)
+    email: str = Field(min_length=1, max_length=255)
+    phone: str = Field(min_length=1, max_length=20)
+    education: str | None = Field(default=None, max_length=100)
+    career_years: int | None = None
+    skills: list[str] | None = None
+    self_intro: str | None = None
+    privacy_agreed_at: datetime  # 필수. 없으면 422

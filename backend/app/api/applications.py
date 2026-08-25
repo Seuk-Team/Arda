@@ -15,6 +15,7 @@ from app.models import Application, EmailLog, JobPosting, StageHistory, User
 from app.schemas.application_detail import (
     ApplicationDetail,
     ApplicationListItem,
+    ManualApplicationCreate,
     StageHistoryOut,
 )
 from app.schemas.stage import StageChangeOut, StageChangeRequest
@@ -166,3 +167,58 @@ def change_stage(
         changed_at=now,
         mail_queued=mail_queued,
     )
+
+
+@router.post(
+    "/postings/{posting_id}/applications",
+    response_model=ApplicationDetail,
+    status_code=http.HTTP_201_CREATED,
+)
+def create_manual_application(
+    posting_id: int,
+    body: ManualApplicationCreate,
+    db: Session = Depends(get_db),
+    # 02-api.md 는 D6 을 recruiter+ 로 명시한다. 지시서는 인증이 없던 시점 기준이라
+    # "넣지 마라"고 하지만, #61(A3)로 인증이 들어와 이 파일에 이미 적용돼 있다.
+    user: User = Depends(require_recruiter),
+):
+    """담당자가 지원자를 직접 등록한다 (D6).
+
+    메일·전화로 이력서를 받은 경우를 위한 경로다. 외부 지원(C1)과 세 가지가 다르다.
+    """
+    if db.get(JobPosting, posting_id) is None:
+        raise HTTPException(http.HTTP_404_NOT_FOUND, "공고를 찾을 수 없습니다")
+    # 외부 지원과 달리 공고 status 를 보지 않는다. 마감된 공고에도 담당자는 넣을 수 있다.
+
+    dup = db.scalar(
+        select(Application.id).where(
+            Application.job_posting_id == posting_id,
+            Application.email == body.email,
+        )
+    )
+    if dup:
+        # 409 만 주면 담당자가 기존 건을 찾아 헤맨다. id 를 함께 준다
+        raise HTTPException(
+            http.HTTP_409_CONFLICT,
+            f"이미 등록된 지원자입니다 (application_id={dup})",
+        )
+
+    row = Application(
+        job_posting_id=posting_id,
+        source="manual",
+        current_stage="applied",
+        **body.model_dump(),
+    )
+    db.add(row)
+    db.flush()
+    # 접수 이력 1행. changed_by 는 등록한 담당자다 (외부 지원은 None = 시스템)
+    db.add(
+        StageHistory(
+            application_id=row.id,
+            from_stage=None,
+            to_stage="applied",
+            changed_by=user.id,
+        )
+    )
+    db.commit()
+    return ApplicationDetail.model_validate(row)
