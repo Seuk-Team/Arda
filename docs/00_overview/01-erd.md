@@ -1,6 +1,6 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.0 · 2026-08-24**
+> **상태: 확정 v1.1 · 2026-08-25** — v1.1: `job_postings.deadline`·`public_token`(B4·B6), `stage_history.reason`(D8) 추가 (팀장 승인)
 >
 > **규칙: 확정 이후의 모든 변경은 전원 합의로만 한다.**
 > 임의로 테이블·컬럼을 추가/변경하지 않는다. 필요하면 팀 채널에 제안 → 합의 → 이 문서 갱신 → 마이그레이션 순서.
@@ -55,10 +55,12 @@ erDiagram
 | title | varchar(200) | NOT NULL | |
 | description | text | | 공고 본문 |
 | status | varchar(20) | NOT NULL | `draft` / `open` / `closed` |
+| deadline | date | NULL 허용 | 마감일 (B4). NULL = 상시 접수 |
+| public_token | varchar(64) | UNIQUE, NULL 허용 | 공개 지원 링크 토큰 (B6). NULL = 미발급 |
 | created_by | bigint | FK → users.id | |
 | created_at / updated_at | timestamptz | NOT NULL | |
 
-비고: B3 지원자 수는 집계 쿼리로(컬럼 안 둠). B4 마감일 → `deadline date` 컬럼 추가 여지. B6 공개 링크 → `public_token` 추가 여지.
+비고: B3 지원자 수는 집계 쿼리로(컬럼 안 둠).
 
 ## applications — 지원서 (C1·D1·D6) ★핵심 테이블
 
@@ -97,9 +99,8 @@ erDiagram
 | from_stage | varchar(20) | | 최초 접수 시 NULL |
 | to_stage | varchar(20) | NOT NULL | |
 | changed_by | bigint | FK → users.id, NULL 허용 | NULL = 시스템(외부 지원 접수) |
+| reason | text | NULL 허용 | 불합격 사유 (D8). `rejected` 진입 시 기록 |
 | created_at | timestamptz | NOT NULL | |
-
-비고: D8 불합격 사유(권장) → `reason text` 컬럼 추가 여지.
 
 ## evaluations — 평가 (E1·E2)
 
