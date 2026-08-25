@@ -164,31 +164,35 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
    폴백값 #EFF7E2 로 굳혔다 — 이 파일에서 이미 쓰는 값이다(새 색 아님). */
 .acard-done{ background:#EFF7E2; border:var(--border-w) solid var(--leaf); border-radius:var(--r-card);
              padding:var(--sp-3); font-size:var(--font-sm); color:var(--text); word-break:keep-all; }
-.ainput{ flex:none; margin:0 var(--sp-5) var(--sp-5); display:flex; align-items:center; gap:var(--sp-2);
+.ainput-row{ flex:none; margin:0 var(--sp-5) var(--sp-5); display:flex; align-items:center; gap:var(--sp-2); }
+.ainput{ flex:1; min-width:0; display:flex; align-items:center;
          background:var(--bg-sunken); border-radius:var(--r-ctl); padding:var(--sp-2) var(--sp-3); }
 .ainput input{ flex:1; min-width:0; border:0; background:transparent; outline:none;
                font-family:var(--sans); font-size:var(--font-sm); color:var(--text); }
-.ainput .amic{ flex:none; background:none; border:0; cursor:pointer; display:flex; padding:4px; border-radius:var(--r-ctl); }
-.ainput .amic:hover{ background:var(--sunken-hover); }
-.ainput .amic:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
-.ainput .amic.on{ background:var(--ai-soft); outline:var(--border-w) dashed var(--ai); }
-.ainput .amic svg{ width:18px; height:18px; stroke:var(--text-sub); fill:none; stroke-width:1.8; }
+.amic{ flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+       background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+       cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.amic:active{ transform:translateY(1px); }
+.amic:hover{ background:#EBF0E5; }
+.amic:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.amic.on{ background:var(--ai-soft); border-color:var(--ai); }
+.amic svg{ width:18px; height:18px; stroke:var(--text-sub); fill:none; stroke-width:1.8; }
 .akbd{ flex:none; font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
 /* 사이드바 상주 슬롯 — 하단(프로필 위), 전 화면 공통.
    [교정] 데모는 margin/width 때문에 슬롯이 nav 바로 아래에 붙고 좌우도 8px 안쪽으로 밀려 있었다.
    바닥으로 미는 역할을 .me 대신 .agslot 이 맡고, 좌우는 로고·nav·프로필과 같은 기준선을 쓴다. */
 .agslot{ margin:auto 0 var(--sp-2); padding:var(--sp-2) var(--sp-3); display:flex; align-items:center; gap:var(--sp-2);
-         background:rgba(255,255,255,.55); border:var(--border-w) solid var(--sidebar-line);
+         background:var(--bg-elev); border:var(--border-w) solid var(--sidebar-line);
          border-radius:var(--r-card); cursor:pointer; font-family:var(--sans); text-align:left;
          transition:background var(--dur-fast) var(--ease); }
 .sidebar .me{ margin-top:0; }
-.agslot:hover{ background:var(--bg-elev); }
+.agslot:hover{ background:var(--bg-sunken); }
 .agslot:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .agslot .agchar{ width:24px; height:24px; flex:none; }
 /* [교정] 데모의 13px/11px 은 §2 7단계 스케일 밖이다 → --font-sm / --font-caption. */
 .agslot b{ display:block; font-size:var(--font-sm); font-weight:600; color:var(--text); white-space:nowrap; }
 .agslot small{ display:block; font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
-.agslot .agdot{ margin-left:auto; width:8px; height:8px; flex:none; border-radius:50%; background:var(--ai); opacity:0; }
+.agslot .agdot{ margin-left:auto; width:var(--sp-2); height:var(--sp-2); flex:none; border-radius:50%; background:var(--ai); opacity:0; }
 .agslot.pending .agdot{ opacity:1; }
 
 /* ── 아르DA 캐릭터 모션 (팀장 확정 레퍼런스 그대로) ────────────────
@@ -339,10 +343,11 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       <button class="aclose" id="aclose" aria-label="에이전트 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="alog" id="alog" role="log" aria-live="polite"></div>
-    <div class="ainput">
-      <input id="ainputEl" placeholder="무엇이든 시키세요… (Enter)" aria-label="에이전트 명령 입력">
+    <div class="ainput-row">
+      <div class="ainput">
+        <input id="ainputEl" placeholder="무엇이든 시키세요… (Enter)" aria-label="에이전트 명령 입력">
+      </div>
       <button type="button" class="amic" id="amic" aria-label="음성 입력"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-      
     </div>
   </div>
 </aside>
@@ -412,3 +417,4 @@ input.addEventListener('keydown', function(e){
 </script>
 </body>
 </html>
+
