@@ -84,7 +84,8 @@ erDiagram
 | created_at / updated_at | timestamptz | NOT NULL | |
 
 - UNIQUE `(job_posting_id, email)` — 중복 지원 방지(C6, 권장이지만 제약 하나로 끝나므로 처음부터 포함)
-- 인덱스: `(job_posting_id, current_stage)` — 칸반·단계 필터(H2). 검색(H1)·10만 건 튜닝용 추가 인덱스는 B 담당이 측정 후 제안(스키마 합의 대상)
+- 인덱스: `(job_posting_id, current_stage)` — 칸반·단계 필터(H2)
+- 인덱스: `(created_at DESC, id DESC)` — 최신순 목록·커서 페이지네이션(H4·H5). B 담당 측정([perf-search.md](../perf-search.md), #68) 기반으로 팀장 승인 (2026-08-25). 비용: 3.2MB · 쓰기 +19%
 - AI 요약은 접수 시 1회 생성해 저장하고, 상세 패널은 저장값을 즉시 표시한다. 패널 열 때마다 생성하지 않는다(연속 심사 지연·호출 비용·재현성). 재생성은 명시적 버튼으로만. 요약이 공고 요건에 종속되지만 지원서 1건은 공고 1건에 묶이므로 별도 테이블 없이 applications에 직접 둔다.
 
 ## stage_history — 단계 변경 이력 (D5)

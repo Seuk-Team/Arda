@@ -140,6 +140,8 @@ class Application(Base):
         CheckConstraint(_in("source", APPLICATION_SOURCES), name="ck_applications_source"),
         # 칸반·단계 필터 (H2)
         Index("ix_applications_posting_stage", "job_posting_id", "current_stage"),
+        # 최신순 목록·커서 페이지네이션 (H4·H5) — 측정 근거: docs/perf-search.md (#68)
+        Index("ix_applications_created_id", text("created_at DESC"), text("id DESC")),
     )
 
 
