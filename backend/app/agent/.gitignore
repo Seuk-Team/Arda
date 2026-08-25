@@ -1,0 +1,5 @@
+# 추출 PoC 합성 샘플 — 생성물이라 커밋하지 않는다.
+# 재생성: uv run python -m app.agent.extract.make_samples
+extract/samples/
+
+# 실제 지원자 파일은 어떤 경우에도 저장소에 두지 않는다.
