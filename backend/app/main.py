@@ -153,12 +153,14 @@ async def general_exception_handler(request: Request, exc: Exception):
 # 라우터는 여기에 한 줄씩 추가한다. 각 라우터가 자기 prefix 를 갖는다.
 from app.api.applications import router as applications_router  # noqa: E402
 from app.api.auth import router as auth_router  # noqa: E402
+from app.api.evaluations import router as evaluations_router  # noqa: E402
 from app.api.postings import router as postings_router  # noqa: E402
 from app.api.public import router as public_router  # noqa: E402
 from app.api.search import router as search_router  # noqa: E402
 
 app.include_router(applications_router)
 app.include_router(auth_router)
+app.include_router(evaluations_router)
 app.include_router(postings_router)
 app.include_router(public_router)
 app.include_router(search_router)
