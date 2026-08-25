@@ -67,11 +67,12 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .head{ flex:none; min-height:96px; background:var(--bg-elev);
        border-bottom:var(--border-w) solid #DCE3D4;
-       padding:var(--sp-6) var(--content-x) var(--sp-4); }
+       padding:var(--sp-4) var(--content-x); }
 .head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
               color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
               overflow:hidden; text-overflow:ellipsis; }
-.head-top{ display:flex; align-items:baseline; gap:var(--sp-3); min-width:0; }
+.head-top{ display:flex; align-items:center; gap:var(--sp-3); min-width:0;
+           min-height:calc(96px - var(--sp-4) * 2); }
 .head-top .title{ line-height:1.2; }
 .back{ align-self:center; }
 .back{ width:36px; height:36px; flex:none; display:flex; align-items:center; justify-content:center;
@@ -289,7 +290,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .funnel .seg:hover{ opacity:.75; }
 .funnel .seg:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .flabels{ position:relative; margin:var(--sp-3) 0 0; height:64px; }
-.flabels-top{ margin:var(--sp-5) 0 var(--sp-3); }
+.flabels-top{ margin:var(--sp-4) 0 var(--sp-2); }
 .fstack{ position:absolute; top:0; display:flex; flex-direction:column; align-items:center; gap:2px;
          font-family:var(--sans); font-size:var(--font-sm); color:var(--text-sub); white-space:nowrap; }
 .flabels-top .fstack{ top:auto; bottom:0; }
@@ -330,7 +331,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       <h1 class="title">백엔드 개발자 (신입)</h1>
       <span class="badge badge-open">진행중</span>
       <span class="head-meta">마감 D-12 · 총 1,248명</span>
-      <button class="btn btn-primary">+ 지원자 직접 등록</button>
+      <button class="btn btn-primary" id="newApplicant">+ 지원자 직접 등록</button>
     </div>
     <div class="flabels flabels-top"></div>
     <div class="funnel" aria-label="단계별 인원 비율 (클릭 시 해당 단계 필터)">
@@ -647,6 +648,11 @@ if(dp){
     if(m) m.textContent='마감 '+(deadline||'—')+' · 총 '+(total||'—')+'명';
   }
 })();
+// 지원자 직접 등록 화면으로. 지금 보고 있는 공고 정보를 그대로 넘겨 준다(D6 · 05-design §0.5)
+var naBtn=document.getElementById('newApplicant');
+if(naBtn) naBtn.addEventListener('click',function(){
+  location.href='mockup-applicant-new.html'+location.search;
+});
 var backBtn=document.querySelector('.back');
 if(backBtn) backBtn.addEventListener('click',function(){ location.href='mockup-postings.html'; });
 var q=document.getElementById('q'), qx=document.getElementById('qx');
