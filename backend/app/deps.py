@@ -1,11 +1,12 @@
-"""FastAPI 의존성 — 현재 사용자."""
+"""FastAPI 의존성 — 현재 사용자와 접근 제어 (A3)."""
 
 from fastapi import Depends, HTTPException, status as http
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import Select, exists, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import User
+from app.models import Application, InterviewerAssignment, User
 from app.security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -55,3 +56,51 @@ def require_roles(*allowed: str):
         return user
 
     return dependency
+
+
+# ── A3 지원자 접근 제어 ──────────────────────────────────────────────
+# 면접관은 본인이 배정된 지원자만 볼 수 있다 (02-api.md · 01-erd.md).
+# admin·recruiter 는 전부 볼 수 있다.
+#
+# 규칙을 각 엔드포인트에 흩어 쓰면 새 엔드포인트가 생길 때마다 빠뜨린다.
+# 목록/검색은 쿼리를 좁히는 쪽(scope_to_viewer)으로, 단건은 확인하는 쪽
+# (assert_can_view_application)으로 나눠 두 함수만 기억하면 되게 한다.
+
+
+def _assigned_application_ids(user: User) -> Select:
+    return select(InterviewerAssignment.application_id).where(
+        InterviewerAssignment.interviewer_id == user.id
+    )
+
+
+def scope_to_viewer(stmt: Select, user: User) -> Select:
+    """Application 을 고르는 SELECT 에 A3 제한을 건다.
+
+    면접관이 아니면 그대로 돌려준다. 목록·검색에서 쓴다 — 못 보는 건은 애초에
+    결과에 담기지 않으므로 건수·페이지네이션도 자동으로 맞는다.
+    """
+    if user.role != "interviewer":
+        return stmt
+    return stmt.where(Application.id.in_(_assigned_application_ids(user)))
+
+
+def assert_can_view_application(db: Session, user: User, application_id: int) -> None:
+    """단건 조회 권한을 확인한다. 배정되지 않았으면 403.
+
+    404 로 숨기지 않는 이유: 이용자가 전부 내부 직원이라 지원서의 존재 자체를
+    감출 필요가 없고, 403 이 "왜 안 보이는지"를 담당자에게 바로 알려준다.
+    """
+    if user.role != "interviewer":
+        return
+    assigned = db.scalar(
+        select(
+            exists().where(
+                InterviewerAssignment.application_id == application_id,
+                InterviewerAssignment.interviewer_id == user.id,
+            )
+        )
+    )
+    if not assigned:
+        raise HTTPException(
+            http.HTTP_403_FORBIDDEN, "본인에게 배정된 지원자만 조회할 수 있습니다"
+        )
