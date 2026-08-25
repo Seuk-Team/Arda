@@ -135,6 +135,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .trow-item{ height:56px; border-bottom:var(--border-w) solid #EAEFE4; cursor:pointer;
             font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
             transition:background var(--dur-fast) var(--ease); }
+.trow-item[hidden]{ display:none; }
 .trow-item:hover{ background:#F6F9F2; }
 .trow-item:focus-visible{ outline:2px solid var(--leaf); outline-offset:-2px; }
 .trow-item .name{ font-size:var(--font-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -170,11 +171,11 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 <aside class="sidebar">
   <div class="logo">Arda</div>
   <nav class="nav">
-    <a href="#"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
-    <a href="#"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
-    <a href="#" class="active"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
-    <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
-    <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+    <a href="mockup-dashboard.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="mockup-postings.html"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="mockup-applicants.html" class="active"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
   <div class="me">
     <div>
@@ -284,18 +285,149 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">4.9</span>
         <span class="t-num">2026.03.09</span>
       </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">최민서</span>
+        <span class="skills">QA 엔지니어</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">2년</span>
+        <span class="t-num">4.1</span>
+        <span class="t-num">2026.03.09</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">오세훈</span>
+        <span class="skills">백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.09</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">배수진</span>
+        <span class="skills">프로덕트 디자이너 (신입·경력)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">5년</span>
+        <span class="t-num">4.6</span>
+        <span class="t-num">2026.03.08</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">신동혁</span>
+        <span class="skills">글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">11년</span>
+        <span class="t-num">4.3</span>
+        <span class="t-num">2026.03.08</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">문가영</span>
+        <span class="skills">프론트엔드 개발자 (경력)</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">3년</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.07</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">임재현</span>
+        <span class="skills">데이터 엔지니어</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">6년</span>
+        <span class="t-num">4.7</span>
+        <span class="t-num">2026.03.07</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">조은지</span>
+        <span class="skills">QA 엔지니어</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">1년</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.06</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">백승우</span>
+        <span class="skills">백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">3.8</span>
+        <span class="t-num">2026.03.06</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">노아름</span>
+        <span class="skills">프로덕트 디자이너 (신입·경력)</span>
+        <span class="stage stage-accepted">최종 합격</span>
+        <span class="t-num">4년</span>
+        <span class="t-num">4.9</span>
+        <span class="t-num">2026.03.05</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">황태섭</span>
+        <span class="skills">프론트엔드 개발자 (경력)</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">2년</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.05</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">서지호</span>
+        <span class="skills">데이터 엔지니어</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">3년</span>
+        <span class="t-num">4.0</span>
+        <span class="t-num">2026.03.04</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">권나영</span>
+        <span class="skills">백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.04</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">남기훈</span>
+        <span class="skills">글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)</span>
+        <span class="stage stage-progress">면접</span>
+        <span class="t-num">10년</span>
+        <span class="t-num">4.4</span>
+        <span class="t-num">2026.03.03</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">유채원</span>
+        <span class="skills">QA 엔지니어</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">1년</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.03</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">홍준서</span>
+        <span class="skills">프론트엔드 개발자 (경력)</span>
+        <span class="stage stage-rejected">불합격</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">2.3</span>
+        <span class="t-num">2026.03.02</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">심예린</span>
+        <span class="skills">데이터 엔지니어</span>
+        <span class="stage stage-progress">서류 검토</span>
+        <span class="t-num">2년</span>
+        <span class="t-num">3.9</span>
+        <span class="t-num">2026.03.02</span>
+      </div>
+      <div class="trow trow-item" tabindex="0">
+        <span class="name">곽민준</span>
+        <span class="skills">백엔드 개발자 (신입)</span>
+        <span class="stage stage-progress">지원 접수</span>
+        <span class="t-num">신입</span>
+        <span class="t-num">—</span>
+        <span class="t-num">2026.03.01</span>
+      </div>
       <div class="tfoot">
-        <span>1,248명 중 1–8</span>
+        <span id="pgCount">1,248명 중 1–20</span>
         <span class="pager">
-          <button class="btn-page" disabled>이전</button>
-          <button class="btn-page num cur">1</button>
-          <button class="btn-page num">2</button>
-          <button class="btn-page num">3</button>
-          <button class="btn-page num">4</button>
-          <button class="btn-page num">5</button>
-          <span class="gap">…</span>
-          <button class="btn-page num">156</button>
-          <button class="btn-page">다음</button>
+          <button class="btn-page" id="pgPrev" disabled>이전</button>
+          <button class="btn-page num cur" data-page="1">1</button>
+          <button class="btn-page num" data-page="2">2</button>
+          <button class="btn-page" id="pgNext">다음</button>
         </span>
       </div>
     </div>
@@ -326,6 +458,32 @@ if(q&&qx){
   q.addEventListener('input',function(){ qx.classList.toggle('on', q.value.length>0); });
   qx.addEventListener('click',function(){ q.value=''; qx.classList.remove('on'); q.focus(); });
 }
+// 한 페이지 20명 — mockup.html 의 "1,248명 중 1–20" 과 같은 기준.
+// 지금은 더미가 25명이라 2쪽이다. 데이터가 늘면 페이저 버튼만 늘리면 된다.
+(function(){
+  var PER=20;
+  var rows=[].slice.call(document.querySelectorAll('.trow-item'));
+  var pages=Math.ceil(rows.length/PER);
+  var label=document.getElementById('pgCount');
+  var prev=document.getElementById('pgPrev'), next=document.getElementById('pgNext');
+  var nums=[].slice.call(document.querySelectorAll('.btn-page.num'));
+  var cur=1;
+  function show(p){
+    cur=p;
+    var from=(p-1)*PER, to=Math.min(p*PER, rows.length);
+    rows.forEach(function(r,i){ r.hidden = (i<from || i>=to); });
+    label.textContent='1,248명 중 '+(from+1)+'–'+to;
+    nums.forEach(function(b){ b.classList.toggle('cur', Number(b.getAttribute('data-page'))===p); });
+    prev.disabled = p<=1;
+    next.disabled = p>=pages;
+    var c=document.querySelector('.content'); if(c) c.scrollTop=0;
+  }
+  nums.forEach(function(b){ b.addEventListener('click',function(){ show(Number(b.getAttribute('data-page'))); }); });
+  prev.addEventListener('click',function(){ if(cur>1) show(cur-1); });
+  next.addEventListener('click',function(){ if(cur<pages) show(cur+1); });
+  show(1);
+})();
+
 document.querySelectorAll('.trow-item').forEach(function(r){
   r.addEventListener('click',function(){ location.href='mockup.html'; });
   r.addEventListener('keydown',function(e){

@@ -96,6 +96,9 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .trow-item{ height:56px; border-bottom:var(--border-w) solid #EAEFE4; cursor:pointer;
             font-family:var(--sans); font-size:var(--font-sm); color:var(--text);
             transition:background var(--dur-fast) var(--ease); }
+/* 오른쪽 패널에 물려 있는 행. 값은 mockup.html 의 .vtoggle button.on / .dd-menu li:hover 와
+   같은 연두 워시(#EFF7E2 = 05-design §1 --sprout-soft)다. 새 색이 아니다. */
+.trow-item.cur, .trow-item.cur:hover{ background:#EFF7E2; }
 .trow-item:hover{ background:#F6F9F2; }
 .trow-item:focus-visible{ outline:2px solid var(--leaf); outline-offset:-2px; }
 .trow-item .name{ font-size:var(--font-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -173,11 +176,11 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 <aside class="sidebar">
   <div class="logo">Arda</div>
   <nav class="nav">
-    <a href="#"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
-    <a href="#"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
-    <a href="#"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
-    <a href="#" class="active"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
-    <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+    <a href="mockup-dashboard.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="mockup-postings.html"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="mockup-applicants.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="mockup-evaluations.html" class="active"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
   <div class="me">
     <div>
@@ -243,13 +246,13 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
   </main>
 </div>
 
-<aside class="dpanel open" id="dpanel" aria-label="평가 패널">
+<aside class="dpanel" id="dpanel" aria-label="평가 패널">
   <div class="dinner">
-    <button class="dclose" id="dclose" aria-label="패널 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="dhead">
       <span class="dname">김도현</span>
       <span class="stage stage-progress">면접</span>
     </div>
+    <button class="dclose" id="dclose" aria-label="패널 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="dsec">
       <h2>지원 정보</h2>
       <dl class="dlist">
@@ -279,6 +282,13 @@ var dp=document.getElementById('dpanel');
 var dName=dp.querySelector('.dname'), dStage=dp.querySelector('.dhead .stage');
 var addBtn=document.getElementById('nadd');
 
+// 어느 행이 패널에 열려 있는지 목록에서 보이게 한다. 패널이 닫히면 표시도 지운다.
+function markCurrent(row){
+  document.querySelectorAll('.trow-item').forEach(function(o){
+    o.classList.toggle('cur', o===row);
+    if(o===row) o.setAttribute('aria-current','true'); else o.removeAttribute('aria-current');
+  });
+}
 document.querySelectorAll('.trow-item').forEach(function(r){
   r.addEventListener('click',function(){
     var rn=r.querySelector('.name'), rs=r.querySelector('.stage');
@@ -290,12 +300,14 @@ document.querySelectorAll('.trow-item').forEach(function(r){
     });
     dp.querySelectorAll('.rate button').forEach(function(b){ b.setAttribute('aria-pressed','false'); });
     addBtn.disabled=true;
+    markCurrent(r);
     dp.classList.add('open');
   });
 });
 
-document.getElementById('dclose').addEventListener('click',function(){ dp.classList.remove('open'); });
-document.addEventListener('keydown',function(e){ if(e.key==='Escape') dp.classList.remove('open'); });
+function closePanel(){ dp.classList.remove('open'); markCurrent(null); }
+document.getElementById('dclose').addEventListener('click',closePanel);
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closePanel(); });
 
 dp.querySelectorAll('.rate button').forEach(function(btn){
   btn.addEventListener('click',function(){

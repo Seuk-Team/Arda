@@ -67,12 +67,13 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .head{ flex:none; min-height:96px; background:var(--bg-elev);
        border-bottom:var(--border-w) solid #DCE3D4;
-       padding:var(--sp-4) var(--content-x); }
+       padding:var(--sp-4) var(--content-x);
+       display:flex; flex-direction:column; justify-content:center; }
 .head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
               color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
               overflow:hidden; text-overflow:ellipsis; }
 .head-top{ display:flex; align-items:baseline; gap:var(--sp-3); min-width:0; }
-.head-top .title{ line-height:1.2; }
+.head-top .title{ line-height:1.2; align-self:center; }
 .badge{ display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 var(--sp-3);
         border-radius:999px; font-family:var(--sans); font-size:var(--font-sm); font-weight:600;
         white-space:nowrap; flex:none; }
@@ -177,11 +178,11 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 <aside class="sidebar">
   <div class="logo">Arda</div>
   <nav class="nav">
-    <a href="#"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
-    <a href="#" class="active"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
-    <a href="#"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
-    <a href="#"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
-    <a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+    <a href="mockup-dashboard.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="mockup-postings.html" class="active"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="mockup-applicants.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
   <div class="me">
     <div>
@@ -226,42 +227,42 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="t-num">마감</span>
         <span class="t-num">등록일</span>
       </div>
-      <div class="trow trow-item" onclick="location.href='mockup.html'" tabindex="0">
+      <div class="trow trow-item" tabindex="0">
         <span class="name">백엔드 개발자 (신입)</span>
         <span class="badge badge-open">진행중</span>
         <span class="t-num">1,248</span>
         <span class="t-num">D-12</span>
         <span class="t-num">2026.02.28</span>
       </div>
-      <div class="trow trow-item" onclick="location.href='mockup.html'" tabindex="0">
+      <div class="trow trow-item" tabindex="0">
         <span class="name">프론트엔드 개발자 (경력)</span>
         <span class="badge badge-open">진행중</span>
         <span class="t-num">342</span>
         <span class="t-num">D-5</span>
         <span class="t-num">2026.03.02</span>
       </div>
-      <div class="trow trow-item" onclick="location.href='mockup.html'" tabindex="0">
+      <div class="trow trow-item" tabindex="0">
         <span class="name">글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)</span>
         <span class="badge badge-open">진행중</span>
         <span class="t-num">76</span>
         <span class="t-num">D-21</span>
         <span class="t-num">2026.03.08</span>
       </div>
-      <div class="trow trow-item" onclick="location.href='mockup.html'" tabindex="0">
+      <div class="trow trow-item" tabindex="0">
         <span class="name">데이터 엔지니어</span>
         <span class="stage stage-progress">마감</span>
         <span class="t-num">897</span>
         <span class="t-num">2026.02.10</span>
         <span class="t-num">2026.01.05</span>
       </div>
-      <div class="trow trow-item" onclick="location.href='mockup.html'" tabindex="0">
+      <div class="trow trow-item" tabindex="0">
         <span class="name">QA 엔지니어</span>
         <span class="badge badge-open">진행중</span>
         <span class="t-num">128</span>
         <span class="t-num">D-3</span>
         <span class="t-num">2026.02.20</span>
       </div>
-      <div class="trow trow-item" onclick="location.href='mockup.html'" tabindex="0">
+      <div class="trow trow-item" tabindex="0">
         <span class="name">프로덕트 디자이너 (신입·경력)</span>
         <span class="stage stage-progress">마감</span>
         <span class="t-num">512</span>
@@ -305,6 +306,18 @@ if(dd){
   document.addEventListener('click',function(){ dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false'); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ dd.classList.remove('open'); ddBtn.setAttribute('aria-expanded','false'); } });
 }
+// 공고 행을 누르면 그 공고의 지원자 화면으로. 행에 이미 있는 값을 그대로 넘긴다.
+document.querySelectorAll('.trow-item').forEach(function(r){
+  function go(){
+    var c=r.children;
+    location.href='mockup.html?posting='+encodeURIComponent(r.querySelector('.name').textContent)
+      +'&status='+encodeURIComponent(c[1].textContent.trim())
+      +'&total='+encodeURIComponent(c[2].textContent.trim())
+      +'&deadline='+encodeURIComponent(c[3].textContent.trim());
+  }
+  r.addEventListener('click',go);
+  r.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
+});
 var q=document.getElementById('q'), qx=document.getElementById('qx');
 if(q&&qx){
   q.addEventListener('input',function(){ qx.classList.toggle('on', q.value.length>0); });
