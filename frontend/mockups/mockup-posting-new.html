@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arda 목업 — 공고 등록</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F7F0;
+  --sidebar-bg:#C7E49B;    /* 연두: 확실히 초록으로 읽히되 어둡지 않은 중간 톤 */
+  --sidebar-line:#A8CD6E;  /* 사이드바 오른쪽 경계선: 배경보다 한 단계 진한 연두 1px */
+  --border-w:1px;
+  --sidebar-w:216px;
+  --content-x:48px;
+  --text:#1B2117;
+  --text-sub:#5C6654;
+  --leaf:#3A6B21;
+  --leaf-strong:#2C5218;
+  --danger:#A9503C;
+  --ai:#A9702A;            /* AI 제안 — 앰버 점선 규약 (05-design 확정) */
+  --ai-soft:#FBF2E5;       /* AI 제안 워시 */
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --font-num:14px;
+  --font-display:26px; --font-h1:22px; --font-h2:18px; --font-body:16px; --font-sm:14px; --font-caption:12px;
+  --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:48px;
+  --r-ctl:6px; --r-card:8px;
+  --bg-elev:#FFFFFF;
+  --border:#DCE3D4;
+  --border-soft:#EAEFE4;
+  --bg-sunken:#EBF0E5;     /* 인풋·트랙: 패널보다 한 단계 아래 */
+  --sunken-hover:#DCE3D4;  /* sunken 바탕 위 hover 채움: 한 톤 진하게 */
+  --ts-heading:0 1px 0 rgba(27,33,23,.34);
+  --ts-onfill:0 1px 0 rgba(0,0,0,.62);
+  --z-sticky:10;
+  --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
+}
+@media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
+*{ box-sizing:border-box; margin:0; }
+body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--sidebar-bg);
+          border-right:var(--border-w) solid var(--sidebar-line);
+          padding:var(--sp-4) var(--sp-2) 0; }
+.logo{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
+       color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; padding:0 var(--sp-3); }
+.logo .seed{ color:var(--leaf); }
+.nav{ margin-top:var(--sp-6); display:flex; flex-direction:column; gap:2px; font-family:var(--sans); }
+.nav a{ display:flex; align-items:center; gap:var(--sp-3); min-height:48px; color:var(--text); text-decoration:none;
+        font-size:var(--font-body); font-weight:500;
+        padding:0 var(--sp-3); border-radius:var(--r-ctl); white-space:nowrap;
+        transition:background var(--dur-fast) var(--ease); }
+.nav a svg{ width:20px; height:20px; flex:none; stroke:currentColor; fill:none; stroke-width:1.8;
+            stroke-linecap:round; stroke-linejoin:round; }
+.me{ margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-2);
+     padding:var(--sp-3); border-top:var(--border-w) solid var(--sidebar-line);
+     font-family:var(--sans); white-space:nowrap; }
+.me .name{ font-size:var(--font-body); font-weight:600; color:var(--text); }
+.me .role{ font-size:var(--font-sm); color:var(--leaf); margin-top:2px; }
+.me .avatar{ width:44px; height:44px; flex:none; border-radius:50%; background:var(--bg-elev);
+             border:var(--border-w) solid var(--sidebar-line);
+             display:flex; align-items:center; justify-content:center;
+             font-size:var(--font-h2, 18px); font-weight:700; color:var(--leaf); }
+.sidebar{ display:flex; flex-direction:column; }
+.main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.head{ flex:none; min-height:96px; background:var(--bg-elev);
+       border-bottom:var(--border-w) solid #DCE3D4;
+       padding:var(--sp-4) var(--content-x);
+       display:flex; flex-direction:column; justify-content:center; }
+.head .title{ font-family:var(--sans); font-size:var(--font-display); font-weight:700; letter-spacing:-.01em;
+              color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; }
+.head-top{ display:flex; align-items:center; gap:var(--sp-3); min-width:0; }
+.head-top .title{ line-height:1.2; }
+.back{ width:36px; height:36px; flex:none; display:flex; align-items:center; justify-content:center;
+       background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+       cursor:pointer; transition:background var(--dur-fast) var(--ease); }
+.back:hover{ background:#EBF0E5; }
+.back:active{ background:#DCE3D4; }
+.back:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.back svg{ width:20px; height:20px; stroke:var(--text); fill:none; stroke-width:2;
+           stroke-linecap:round; stroke-linejoin:round; }
+.content{ flex:1; min-height:0; overflow-y:auto; padding:var(--sp-5) var(--content-x); }
+.btn{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; white-space:nowrap;
+      height:40px; padding:0 var(--sp-4); border-radius:var(--r-ctl); border:var(--border-w) solid transparent;
+      cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.btn:active{ transform:translateY(1px); }
+.btn:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.btn-primary{ background:var(--leaf); color:#fff; text-shadow:var(--ts-onfill); }
+.btn-primary:hover{ background:#2C5218; }
+.btn-primary:disabled{ background:#C7D0BC; color:var(--text-sub); text-shadow:none; cursor:not-allowed; }
+.tfield{ display:flex; flex-direction:column; gap:var(--sp-2); }
+.tfield label{ font-family:var(--sans); font-size:var(--font-sm); font-weight:600; color:var(--text); }
+.tinput{ width:100%; height:40px; padding:0 var(--sp-3);
+         border:var(--border-w) solid var(--border); border-radius:var(--r-ctl);
+         background:var(--bg-elev); font-family:var(--sans); font-size:var(--font-body); color:var(--text);
+         transition:border-color var(--dur-fast) var(--ease); }
+.tinput::placeholder{ color:var(--text-sub); }
+.tinput:hover{ border-color:var(--sunken-hover); }
+.tinput:focus-visible{ outline:2px solid var(--leaf); outline-offset:1px; border-color:var(--leaf); }
+.tinput:disabled{ background:var(--bg-sunken); color:var(--text-sub); cursor:not-allowed; }
+.ninput{ display:block; width:100%; min-height:76px; resize:vertical; margin-bottom:var(--sp-2);
+         padding:var(--sp-3); border:var(--border-w) solid var(--border); border-radius:var(--r-ctl);
+         background:var(--bg-elev); font-family:var(--sans); font-size:var(--font-sm); line-height:1.55;
+         color:var(--text); transition:border-color var(--dur-fast) var(--ease); }
+.ninput::placeholder{ color:var(--text-sub); }
+.ninput:hover{ border-color:#C7D0BC; }
+.ninput:focus-visible{ outline:2px solid var(--leaf); outline-offset:1px; border-color:var(--leaf); }
+/* 폼 한 덩어리 — 설정 화면의 내부 폼과 같은 방식(최대 폭 + 세로 스택) */
+.pform{ max-width:640px; display:flex; flex-direction:column; gap:var(--sp-4); }
+.pform .actions{ display:flex; gap:var(--sp-3); margin-top:var(--sp-3); }
+.pform .hint{ font-family:var(--sans); font-size:var(--font-caption); color:var(--text-sub); }
+.nav a:hover{ background:rgba(58,107,33,.10); }
+.nav a:active{ background:var(--bg-elev); color:var(--leaf); }
+.nav a:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.nav a.active{ background:var(--bg-elev); color:var(--leaf); font-weight:700; text-shadow:var(--ts-heading); }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">Arda</div>
+  <nav class="nav">
+    <a href="mockup-dashboard.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
+    <a href="mockup-postings.html" class="active"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
+    <a href="mockup-applicants.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
+    <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
+  </nav>
+  <div class="me">
+    <div>
+      <div class="name">김채용</div>
+      <div class="role">채용담당자</div>
+    </div>
+    <div class="avatar">김</div>
+  </div>
+</aside>
+
+<div class="main">
+  <header class="head">
+    <div class="head-top">
+      <button class="back" id="back" aria-label="채용 공고 목록으로"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+      <h1 class="title">공고 등록</h1>
+    </div>
+  </header>
+  <main class="content">
+    <form class="pform" id="pform" novalidate>
+      <div class="tfield">
+        <label for="p-title">공고 제목</label>
+        <input class="tinput" id="p-title" type="text" maxlength="200" placeholder="예: 백엔드 개발자 (신입)">
+      </div>
+      <div class="tfield">
+        <label for="p-desc">공고 본문</label>
+        <textarea class="ninput" id="p-desc" rows="8" placeholder="담당 업무, 자격 요건, 우대 사항을 적습니다"></textarea>
+      </div>
+      <div class="tfield">
+        <label for="p-status">상태</label>
+        <select class="tinput" id="p-status">
+          <option value="draft">임시 저장</option>
+          <option value="open" selected>진행중</option>
+          <option value="closed">마감</option>
+        </select>
+      </div>
+      <p class="hint">마감일은 스키마 확정 항목이 아니라 이 폼에 넣지 않았습니다 (01-erd job_postings 비고 — B4 추가 여지).</p>
+      <div class="actions">
+        <button class="btn btn-primary" id="submit" type="submit" disabled>등록</button>
+        <button class="btn" id="cancel" type="button" style="background:var(--bg-elev); border-color:var(--border); color:var(--text);">취소</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+var title=document.getElementById('p-title'), submit=document.getElementById('submit');
+function toggle(){ submit.disabled = title.value.trim()===''; }
+title.addEventListener('input', toggle);
+document.getElementById('back').addEventListener('click',function(){ location.href='mockup-postings.html'; });
+document.getElementById('cancel').addEventListener('click',function(){ location.href='mockup-postings.html'; });
+document.getElementById('pform').addEventListener('submit',function(e){ e.preventDefault(); });
+</script>
+</body>
+</html>

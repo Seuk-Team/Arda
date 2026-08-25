@@ -239,7 +239,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       </div>
       <div class="trow trow-item" tabindex="0">
         <span class="name">윤하늘</span>
-        <span class="skills">프론트엔드 개발자</span>
+        <span class="skills">프론트엔드 개발자 (경력)</span>
         <span class="stage stage-accepted">최종 합격</span>
         <span class="t-num">1년</span>
         <span class="t-num">5.0</span>
@@ -247,7 +247,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       </div>
       <div class="trow trow-item" tabindex="0">
         <span class="name">박지훈</span>
-        <span class="skills">2026년 상반기 신입·경력 백엔드 개발자 공개채용 (플랫폼 서비스 부문 · 서울 본사 근무 · 정규직 전환형 인턴 포함 2차 모집)</span>
+        <span class="skills">글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)</span>
         <span class="stage stage-progress">지원 접수</span>
         <span class="t-num">신입</span>
         <span class="t-num">—</span>
@@ -263,7 +263,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       </div>
       <div class="trow trow-item" tabindex="0">
         <span class="name">강민수</span>
-        <span class="skills">프론트엔드 개발자</span>
+        <span class="skills">프론트엔드 개발자 (경력)</span>
         <span class="stage stage-rejected">불합격</span>
         <span class="t-num">신입</span>
         <span class="t-num">2.0</span>
@@ -271,7 +271,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       </div>
       <div class="trow trow-item" tabindex="0">
         <span class="name">이서연</span>
-        <span class="skills">DevOps 엔지니어</span>
+        <span class="skills">QA 엔지니어</span>
         <span class="stage stage-progress">서류 검토</span>
         <span class="t-num">4년</span>
         <span class="t-num">4.2</span>
@@ -484,11 +484,27 @@ if(q&&qx){
   show(1);
 })();
 
+// 행을 누르면 그 지원자가 속한 공고의 지원자 화면으로 보낸다.
+// 이 표에는 공고명만 있어 상태·인원·마감은 공고 목록(mockup-postings.html)의 값을 표로 둔다.
+// 정적 목업이라 생긴 중복이며 API 가 붙으면 사라진다.
+var POSTINGS={
+  '백엔드 개발자 (신입)':          ['진행중','1,248','D-12'],
+  '프론트엔드 개발자 (경력)':      ['진행중','342','D-5'],
+  '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)': ['진행중','76','D-21'],
+  '데이터 엔지니어':               ['마감','897','2026.02.10'],
+  'QA 엔지니어':                   ['진행중','128','D-3'],
+  '프로덕트 디자이너 (신입·경력)': ['마감','512','2026.01.31']
+};
 document.querySelectorAll('.trow-item').forEach(function(r){
-  r.addEventListener('click',function(){ location.href='mockup.html'; });
-  r.addEventListener('keydown',function(e){
-    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); location.href='mockup.html'; }
-  });
+  function go(){
+    var name=r.querySelector('.skills').textContent;
+    var p=POSTINGS[name];
+    var url='mockup.html?posting='+encodeURIComponent(name);
+    if(p) url+='&status='+encodeURIComponent(p[0])+'&total='+encodeURIComponent(p[1])+'&deadline='+encodeURIComponent(p[2]);
+    location.href=url;
+  }
+  r.addEventListener('click',go);
+  r.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
 });
 </script>
 </body>

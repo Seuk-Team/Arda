@@ -197,7 +197,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
   <header class="head">
     <div class="head-top">
       <h1 class="title">채용 공고</h1>
-      <button class="btn btn-primary">공고 등록</button>
+      <button class="btn btn-primary" id="newPosting">공고 등록</button>
     </div>
   </header>
   <div class="toolbar">
@@ -318,6 +318,8 @@ document.querySelectorAll('.trow-item').forEach(function(r){
   r.addEventListener('click',go);
   r.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); go(); } });
 });
+var np=document.getElementById('newPosting');
+if(np) np.addEventListener('click',function(){ location.href='mockup-posting-new.html'; });
 var q=document.getElementById('q'), qx=document.getElementById('qx');
 if(q&&qx){
   q.addEventListener('input',function(){ qx.classList.toggle('on', q.value.length>0); });
