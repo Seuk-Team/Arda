@@ -133,6 +133,132 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .nav a:active{ background:var(--bg-elev); color:var(--leaf); }
 .nav a:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .nav a.active{ background:var(--bg-elev); color:var(--leaf); font-weight:700; text-shadow:var(--ts-heading); }
+
+/* ── 아르DA 에이전트 패널: .dpanel 과 동일 규격·동일 메커니즘 ─────────
+   body 직속 flex 자식. 열리면 width 0→420px 로 .main(콘텐츠)이 줄어든다(오버레이 아님).
+   1100px 이하에선 .dpanel 과 같이 fixed 오버레이로 전환. */
+.apanel{ flex:none; width:0; overflow:hidden; position:relative;
+         background:var(--bg-elev); border-left:0 solid #DCE3D4;
+         transition:width var(--dur-base) var(--ease); }
+.apanel.open{ width:420px; border-left-width:var(--border-w); }
+.apanel .ainner{ width:420px; height:100%; overflow:hidden;
+                 display:flex; flex-direction:column; font-family:var(--sans);
+                 transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
+.apanel.open .ainner{ transform:none; }
+@media (max-width:1100px){ .apanel .ainner{ transform:none; transition:none; } }
+@media (max-width:1100px){
+  /* [교정] 인수인계 데모는 z-index:31 이었다. 05-design §8 은 스케일 밖 z-index 직접 지정을 금지한다.
+     .dpanel 과 같은 30 을 쓰되 DOM 에서 .dpanel 보다 뒤에 두어 위에 그려지게 했다 — .dclose 때와 같은 방식. */
+  .apanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
+           border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
+           transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
+  .apanel.open{ transform:none; }
+}
+.ahead{ flex:none; display:flex; align-items:center; gap:var(--sp-3);
+        padding:var(--sp-5) var(--sp-5) var(--sp-4); padding-right:72px; border-bottom:var(--border-w) solid var(--border-soft); }
+.ahead .agchar{ width:32px; height:32px; flex:none; }
+.ahead .aname{ font-size:var(--font-h2); font-weight:700; color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; }
+.ahead .asub{ font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
+.ahead .aclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); z-index:var(--z-sticky);
+        width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+        cursor:pointer; background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
+        transition:background var(--dur-fast) var(--ease); }
+.ahead .aclose:hover{ background:#EBF0E5; }
+.ahead .aclose:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.ahead .aclose svg{ width:18px; height:18px; stroke:var(--text); fill:none; stroke-width:2; stroke-linecap:round; }
+.alog{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:var(--sp-4) var(--sp-5);
+       display:flex; flex-direction:column; gap:var(--sp-3); }
+/* [교정] 말풍선 radius 12px/2px → --r-card. 05-design §4 는 radius 를 8/6/999 세 값으로 확정했다. */
+.amsg-user{ align-self:flex-end; max-width:85%; background:var(--bg-sunken); border-radius:var(--r-card);
+            padding:var(--sp-2) var(--sp-3); font-size:var(--font-sm); color:var(--text); word-break:keep-all; }
+.atool{ font-size:var(--font-caption); color:var(--text-sub); line-height:1.7; }
+.arow-ai{ display:flex; gap:var(--sp-2); align-items:flex-start; }
+.arow-ai .agchar{ width:26px; height:26px; flex:none; }
+/* AI 제안 = 앰버 점선 (05-design §1 불변 규약) */
+.acard-ai{ flex:1; min-width:0; background:var(--ai-soft); border:var(--border-w) dashed var(--ai);
+           border-radius:var(--r-card); padding:var(--sp-3); font-size:var(--font-sm); color:var(--text); word-break:keep-all; }
+.acard-ai .abtns{ margin-top:var(--sp-3); display:flex; gap:var(--sp-2); }
+/* [교정] 데모의 padding:6px 18px 은 4px 배수가 아니다(§3). 기존 .btn 과 같은 방식(높이 + --sp 좌우)으로 맞췄다. */
+.abtn-ok, .abtn-no{ height:36px; padding:0 var(--sp-4); border-radius:var(--r-ctl); white-space:nowrap;
+           font-family:var(--sans); font-size:var(--font-sm); cursor:pointer;
+           transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.abtn-ok:active, .abtn-no:active{ transform:translateY(1px); }
+.abtn-ok:focus-visible, .abtn-no:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.abtn-ok{ background:var(--leaf); color:#fff; font-weight:600; text-shadow:var(--ts-onfill); border:var(--border-w) solid transparent; }
+.abtn-ok:hover{ background:var(--leaf-strong); }
+.abtn-no{ background:var(--bg-elev); color:var(--text-sub); border:var(--border-w) solid #DCE3D4; }
+.abtn-no:hover{ background:#EBF0E5; }
+/* 사람 확정 결과 = 잎초록 실선. [교정] 데모의 var(--sprout-soft) 는 정의된 적 없는 토큰이라
+   폴백값 #EFF7E2 로 굳혔다 — 이 파일에서 이미 쓰는 값이다(새 색 아님). */
+.acard-done{ background:#EFF7E2; border:var(--border-w) solid var(--leaf); border-radius:var(--r-card);
+             padding:var(--sp-3); font-size:var(--font-sm); color:var(--text); word-break:keep-all; }
+.ainput-row{ flex:none; margin:0 var(--sp-5) var(--sp-5); display:flex; align-items:center; gap:var(--sp-2); }
+.ainput{ flex:1; min-width:0; display:flex; align-items:center;
+         background:var(--bg-sunken); border-radius:var(--r-ctl); padding:var(--sp-2) var(--sp-3); }
+.ainput input{ flex:1; min-width:0; border:0; background:transparent; outline:none;
+               font-family:var(--sans); font-size:var(--font-sm); color:var(--text); }
+.ainput .amic{ flex:none; background:none; border:0; cursor:pointer; display:flex; padding:4px; border-radius:var(--r-ctl);
+                transition:background var(--dur-fast) var(--ease); }
+.ainput .amic:hover{ background:var(--sunken-hover); }
+.ainput .amic:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.ainput .amic.on{ background:var(--ai-soft); outline:var(--border-w) dashed var(--ai); }
+.ainput .amic svg{ width:18px; height:18px; stroke:var(--text-sub); fill:none; stroke-width:1.8; }
+.asend{ flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+        background:var(--leaf); border:0; border-radius:var(--r-ctl);
+        cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.asend:not(:disabled):hover{ background:var(--leaf-strong); }
+.asend:not(:disabled):active{ transform:translateY(1px); }
+.asend:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.asend:disabled{ opacity:.35; cursor:not-allowed; }
+.asend svg{ width:18px; height:18px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.akbd{ flex:none; font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
+/* 사이드바 상주 슬롯 — 하단(프로필 위), 전 화면 공통.
+   [교정] 데모는 margin/width 때문에 슬롯이 nav 바로 아래에 붙고 좌우도 8px 안쪽으로 밀려 있었다.
+   바닥으로 미는 역할을 .me 대신 .agslot 이 맡고, 좌우는 로고·nav·프로필과 같은 기준선을 쓴다. */
+.agslot{ margin:auto 0 var(--sp-2); padding:var(--sp-2) var(--sp-3); display:flex; align-items:center; gap:var(--sp-2);
+         background:var(--bg-elev); border:var(--border-w) solid var(--sidebar-line);
+         border-radius:var(--r-card); cursor:pointer; font-family:var(--sans); text-align:left;
+         transition:background var(--dur-fast) var(--ease); }
+.sidebar .me{ margin-top:0; }
+.agslot:hover{ background:var(--bg-sunken); }
+.agslot:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.agslot .agchar{ width:24px; height:24px; flex:none; }
+/* [교정] 데모의 13px/11px 은 §2 7단계 스케일 밖이다 → --font-sm / --font-caption. */
+.agslot b{ display:block; font-size:var(--font-sm); font-weight:600; color:var(--text); white-space:nowrap; }
+.agslot small{ display:block; font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
+.agslot .agdot{ margin-left:auto; width:var(--sp-2); height:var(--sp-2); flex:none; border-radius:50%; background:var(--ai); opacity:0; }
+.agslot.pending .agdot{ opacity:1; }
+
+/* ── 아르DA 캐릭터 모션 (팀장 확정 레퍼런스 그대로) ────────────────
+   원칙: 모든 모션은 트리거(사용자 동작·상태 변화)에 대한 반응. 유휴 = 완전 정지.
+   루프는 listen(음성 듣는 중)·think(도구 실행 중) 둘뿐, 나머지는 1회성.
+   상태는 .agchar 에 클래스 하나를 토글: enter | listen | think | ask | confirm | fail */
+.agchar{ display:block; }
+.agchar .agleafL{ transform-origin:12px 8px; }
+.agchar .agleafR{ transform-origin:12px 8px; }
+.agchar .agbody{ transform-origin:12px 15px; }
+.agchar .agnewleaf{ transform-origin:12px 7.5px; transform:scale(0); opacity:0; }
+.agchar .agmouth{ transform-origin:12px 17.5px; }
+
+.agchar.enter .agbody{ animation:ag-pop var(--dur-base) var(--ease); }
+.agchar.listen .agleafL{ animation:ag-earL 1.1s ease-in-out infinite; }
+.agchar.listen .agleafR{ animation:ag-earR 1.1s ease-in-out infinite; }
+.agchar.think .agleafR{ animation:ag-tilt 1.4s ease-in-out infinite; }
+.agchar.ask .agbody{ animation:none; }           /* 확인 대기 = 정지가 신호 */
+.agchar.confirm .agnewleaf{ animation:ag-grow .6s cubic-bezier(.2,1.4,.4,1) forwards; }
+.agchar.confirm .agbody{ animation:ag-hop .5s var(--ease); }
+.agchar.fail .agleafL, .agchar.fail .agleafR{ animation:ag-wilt .7s ease-out 2 alternate; }
+.agchar.fail .agmouth{ animation:ag-frown .7s ease-out 2 alternate; }
+
+@keyframes ag-pop{ from{ transform:translateY(10px) scale(.5); opacity:0; } to{ transform:none; opacity:1; } }
+@keyframes ag-earL{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(-14deg); } }
+@keyframes ag-earR{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(10deg); } }
+@keyframes ag-tilt{ 0%,100%{ transform:rotate(0); } 50%{ transform:rotate(24deg); } }
+@keyframes ag-grow{ from{ transform:scale(0) rotate(-30deg); opacity:0; } to{ transform:scale(1) rotate(0); opacity:1; } }
+@keyframes ag-hop{ 0%,100%{ transform:translateY(0); } 40%{ transform:translateY(-2px); } }
+@keyframes ag-wilt{ to{ transform:rotate(26deg) translateY(1.5px); } }
+@keyframes ag-frown{ to{ transform:translateY(1.5px) scaleY(-.7); } }
+@media (prefers-reduced-motion: reduce){ .agchar *{ animation:none !important; } }
 </style>
 </head>
 <body>
@@ -146,7 +272,18 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
     <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
-  <div class="me">
+  <button type="button" class="agslot" id="agSlot" aria-label="아르DA 에이전트 열기 (Ctrl+K)"><svg class="agchar" viewBox="0 0 24 24" role="img" aria-hidden="true">
+  <g class="agbody">
+    <circle cx="12" cy="15" r="7" fill="#8CC63F"/>
+    <path class="agleafL" d="M12 8 C 12 4, 8 3, 6 4 C 7 7, 10 8, 12 8" fill="#3A6B21"/>
+    <path class="agleafR" d="M12 8 C 12 5, 16 3.5, 18 4.5 C 17 7.5, 13 8, 12 8" fill="#8CC63F"/>
+    <path class="agnewleaf" d="M12 7.5 C 11 5, 12.5 2.5, 14.5 2 C 15 4.5, 13.5 6.5, 12 7.5" fill="#8CC63F"/>
+    <circle class="ageye" cx="9.5" cy="14.5" r="1" fill="#1B2117"/>
+    <circle class="ageye" cx="14.5" cy="14.5" r="1" fill="#1B2117"/>
+    <path class="agmouth" d="M10 17.5 q2 1.5 4 0" stroke="#1B2117" stroke-width="1" fill="none" stroke-linecap="round"/>
+  </g>
+</svg><span><b>아르DA</b><small>Ctrl K</small></span><span class="agdot"></span></button>
+<div class="me">
     <div>
       <div class="name">김채용</div>
       <div class="role">채용담당자</div>
@@ -240,5 +377,101 @@ document.getElementById('back').addEventListener('click', function(){ location.h
 document.getElementById('cancel').addEventListener('click', function(){ location.href = backUrl(); });
 document.getElementById('aform').addEventListener('submit', function(e){ e.preventDefault(); });
 </script>
+
+<aside class="apanel" id="apanel" aria-label="아르DA 에이전트">
+  <div class="ainner">
+    <div class="ahead">
+      <svg class="agchar" id="agCharMain" viewBox="0 0 24 24" role="img" aria-hidden="true">
+  <g class="agbody">
+    <circle cx="12" cy="15" r="7" fill="#8CC63F"/>
+    <path class="agleafL" d="M12 8 C 12 4, 8 3, 6 4 C 7 7, 10 8, 12 8" fill="#3A6B21"/>
+    <path class="agleafR" d="M12 8 C 12 5, 16 3.5, 18 4.5 C 17 7.5, 13 8, 12 8" fill="#8CC63F"/>
+    <path class="agnewleaf" d="M12 7.5 C 11 5, 12.5 2.5, 14.5 2 C 15 4.5, 13.5 6.5, 12 7.5" fill="#8CC63F"/>
+    <circle class="ageye" cx="9.5" cy="14.5" r="1" fill="#1B2117"/>
+    <circle class="ageye" cx="14.5" cy="14.5" r="1" fill="#1B2117"/>
+    <path class="agmouth" d="M10 17.5 q2 1.5 4 0" stroke="#1B2117" stroke-width="1" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
+      <div><div class="aname">아르DA</div><div class="asub">확정은 담당자가 합니다</div></div>
+      <button class="aclose" id="aclose" aria-label="에이전트 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="alog" id="alog" role="log" aria-live="polite"></div>
+    <div class="ainput-row">
+      <div class="ainput">
+        <input id="ainputEl" placeholder="채용 업무를 맡겨보세요" aria-label="에이전트 명령 입력">
+        <button type="button" class="amic" id="amic" aria-label="음성 입력"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      </div>
+      <button type="button" class="asend" id="asend" aria-label="전송" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></button>
+    </div>
+  </div>
+</aside>
+
+<script>
+/* ── 아르DA 에이전트 배선 (인수인계 데모와 동일 흐름) ────────────────
+   캐릭터 상태: setChar('enter'|'listen'|'think'|'ask'|'confirm'|'fail'|'')
+   쓰기 도구는 반드시 앰버 확인 카드 → [확인] 을 거친다 (ADR-0003). */
+(function(){
+var ap=document.getElementById('apanel'), slot=document.getElementById('agSlot');
+var log=document.getElementById('alog'), input=document.getElementById('ainputEl');
+var mic=document.getElementById('amic');
+var send=document.getElementById('asend');
+var chars=[document.getElementById('agCharMain'), slot.querySelector('.agchar')];
+function setChar(s){ chars.forEach(function(c){ if(!c) return;
+  c.classList.remove('enter','listen','think','ask','confirm','fail');
+  void c.getBoundingClientRect(); if(s) c.classList.add(s); }); }
+function openAg(){ ap.classList.add('open'); slot.classList.remove('pending');
+  var _dp=document.getElementById('dpanel'); if(_dp) _dp.classList.remove('open');
+  setChar('enter'); setTimeout(function(){ setChar(''); }, 500);
+  setTimeout(function(){ input.focus(); }, 300); }
+function closeAg(){ ap.classList.remove('open'); setChar(''); mic.classList.remove('on');
+  input.placeholder='채용 업무를 맡겨보세요'; }
+slot.addEventListener('click', function(){ ap.classList.contains('open')?closeAg():openAg(); });
+document.getElementById('aclose').addEventListener('click', closeAg);
+document.addEventListener('keydown', function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){ e.preventDefault(); openAg(); }
+  /* Esc 는 상세 패널도 쓴다. 에이전트가 열려 있을 때만 삼키고, 아니면 원래 핸들러에 넘긴다. */
+  if(e.key==='Escape' && ap.classList.contains('open')){ e.stopPropagation(); closeAg(); }
+}, true);
+mic.addEventListener('click', function(){
+  var on=mic.classList.toggle('on'); setChar(on?'listen':'');
+  input.placeholder = on ? '듣고 있어요…' : '채용 업무를 맡겨보세요';
+});
+function el(cls, html){ var d=document.createElement('div'); d.className=cls; d.innerHTML=html; return d; }
+function scrollEnd(){ log.scrollTop=log.scrollHeight; }
+var CHAR_SM='<svg class="agchar" viewBox="0 0 24 24" aria-hidden="true">'+document.getElementById('agCharMain').innerHTML+'<\/svg>';
+input.addEventListener('input', function(){ if(send) send.disabled=!input.value.trim(); });
+if(send) send.addEventListener('click', function(){ input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); });
+input.addEventListener('keydown', function(e){
+  if(e.key!=='Enter' || !input.value.trim()) return;
+  var q=input.value.trim(); input.value=''; mic.classList.remove('on'); if(send) send.disabled=true;
+  log.appendChild(el('amsg-user', q)); scrollEnd();
+  setChar('think');
+  setTimeout(function(){
+    log.appendChild(el('atool', '✓ 검색: 기술 Python · 경력 2년 이상<br>✓ 결과 3명 — 박서연 · 이준호 · 최유진')); scrollEnd();
+  }, 700);
+  setTimeout(function(){
+    setChar('ask'); slot.classList.add('pending');
+    var row=el('arow-ai', CHAR_SM+
+      '<div class="acard-ai">3명을 <b>서류 검토 → 면접</b> 단계로 옮길까요?'+
+      '<div class="abtns"><button type="button" class="abtn-ok">확인</button>'+
+      '<button type="button" class="abtn-no">취소</button></div></div>');
+    row.querySelector('.abtn-ok').addEventListener('click', function(){
+      row.querySelector('.abtns').remove(); slot.classList.remove('pending');
+      setChar('confirm');
+      log.appendChild(el('acard-done', '✓ 3명을 면접 단계로 옮겼어요. 단계 이력에 기록됐습니다.')); scrollEnd();
+      setTimeout(function(){ setChar(''); }, 900);
+    });
+    row.querySelector('.abtn-no').addEventListener('click', function(){
+      row.querySelector('.abtns').remove(); slot.classList.remove('pending');
+      setChar('fail');
+      log.appendChild(el('atool', '취소했어요. 변경 없음.')); scrollEnd();
+      setTimeout(function(){ setChar(''); }, 1200);
+    });
+    log.appendChild(row); scrollEnd();
+  }, 1500);
+});
+})();
+</script>
 </body>
 </html>
+
