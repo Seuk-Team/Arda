@@ -169,14 +169,12 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
          background:var(--bg-sunken); border-radius:var(--r-ctl); padding:var(--sp-2) var(--sp-3); }
 .ainput input{ flex:1; min-width:0; border:0; background:transparent; outline:none;
                font-family:var(--sans); font-size:var(--font-sm); color:var(--text); }
-.amic{ flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
-       background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
-       cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
-.amic:active{ transform:translateY(1px); }
-.amic:hover{ background:#EBF0E5; }
-.amic:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
-.amic.on{ background:var(--ai-soft); border-color:var(--ai); }
-.amic svg{ width:18px; height:18px; stroke:var(--text-sub); fill:none; stroke-width:1.8; }
+.ainput .amic{ flex:none; background:none; border:0; cursor:pointer; display:flex; padding:4px; border-radius:var(--r-ctl);
+                transition:background var(--dur-fast) var(--ease); }
+.ainput .amic:hover{ background:var(--sunken-hover); }
+.ainput .amic:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.ainput .amic.on{ background:var(--ai-soft); outline:var(--border-w) dashed var(--ai); }
+.ainput .amic svg{ width:18px; height:18px; stroke:var(--text-sub); fill:none; stroke-width:1.8; }
 .asend{ flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
         background:var(--leaf); border:0; border-radius:var(--r-ctl);
         cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
@@ -354,8 +352,8 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <div class="ainput-row">
       <div class="ainput">
         <input id="ainputEl" placeholder="무엇이든 시키세요… (Enter)" aria-label="에이전트 명령 입력">
+        <button type="button" class="amic" id="amic" aria-label="음성 입력"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       </div>
-      <button type="button" class="amic" id="amic" aria-label="음성 입력"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <button type="button" class="asend" id="asend" aria-label="전송" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></button>
     </div>
   </div>
