@@ -1,0 +1,187 @@
+"""에이전트 도구 정의 + 디스패치 (M3).
+
+Claude tool_use 프로토콜 기준으로 JSON 정의를 내보내고,
+도구 이름으로 실행 함수를 찾아 호출한다.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.models import User
+
+from .read import get_application, list_postings, search_applications
+from .write import (
+    WRITE_TOOL_NAMES,
+    assign_interviewer,
+    change_stage,
+    draft_email,
+)
+
+TOOL_DEFINITIONS: list[dict[str, Any]] = [
+    {
+        "name": "search_applications",
+        "description": (
+            "지원자를 검색합니다. 이름·이메일 키워드, 단계(stage), 공고 ID, "
+            "정렬(sort: created_at|score), 순서(order: asc|desc), "
+            "결과 수(limit, 최대 200)를 조합할 수 있습니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "q": {
+                    "type": "string",
+                    "description": "이름 또는 이메일 검색어 (부분 일치)",
+                },
+                "stage": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "array", "items": {"type": "string"}},
+                    ],
+                    "description": "단계 필터: applied, screening, interview, accepted, rejected",
+                },
+                "posting_id": {
+                    "type": "integer",
+                    "description": "채용공고 ID로 필터",
+                },
+                "sort": {
+                    "type": "string",
+                    "enum": ["created_at", "score"],
+                    "description": "정렬 기준 (기본: created_at)",
+                },
+                "order": {
+                    "type": "string",
+                    "enum": ["asc", "desc"],
+                    "description": "정렬 방향 (기본: desc)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "최대 결과 수 (기본 50, 최대 200)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_application",
+        "description": (
+            "지원자 한 명의 상세 정보를 조회합니다. "
+            "프로필, AI 요약, 평가, 단계 이력, 첨부파일 목록을 포함합니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID",
+                },
+            },
+            "required": ["application_id"],
+        },
+    },
+    {
+        "name": "list_postings",
+        "description": (
+            "채용공고 목록을 조회합니다. "
+            "공고별 지원자 수를 포함하며, 공고 이름으로 posting_id를 찾을 때 씁니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "change_stage",
+        "description": (
+            "지원자의 단계를 변경합니다. "
+            "applied→screening→interview→accepted 순서로 전진하며, "
+            "rejected는 어느 단계에서든 가능합니다. 한 칸씩만 전진할 수 있습니다. "
+            "이 도구는 사용자 확인 후에만 실행됩니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID",
+                },
+                "to_stage": {
+                    "type": "string",
+                    "enum": ["applied", "screening", "interview", "accepted", "rejected"],
+                    "description": "변경할 단계",
+                },
+            },
+            "required": ["application_id", "to_stage"],
+        },
+    },
+    {
+        "name": "assign_interviewer",
+        "description": (
+            "지원자에게 면접관을 배정합니다. 어드민 권한이 필요합니다. "
+            "이 도구는 사용자 확인 후에만 실행됩니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID",
+                },
+                "interviewer_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "배정할 면접관 ID 목록",
+                },
+            },
+            "required": ["application_id", "interviewer_ids"],
+        },
+    },
+    {
+        "name": "draft_email",
+        "description": (
+            "지원자에게 보낼 이메일 초안을 생성합니다. "
+            "목적(purpose)에 따라 면접 안내, 합격, 불합격 등의 템플릿을 사용합니다. "
+            "이 도구는 사용자 확인 후에만 실행됩니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID",
+                },
+                "purpose": {
+                    "type": "string",
+                    "enum": ["interview", "accepted", "rejected", "general"],
+                    "description": "이메일 목적 (기본: general)",
+                },
+            },
+            "required": ["application_id"],
+        },
+    },
+]
+
+
+_DISPATCH = {
+    "search_applications": search_applications,
+    "get_application": get_application,
+    "list_postings": list_postings,
+    "change_stage": change_stage,
+    "assign_interviewer": assign_interviewer,
+    "draft_email": draft_email,
+}
+
+
+def execute_tool(
+    name: str, arguments: dict, db: Session, user: User
+) -> str:
+    """도구를 실행하고 결과를 JSON 문자열로 반환한다."""
+    fn = _DISPATCH.get(name)
+    if fn is None:
+        return json.dumps({"error": f"알 수 없는 도구: {name}"}, ensure_ascii=False)
+    result = fn(db, user, arguments)
+    return json.dumps(result, ensure_ascii=False, default=str)

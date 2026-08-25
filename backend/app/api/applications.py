@@ -1,9 +1,10 @@
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status as http
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status as http
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.agent.summarizer import generate_summary_bg
 from app.db import get_db
 from app.deps import (
     assert_can_view_application,
@@ -177,6 +178,7 @@ def change_stage(
 def create_manual_application(
     posting_id: int,
     body: ManualApplicationCreate,
+    bg: BackgroundTasks,
     db: Session = Depends(get_db),
     # 02-api.md 는 D6 을 recruiter+ 로 명시한다. 지시서는 인증이 없던 시점 기준이라
     # "넣지 마라"고 하지만, #61(A3)로 인증이 들어와 이 파일에 이미 적용돼 있다.
@@ -221,4 +223,8 @@ def create_manual_application(
         )
     )
     db.commit()
+
+    # M2: AI 요약 생성 (비동기)
+    bg.add_task(generate_summary_bg, row.id)
+
     return ApplicationDetail.model_validate(row)

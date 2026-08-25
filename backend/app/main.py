@@ -160,8 +160,10 @@ from app.api.files import router as files_router  # noqa: E402
 from app.api.notes import router as notes_router  # noqa: E402
 from app.api.postings import router as postings_router  # noqa: E402
 from app.api.public import router as public_router  # noqa: E402
+from app.api.agent import router as agent_router  # noqa: E402
 from app.api.search import router as search_router  # noqa: E402
 
+app.include_router(agent_router)
 app.include_router(applications_router)
 app.include_router(assignments_router)
 app.include_router(auth_router)
