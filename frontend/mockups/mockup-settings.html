@@ -442,7 +442,7 @@ stageLinks.forEach(function(link){
     <div class="alog" id="alog" role="log" aria-live="polite"></div>
     <div class="ainput-row">
       <div class="ainput">
-        <input id="ainputEl" placeholder="무엇이든 시키세요… (Enter)" aria-label="에이전트 명령 입력">
+        <input id="ainputEl" placeholder="채용 업무를 맡겨보세요" aria-label="에이전트 명령 입력">
         <button type="button" class="amic" id="amic" aria-label="음성 입력"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       </div>
       <button type="button" class="asend" id="asend" aria-label="전송" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></button>
@@ -468,7 +468,7 @@ function openAg(){ ap.classList.add('open'); slot.classList.remove('pending');
   setChar('enter'); setTimeout(function(){ setChar(''); }, 500);
   setTimeout(function(){ input.focus(); }, 300); }
 function closeAg(){ ap.classList.remove('open'); setChar(''); mic.classList.remove('on');
-  input.placeholder='무엇이든 시키세요… (Enter)'; }
+  input.placeholder='채용 업무를 맡겨보세요'; }
 slot.addEventListener('click', function(){ ap.classList.contains('open')?closeAg():openAg(); });
 document.getElementById('aclose').addEventListener('click', closeAg);
 document.addEventListener('keydown', function(e){
@@ -478,7 +478,7 @@ document.addEventListener('keydown', function(e){
 }, true);
 mic.addEventListener('click', function(){
   var on=mic.classList.toggle('on'); setChar(on?'listen':'');
-  input.placeholder = on ? '듣고 있어요…' : '무엇이든 시키세요… (Enter)';
+  input.placeholder = on ? '듣고 있어요…' : '채용 업무를 맡겨보세요';
 });
 function el(cls, html){ var d=document.createElement('div'); d.className=cls; d.innerHTML=html; return d; }
 function scrollEnd(){ log.scrollTop=log.scrollHeight; }
