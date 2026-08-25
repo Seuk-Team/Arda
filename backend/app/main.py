@@ -81,6 +81,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         403: ErrorCode.FORBIDDEN,
         404: ErrorCode.NOT_FOUND,
         409: ErrorCode.CONFLICT,
+        413: ErrorCode.VALIDATION_FAILED,  # 파일 용량 초과 (F3)
         422: ErrorCode.VALIDATION_FAILED,
     }
     error_code = code_map.get(exc.status_code, ErrorCode.INTERNAL)

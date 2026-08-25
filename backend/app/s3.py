@@ -30,12 +30,23 @@ def _client():
     return boto3.client("s3", region_name=REGION)
 
 
-def presign_put(key: str, content_type: str, expires: int = EXPIRES_IN) -> str:
-    """업로드용 서명. content_type 을 서명에 넣으면 브라우저가 다른 타입으로
-    올리는 것을 S3 가 거부한다."""
+def presign_put(
+    key: str, content_type: str, size_bytes: int, expires: int = EXPIRES_IN
+) -> str:
+    """업로드용 서명.
+
+    content_type 과 size_bytes 를 서명에 넣는다. 서명에 들어간 값과 다르게 올리면
+    S3 가 거부한다 — 서버가 받은 `size_bytes` 는 클라이언트가 보낸 숫자일 뿐이라
+    그것만 믿으면 100MB 를 10MB 라고 신고하고 올릴 수 있다. S3 단에서 한 번 더 막는다.
+    """
     return _client().generate_presigned_url(
         "put_object",
-        Params={"Bucket": BUCKET, "Key": key, "ContentType": content_type},
+        Params={
+            "Bucket": BUCKET,
+            "Key": key,
+            "ContentType": content_type,
+            "ContentLength": size_bytes,
+        },
         ExpiresIn=expires,
     )
 

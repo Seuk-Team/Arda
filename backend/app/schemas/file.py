@@ -12,6 +12,8 @@ class PresignUploadRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=100)
     kind: FileKind
+    # 발급 전에 크기를 보고, 이 값을 서명에도 넣는다 (F3). 클라이언트 말을 믿지 않으려는 것.
+    size_bytes: int
 
 
 class PresignUploadResponse(BaseModel):
