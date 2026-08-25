@@ -192,7 +192,10 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
          background:var(--bg-elev); border-left:0 solid #DCE3D4;
          transition:width var(--dur-base) var(--ease); }
 .dpanel.open{ width:420px; border-left-width:var(--border-w); }
-.dpanel .dinner{ width:420px; height:100%; overflow-y:auto; overscroll-behavior:contain; }
+.dpanel .dinner{ width:420px; height:100%; overflow-y:auto; overscroll-behavior:contain;
+                 transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
+.dpanel.open .dinner{ transform:none; }
+@media (max-width:1100px){ .dpanel .dinner{ transform:none; transition:none; } }
 @media (max-width:1100px){
   .dpanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
            border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
