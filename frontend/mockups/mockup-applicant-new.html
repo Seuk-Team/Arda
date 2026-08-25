@@ -155,11 +155,12 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
   .apanel.open{ transform:none; }
 }
 .ahead{ flex:none; display:flex; align-items:center; gap:var(--sp-3);
-        padding:var(--sp-5) var(--sp-5) var(--sp-4); border-bottom:var(--border-w) solid var(--border-soft); }
+        padding:var(--sp-5) var(--sp-5) var(--sp-4); padding-right:72px; border-bottom:var(--border-w) solid var(--border-soft); }
 .ahead .agchar{ width:32px; height:32px; flex:none; }
 .ahead .aname{ font-size:var(--font-h2); font-weight:700; color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; }
 .ahead .asub{ font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
-.ahead .aclose{ margin-left:auto; width:36px; height:36px; flex:none; display:flex; align-items:center; justify-content:center;
+.ahead .aclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); z-index:var(--z-sticky);
+        width:36px; height:36px; display:flex; align-items:center; justify-content:center;
         cursor:pointer; background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
         transition:background var(--dur-fast) var(--ease); }
 .ahead .aclose:hover{ background:#EBF0E5; }
