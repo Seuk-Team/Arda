@@ -123,28 +123,48 @@ def fix_particles(sentence: str) -> str:
 
 
 # 이메일 로컬파트용 로마자 변환 — 한글 이메일은 현실성이 없고 H1 검색 테스트에도 부적합하다.
+# 초성 19 / 중성 21 / 종성 28. 순서는 유니코드 한글 음절 조합 순서를 따른다.
 _ROMAN_CHO = "g,kk,n,d,tt,r,m,b,pp,s,ss,,j,jj,ch,k,t,p,h".split(",")
-_ROMAN_JUNG = (
-    "a,ae,ya,yae,eo,e,yeo,ye,o,wa,wae,oe,yo,u,wo,we,wi,yu,eu,ui,i".split(",")
-)
-_ROMAN_JONG = "'',k,k,k,n,n,n,t,l,k,m,l,l,l,m,l,p,l,m,p,p,t,t,ng,t,t,k,t,p,h".split(",")
+_ROMAN_JUNG = "a,ae,ya,yae,eo,e,yeo,ye,o,wa,wae,oe,yo,u,wo,we,wi,yu,eu,ui,i".split(",")
+# 받침 없음 + ㄱㄲㄳ ㄴㄵㄶ ㄷ ㄹㄺㄻㄼㄽㄾㄿㅀ ㅁㅂㅄ ㅅㅆ ㅇ ㅈㅊㅋㅌㅍㅎ = 28개.
+_ROMAN_JONG = ",k,k,k,n,n,n,t,l,k,m,p,t,t,p,l,m,p,p,t,t,ng,t,t,k,t,p,t".split(",")
+
+# 성씨는 표기법이 아니라 관용을 따른다. 표기법 자체가 "성의 표기는 따로 정한다"고
+# 예외를 두고 있고, 실제로 아무도 김을 Gim, 이를 I 로 쓰지 않는다. 더미의 목적이
+# 현실적인 검색 테스트 데이터이므로 굳어진 표기를 쓴다.
+_SURNAME_ROMAN = {
+    "김": "kim", "이": "lee", "박": "park", "최": "choi", "정": "jung",
+    "강": "kang", "조": "cho", "윤": "yoon", "장": "jang", "임": "lim",
+    "오": "oh", "한": "han", "신": "shin", "서": "seo", "권": "kwon",
+    "황": "hwang", "안": "ahn", "송": "song", "전": "jeon", "홍": "hong",
+    "유": "yoo", "고": "ko", "문": "moon", "양": "yang", "손": "son",
+    "배": "bae", "백": "baek", "허": "heo", "남": "nam", "심": "shim",
+    "노": "noh", "하": "ha", "곽": "kwak", "성": "sung", "차": "cha",
+    "주": "joo", "우": "woo", "구": "koo", "나": "na", "민": "min",
+    "진": "jin", "지": "ji", "엄": "eom", "채": "chae", "원": "won",
+    "천": "chun", "방": "bang", "공": "kong", "현": "hyun", "함": "ham",
+    "편": "pyun", "여": "yeo", "추": "chu", "도": "do", "소": "so",
+    "설": "seol", "선": "sun", "마": "ma", "위": "wi", "표": "pyo",
+    "명": "myung", "기": "ki", "반": "ban", "옹": "ong", "좌": "jwa",
+}
 
 
-def romanize(word: str) -> str:
-    """한글 이름을 로마자로. 표준 표기법의 근사치 — 더미용으로 충분하다."""
-    out = []
-    for ch in word:
-        code = ord(ch)
-        if _HANGUL_BASE <= code <= _HANGUL_LAST:
-            idx = code - _HANGUL_BASE
-            out.append(_ROMAN_CHO[idx // 588])
-            out.append(_ROMAN_JUNG[(idx % 588) // 28])
-            jong = idx % 28
-            if jong:
-                out.append(_ROMAN_JONG[jong].strip("'"))
-        elif ch.isalnum():
-            out.append(ch.lower())
-    return "".join(out)
+def _romanize_syllable(ch: str) -> str:
+    code = ord(ch)
+    if not (_HANGUL_BASE <= code <= _HANGUL_LAST):
+        return ch.lower() if ch.isalnum() else ""
+    idx = code - _HANGUL_BASE
+    return (
+        _ROMAN_CHO[idx // 588]
+        + _ROMAN_JUNG[(idx % 588) // 28]
+        + _ROMAN_JONG[idx % 28]
+    )
+
+
+def romanize_name(last: str, first: str) -> str:
+    """이메일 로컬파트용. 성은 관용 표기, 이름은 표기법 근사치."""
+    surname = _SURNAME_ROMAN.get(last) or _romanize_syllable(last)
+    return surname + "".join(_romanize_syllable(c) for c in first)
 
 
 def substitute_variables(text: str, vars_dict: dict) -> str:
@@ -247,7 +267,10 @@ def generate_applications(
             full_name = last_name + first_name
 
             # 이메일 — 한글 이름을 로마자로 (H1 이름·이메일 검색 테스트용)
-            email = f"{romanize(full_name)}{random.randint(1000, 999999)}@example.com"
+            email = (
+                f"{romanize_name(last_name, first_name)}"
+                f"{random.randint(1000, 999999)}@example.com"
+            )
 
             # 학력 — 학교와 전공을 함께 담는다 (education varchar(100))
             school_obj = random.choice(schools)
