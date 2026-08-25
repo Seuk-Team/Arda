@@ -3,10 +3,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Application, JobPosting
+from app.deps import get_current_user, require_roles
+from app.models import Application, JobPosting, User
 from app.schemas.posting import PostingCreate, PostingOut, PostingUpdate
 
 router = APIRouter(prefix="/api/v1/postings", tags=["postings"])
+
+# 공고를 만드는 것은 recruiter 이상 (02-api.md).
+require_recruiter = require_roles("admin", "recruiter")
 
 
 def _get_or_404(db: Session, posting_id: int) -> JobPosting:
@@ -32,9 +36,12 @@ def list_postings(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=PostingOut, status_code=http.HTTP_201_CREATED)
-def create_posting(body: PostingCreate, db: Session = Depends(get_db)):
-    posting = JobPosting(**body.model_dump())
-    # TODO(A1): created_by 를 토큰의 사용자로 채운다. 인증은 팀장 담당
+def create_posting(
+    body: PostingCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_recruiter),
+):
+    posting = JobPosting(**body.model_dump(), created_by=user.id)
     db.add(posting)
     db.commit()
     return PostingOut.model_validate(posting)
@@ -46,7 +53,14 @@ def get_posting(posting_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{posting_id}", response_model=PostingOut)
-def update_posting(posting_id: int, body: PostingUpdate, db: Session = Depends(get_db)):
+def update_posting(
+    posting_id: int,
+    body: PostingUpdate,
+    db: Session = Depends(get_db),
+    # 02-api.md 는 이 엔드포인트의 역할을 명시하지 않는다("공개 외 전부 로그인 필요"만).
+    # recruiter+ 로 좁힐지는 명세 갱신이 따라야 해서 별건으로 올린다.
+    user: User = Depends(get_current_user),
+):
     posting = _get_or_404(db, posting_id)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(posting, field, value)
@@ -55,6 +69,26 @@ def update_posting(posting_id: int, body: PostingUpdate, db: Session = Depends(g
 
 
 @router.delete("/{posting_id}", status_code=http.HTTP_204_NO_CONTENT)
-def delete_posting(posting_id: int, db: Session = Depends(get_db)):
-    db.delete(_get_or_404(db, posting_id))
+def delete_posting(
+    posting_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    posting = _get_or_404(db, posting_id)
+
+    # 지원서가 딸린 공고는 지우지 않는다. applications.job_posting_id 에 ondelete 규칙이
+    # 없어 그대로 두면 커밋 시 FK 위반으로 500 이 난다. 함께 지우려면 스키마 변경이라
+    # 전원 합의가 필요하므로(01-erd.md), 여기서는 막고 409 로 알린다.
+    linked = db.scalar(
+        select(func.count())
+        .select_from(Application)
+        .where(Application.job_posting_id == posting_id)
+    )
+    if linked:
+        raise HTTPException(
+            http.HTTP_409_CONFLICT,
+            f"지원서 {linked}건이 있는 공고는 삭제할 수 없습니다. 먼저 공고를 마감하세요.",
+        )
+
+    db.delete(posting)
     db.commit()

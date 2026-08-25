@@ -37,3 +37,21 @@ def get_current_user_optional(
         return get_current_user(creds, db)
     except HTTPException:
         return None
+
+
+def require_roles(*allowed: str):
+    """지정한 역할만 통과시키는 의존성을 만든다.
+
+    역할 위계는 admin > recruiter > interviewer (02-api.md). 상속을 코드로 두지 않고
+    허용 역할을 그때그때 나열한다 — 위계가 세 단계뿐이고, 나열하는 편이 각 엔드포인트에서
+    누가 통과하는지 바로 보인다.
+
+    인증 실패는 401(get_current_user), 역할 부족은 403 으로 나눈다.
+    """
+
+    def dependency(user: User = Depends(get_current_user)) -> User:
+        if user.role not in allowed:
+            raise HTTPException(http.HTTP_403_FORBIDDEN, "권한이 없습니다")
+        return user
+
+    return dependency
