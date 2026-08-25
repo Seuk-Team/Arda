@@ -670,6 +670,7 @@ function setChar(s){ chars.forEach(function(c){ if(!c) return;
   c.classList.remove('enter','listen','think','ask','confirm','fail');
   void c.getBoundingClientRect(); if(s) c.classList.add(s); }); }
 function openAg(){ ap.classList.add('open'); slot.classList.remove('pending');
+  var _dp=document.getElementById('dpanel'); if(_dp) _dp.classList.remove('open');
   setChar('enter'); setTimeout(function(){ setChar(''); }, 500);
   setTimeout(function(){ input.focus(); }, 300); }
 function closeAg(){ ap.classList.remove('open'); setChar(''); mic.classList.remove('on');
