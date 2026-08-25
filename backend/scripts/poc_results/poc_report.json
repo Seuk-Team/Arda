@@ -1,0 +1,175 @@
+[
+  {
+    "id": 1,
+    "name": "권민영",
+    "format": "pdf",
+    "file": "resume_01_권민영.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 2,
+    "name": "최서원",
+    "format": "pdf",
+    "file": "resume_02_최서원.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 3,
+    "name": "마은서",
+    "format": "pdf",
+    "file": "resume_03_마은서.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 4,
+    "name": "서서원",
+    "format": "pdf",
+    "file": "resume_04_서서원.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 5,
+    "name": "현서훈",
+    "format": "pdf",
+    "file": "resume_05_현서훈.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 6,
+    "name": "오유성",
+    "format": "pdf",
+    "file": "resume_06_오유성.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 7,
+    "name": "임은민",
+    "format": "pdf",
+    "file": "resume_07_임은민.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 8,
+    "name": "윤유용",
+    "format": "pdf",
+    "file": "resume_08_윤유용.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 9,
+    "name": "편예담",
+    "format": "pdf",
+    "file": "resume_09_편예담.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 10,
+    "name": "남지훈",
+    "format": "pdf",
+    "file": "resume_10_남지훈.pdf",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 11,
+    "name": "함준경",
+    "format": "docx",
+    "file": "resume_11_함준경.docx",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 12,
+    "name": "권도준",
+    "format": "docx",
+    "file": "resume_12_권도준.docx",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 13,
+    "name": "좌은민",
+    "format": "docx",
+    "file": "resume_13_좌은민.docx",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 14,
+    "name": "권준아",
+    "format": "docx",
+    "file": "resume_14_권준아.docx",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 15,
+    "name": "안지아",
+    "format": "docx",
+    "file": "resume_15_안지아.docx",
+    "status": "SUCCESS",
+    "original_lines": 12,
+    "extracted_lines": 12,
+    "matched_lines": 12,
+    "coverage_pct": 100.0
+  },
+  {
+    "id": 16,
+    "name": "-",
+    "format": "hwp",
+    "file": "-",
+    "status": "NOT_TESTED",
+    "note": "라이브러리: none. 실제 hwp 파일로 별도 테스트 필요"
+  }
+]
