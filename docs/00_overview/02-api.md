@@ -51,6 +51,7 @@
 |---|---|---|---|
 | POST | /applications/{id}/evaluations | 평가 작성 (점수+코멘트) | E1 |
 | GET | /applications/{id}/evaluations | 평가 목록 + 평균 | E2 |
+| PATCH | /evaluations/{id} | 평가 수정 | 본인 평가만 (A1 연결 후 강제). score·comment 부분 수정 허용. 08/25 검수에서 #50 구현을 계약에 반영(팀장 승인) |
 
 ## 메모 (담당자 서술형 — 기능 번호 미지정)
 
