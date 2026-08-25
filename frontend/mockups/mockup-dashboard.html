@@ -177,6 +177,14 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .amic:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .amic.on{ background:var(--ai-soft); border-color:var(--ai); }
 .amic svg{ width:18px; height:18px; stroke:var(--text-sub); fill:none; stroke-width:1.8; }
+.asend{ flex:none; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+        background:var(--leaf); border:0; border-radius:var(--r-ctl);
+        cursor:pointer; transition:background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.asend:not(:disabled):hover{ background:var(--leaf-strong); }
+.asend:not(:disabled):active{ transform:translateY(1px); }
+.asend:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.asend:disabled{ opacity:.35; cursor:not-allowed; }
+.asend svg{ width:18px; height:18px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 .akbd{ flex:none; font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
 /* 사이드바 상주 슬롯 — 하단(프로필 위), 전 화면 공통.
    [교정] 데모는 margin/width 때문에 슬롯이 nav 바로 아래에 붙고 좌우도 8px 안쪽으로 밀려 있었다.
@@ -348,6 +356,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <input id="ainputEl" placeholder="무엇이든 시키세요… (Enter)" aria-label="에이전트 명령 입력">
       </div>
       <button type="button" class="amic" id="amic" aria-label="음성 입력"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button type="button" class="asend" id="asend" aria-label="전송" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></button>
     </div>
   </div>
 </aside>
@@ -360,6 +369,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 var ap=document.getElementById('apanel'), slot=document.getElementById('agSlot');
 var log=document.getElementById('alog'), input=document.getElementById('ainputEl');
 var mic=document.getElementById('amic');
+var send=document.getElementById('asend');
 var chars=[document.getElementById('agCharMain'), slot.querySelector('.agchar')];
 function setChar(s){ chars.forEach(function(c){ if(!c) return;
   c.classList.remove('enter','listen','think','ask','confirm','fail');
@@ -384,9 +394,11 @@ mic.addEventListener('click', function(){
 function el(cls, html){ var d=document.createElement('div'); d.className=cls; d.innerHTML=html; return d; }
 function scrollEnd(){ log.scrollTop=log.scrollHeight; }
 var CHAR_SM='<svg class="agchar" viewBox="0 0 24 24" aria-hidden="true">'+document.getElementById('agCharMain').innerHTML+'<\/svg>';
+input.addEventListener('input', function(){ if(send) send.disabled=!input.value.trim(); });
+if(send) send.addEventListener('click', function(){ input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); });
 input.addEventListener('keydown', function(e){
   if(e.key!=='Enter' || !input.value.trim()) return;
-  var q=input.value.trim(); input.value=''; mic.classList.remove('on');
+  var q=input.value.trim(); input.value=''; mic.classList.remove('on'); if(send) send.disabled=true;
   log.appendChild(el('amsg-user', q)); scrollEnd();
   setChar('think');
   setTimeout(function(){
