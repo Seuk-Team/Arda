@@ -21,15 +21,20 @@
 | GET | /postings | 공고 목록 (+ 지원자 수) | B1·B3 |
 | POST | /postings | 공고 생성 | B1, recruiter+ |
 | GET | /postings/{id} | 공고 상세 | |
-| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) | B1·B2, recruiter+ (#59, 팀장 승인) |
+| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 | B1·B2·B4, recruiter+ (#59, 팀장 승인). `deadline`(date, null 허용) — 과거 날짜는 422 |
 | DELETE | /postings/{id} | 삭제 | B1, recruiter+ (#59, 팀장 승인) |
+| POST | /postings/{id}/public-link | 공개 지원 링크 토큰 발급·재발급 | B6, recruiter+. 재발급하면 이전 토큰 즉시 무효 |
+
+- **마감일 자동 마감(B4)**: 별도 스케줄러가 없다. 공고를 **조회하는 시점**에 `deadline < 오늘` 이고 `status="open"` 이면 `closed` 로 바꿔 저장한다. 목록·상세·공개 조회·지원 제출이 모두 그 지점이다.
+- 공고 응답에는 `deadline` 과 계산값 `d_day`(남은 일수, 마감일 없으면 `null`)가 포함된다. 화면이 `D-12` 로 표시한다.
 
 ## 지원 — 공개 (C)
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| GET | /public/postings/{id} | 지원 폼용 공고 정보 | **공개** |
-| POST | /public/postings/{id}/applications | 지원서 제출 | **공개**, C1·C3. 중복 지원 409 (C6) |
+| GET | /public/postings/{id} | 지원 폼용 공고 정보 | **공개**. 마감된 공고는 **410 Gone** (B4) |
+| GET | /public/postings/by-token/{token} | 공개 링크 토큰으로 공고 조회 | **공개**, B6. 마감은 410, 없는 토큰·미공개는 404 |
+| POST | /public/postings/{id}/applications | 지원서 제출 | **공개**, C1·C3. 중복 지원 409 (C6). 마감된 공고는 **410** (B4) |
 | POST | /public/files/presign-upload | 이력서 업로드용 presigned URL 발급 | **공개**, F1. 확장자·용량 검증(F3) |
 
 ## 지원자 관리 (D·H)

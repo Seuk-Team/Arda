@@ -90,6 +90,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         403: ErrorCode.FORBIDDEN,
         404: ErrorCode.NOT_FOUND,
         409: ErrorCode.CONFLICT,
+        410: ErrorCode.GONE,  # B4 마감 — 안 넣으면 INTERNAL 로 나간다
         413: ErrorCode.VALIDATION_FAILED,  # 파일 용량 초과 (F3)
         422: ErrorCode.VALIDATION_FAILED,
     }
