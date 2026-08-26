@@ -195,12 +195,12 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .dpanel .dinner{ width:420px; height:100%; overflow-y:auto; overscroll-behavior:contain;
                  transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
 .dpanel.open .dinner{ transform:none; }
-@media (max-width:1100px){ .dpanel .dinner{ transform:none; transition:none; } }
-@media (max-width:1100px){
+@media (max-width:768px){ .dpanel .dinner{ transform:none; transition:none; } }
+@media (max-width:768px){
   .dpanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
            border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
            transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
-  .dpanel.open{ transform:none; }
+  .dpanel.open{ z-index:32; transform:none; }
 }
 .dpanel .dclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); z-index:var(--z-sticky); width:36px; height:36px;
                  display:flex; align-items:center; justify-content:center; cursor:pointer;
@@ -317,11 +317,9 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
                  display:flex; flex-direction:column; font-family:var(--sans);
                  transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
 .apanel.open .ainner{ transform:none; }
-@media (max-width:1100px){ .apanel .ainner{ transform:none; transition:none; } }
-@media (max-width:1100px){
-  /* [교정] 인수인계 데모는 z-index:31 이었다. 05-design §8 은 스케일 밖 z-index 직접 지정을 금지한다.
-     .dpanel 과 같은 30 을 쓰되 DOM 에서 .dpanel 보다 뒤에 두어 위에 그려지게 했다 — .dclose 때와 같은 방식. */
-  .apanel{ position:fixed; top:0; right:0; bottom:0; z-index:30; width:420px;
+@media (max-width:768px){ .apanel .ainner{ transform:none; transition:none; } }
+@media (max-width:768px){
+  .apanel{ position:fixed; top:0; right:0; bottom:0; z-index:31; width:420px;
            border-left-width:var(--border-w); box-shadow:0 8px 28px rgba(27,33,23,.14);
            transform:translateX(100%); transition:transform var(--dur-base) var(--ease); }
   .apanel.open{ transform:none; }
