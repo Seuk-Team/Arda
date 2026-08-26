@@ -5,6 +5,7 @@
 """
 
 import logging
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -14,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app import mail
 from app import models  # noqa: F401 — 테이블을 메타데이터에 등록하려면 import 가 필요하다
 from app.db import Base, engine
 from app.errors import ErrorCode, ErrorResponse
@@ -26,6 +28,11 @@ logger = setup_logging()
 async def lifespan(app: FastAPI):
     # 스키마가 굳기 전까지는 마이그레이션 없이 create_all 로 만든다 (app/db.py 참고)
     Base.metadata.create_all(engine)
+
+    # G2 — SQS 클라이언트 예열. 별도 스레드로 돌려 부팅을 막지 않는다
+    # (--reload 개발 중에는 저장할 때마다 재기동한다). 이유는 mail.warm_up 참고.
+    threading.Thread(target=mail.warm_up, daemon=True).start()
+
     yield
 
 

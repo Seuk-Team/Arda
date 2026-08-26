@@ -1,9 +1,11 @@
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status as http
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app import mail
 from app.agent.summarizer import generate_summary_bg
 from app.db import get_db
 from app.deps import (
@@ -12,7 +14,7 @@ from app.deps import (
     require_roles,
     scope_to_viewer,
 )
-from app.models import Application, EmailLog, JobPosting, StageHistory, User
+from app.models import Application, JobPosting, StageHistory, User
 from app.schemas.application_detail import (
     ApplicationDetail,
     ApplicationListItem,
@@ -21,6 +23,8 @@ from app.schemas.application_detail import (
 )
 from app.schemas.stage import StageChangeOut, StageChangeRequest
 from app.stages import NOTIFY_STAGES, StageTransitionError, validate_transition
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["applications"])
 
@@ -146,17 +150,20 @@ def change_stage(
     # 메일은 여기서 보내지 않는다 — 큐에 올리기만 하고 워커가 발송한다 (G2·G3, 큐 13번).
     # 발송이 이 요청 안에서 일어나면 SES 가 느릴 때 단계 변경까지 같이 느려지고,
     # 발송 실패가 단계 변경을 롤백시킨다.
-    mail_queued = body.to_stage in NOTIFY_STAGES
-    if mail_queued:
-        db.add(
-            EmailLog(
+    mail_queued = False
+    if body.to_stage in NOTIFY_STAGES:
+        try:
+            mail.enqueue(
+                db,
                 application_id=application_id,
                 to_email=application.email,
                 stage=body.to_stage,
-                status="queued",
-                created_at=now,
             )
-        )
+            mail_queued = True
+        except Exception:
+            # 큐가 죽어도 단계 변경은 성공해야 한다 — 담당자가 카드를 못 옮기는 것이
+            # 메일이 늦는 것보다 나쁘다. 행은 queued 로 남으니 나중에 셀 수 있다.
+            logger.exception("메일 큐 발행 실패 application_id=%s", application_id)
 
     db.commit()
 
