@@ -21,7 +21,13 @@ def _get_or_404(db: Session, posting_id: int) -> JobPosting:
 
 
 @router.get("", response_model=list[PostingOut])
-def list_postings(db: Session = Depends(get_db)):
+def list_postings(
+    db: Session = Depends(get_db),
+    # 02-api.md 6행: "공개로 표시된 것 외에는 전부 로그인 필요". 이 경로에는 공개 표시가
+    # 없는데 토큰 검사가 빠져 있어 draft 공고가 그대로 나갔다 (#97).
+    # 역할은 제한하지 않는다 — 면접관도 어떤 공고가 있는지는 봐야 한다.
+    user: User = Depends(get_current_user),
+):
     # B3 지원자 수 — 컬럼을 두지 않고 LEFT JOIN 집계로 낸다
     rows = db.execute(
         select(JobPosting, func.count(Application.id))
@@ -48,7 +54,11 @@ def create_posting(
 
 
 @router.get("/{posting_id}", response_model=PostingOut)
-def get_posting(posting_id: int, db: Session = Depends(get_db)):
+def get_posting(
+    posting_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),  # #97 — 목록과 같은 이유
+):
     return PostingOut.model_validate(_get_or_404(db, posting_id))
 
 
