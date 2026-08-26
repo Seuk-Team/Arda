@@ -14,9 +14,9 @@
 | 백엔드 | Python · FastAPI · PostgreSQL |
 | 프론트엔드 | React · Vite · TypeScript |
 | 에이전트 | Claude API (Python SDK) · Whisper API(STT, 여유) — 모델·비용은 [role/agent.md](../01_role/agent.md) §3에서 확정 |
-| 앱 | React Native (Expo) · TypeScript — 제안, 확정 시 ADR ([role/app.md](../01_role/app.md) §2) |
+| 앱 | **Flutter · Dart** — 확정 ([ADR-0010](../03_decision/0010-앱-flutter-확정.md) · [role/app.md](../01_role/app.md) §2) |
 | 인프라 | Docker · AWS (EC2 · S3 · SES · SQS) · GitHub Actions |
-| 배포 | 백엔드 AWS · 프론트 Vercel · 앱 Expo Go(데모) |
+| 배포 | 백엔드 AWS · 프론트 Vercel · 앱 **Android APK**(데모 — Android 전용) |
 | 제외 | Kubernetes ([ADR-0001](../03_decision/0001-k8s-제외.md)) |
 
 ## 범위
@@ -60,7 +60,7 @@
 | 백엔드 | 목업·**스키마 확정** | 인증·코어 API | 전환 로직·파일·메일 | 성능(10만 건·인덱스) | 테스트·통합 |
 | 프론트 | React 뼈대 | 전 화면 정적 | API 연동 | 칸반·낙관적 업데이트 | 배포·마감 |
 | 에이전트 | (기존 배정 마무리) | UI 확정·추출 PoC (+백엔드 분담) | 요약 파이프라인 | 읽기 에이전트 | 쓰기 도구·데모 |
-| 앱 | (백엔드 분담 착수) | 스택 ADR·Expo 뼈대 (+백엔드 분담) | 정적 화면 | API 연동 | 마감·데모 |
+| 앱 | (백엔드 분담 착수) | 스택 ADR·**Flutter 뼈대** (+백엔드 분담) | 정적 화면 | API 연동 | 마감·데모 |
 | 인프라 | AWS 신청·ERD·compose | 실배포 1차 | CI/CD | 중간 통합 점검 | 통합 리허설 |
 
 09/28~30은 전 도메인 공통 버퍼 — 코드 프리즈·잔여 버그·**1차 완성 선언**.

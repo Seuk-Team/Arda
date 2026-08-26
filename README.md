@@ -29,7 +29,7 @@ Seuk의 팀 프로젝트입니다.
 ```
 backend/    FastAPI 서버 (backend/app/agent/ 는 에이전트 도메인)
 frontend/   React 앱 (Vercel 배포)
-mobile/     모바일 앱 (Expo — 예정)
+mobile/     모바일 앱 (Flutter · Android — 예정)
 infra/      Docker · AWS · CI/CD
 docs/       위 문서 전부
 ```
