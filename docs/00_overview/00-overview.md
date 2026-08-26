@@ -21,7 +21,7 @@
 
 ## 범위
 
-**포함 (필수 23기능 — 전체 목록은 [planning/00_summary_ko.md](../04_planning/00_summary_ko.md) 6장)**
+**포함 (필수 27기능 — 전체 목록은 [planning/00_summary_ko.md](../04_planning/00_summary_ko.md) 6장)**
 
 - 채용 공고 등록·관리 (B)
 - 지원서 제출 + 이력서 S3 업로드 (C·F)
