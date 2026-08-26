@@ -1,17 +1,42 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import styles from './Dashboard.module.css'
 
 const STATS = [
   { label: '내 리뷰 대기', value: 12, unit: '명' },
-  { label: '오늘 면접', value: 3, unit: '건' },
+  { label: '오늘 면접', value: 4, unit: '건' },
   { label: '진행중 공고', value: 4, unit: '개' },
 ]
 
-const SCHEDULE = [
-  { time: '10:00', name: '김민준', posting: '백엔드 개발자', stage: '1차 기술면접' },
-  { time: '14:00', name: '이서연', posting: 'UX 디자이너', stage: '포트폴리오 발표' },
-  { time: '16:30', name: '박도현', posting: '프론트엔드 개발자', stage: '최종면접' },
+/* 면접 한 건 = 지원자 한 명. 같은 시각에 여러 건이면 화면에서 슬롯으로 묶는다. */
+interface Interview {
+  time: string
+  name: string
+  posting: string
+  stage: string
+}
+
+const SCHEDULE: Interview[] = [
+  { time: '10:00', name: '김도현', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
+  { time: '10:20', name: '크리스토퍼 알렉산더 반 데 베르그', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
+  { time: '14:00', name: '정우진', posting: 'UX 디자이너', stage: '포트폴리오 발표' },
+  { time: '16:30', name: '박지훈', posting: '프론트엔드 개발자 (경력)', stage: '1차 면접' },
 ]
+
+const SLOT_LIMIT = 3
+
+/* 같은 시간대끼리 묶되, 라벨과 대표 이름은 그 안에서 가장 이른 면접을 쓴다
+   (16:30 한 건을 16:00 으로 반올림하면 없는 일정을 보여주는 셈이다).
+   SCHEDULE 이 시각순이라 각 슬롯의 첫 항목이 곧 첫 타자다. */
+function groupByHour(list: Interview[]) {
+  const slots: { label: string; items: Interview[] }[] = []
+  for (const iv of list) {
+    const last = slots[slots.length - 1]
+    const sameHour = last && last.items[0].time.slice(0, 2) === iv.time.slice(0, 2)
+    if (sameHour) last.items.push(iv)
+    else slots.push({ label: iv.time, items: [iv] })
+  }
+  return slots
+}
 
 const FUNNEL_MAX = 24
 
@@ -30,6 +55,7 @@ const POSTINGS = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const slots = groupByHour(SCHEDULE)
 
   return (
     <div>
@@ -48,17 +74,54 @@ export default function Dashboard() {
 
       <div className={styles.twoCol}>
         <div className={styles.card}>
-          <div className={styles.cardTitle}>면접 일정</div>
+          <h2 className={styles.cardTitle}>
+            <Link to="/interviews">면접 일정 <span className={styles.go}>전체 →</span></Link>
+          </h2>
           <div className={styles.scheduleList}>
-            {SCHEDULE.map((item, i) => (
-              <div key={i} className={styles.scheduleItem}>
-                <span className={styles.scheduleTime}>{item.time}</span>
-                <div className={styles.scheduleInfo}>
-                  <span className={styles.scheduleName}>{item.name}</span>
-                  <span className={styles.scheduleSub}>{item.posting} · {item.stage}</span>
+            {slots.slice(0, SLOT_LIMIT).map((slot) => {
+              const [first, ...rest] = slot.items
+              const postings = new Set(slot.items.map((iv) => iv.posting))
+              return (
+                <div key={slot.label} className={styles.slot}>
+                  <button
+                    className={styles.scheduleItem}
+                    onClick={() => navigate(`/interviews?slot=${slot.label}`)}
+                  >
+                    <span className={styles.scheduleTime}>{slot.label}</span>
+                    <span className={styles.scheduleInfo}>
+                      <span className={styles.scheduleName}>
+                        {first.name}
+                        {rest.length > 0 && <em className={styles.scheduleRest}> 외 {rest.length}명</em>}
+                      </span>
+                      <span className={styles.scheduleSub}>
+                        {postings.size > 1 ? `공고 ${postings.size}개` : first.posting} · {first.stage}
+                      </span>
+                    </span>
+                  </button>
+
+                  {/* 명단 미리보기 — 버튼 바깥 형제로 둔다. 안에 넣으면 목록을
+                      스크롤하다 눌려서 화면이 넘어간다. */}
+                  {rest.length > 0 && (
+                    <div className={styles.slotPop} role="tooltip">
+                      <div className={styles.slotPopHead}>
+                        {slot.label.slice(0, 2)}시 면접 {slot.items.length}건
+                      </div>
+                      {slot.items.map((iv) => (
+                        <div key={iv.time + iv.name} className={styles.slotPopItem}>
+                          <span className={styles.slotPopTime}>{iv.time}</span>
+                          <span className={styles.slotPopName}>{iv.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
+            {slots.length > SLOT_LIMIT && (
+              <button className={styles.scheduleMore} onClick={() => navigate('/interviews')}>
+                외 {slots.length - SLOT_LIMIT}건 더 →
+              </button>
+            )}
           </div>
         </div>
 

@@ -34,7 +34,8 @@
   --sunken-hover:#DCE3D4;  /* sunken 바탕 위 hover 채움: 한 톤 진하게 */
   --ts-heading:0 1px 0 rgba(27,33,23,.34);
   --ts-onfill:0 1px 0 rgba(0,0,0,.62);
-  --z-sticky:10;
+  --z-sticky:10; --z-dropdown:20;
+  --sh-overlay:0 8px 28px rgba(27,33,23,.14), 0 2px 6px rgba(27,33,23,.06);
   --dur-fast:120ms; --dur-base:200ms; --ease:cubic-bezier(.2,0,0,1);
 }
 @media (prefers-reduced-motion: reduce){ *{ transition-duration:0ms !important; } }
@@ -119,19 +120,56 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         border-radius:var(--r-card); padding:var(--sp-5); font-family:var(--sans); }
 .panel h2{ font-size:var(--font-h2); font-weight:700; color:var(--text);
            text-shadow:var(--ts-heading); white-space:nowrap; }
+/* 대시보드는 요약이라 카드 안 어디를 눌러도 그 화면 전체 목록으로 간다.
+   사람을 고르는 건 거기서 한다. .statcard 와 같은 이유로 <a> 의 UA 기본
+   밑줄·링크색을 리셋한다. */
+.panel h2 a{ display:inline-flex; align-items:baseline; gap:var(--sp-2);
+             color:inherit; text-decoration:none; border-radius:var(--r-ctl);
+             transition:color var(--dur-fast) var(--ease); }
+.panel h2 a:hover{ color:var(--leaf); }
+.panel h2 a:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
+.panel h2 .go{ font-size:var(--font-sm); font-weight:600; color:var(--leaf);
+               text-shadow:none; white-space:nowrap; }
 
-/* 면접 일정 */
-.ivlist{ margin-top:var(--sp-4); }
+/* 면접 일정 — 행도 면접 일정 화면으로 간다(05-design §0.5 진입점).
+   .statcard 와 같은 이유로 <a> 의 UA 기본 밑줄·링크색을 리셋한다. */
+.ivlist{ margin-top:var(--sp-3); }
 .ivrow{ display:flex; align-items:baseline; gap:var(--sp-4);
-        padding:var(--sp-3) 0; border-top:var(--border-w) solid var(--border-soft); }
-.ivrow:first-child{ border-top:0; padding-top:0; }
-.ivrow:last-child{ padding-bottom:0; }
+        padding:var(--sp-3); margin:0 calc(-1 * var(--sp-3));
+        border-top:var(--border-w) solid var(--border-soft); border-radius:var(--r-ctl);
+        text-decoration:none; color:var(--text); cursor:pointer;
+        transition:background var(--dur-fast) var(--ease); }
+.ivslot{ position:relative; }
+.ivslot:first-child .ivrow{ border-top:0; }
+.ivrow:hover{ background:var(--bg-sunken); }
+.ivrow:active{ background:var(--sunken-hover); }
+.ivrow:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .ivtime{ flex:none; width:48px; font-size:var(--font-num); font-variant-numeric:tabular-nums;
          color:var(--text-sub); white-space:nowrap; }
 .ivbody{ flex:1; min-width:0; }
 .ivname{ display:block; font-size:var(--font-body); font-weight:600; color:var(--text); white-space:nowrap; }
+/* 대표 이름 = 그 슬롯에서 제일 먼저 보는 사람. 나머지 인원수는 보조 위계로 */
+.ivname em{ font-style:normal; font-weight:400; color:var(--text-sub); }
 .ivsub{ display:block; margin-top:2px; font-size:var(--font-caption); color:var(--text-sub);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* "외 N명" 슬롯 명단 미리보기 — 링크 바깥 형제로 둔다. <a> 안에 넣으면
+   목록을 스크롤하다 눌려서 페이지가 넘어간다.
+   hover 전용 정보가 아니다(§5): 같은 명단을 행 클릭 → 슬롯 필터로도 본다.
+   그래서 hover 가 없는 폰에서도 막히지 않는다. */
+.ivpop{ display:none; position:absolute; left:0; top:100%; z-index:var(--z-dropdown);
+        min-width:260px; max-width:100%; max-height:192px;
+        overflow-y:auto; overscroll-behavior:contain;
+        background:var(--bg-elev); border:var(--border-w) solid var(--border);
+        border-radius:var(--r-card); box-shadow:var(--sh-overlay); padding:var(--sp-2); }
+.ivslot:hover .ivpop, .ivslot:focus-within .ivpop{ display:block; }
+.ivpop-head{ padding:var(--sp-2) var(--sp-3); font-size:var(--font-caption);
+             color:var(--text-sub); white-space:nowrap; }
+.ivpop-item{ display:flex; align-items:baseline; gap:var(--sp-3);
+             padding:var(--sp-2) var(--sp-3); }
+.ivpop-t{ flex:none; width:48px; font-size:var(--font-num); font-variant-numeric:tabular-nums;
+          color:var(--text-sub); white-space:nowrap; }
+.ivpop-n{ flex:1; min-width:0; font-size:var(--font-sm); color:var(--text); word-break:keep-all; }
 
 /* 전형 현황 — 색은 판단에만(05-design §1). 진행 중은 무채, 합격만 연두. */
 .stagelist{ margin-top:var(--sp-4); display:flex; flex-direction:column; gap:var(--sp-3); }
@@ -282,6 +320,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <a href="mockup-dashboard.html" class="active"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
     <a href="mockup-postings.html"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
     <a href="mockup-applicants.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="mockup-interviews.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/></svg>면접 일정</a>
     <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
     <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
@@ -317,9 +356,9 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <span class="slabel">내 리뷰 대기</span>
         <span class="snum">12<span class="sunit">명</span></span>
       </a>
-      <a class="statcard" href="mockup-applicants.html">
+      <a class="statcard" href="mockup-interviews.html">
         <span class="slabel">오늘 면접</span>
-        <span class="snum">3<span class="sunit">건</span></span>
+        <span class="snum">4<span class="sunit">건</span></span>
       </a>
       <a class="statcard" href="mockup-postings.html">
         <span class="slabel">진행중 공고</span>
@@ -329,28 +368,39 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 
     <div class="duo">
       <section class="panel">
-        <h2>면접 일정</h2>
+        <h2><a href="mockup-interviews.html">면접 일정 <span class="go">전체 →</span></a></h2>
         <div class="ivlist">
-          <div class="ivrow">
-            <span class="ivtime">10:00</span>
-            <span class="ivbody">
-              <span class="ivname">김민준</span>
-              <span class="ivsub">백엔드 개발자 (신입) · 1차 기술면접</span>
-            </span>
+          <div class="ivslot">
+            <a class="ivrow" href="mockup-interviews.html?slot=10:00">
+              <span class="ivtime">10:00</span>
+              <span class="ivbody">
+                <span class="ivname">김도현 <em>외 1명</em></span>
+                <span class="ivsub">백엔드 개발자 (신입) · 1차 기술면접</span>
+              </span>
+            </a>
+            <div class="ivpop" role="tooltip">
+              <div class="ivpop-head">10시 면접 2건</div>
+              <div class="ivpop-item"><span class="ivpop-t">10:00</span><span class="ivpop-n">김도현</span></div>
+              <div class="ivpop-item"><span class="ivpop-t">10:20</span><span class="ivpop-n">크리스토퍼 알렉산더 반 데 베르그</span></div>
+            </div>
           </div>
-          <div class="ivrow">
-            <span class="ivtime">14:00</span>
-            <span class="ivbody">
-              <span class="ivname">이서연</span>
-              <span class="ivsub">UX 디자이너 · 포트폴리오 발표</span>
-            </span>
+          <div class="ivslot">
+            <a class="ivrow" href="mockup-interviews.html?slot=14:00">
+              <span class="ivtime">14:00</span>
+              <span class="ivbody">
+                <span class="ivname">정우진</span>
+                <span class="ivsub">UX 디자이너 · 포트폴리오 발표</span>
+              </span>
+            </a>
           </div>
-          <div class="ivrow">
-            <span class="ivtime">16:30</span>
-            <span class="ivbody">
-              <span class="ivname">박도현</span>
-              <span class="ivsub">프론트엔드 개발자 (경력) · 최종면접</span>
-            </span>
+          <div class="ivslot">
+            <a class="ivrow" href="mockup-interviews.html?slot=16:30">
+              <span class="ivtime">16:30</span>
+              <span class="ivbody">
+                <span class="ivname">박지훈</span>
+                <span class="ivsub">프론트엔드 개발자 (경력) · 1차 면접</span>
+              </span>
+            </a>
           </div>
         </div>
       </section>

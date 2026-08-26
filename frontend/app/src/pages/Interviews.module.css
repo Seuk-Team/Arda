@@ -1,0 +1,192 @@
+.title {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  text-shadow: var(--ts-heading);
+  margin-bottom: var(--sp-5);
+}
+
+/* ── 날짜 이동 바 ─────────────────────────────────── */
+.daybar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.dayNav {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  font-size: var(--font-body);
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.dayNav:hover {
+  background: var(--bg-sunken);
+}
+
+.dayNav:active {
+  background: var(--sunken-hover);
+}
+
+.dayLabel {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  text-shadow: var(--ts-heading);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dayCount {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 슬롯 필터 표시 — 대시보드에서 한 시간대를 눌러 넘어온 상태.
+   누르면 그 날 전체로 돌아간다 (§6 상태: 필터가 걸린 걸 항상 보이게) */
+.slotChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.slotChip:hover {
+  background: var(--sunken-hover);
+}
+
+.dayToday {
+  margin-left: auto;
+  height: 36px;
+  padding: 0 var(--sp-4);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.dayToday:hover {
+  background: var(--bg-sunken);
+}
+
+/* ── 면접 목록 ────────────────────────────────────
+   mockup-interviews.html 의 .tpanel / .thead / .trow-item / .tfoot 규격을
+   그대로 옮긴다 (§12-1 시안 복제). 전체 목록이라 슬롯으로 접지 않는다 —
+   접는 건 대시보드 카드 쪽 압축이다. */
+.panel {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  height: 48px;
+  text-align: left;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  border-bottom: var(--border-w) solid var(--border);
+  white-space: nowrap;
+}
+
+.table td {
+  height: 56px;
+  border-bottom: var(--border-w) solid var(--border-soft);
+  font-size: var(--font-sm);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* 좌우 여백은 행 전체가 아니라 양 끝 칸에만 준다 — 목업의 .trow padding:0 --sp-6 */
+.table th:first-child,
+.table td:first-child {
+  padding-left: var(--sp-6);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: var(--sp-6);
+}
+
+.table th + th,
+.table td + td {
+  padding-left: var(--sp-3);
+}
+
+.table tbody tr {
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+/* 목업의 행 hover 는 #F6F9F2 — 토큰이 아니라 --bg(#F4F7F0)로 맞췄다.
+   채널당 2 이내 차이고 §0-1 대로 토큰만 쓴다 */
+.table tbody tr:hover {
+  background: var(--bg);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 var(--sp-6);
+  border-top: var(--border-w) solid var(--border);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+}
+
+.name {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.posting {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 회차·면접관은 판단 전 정보다 — 색 없이 라벨로만 (05-design §1) */
+.sub {
+  color: var(--text-sub);
+}
+
+.empty {
+  color: var(--text-sub);
+  padding: var(--sp-6) 0;
+}

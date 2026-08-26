@@ -5,6 +5,7 @@ const NAV = [
   { to: '/dashboard', label: '대시보드' },
   { to: '/postings', label: '채용 공고' },
   { to: '/applicants', label: '지원자' },
+  { to: '/interviews', label: '면접 일정' },
   { to: '/evaluations', label: '평가 현황' },
   { to: '/settings', label: '설정' },
 ] as const

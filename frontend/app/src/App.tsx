@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
 import Applicants from './pages/Applicants'
+import Interviews from './pages/Interviews'
 import Evaluations from './pages/Evaluations'
 import Settings from './pages/Settings'
 
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/postings" element={<Postings />} />
         <Route path="/applicants" element={<Applicants />} />
+        <Route path="/interviews" element={<Interviews />} />
         <Route path="/evaluations" element={<Evaluations />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

@@ -66,23 +66,138 @@
   white-space: nowrap;
 }
 
+/* 대시보드는 요약이라 카드 안 어디를 눌러도 그 화면 전체 목록으로 간다 */
+.cardTitle a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  color: inherit;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.cardTitle a:hover {
+  color: var(--leaf);
+}
+
+.go {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--leaf);
+  white-space: nowrap;
+}
+
 /* 면접 일정 */
 .scheduleList {
   display: flex;
   flex-direction: column;
 }
 
+/* 행도 면접 일정 화면으로 간다 (05-design §0.5 진입점) */
 .scheduleItem {
   display: flex;
   align-items: flex-start;
   gap: var(--sp-3);
-  padding: var(--sp-3) 0;
-  border-bottom: var(--border-w) solid var(--border-soft);
+  padding: var(--sp-3);
+  margin: 0 calc(-1 * var(--sp-3));
+  border-top: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+  text-align: left;
+  width: calc(100% + var(--sp-5));
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
 }
 
-.scheduleItem:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.slot {
+  position: relative;
+}
+
+.slot:first-child .scheduleItem {
+  border-top: none;
+}
+
+.scheduleItem:hover {
+  background: var(--bg-sunken);
+}
+
+.scheduleItem:active {
+  background: var(--sunken-hover);
+}
+
+/* "외 N명" 슬롯 명단 미리보기.
+   hover 전용 정보가 아니다(§5): 같은 명단을 행 클릭 → 슬롯 필터로도 본다.
+   그래서 hover 가 없는 폰에서도 막히지 않는다. */
+.slotPop {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: var(--z-dropdown);
+  min-width: 260px;
+  max-width: 100%;
+  max-height: 192px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-overlay);
+  padding: var(--sp-2);
+}
+
+.slot:hover .slotPop,
+.slot:focus-within .slotPop {
+  display: block;
+}
+
+.slotPopHead {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.slotPopItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.slotPopTime {
+  flex: none;
+  width: 48px;
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.slotPopName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-sm);
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.scheduleMore {
+  display: block;
+  padding: var(--sp-3);
+  margin: 0 calc(-1 * var(--sp-3));
+  width: calc(100% + var(--sp-5));
+  border-top: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+  text-align: right;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--leaf);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.scheduleMore:hover {
+  background: var(--bg-sunken);
 }
 
 .scheduleTime {
@@ -98,17 +213,27 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
   min-width: 0;
 }
 
 .scheduleName {
+  display: block;
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
 }
 
+/* 대표 이름 = 그 슬롯에서 제일 먼저 보는 사람. 나머지 인원수는 보조 위계로 */
+.scheduleRest {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-sub);
+}
+
 .scheduleSub {
+  display: block;
   font-size: var(--font-caption);
   color: var(--text-sub);
   white-space: nowrap;

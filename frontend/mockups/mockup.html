@@ -212,8 +212,16 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .dhead{ position:sticky; top:0; z-index:var(--z-sticky); background:var(--bg-elev);
         display:flex; align-items:baseline; gap:var(--sp-3); padding:var(--sp-5) var(--sp-5) var(--sp-4);
         border-bottom:var(--border-w) solid #DCE3D4; padding-right:72px; }
+/* 이름은 이 패널에서 "누구를 보고 있는가" 그 자체다. 한 줄로 잘라 버리면
+   신원을 알 수 없으니 두 줄까지 풀어 준다(§7 여러 줄 line-clamp).
+   §2 의 nowrap 강제 대상(버튼·뱃지·메뉴·컬럼 제목·수치)이 아니라 내용이다.
+   툴팁으로 때우지 않는 이유는 §5 — 모바일은 hover 가 없다. */
 .dhead .dname{ font-family:var(--sans); font-size:var(--font-h1); font-weight:700; letter-spacing:-.01em;
-               color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+               color:var(--text); text-shadow:var(--ts-heading); min-width:0; word-break:keep-all;
+               /* 제목은 text-wrap:balance (§2). 없으면 "반 데 / 베르그" 처럼
+                  한 덩어리인 성이 쪼개진다 — 줄 길이를 고르게 잡아 붙여 준다 */
+               text-wrap:balance;
+               display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .dhead .stage{ font-family:var(--sans); font-size:var(--font-sm); flex:none; }
 .dsec{ padding:var(--sp-4) var(--sp-5); border-bottom:var(--border-w) solid #EAEFE4; }
 .dsec h2{ font-family:var(--sans); font-size:var(--font-h2); font-weight:700; color:var(--text);
@@ -441,6 +449,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <a href="mockup-dashboard.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>대시보드</a>
     <a href="mockup-postings.html" class="active"><svg viewBox="0 0 24 24"><path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/><path d="M9 12h6M9 15.5h6"/></svg>채용 공고</a>
     <a href="mockup-applicants.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19.5c0-2.9 2.3-5.2 5.2-5.2s5.2 2.3 5.2 5.2"/><circle cx="16.8" cy="9" r="2.4"/><path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9"/></svg>지원자</a>
+    <a href="mockup-interviews.html"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3.5v3M16 3.5v3"/></svg>면접 일정</a>
     <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
     <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
@@ -786,6 +795,18 @@ if(dp){
   if(total||deadline){
     var m=document.querySelector('.head-meta');
     if(m) m.textContent='마감 '+(deadline||'—')+' · 총 '+(total||'—')+'명';
+  }
+  // 면접 일정에서 특정 지원자를 눌러 넘어온 경우 그 사람 상세 패널을 열어 둔다.
+  // 패널을 채우는 로직은 행 클릭 핸들러에 이미 있으니 그 행을 click 해서 재사용한다.
+  // 목록에 없는 이름이면(다른 공고 지원자) 아무 일도 하지 않는다 — 목업 표는 이 공고 것만 있다.
+  var who=p.get('applicant');
+  if(who){
+    var hit=null;
+    document.querySelectorAll('.trow-item').forEach(function(r){
+      var n=r.querySelector('.name');
+      if(!hit && n && n.textContent.trim()===who) hit=r;
+    });
+    if(hit) hit.click();
   }
 })();
 // 지원자 직접 등록 화면으로. 지금 보고 있는 공고 정보를 그대로 넘겨 준다(D6 · 05-design §0.5)
