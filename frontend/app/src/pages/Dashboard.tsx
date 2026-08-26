@@ -1,0 +1,113 @@
+import { useNavigate } from 'react-router-dom'
+import styles from './Dashboard.module.css'
+
+const STATS = [
+  { label: '내 리뷰 대기', value: 12, unit: '명' },
+  { label: '오늘 면접', value: 3, unit: '건' },
+  { label: '진행중 공고', value: 4, unit: '개' },
+]
+
+const SCHEDULE = [
+  { time: '10:00', name: '김민준', posting: '백엔드 개발자', stage: '1차 기술면접' },
+  { time: '14:00', name: '이서연', posting: 'UX 디자이너', stage: '포트폴리오 발표' },
+  { time: '16:30', name: '박도현', posting: '프론트엔드 개발자', stage: '최종면접' },
+]
+
+const FUNNEL_MAX = 24
+
+const FUNNEL = [
+  { label: '서류 검토', count: 24, pass: false },
+  { label: '1차 면접', count: 12, pass: false },
+  { label: '2차 면접', count: 6, pass: false },
+  { label: '최종 합격', count: 2, pass: true },
+]
+
+const POSTINGS = [
+  { id: 1, title: '백엔드 개발자 (신입)', team: '개발팀', dday: 12, reviewed: 14, inprogress: 6, done: 4 },
+  { id: 2, title: '프론트엔드 개발자 (경력)', team: '개발팀', dday: 5, reviewed: 10, inprogress: 5, done: 3 },
+  { id: 3, title: '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 최적화', team: '인프라팀', dday: 21, reviewed: 8, inprogress: 3, done: 1 },
+]
+
+export default function Dashboard() {
+  const navigate = useNavigate()
+
+  return (
+    <div>
+      <h1 className={styles.title}>대시보드</h1>
+
+      <div className={styles.stats}>
+        {STATS.map((s) => (
+          <div key={s.label} className={styles.stat}>
+            <div className={styles.statLabel}>{s.label}</div>
+            <div className={styles.statVal}>
+              {s.value}<span className={styles.statUnit}>{s.unit}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.twoCol}>
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>면접 일정</div>
+          <div className={styles.scheduleList}>
+            {SCHEDULE.map((item, i) => (
+              <div key={i} className={styles.scheduleItem}>
+                <span className={styles.scheduleTime}>{item.time}</span>
+                <div className={styles.scheduleInfo}>
+                  <span className={styles.scheduleName}>{item.name}</span>
+                  <span className={styles.scheduleSub}>{item.posting} · {item.stage}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>전형 현황</div>
+          <div className={styles.funnelList}>
+            {FUNNEL.map((row) => (
+              <div key={row.label} className={styles.funnelRow}>
+                <span className={styles.funnelLabel}>{row.label}</span>
+                <div className={styles.funnelTrack}>
+                  <div
+                    className={styles.funnelFill}
+                    style={{
+                      width: `${Math.round(row.count / FUNNEL_MAX * 100)}%`,
+                      background: row.pass ? 'var(--sprout)' : 'var(--neutral)',
+                    }}
+                  />
+                </div>
+                <span className={styles.funnelCount}>{row.count}명</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.sectionTitle}>진행중 공고</div>
+      <div className={styles.postingList}>
+        {POSTINGS.map((p) => {
+          const total = p.reviewed + p.inprogress + p.done
+          return (
+            <button
+              key={p.id}
+              className={styles.postingCard}
+              onClick={() => navigate('/postings')}
+            >
+              <div className={styles.postingLeft}>
+                <div className={styles.postingName}>{p.title}</div>
+                <div className={styles.postingTeam}>{p.team}</div>
+                <div className={styles.postingRail}>
+                  <div className={styles.railSeg} style={{ width: `${Math.round(p.reviewed / total * 100)}%`, background: 'var(--border)' }} />
+                  <div className={styles.railSeg} style={{ width: `${Math.round(p.inprogress / total * 100)}%`, background: 'var(--neutral)' }} />
+                  <div className={styles.railSeg} style={{ width: `${Math.round(p.done / total * 100)}%`, background: 'var(--sprout)' }} />
+                </div>
+              </div>
+              <div className={styles.postingDday}>D-{p.dday}</div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

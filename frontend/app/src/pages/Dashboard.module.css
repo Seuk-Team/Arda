@@ -1,0 +1,242 @@
+.title {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  text-shadow: var(--ts-heading);
+  margin-bottom: var(--sp-5);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.stat {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+}
+
+.statLabel {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin-bottom: var(--sp-2);
+  white-space: nowrap;
+}
+
+.statVal {
+  font-size: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+}
+
+.statUnit {
+  font-size: var(--font-num);
+  font-weight: 400;
+  color: var(--text-sub);
+  margin-left: var(--sp-1);
+  text-shadow: none;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.card {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+}
+
+.cardTitle {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--sp-4);
+  white-space: nowrap;
+}
+
+/* 면접 일정 */
+.scheduleList {
+  display: flex;
+  flex-direction: column;
+}
+
+.scheduleItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: var(--border-w) solid var(--border-soft);
+}
+
+.scheduleItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.scheduleTime {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+  min-width: 44px;
+  flex-shrink: 0;
+}
+
+.scheduleInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.scheduleName {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.scheduleSub {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 전형 현황 */
+.funnelList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.funnelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.funnelLabel {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.funnelTrack {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-sunken);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+/* 색은 판단에만 (05-design §1) — 채움 색은 단계별로 인라인 지정 */
+.funnelFill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  transition: width var(--dur-base) var(--ease);
+}
+
+.funnelCount {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+  width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 진행중 공고 */
+.sectionTitle {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  margin-bottom: var(--sp-3);
+  white-space: nowrap;
+}
+
+.postingList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.postingCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-3) var(--sp-4);
+  text-align: left;
+  width: 100%;
+  transition: background var(--dur-fast) var(--ease);
+  cursor: pointer;
+}
+
+.postingCard:hover {
+  background: var(--bg-sunken);
+}
+
+.postingLeft {
+  flex: 1;
+  min-width: 0;
+}
+
+.postingName {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.postingTeam {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  margin-top: 2px;
+  margin-bottom: var(--sp-2);
+  white-space: nowrap;
+}
+
+.postingRail {
+  display: flex;
+  height: 4px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  gap: 2px;
+  max-width: 480px;
+}
+
+.railSeg {
+  height: 100%;
+  border-radius: var(--r-pill);
+}
+
+.postingDday {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+  margin-left: var(--sp-5);
+  flex-shrink: 0;
+}

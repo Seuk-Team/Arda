@@ -9,7 +9,7 @@ export default function Login() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    navigate('/postings')
+    navigate('/dashboard')
   }
 
   const disabled = email.trim() === '' || password.trim() === ''
