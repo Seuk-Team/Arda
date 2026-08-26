@@ -1,0 +1,97 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap");
+@import "./tokens.css";
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+body {
+  font-family: var(--sans);
+  font-size: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a { color: inherit; text-decoration: none; }
+
+:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ── 공통 유틸 ──────────────────────────────────── */
+.btn {
+  font-family: var(--sans);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  height: 40px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid transparent;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  background: var(--leaf);
+  color: #fff;
+  text-shadow: var(--ts-onfill);
+}
+.btn-primary:hover { background: var(--leaf-strong); }
+.btn-primary:disabled {
+  background: #C7D0BC;
+  color: var(--text-sub);
+  text-shadow: none;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: var(--bg-elev);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover { background: var(--bg-sunken); }
+
+/* ── 뱃지 ──────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-open {
+  background: var(--sprout-soft);
+  color: var(--leaf);
+  border: var(--border-w) solid var(--sprout);
+}
+.badge-closed {
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  border: var(--border-w) solid var(--border);
+}
+
+/* ── 단계 색 ─────────────────────────────────────── */
+.stage-progress { color: var(--text-sub); }
+.stage-accepted { color: var(--leaf); font-weight: 700; }
+.stage-rejected { color: var(--danger); font-weight: 700; }

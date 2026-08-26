@@ -1,0 +1,52 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-5);
+}
+
+.title {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  text-shadow: var(--ts-heading);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  padding: var(--sp-3) var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.table td {
+  padding: var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border-soft);
+  font-size: var(--font-body);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.table tbody tr:hover {
+  background: var(--bg-sunken);
+}
+
+.name {
+  font-weight: 600;
+  color: var(--leaf);
+}
+
+.num {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+}

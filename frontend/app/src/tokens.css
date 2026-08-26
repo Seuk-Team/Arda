@@ -1,0 +1,78 @@
+:root {
+  /* ── 색 (05-design §1 확정) ────────────────────────────── */
+  --bg: #F4F7F0;
+  --bg-elev: #FFFFFF;
+  --bg-sunken: #EBF0E5;
+  --sunken-hover: #DCE3D4;
+  --sidebar-bg: #C7E49B;
+  --sidebar-line: #A8CD6E;
+
+  --text: #1B2117;
+  --text-sub: #5C6654;
+
+  --border: #DCE3D4;
+  --border-soft: #EAEFE4;
+  --border-w: 1px;
+
+  --sprout: #8CC63F;
+  --sprout-soft: #EFF7E2;
+  --leaf: #3A6B21;
+  --leaf-strong: #2C5218;
+  --neutral: #8A9284;
+  --danger: #A9503C;
+  --danger-soft: #F7ECE8;
+  --ai: #A9702A;
+  --ai-soft: #FBF2E5;
+
+  /* ── 타이포 (05-design §2 확정) ────────────────────────── */
+  --sans: "IBM Plex Sans KR", system-ui, "Malgun Gothic", sans-serif;
+  --font-display: 26px;
+  --font-h1: 22px;
+  --font-h2: 18px;
+  --font-body: 16px;
+  --font-sm: 14px;
+  --font-caption: 12px;
+  --font-num: 14px;
+
+  /* ── 간격 (05-design §3 확정, 4px 배수) ────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 40px;
+  --sp-8: 48px;
+
+  /* ── 레이아웃 ──────────────────────────────────────────── */
+  --sidebar-w: 216px;
+  --content-x: 48px;
+
+  /* ── 테두리·radius·그림자 (05-design §4 확정) ──────────── */
+  --r-ctl: 6px;
+  --r-card: 8px;
+  --r-pill: 999px;
+  --sh-card: 0 1px 2px rgba(27,33,23,.06), 0 1px 1px rgba(27,33,23,.04);
+  --sh-overlay: 0 8px 28px rgba(27,33,23,.14), 0 2px 6px rgba(27,33,23,.06);
+
+  /* ── 텍스트 그림자 (05-design §2 확정) ─────────────────── */
+  --ts-heading: 0 1px 0 rgba(27,33,23,.34);
+  --ts-onfill: 0 1px 0 rgba(0,0,0,.62);
+
+  /* ── 모션 (05-design §5 확정) ──────────────────────────── */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  /* ── 레이어 (05-design §8 확정) ────────────────────────── */
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-modal: 30;
+  --z-toast: 40;
+  --z-drag: 50;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}

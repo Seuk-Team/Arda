@@ -1,0 +1,10 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  padding: var(--sp-6) var(--content-x);
+}
