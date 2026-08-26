@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.deps import assert_can_view_application
 from app.models import (
     Application,
     EmailLog,
@@ -130,6 +131,13 @@ def draft_email(db: Session, user: User, params: dict) -> dict:
     app = db.get(Application, application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
+
+    # A3 — 면접관은 배정된 지원자만. 초안에 지원자 이름·이메일이 담기므로,
+    # 이 확인이 없으면 /confirm 이 미배정 지원자 연락처를 내주는 우회로가 된다.
+    try:
+        assert_can_view_application(db, user, application_id)
+    except HTTPException as e:
+        return {"error": e.detail}
 
     templates = {
         "interview": (
