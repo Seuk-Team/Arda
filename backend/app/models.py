@@ -7,11 +7,12 @@
 (01-erd.md "단계(stage) — 고정 enum" 참고. 값이 늘어도 마이그레이션이 필요 없다).
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -66,6 +67,9 @@ class JobPosting(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
+    deadline: Mapped[date | None] = mapped_column(Date)  # 마감일 (B4). NULL = 상시 접수
+    # 공개 지원 링크 토큰 (B6). NULL = 미발급
+    public_token: Mapped[str | None] = mapped_column(String(64), unique=True)
     created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -157,6 +161,7 @@ class StageHistory(Base):
     to_stage: Mapped[str] = mapped_column(String(20), nullable=False)
     # NULL = 시스템(외부 지원 접수)
     changed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"))
+    reason: Mapped[str | None] = mapped_column(Text)  # 불합격 사유 (D8). rejected 진입 시 기록
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
