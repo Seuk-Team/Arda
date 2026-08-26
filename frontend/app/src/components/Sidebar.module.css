@@ -26,12 +26,15 @@
 }
 
 .link {
-  display: block;
-  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 var(--sp-3);
   border-radius: var(--r-ctl);
   font-size: var(--font-body);
   font-weight: 500;
   color: var(--leaf-strong);
+  white-space: nowrap;
   transition: background var(--dur-fast) var(--ease);
 }
 

@@ -10,11 +10,11 @@ interface Posting {
 }
 
 const MOCK: Posting[] = [
-  { id: 1, title: '백엔드 개발자', team: '개발팀', status: 'open', applicants: 24, deadline: '2026-09-15' },
-  { id: 2, title: '프론트엔드 개발자', team: '개발팀', status: 'open', applicants: 18, deadline: '2026-09-20' },
-  { id: 3, title: 'UX 디자이너', team: '디자인팀', status: 'open', applicants: 12, deadline: '2026-09-10' },
-  { id: 4, title: '데이터 분석가', team: '데이터팀', status: 'closed', applicants: 31, deadline: '2026-08-20' },
-  { id: 5, title: 'DevOps 엔지니어', team: '인프라팀', status: 'open', applicants: 9, deadline: '2026-09-25' },
+  { id: 1, title: '백엔드 개발자', team: '개발팀', status: 'open', applicants: 24, deadline: '2026.09.15' },
+  { id: 2, title: '프론트엔드 개발자', team: '개발팀', status: 'open', applicants: 18, deadline: '2026.09.20' },
+  { id: 3, title: 'UX 디자이너', team: '디자인팀', status: 'open', applicants: 12, deadline: '2026.09.10' },
+  { id: 4, title: '데이터 분석가', team: '데이터팀', status: 'closed', applicants: 31, deadline: '2026.08.20' },
+  { id: 5, title: 'DevOps 엔지니어', team: '인프라팀', status: 'open', applicants: 9, deadline: '2026.09.25' },
 ]
 
 export default function Postings() {

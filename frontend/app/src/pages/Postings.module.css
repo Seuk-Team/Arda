@@ -23,6 +23,7 @@
   color: var(--text-sub);
   padding: var(--sp-3) var(--sp-3);
   border-bottom: var(--border-w) solid var(--border);
+  white-space: nowrap;
 }
 
 .table td {
@@ -49,4 +50,5 @@
   font-size: var(--font-num);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
+  white-space: nowrap;
 }

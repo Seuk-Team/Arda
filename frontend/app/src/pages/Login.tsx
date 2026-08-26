@@ -12,21 +12,22 @@ export default function Login() {
     navigate('/postings')
   }
 
+  const disabled = email.trim() === '' || password.trim() === ''
+
   return (
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit}>
-        <h1 className={styles.logo}>Arda</h1>
-        <p className={styles.sub}>채용 관리 시스템</p>
+        <h1 className={styles.logo}><span className={styles.seed}>A</span>rda</h1>
 
         <label className={styles.label}>
           이메일
           <input
             className={styles.input}
             type="email"
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@company.com"
-            required
           />
         </label>
 
@@ -35,14 +36,14 @@ export default function Login() {
           <input
             className={styles.input}
             type="password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="비밀번호 입력"
-            required
+            placeholder="비밀번호"
           />
         </label>
 
-        <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 8 }}>
+        <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={disabled}>
           로그인
         </button>
       </form>
