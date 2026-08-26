@@ -15,8 +15,16 @@ class EvaluationCreate(BaseModel):
 
 
 class EvaluationUpdate(BaseModel):
-    """평가 수정 스키마."""
-    score: int = Field(ge=1, le=5, description="평가 점수 1~5")
+    """평가 수정 스키마 — 부분 수정(PATCH).
+
+    두 필드 모두 선택이다. 02-api.md 가 "score·comment 부분 수정 허용"으로
+    규정하는데 `score` 를 필수로 두면 코멘트만 고칠 수 없고, `comment` 를 빼고
+    보내면 기존 코멘트가 지워진다. 보낸 필드만 반영한다(`exclude_unset`).
+
+    `None` 을 **명시적으로** 보내면 코멘트를 비우는 뜻이다. 아예 안 보내는 것과
+    다르다 — 그 구분이 `exclude_unset` 의 존재 이유다.
+    """
+    score: int | None = Field(default=None, ge=1, le=5, description="평가 점수 1~5")
     comment: str | None = None
 
 

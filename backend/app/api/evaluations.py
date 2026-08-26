@@ -110,8 +110,11 @@ def update_evaluation(
     if evaluation.evaluator_id != user.id:
         raise HTTPException(HTTPStatus.FORBIDDEN, "본인이 쓴 평가만 수정할 수 있습니다")
 
-    evaluation.score = body.score
-    evaluation.comment = body.comment
+    # 보낸 필드만 반영한다 (E5 부분 수정). 통째로 대입하면 comment 를 안 보낸
+    # 요청이 기존 코멘트를 지운다 — 그건 PATCH 가 아니라 PUT 이다.
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(evaluation, field, value)
+
     db.commit()
     db.refresh(evaluation)
 
