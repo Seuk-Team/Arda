@@ -79,6 +79,14 @@
 |---|---|---|---|
 | GET | /files/{id}/presign-download | 다운로드용 presigned URL | F2 |
 
+## 에이전트 (M)
+
+| 메서드 | 경로 | 기능 | 비고 |
+|---|---|---|---|
+| POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2, recruiter+. 기존 요약을 덮어쓴다 |
+| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3, recruiter+. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환 |
+| POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출 |
+
 ## 시스템 (J)
 
 | 메서드 | 경로 | 기능 | 비고 |
