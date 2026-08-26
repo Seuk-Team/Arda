@@ -85,7 +85,11 @@
 - **13번 해소 ✅**: 팀장이 `arda-mail-queue`(+ DLQ, maxReceiveCount 3)를 만들어 줬다. `app/mail.py`·`app/worker.py` 머지(#90). 실제 SES 발송 1통까지 확인. 재시도 상한은 SQS 가 세고 워커는 `retry_count`·`status` 기록만 한다.
 - **14번(C4 확인 메일)**: 코드·검증 끝. **PR #91 이 팀장 승인 대기** — `email-templates.md` 에 접수 확인 문구 1종을 추가해 `docs/` 승인이 필요하다.
 - **그 외 막힌 것**: 19·20번은 여전히 **`models.py` 반영 대기**. 01-erd.md v1.1(#84)이 `deadline`·`public_token`·`reason` 을 확정했는데 `models.py` 에는 아직 컬럼이 없고, 그 파일은 팀장 소유다. 22번(테스트)은 su 담당.
-- **미결**: `PATCH`·`DELETE /postings` 역할 명세(#59) · 401 이 FORBIDDEN 으로 나가는 문제(#60). (#84 로 02-api.md 에 E3 배정 4종·H4 정렬 파라미터는 들어갔다. presign 2종은 원래부터 있었다 — 전에 "미반영"이라 적은 것은 착오.)
+- **#59·#60 은 미결이 아니라 승인 완료였다.** 이슈 코멘트에 팀장 결정이 달려 있는데 못 보고 "미결"로 적었다(같은 날 아침 갱신분). 실제 상태는 아래와 같고, 둘 다 착수했다.
+  - **#60** ✅ 머지(#95) — `ErrorCode.UNAUTHORIZED` 추가, 401 → `UNAUTHORIZED`, 403 은 `FORBIDDEN` 유지.
+  - **#59** — `PATCH`·`DELETE /postings` recruiter+ 확정. PR #96 이 **02-api.md 를 같이 고쳐 팀장 승인 대기.**
+- **새 이슈 #97**: `GET /postings`·`GET /postings/{id}` 가 **토큰 없이 `draft` 공고까지 내준다.** 공개용 `/public/postings/{id}` 는 `open` 만 주도록 막혀 있는데 내부용 경로에 그 방어가 없다. 역할 명세가 02-api.md 20·22행에 없어 #59 와 같은 종류의 공백 — 결정이 먼저다.
+- (#84 로 02-api.md 에 E3 배정 4종·H4 정렬 파라미터는 들어갔다. presign 2종은 원래부터 있었다 — 전에 "미반영"이라 적은 것은 착오.)
 - **G1 문구 ② "면접 결과 합격" 은 대응 단계가 없다.** 단계가 5개(applied·screening·interview·accepted·rejected)이고 면접 라운드가 1회라 "면접 → 다음 전형"에 해당하는 값이 없다. 현재 미사용. 문구 4종 중 3종 + C4 1종만 매핑된다.
 - **메일 문구의 `{{면접일시}}`·`{{회사명}}` 은 스키마에 없다.** 면접일시는 `"별도 안내"` 로 채우고, 회사명은 `COMPANY_NAME` 환경변수(기본 `Arda`)로 뺐다. 컬럼이 필요하면 스키마 논의 대상.
 - **`TODO(A1)` 자리는 전부 연결됐다.** 지원자 조회 5종 인증(7번) · 평가 작성 `evaluator_id`(7번) · 공고 생성 `created_by`(#56) · 면접관 배정 `assigned_by`(#77). 남은 `TODO(A1)` 은 없다.
