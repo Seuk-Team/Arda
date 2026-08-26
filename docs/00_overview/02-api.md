@@ -47,8 +47,13 @@
 - **검색 범위 = 이름·이메일 확정.** 자소서 본문·메모 전문 검색은 H 복합 필터 튜닝 완료 후 여유가 있을 때만 `pg_trgm` GIN 인덱스로 확장한다. 스키마 변경이 아니라 인덱스+쿼리 추가라 미루는 비용이 없다. (한국어는 Postgres 기본 FTS로 형태소 분석이 안 되고, 자소서 5천 자 × 10만 건이면 인덱스 용량·쓰기 비용이 커진다)
 | POST | /postings/{id}/applications | 담당자 직접 등록 | D6, recruiter+ |
 | GET | /applications/{id} | 지원자 상세 | D4 |
-| PATCH | /applications/{id}/stage | 단계 변경 | D3. 이력 기록(D5) + 메일 큐 발행(G1) 트리거 |
-| GET | /applications/{id}/history | 단계 이력 | D5 |
+| PATCH | /applications/{id}/stage | 단계 변경 | D3, recruiter+. 이력 기록(D5) + 메일 큐 발행(G1) 트리거. `reason`(선택) — **`to_stage="rejected"` 인데 없으면 422** (D8) |
+| POST | /applications/bulk-stage | 여러 명 단계 일괄 변경 | D9, recruiter+. 본문 `{application_ids, to_stage, reason?}`. 한 번에 **200명**까지(넘으면 422) |
+| GET | /applications/{id}/history | 단계 이력 | D5. 응답에 `reason` 포함 (D8) |
+
+- **일괄 변경은 전부 성공하거나 전부 실패한다 (D9).** 한 건이라도 전환 규칙에 걸리거나 없는 id 가 섞이면 **전체 롤백 + 409**, 응답 `message` 에 `failed`·`not_found` id 목록이 담긴다. 30명만 바뀌고 끝나면 담당자가 무엇이 됐는지 알 수 없다.
+- 이미 그 단계인 건은 실패가 아니라 `skipped` 로 분류하고 건너뛴다. 성공 응답은 `{changed, changed_ids, skipped, mail_queued}`.
+- **메일은 건별로 큐에 넣는다** — 지원자마다 이름·공고가 다르므로 한 통으로 묶을 수 없다.
 
 ## 평가 (E)
 

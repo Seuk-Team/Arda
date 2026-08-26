@@ -12,6 +12,7 @@ class StageHistoryOut(BaseModel):
     from_stage: str | None  # 최초 접수 시 None
     to_stage: str
     changed_by: int | None  # None = 시스템(외부 지원 접수)
+    reason: str | None = None  # D8 — 불합격 사유. 다른 단계에서는 대개 None
     created_at: datetime
 
 

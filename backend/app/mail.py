@@ -153,15 +153,16 @@ def render(stage: str, applicant_name: str, posting_title: str) -> tuple[str, st
     return subject.format(**values), body.format(**values)
 
 
-def enqueue(db, application_id: int, to_email: str, stage: str) -> EmailLog:
-    """`email_logs` 행을 만들고 그 id 를 큐에 싣는다.
+def create_log(db, application_id: int, to_email: str, stage: str) -> EmailLog:
+    """`email_logs` 행만 만든다. SQS 는 건드리지 않는다.
 
-    **커밋하지 않는다.** 단계 변경·지원서 저장과 같은 트랜잭션에 묶여야 하므로
-    커밋은 호출부가 한다.
+    **커밋하지 않는다** — 단계 변경·지원서 저장과 같은 트랜잭션에 묶여야 하므로
+    커밋은 호출부가 한다. `flush` 만 해서 id 를 얻는다.
 
-    큐 발행이 먼저이고 커밋이 나중이라, 워커가 커밋 전에 메시지를 받을 수 있다.
-    그때는 워커가 행을 못 찾고 예외를 던져 가시성 타임아웃 뒤 다시 받는다
-    (worker.handle 참고). 호출부가 롤백하면 그 메시지는 재전달을 다 쓰고 DLQ 로 간다.
+    발행(`publish`)과 나눠 둔 이유는 **커밋한 뒤에 발행하기 위해서다.** 먼저 발행하고
+    나중에 커밋하면, 호출부가 롤백했을 때 이미 나간 메시지가 존재하지 않는 행을
+    가리킨다. 일괄 변경(D9)은 한 건만 실패해도 전부 롤백하므로 그 상황이 예외가
+    아니라 정상 경로에 있다.
     """
     log = EmailLog(
         application_id=application_id,
@@ -172,10 +173,25 @@ def enqueue(db, application_id: int, to_email: str, stage: str) -> EmailLog:
     )
     db.add(log)
     db.flush()  # id 가 있어야 큐에 실어 보낸다
+    return log
 
+
+def publish(email_log_id: int) -> None:
+    """이미 커밋된 `email_logs` 행의 id 를 큐에 싣는다."""
     _sqs().send_message(
         QueueUrl=_queue_url(),
-        MessageBody=json.dumps({"email_log_id": log.id}),
+        MessageBody=json.dumps({"email_log_id": email_log_id}),
     )
-    logger.info("메일 큐 발행 email_log_id=%s stage=%s", log.id, stage)
+    logger.info("메일 큐 발행 email_log_id=%s", email_log_id)
+
+
+def enqueue(db, application_id: int, to_email: str, stage: str) -> EmailLog:
+    """행 생성 + 큐 발행을 한 번에. 커밋은 호출부가 한다.
+
+    커밋 전에 발행하므로 워커가 행보다 메시지를 먼저 볼 수 있다. 그때 워커는
+    예외를 던져 가시성 타임아웃 뒤 다시 받는다(worker.handle 참고).
+    **롤백할 수 있는 흐름에서는 이 함수 대신 `create_log` + 커밋 + `publish` 를 쓴다.**
+    """
+    log = create_log(db, application_id, to_email, stage)
+    publish(log.id)
     return log
