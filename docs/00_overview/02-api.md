@@ -21,8 +21,8 @@
 | GET | /postings | 공고 목록 (+ 지원자 수) | B1·B3 |
 | POST | /postings | 공고 생성 | B1, recruiter+ |
 | GET | /postings/{id} | 공고 상세 | |
-| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) | B1·B2 |
-| DELETE | /postings/{id} | 삭제 | B1 |
+| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) | B1·B2, recruiter+ (#59, 팀장 승인) |
+| DELETE | /postings/{id} | 삭제 | B1, recruiter+ (#59, 팀장 승인) |
 
 ## 지원 — 공개 (C)
 

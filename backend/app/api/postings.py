@@ -67,9 +67,9 @@ def update_posting(
     posting_id: int,
     body: PostingUpdate,
     db: Session = Depends(get_db),
-    # 02-api.md 는 이 엔드포인트의 역할을 명시하지 않는다("공개 외 전부 로그인 필요"만).
-    # recruiter+ 로 좁힐지는 명세 갱신이 따라야 해서 별건으로 올린다.
-    user: User = Depends(get_current_user),
+    # 생성이 recruiter+ 인데 수정이 아무나면 막는 의미가 없다. #59 로 물어
+    # 팀장이 recruiter+ 로 확정했고 02-api.md 24행에 반영했다.
+    user: User = Depends(require_recruiter),
 ):
     posting = _get_or_404(db, posting_id)
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -82,7 +82,7 @@ def update_posting(
 def delete_posting(
     posting_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_recruiter),  # #59 — 수정과 같은 이유
 ):
     posting = _get_or_404(db, posting_id)
 
