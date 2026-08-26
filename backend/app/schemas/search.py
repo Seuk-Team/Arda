@@ -19,7 +19,8 @@ class ApplicationListItem(BaseModel):
 
 class SearchResult(BaseModel):
     items: list[ApplicationListItem]
-    total: int
+    # with_total=false 로 부르면 null. "0 건"이 아니라 "세지 않았다"는 뜻이다 (H5)
+    total: int | None
     took_ms: float
     # 다음 페이지가 없으면 null. 깊은 페이지에서는 offset 대신 이것을 쓴다 (H5)
     next_cursor: str | None = None

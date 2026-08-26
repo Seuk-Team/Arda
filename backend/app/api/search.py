@@ -93,6 +93,10 @@ def search(
     cursor: str | None = None,
     # offset 은 남겨 둔다 — 화면이 아직 쓰고 있을 수 있다. 깊은 페이지에서는 커서를 권장한다.
     offset: int = Query(0, ge=0),
+    with_total: bool = Query(
+        True,
+        description="전체 건수를 셀지. false 면 total 이 null 로 오고 검색이 크게 빨라진다",
+    ),
 ):
     started = time.perf_counter()
 
@@ -122,10 +126,20 @@ def search(
         # 함께 좁혀진다 (먼저 세면 "결과 없음인데 총 10만" 같은 화면이 나온다).
         return scope_to_viewer(stmt, user)
 
-    # total 은 커서·offset 을 걸기 전에 센다 — 전체 결과 수이지 이번 페이지 수가 아니다
-    total = db.scalar(
-        select(func.count()).select_from(apply_filters(select(Application)).subquery())
-    )
+    # total 은 커서·offset 을 걸기 전에 센다 — 전체 결과 수이지 이번 페이지 수가 아니다.
+    #
+    # **이 COUNT 가 검색 API 의 병목이다** (docs/perf-search.md "인덱스로 풀 수 없는 병목").
+    # 10만 건 기준 검색 109 ms 중 104 ms 가 여기다. 페이지 조회는 limit 만큼 채우면
+    # 멈출 수 있지만 COUNT 는 조건에 맞는 행을 끝까지 세야 해서 멈출 수가 없다.
+    # 인덱스로는 못 줄인다 — 그래서 "셀지 말지"를 호출부가 정하게 열어 둔다.
+    #
+    # 커서로 넘기는 화면은 "총 몇 건"이 필요 없다(다음 페이지 유무는 next_cursor 가 답한다).
+    # 그런 화면은 with_total=false 로 부르면 된다.
+    total = None
+    if with_total:
+        total = db.scalar(
+            select(func.count()).select_from(apply_filters(select(Application)).subquery())
+        )
 
     aggregated = sort == "score"
     if aggregated:

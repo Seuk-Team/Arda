@@ -36,7 +36,7 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| GET | /applications | 전 공고 통합 검색 | H1. **공고를 가로지르는** 지원자 검색 — [H1 통합검색 화면](../02_tasks/H1-지원자-통합검색-화면.md)의 데이터 소스. 쿼리는 아래 공고별 목록과 동일 + `posting_id`(선택) · `sort`(`created_at`·`score`) · `order`(`desc`·`asc`) · `limit`(≤200) · `cursor`(커서 페이지네이션, H4 — 당분간 `offset`도 허용) |
+| GET | /applications | 전 공고 통합 검색 | H1. **공고를 가로지르는** 지원자 검색 — [H1 통합검색 화면](../02_tasks/H1-지원자-통합검색-화면.md)의 데이터 소스. 쿼리는 아래 공고별 목록과 동일 + `posting_id`(선택) · `sort`(`created_at`·`score`) · `order`(`desc`·`asc`) · `limit`(≤200) · `cursor`(커서 페이지네이션, H4 — 당분간 `offset`도 허용) · `with_total`(기본 `true`. `false` 면 응답의 `total` 이 `null` 이고 검색이 크게 빨라진다 — H5, 커서로 넘기는 화면 권장) |
 | GET | /postings/{id}/applications | 지원자 목록 | D1. 쿼리: `q`(이름/이메일 검색, H1) · `stage`(H2) · 페이지네이션 |
 
 - **검색 범위 = 이름·이메일 확정.** 자소서 본문·메모 전문 검색은 H 복합 필터 튜닝 완료 후 여유가 있을 때만 `pg_trgm` GIN 인덱스로 확장한다. 스키마 변경이 아니라 인덱스+쿼리 추가라 미루는 비용이 없다. (한국어는 Postgres 기본 FTS로 형태소 분석이 안 되고, 자소서 5천 자 × 10만 건이면 인덱스 용량·쓰기 비용이 커진다)
