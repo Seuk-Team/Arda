@@ -287,8 +287,16 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <input class="tinput" id="p-title" type="text" maxlength="200" placeholder="예: 백엔드 개발자 (신입)">
       </div>
       <div class="tfield">
-        <label for="p-desc">공고 본문</label>
-        <textarea class="ninput" id="p-desc" rows="8" placeholder="담당 업무, 자격 요건, 우대 사항을 적습니다"></textarea>
+        <label for="p-duty">담당 업무</label>
+        <textarea class="ninput" id="p-duty" rows="4" placeholder="어떤 일을 하게 되는지 적습니다"></textarea>
+      </div>
+      <div class="tfield">
+        <label for="p-req">자격 요건</label>
+        <textarea class="ninput" id="p-req" rows="4" placeholder="반드시 갖춰야 하는 조건을 적습니다"></textarea>
+      </div>
+      <div class="tfield">
+        <label for="p-pref">우대 사항</label>
+        <textarea class="ninput" id="p-pref" rows="4" placeholder="있으면 좋은 조건을 적습니다"></textarea>
       </div>
       <div class="tfield">
         <label for="p-status">상태</label>
@@ -298,7 +306,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
           <option value="closed">마감</option>
         </select>
       </div>
-      <p class="hint">마감일은 스키마 확정 항목이 아니라 이 폼에 넣지 않았습니다 (01-erd job_postings 비고 — B4 추가 여지).</p>
+      <p class="hint">담당 업무·자격 요건·우대 사항은 저장할 때 하나로 합쳐 <code>description</code> 한 컬럼에 들어갑니다 — 01-erd job_postings 는 본문 컬럼이 하나입니다. 마감일은 스키마 확정 항목이 아니라 이 폼에 넣지 않았습니다 (같은 문서 비고 — B4 추가 여지).</p>
       <div class="actions">
         <button class="btn btn-primary" id="submit" type="submit" disabled>등록</button>
         <button class="btn" id="cancel" type="button" style="background:var(--bg-elev); border-color:var(--border); color:var(--text);">취소</button>
