@@ -1,5 +1,8 @@
-.venv/
-__pycache__/
-*.pyc
-.env
-.pytest_cache/
+# Docker 의 패턴은 경로 전체에 매칭된다 — `__pycache__/` 는 최상위 것만 걸러내고
+# `app/api/__pycache__` 같은 중첩은 그대로 통과한다. 중첩까지 거르려면 `**/` 가 필요하다.
+# (실제로 이미지에 __pycache__ 7개·.pyc 43개가 실려 있었다)
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.env
+**/.pytest_cache
