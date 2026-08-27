@@ -50,11 +50,11 @@ from app.models import STAGES, Application, JobPosting, StageHistory  # noqa: E4
 
 def load_materials():
     """재료 JSON 파일 로드."""
-    with open(MATERIALS_DIR / "names.json") as f:
+    with open(MATERIALS_DIR / "names.json", encoding="utf-8") as f:
         names = json.load(f)
-    with open(MATERIALS_DIR / "schools.json") as f:
+    with open(MATERIALS_DIR / "schools.json", encoding="utf-8") as f:
         schools = json.load(f)
-    with open(MATERIALS_DIR / "skill-patterns.json") as f:
+    with open(MATERIALS_DIR / "skill-patterns.json", encoding="utf-8") as f:
         skill_patterns = json.load(f)
     return names, schools, skill_patterns
 
@@ -69,7 +69,7 @@ def load_sentences():
         for batch in ["01", "02"]:
             filepath = SENTENCES_DIR / f"{category}-{batch}.json"
             if filepath.exists():
-                with open(filepath) as f:
+                with open(filepath, encoding="utf-8") as f:
                     sentences_by_category[category].extend(json.load(f))
 
     return sentences_by_category

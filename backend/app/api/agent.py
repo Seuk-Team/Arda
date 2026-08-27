@@ -5,7 +5,7 @@ M3: 읽기 에이전트 채팅 엔드포인트
 M4: 쓰기 도구 (예정)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status as http
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status as http
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,12 @@ from app.models import Application, User
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
 require_recruiter = require_roles("admin", "recruiter")
+
+
+class SttResponse(BaseModel):
+    raw: str
+    resolved: str
+    duration_ms: int
 
 
 class SummaryOut(BaseModel):
@@ -50,6 +56,7 @@ class ChatResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     model: str
+    cost_usd: float
 
 
 class ConfirmRequest(BaseModel):
@@ -111,6 +118,9 @@ def chat(
             description=result.pending_action.description,
         )
 
+    from app.agent.runtime import _estimate_cost, AGENT_MODEL
+    cost = _estimate_cost(AGENT_MODEL, result.input_tokens, result.output_tokens)
+
     return ChatResponse(
         reply=result.reply,
         tool_calls=[ToolCallOut(**tc) for tc in result.tool_calls],
@@ -118,6 +128,7 @@ def chat(
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
         model=result.model,
+        cost_usd=round(cost, 6),
     )
 
 
@@ -139,3 +150,39 @@ def confirm_action(
         raise HTTPException(http.HTTP_422_UNPROCESSABLE_ENTITY, result["error"])
 
     return ConfirmResponse(ok=True, result=result)
+
+
+_STT_MAX_SIZE = 25 * 1024 * 1024  # Whisper 제한: 25 MB
+_STT_ALLOWED_TYPES = {
+    "audio/webm", "audio/wav", "audio/mpeg", "audio/mp4",
+    "audio/ogg", "audio/flac", "audio/x-m4a",
+}
+
+
+@router.post("/stt", response_model=SttResponse)
+async def speech_to_text(
+    file: UploadFile,
+    user: User = Depends(require_recruiter),
+):
+    """음성 파일을 텍스트로 변환 (Whisper + 엔티티 해석)."""
+    if file.content_type and file.content_type not in _STT_ALLOWED_TYPES:
+        raise HTTPException(
+            http.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            f"지원하지 않는 오디오 형식입니다: {file.content_type}",
+        )
+
+    audio_bytes = await file.read()
+    if len(audio_bytes) > _STT_MAX_SIZE:
+        raise HTTPException(
+            http.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "파일 크기가 25 MB를 초과합니다",
+        )
+
+    from app.agent.stt import transcribe
+
+    try:
+        result = transcribe(audio_bytes, filename=file.filename or "audio.webm")
+    except RuntimeError as e:
+        raise HTTPException(http.HTTP_503_SERVICE_UNAVAILABLE, str(e))
+
+    return SttResponse(**result)

@@ -36,7 +36,7 @@ def db():
 @pytest.fixture()
 def admin_user(db: Session) -> User:
     user = User(
-        email="admin@test.com",
+        email="test-admin@fixture.local",
         password_hash="hashed",
         name="관리자",
         role="admin",
@@ -49,7 +49,7 @@ def admin_user(db: Session) -> User:
 @pytest.fixture()
 def recruiter_user(db: Session) -> User:
     user = User(
-        email="recruiter@test.com",
+        email="test-recruiter@fixture.local",
         password_hash="hashed",
         name="담당자",
         role="recruiter",
@@ -62,7 +62,7 @@ def recruiter_user(db: Session) -> User:
 @pytest.fixture()
 def interviewer_user(db: Session) -> User:
     user = User(
-        email="interviewer@test.com",
+        email="test-interviewer@fixture.local",
         password_hash="hashed",
         name="면접관",
         role="interviewer",
@@ -90,7 +90,7 @@ def application(db: Session, posting: JobPosting) -> Application:
     app = Application(
         job_posting_id=posting.id,
         name="김도현",
-        email="dohyun@example.com",
+        email="test-dohyun@fixture.local",
         phone="010-1234-5678",
         education="서울대 컴공",
         career_years=3,
