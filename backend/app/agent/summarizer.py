@@ -102,17 +102,23 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     input_tokens = response.usage.input_tokens
     output_tokens = response.usage.output_tokens
 
+    from app.agent.runtime import _estimate_cost
+    cost = _estimate_cost(SUMMARY_MODEL, input_tokens, output_tokens)
+
     app.ai_summary = summary_json
     app.ai_summary_at = datetime.now(UTC)
     app.ai_summary_model = f"{SUMMARY_MODEL}/{prompt_tag}"
     db.commit()
 
     logger.info(
-        "요약 생성 완료: application_id=%d, tokens=%d+%d, model=%s",
-        application_id,
-        input_tokens,
-        output_tokens,
-        app.ai_summary_model,
+        "summary_generated",
+        extra={
+            "application_id": application_id,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "model": app.ai_summary_model,
+            "cost_usd": round(cost, 6),
+        },
     )
     return summary_json
 

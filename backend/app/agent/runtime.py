@@ -23,8 +23,21 @@ from .tools import TOOL_DEFINITIONS, WRITE_TOOL_NAMES, execute_tool
 
 logger = logging.getLogger(__name__)
 
-AGENT_MODEL = os.getenv("AGENT_CHAT_MODEL", "claude-opus-5")
+AGENT_MODEL = os.getenv("AGENT_CHAT_MODEL", "claude-haiku-4-5-20251001")
 MAX_ROUNDS = 10
+
+PRICING = {
+    "claude-haiku-4-5-20251001": (1.00, 5.00),
+    "claude-haiku-4-5": (1.00, 5.00),
+    "claude-sonnet-5": (2.00, 10.00),
+    "claude-sonnet-4-6": (3.00, 15.00),
+    "claude-opus-5": (5.00, 25.00),
+}
+
+
+def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    input_price, output_price = PRICING.get(model, (1.00, 5.00))
+    return (input_tokens * input_price + output_tokens * output_price) / 1_000_000
 
 
 @dataclass
@@ -135,12 +148,14 @@ def run_agent(
     else:
         result.reply = "도구 호출 횟수 제한에 도달했습니다. 질문을 더 구체적으로 해주세요."
 
+    cost = _estimate_cost(AGENT_MODEL, result.input_tokens, result.output_tokens)
     logger.info(
         "agent_run",
         extra={
             "input_tokens": result.input_tokens,
             "output_tokens": result.output_tokens,
             "tool_calls": len(result.tool_calls),
+            "cost_usd": round(cost, 6),
         },
     )
 
