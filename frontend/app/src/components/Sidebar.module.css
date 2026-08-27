@@ -1,48 +1,135 @@
+﻿/* mockup.html 사이드바 규격을 그대로 옮긴다 (§12-1 시안 복제) */
 .sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
   width: var(--sidebar-w);
-  height: 100vh;
+  flex: none;
   background: var(--sidebar-bg);
   border-right: var(--border-w) solid var(--sidebar-line);
   display: flex;
   flex-direction: column;
-  padding: var(--sp-5) var(--sp-4);
+  padding: var(--sp-4) var(--sp-2) 0;
 }
 
 .logo {
   font-size: var(--font-h1);
   font-weight: 700;
-  color: var(--leaf-strong);
+  letter-spacing: -0.01em;
+  color: var(--text);
   text-shadow: var(--ts-heading);
-  margin-bottom: var(--sp-6);
+  white-space: nowrap;
+  padding: 0 var(--sp-3);
 }
 
 .nav {
+  margin-top: var(--sp-6);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: 2px;
 }
 
+/* 메뉴 항목 높이 48px — §2 가 내비 항목 높이로 못박은 값 */
 .link {
   display: flex;
   align-items: center;
-  height: 48px;
+  gap: var(--sp-3);
+  min-height: 48px;
   padding: 0 var(--sp-3);
   border-radius: var(--r-ctl);
   font-size: var(--font-body);
   font-weight: 500;
-  color: var(--leaf-strong);
+  color: var(--text);
   white-space: nowrap;
   transition: background var(--dur-fast) var(--ease);
 }
 
+.link svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .link:hover {
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(58, 107, 33, 0.1);
+}
+
+.link:active {
+  background: var(--bg-elev);
+  color: var(--leaf);
 }
 
 .active {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--bg-elev);
+  color: var(--leaf);
+  font-weight: 700;
+  text-shadow: var(--ts-heading);
+}
+
+/* ── 아르 상주 슬롯 ─────────────────────────────
+   바닥으로 미는 역할을 .me 가 아니라 이쪽이 맡는다 (목업과 동일) */
+.agent {
+  margin: auto 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--sidebar-line);
+  border-radius: var(--r-card);
+  text-align: left;
+}
+
+.agentChar {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.agent b {
+  display: block;
+  font-size: var(--font-sm);
   font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ── 프로필 ──────────────────────────────────────── */
+.me {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-top: var(--border-w) solid var(--sidebar-line);
+  white-space: nowrap;
+}
+
+.meName {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.meRole {
+  font-size: var(--font-sm);
+  color: var(--leaf);
+  margin-top: 2px;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--sidebar-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--leaf);
 }

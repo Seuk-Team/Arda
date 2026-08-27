@@ -1,3 +1,4 @@
+import PageHead from '../components/PageHead'
 import styles from './Postings.module.css'
 
 interface Posting {
@@ -19,12 +20,13 @@ const MOCK: Posting[] = [
 
 export default function Postings() {
   return (
-    <div>
-      <header className={styles.header}>
-        <h1 className={styles.title}>공고 관리</h1>
-        <button className="btn btn-primary">+ 새 공고</button>
-      </header>
-
+    <>
+      <PageHead
+        title="채용 공고"
+        actions={<button className="btn btn-primary">공고 등록</button>}
+      />
+      <main className="page-content">
+      <div className={styles.panel}>
       <table className={styles.table}>
         <thead>
           <tr>
@@ -51,6 +53,8 @@ export default function Postings() {
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+      </main>
+    </>
   )
 }

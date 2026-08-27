@@ -1,14 +1,11 @@
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--sp-5);
-}
-
-.title {
-  font-size: var(--font-h1);
-  font-weight: 700;
-  text-shadow: var(--ts-heading);
+/* mockup-postings.html 의 .tpanel / .thead / .trow-item 규격 (§12-1 시안 복제) */
+.panel {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  min-height: 320px;
+  overflow: hidden;
 }
 
 .table {
@@ -17,20 +14,36 @@
 }
 
 .table th {
+  height: 48px;
   text-align: left;
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text-sub);
-  padding: var(--sp-3) var(--sp-3);
   border-bottom: var(--border-w) solid var(--border);
   white-space: nowrap;
 }
 
 .table td {
-  padding: var(--sp-3);
+  height: 56px;
   border-bottom: var(--border-w) solid var(--border-soft);
-  font-size: var(--font-body);
+  font-size: var(--font-sm);
   vertical-align: middle;
+}
+
+/* 좌우 여백은 양 끝 칸에만 — 목업의 .trow padding:0 --sp-6 */
+.table th:first-child,
+.table td:first-child {
+  padding-left: var(--sp-6);
+}
+
+.table th:last-child,
+.table td:last-child {
+  padding-right: var(--sp-6);
+}
+
+.table th + th,
+.table td + td {
+  padding-left: var(--sp-3);
 }
 
 .table tbody tr {

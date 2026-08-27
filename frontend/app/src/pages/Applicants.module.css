@@ -1,0 +1,314 @@
+/* mockup-applicants.html 의 .toolbar / .tpanel 규격을 그대로 옮긴다 (§12-1 시안 복제).
+   제목 띠는 PageHead 가 맡는다. */
+
+/* ── 검색 툴바 ─────────────────────────────────────
+   제목 띠 바로 아래 붙는 별도 흰 띠라 화면 여백 밖으로 꽉 찬다 */
+.toolbar {
+  flex: none;
+  min-height: 64px;
+  background: var(--bg-elev);
+  border-bottom: var(--border-w) solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--content-x);
+}
+
+.meta {
+  margin-left: auto;
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 1 480px;
+  min-width: 260px;
+  height: 40px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid transparent;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.search:focus-within {
+  background: var(--bg-elev);
+  border-color: var(--leaf);
+}
+
+.search input {
+  border: none;
+  background: none;
+  outline: none;
+  width: 100%;
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.search input::placeholder {
+  color: var(--text-sub);
+}
+
+.sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex: none;
+}
+
+.sx {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: none;
+  border: var(--border-w) solid var(--text-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.sx:hover {
+  background: var(--bg-sunken);
+}
+
+.sx svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* ── 검색 대상 드롭다운 ──────────────────────────── */
+.dd {
+  position: relative;
+  flex: none;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.ddBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  border: none;
+  background: none;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  padding: 0 var(--sp-1);
+  height: 100%;
+  white-space: nowrap;
+}
+
+.ddBtn svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.ddOpen .ddBtn svg {
+  transform: rotate(180deg);
+}
+
+.ddMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: calc(-1 * var(--sp-3));
+  min-width: 132px;
+  padding: var(--sp-1);
+  list-style: none;
+  z-index: var(--z-dropdown);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--sh-overlay);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+
+.ddOpen .ddMenu {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ddMenu li {
+  padding: 10px var(--sp-3);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: var(--font-sm);
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ddMenu li:hover {
+  background: var(--sprout-soft);
+}
+
+.ddSel {
+  color: var(--leaf);
+  font-weight: 700;
+}
+
+/* ── 목록 ────────────────────────────────────────── */
+.panel {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  align-items: center;
+  gap: var(--sp-3);
+  grid-template-columns: 120px minmax(160px, 1fr) 88px 72px 64px 104px;
+  padding: 0 var(--sp-6);
+}
+
+.thead {
+  height: 48px;
+  border-bottom: var(--border-w) solid var(--border);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.thead span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item {
+  height: 56px;
+  border-bottom: var(--border-w) solid var(--border-soft);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.item:hover {
+  background: var(--bg);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: -2px;
+}
+
+.item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.posting {
+  color: var(--text-sub);
+}
+
+.num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 단계 색 — 판단 전은 무채, 합격만 연두, 불합격만 적갈 (05-design §1) */
+.stageProgress {
+  color: var(--text-sub);
+}
+
+.stageAccepted {
+  color: var(--leaf);
+  font-weight: 700;
+}
+
+.stageRejected {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.empty {
+  padding: var(--sp-6);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+/* ── 하단 ────────────────────────────────────────── */
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 var(--sp-6);
+  border-top: var(--border-w) solid var(--border);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.page {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.page:hover:not(:disabled) {
+  background: var(--bg-sunken);
+}
+
+.page:disabled {
+  color: var(--text-sub);
+  background: var(--bg-sunken);
+  cursor: not-allowed;
+}
+
+.pageCur {
+  background: var(--leaf);
+  border-color: var(--leaf);
+  color: #fff;
+  font-weight: 600;
+  text-shadow: var(--ts-onfill);
+}
+
+.pageCur:hover:not(:disabled) {
+  background: var(--leaf-strong);
+}

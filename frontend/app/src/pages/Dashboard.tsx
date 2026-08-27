@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import PageHead from '../components/PageHead'
 import styles from './Dashboard.module.css'
 
 const STATS = [
@@ -58,9 +59,9 @@ export default function Dashboard() {
   const slots = groupByHour(SCHEDULE)
 
   return (
-    <div>
-      <h1 className={styles.title}>대시보드</h1>
-
+    <>
+      <PageHead title="대시보드" />
+      <main className="page-content">
       <div className={styles.stats}>
         {STATS.map((s) => (
           <div key={s.label} className={styles.stat}>
@@ -171,6 +172,7 @@ export default function Dashboard() {
           )
         })}
       </div>
-    </div>
+      </main>
+    </>
   )
 }

@@ -38,6 +38,15 @@ h1, h2, h3 { text-wrap: balance; }
   border-radius: 3px;
 }
 
+/* ── 화면 본문 ──────────────────────────────────────
+   제목 띠(PageHead) 아래에서 여기만 스크롤한다 (mockup.html .content) */
+.page-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-5) var(--content-x);
+}
+
 /* ── 공통 유틸 ──────────────────────────────────── */
 .btn {
   font-family: var(--sans);

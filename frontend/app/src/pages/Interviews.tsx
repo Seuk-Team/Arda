@@ -1,4 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import PageHead from '../components/PageHead'
 import styles from './Interviews.module.css'
 
 interface Interview {
@@ -29,9 +30,9 @@ export default function Interviews() {
   const list = slot ? MOCK.filter((iv) => iv.time.slice(0, 2) === slot.slice(0, 2)) : MOCK
 
   return (
-    <div>
-      <h1 className={styles.title}>면접 일정</h1>
-
+    <>
+      <PageHead title="면접 일정" />
+      <main className="page-content">
       <div className={styles.daybar}>
         <button className={styles.dayNav} aria-label="이전 날">‹</button>
         <button className={styles.dayNav} aria-label="다음 날">›</button>
@@ -79,6 +80,7 @@ export default function Interviews() {
           </div>
         )}
       </div>
-    </div>
+      </main>
+    </>
   )
 }

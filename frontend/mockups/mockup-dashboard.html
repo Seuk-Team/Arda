@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
@@ -185,7 +185,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
            color:var(--text-sub); font-family:var(--sans); white-space:nowrap; }
 .sectitle + .stats{ margin-top:var(--sp-3); }
 
-/* ── 아르DA 에이전트 패널: .dpanel 과 동일 규격·동일 메커니즘 ─────────
+/* ── 아르 에이전트 패널: .dpanel 과 동일 규격·동일 메커니즘 ─────────
    body 직속 flex 자식. 열리면 width 0→420px 로 .main(콘텐츠)이 줄어든다(오버레이 아님).
    1100px 이하에선 .dpanel 과 같이 fixed 오버레이로 전환. */
 .apanel{ flex:none; width:0; overflow:hidden; position:relative;
@@ -209,7 +209,6 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         padding:var(--sp-5) var(--sp-5) var(--sp-4); padding-right:72px; border-bottom:var(--border-w) solid var(--border-soft); }
 .ahead .agchar{ width:32px; height:32px; flex:none; }
 .ahead .aname{ font-size:var(--font-h2); font-weight:700; color:var(--text); text-shadow:var(--ts-heading); white-space:nowrap; }
-.ahead .asub{ font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
 .ahead .aclose{ position:absolute; top:var(--sp-4); right:var(--sp-4); z-index:var(--z-sticky);
         width:36px; height:36px; display:flex; align-items:center; justify-content:center;
         cursor:pointer; background:var(--bg-elev); border:var(--border-w) solid #DCE3D4; border-radius:var(--r-ctl);
@@ -276,11 +275,10 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 .agslot .agchar{ width:24px; height:24px; flex:none; }
 /* [교정] 데모의 13px/11px 은 §2 7단계 스케일 밖이다 → --font-sm / --font-caption. */
 .agslot b{ display:block; font-size:var(--font-sm); font-weight:600; color:var(--text); white-space:nowrap; }
-.agslot small{ display:block; font-size:var(--font-caption); color:var(--text-sub); white-space:nowrap; }
 .agslot .agdot{ margin-left:auto; width:var(--sp-2); height:var(--sp-2); flex:none; border-radius:50%; background:var(--ai); opacity:0; }
 .agslot.pending .agdot{ opacity:1; }
 
-/* ── 아르DA 캐릭터 모션 (팀장 확정 레퍼런스 그대로) ────────────────
+/* ── 아르 캐릭터 모션 (팀장 확정 레퍼런스 그대로) ────────────────
    원칙: 모든 모션은 트리거(사용자 동작·상태 변화)에 대한 반응. 유휴 = 완전 정지.
    루프는 listen(음성 듣는 중)·think(도구 실행 중) 둘뿐, 나머지는 1회성.
    상태는 .agchar 에 클래스 하나를 토글: enter | listen | think | ask | confirm | fail */
@@ -324,7 +322,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <a href="mockup-evaluations.html"><svg viewBox="0 0 24 24"><path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/></svg>평가 현황</a>
     <a href="mockup-settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>설정</a>
   </nav>
-  <button type="button" class="agslot" id="agSlot" aria-label="아르DA 에이전트 열기 (Ctrl+K)"><svg class="agchar" viewBox="0 0 24 24" role="img" aria-hidden="true">
+  <button type="button" class="agslot" id="agSlot" aria-label="아르 에이전트 열기 (Ctrl+K)"><svg class="agchar" viewBox="0 0 24 24" role="img" aria-hidden="true">
   <g class="agbody">
     <circle cx="12" cy="15" r="7" fill="#8CC63F"/>
     <path class="agleafL" d="M12 8 C 12 4, 8 3, 6 4 C 7 7, 10 8, 12 8" fill="#3A6B21"/>
@@ -334,7 +332,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <circle class="ageye" cx="14.5" cy="14.5" r="1" fill="#1B2117"/>
     <path class="agmouth" d="M10 17.5 q2 1.5 4 0" stroke="#1B2117" stroke-width="1" fill="none" stroke-linecap="round"/>
   </g>
-</svg><span><b>아르DA</b><small>Ctrl K</small></span><span class="agdot"></span></button>
+</svg><span><b>아르</b></span><span class="agdot"></span></button>
 <div class="me">
     <div>
       <div class="name">김채용</div>
@@ -478,7 +476,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 </div>
 
 
-<aside class="apanel" id="apanel" aria-label="아르DA 에이전트">
+<aside class="apanel" id="apanel" aria-label="아르 에이전트">
   <div class="ainner">
     <div class="ahead">
       <svg class="agchar" id="agCharMain" viewBox="0 0 24 24" role="img" aria-hidden="true">
@@ -492,7 +490,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
     <path class="agmouth" d="M10 17.5 q2 1.5 4 0" stroke="#1B2117" stroke-width="1" fill="none" stroke-linecap="round"/>
   </g>
 </svg>
-      <div><div class="aname">아르DA</div><div class="asub">확정은 담당자가 합니다</div></div>
+      <div><div class="aname">아르</div></div>
       <button class="aclose" id="aclose" aria-label="에이전트 닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="alog" id="alog" role="log" aria-live="polite"></div>
@@ -507,7 +505,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 </aside>
 
 <script>
-/* ── 아르DA 에이전트 배선 (인수인계 데모와 동일 흐름) ────────────────
+/* ── 아르 에이전트 배선 (인수인계 데모와 동일 흐름) ────────────────
    캐릭터 상태: setChar('enter'|'listen'|'think'|'ask'|'confirm'|'fail'|'')
    쓰기 도구는 반드시 앰버 확인 카드 → [확인] 을 거친다 (ADR-0003). */
 (function(){
@@ -519,11 +517,11 @@ var chars=[document.getElementById('agCharMain'), slot.querySelector('.agchar')]
 function setChar(s){ chars.forEach(function(c){ if(!c) return;
   c.classList.remove('enter','listen','think','ask','confirm','fail');
   void c.getBoundingClientRect(); if(s) c.classList.add(s); }); }
-function openAg(){ ap.classList.add('open'); slot.classList.remove('pending');
+function openAg(){ ap.classList.add('open'); localStorage.setItem('arda-open','1'); slot.classList.remove('pending');
   var _dp=document.getElementById('dpanel'); if(_dp) _dp.classList.remove('open');
   setChar('enter'); setTimeout(function(){ setChar(''); }, 500);
   setTimeout(function(){ input.focus(); }, 300); }
-function closeAg(){ ap.classList.remove('open'); setChar(''); mic.classList.remove('on');
+function closeAg(){ ap.classList.remove('open'); localStorage.removeItem('arda-open'); setChar(''); mic.classList.remove('on');
   input.placeholder='채용 업무를 맡겨보세요'; }
 slot.addEventListener('click', function(){ ap.classList.contains('open')?closeAg():openAg(); });
 document.getElementById('aclose').addEventListener('click', closeAg);
@@ -570,6 +568,7 @@ input.addEventListener('keydown', function(e){
     log.appendChild(row); scrollEnd();
   }, 1500);
 });
+if(localStorage.getItem('arda-open')==='1') ap.classList.add('open');
 })();
 </script>
 </body>
