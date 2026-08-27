@@ -4,7 +4,7 @@ import styles from './Dashboard.module.css'
 
 const STATS = [
   { label: '내 리뷰 대기', value: 12, unit: '명' },
-  { label: '오늘 면접', value: 4, unit: '건' },
+  { label: '오늘 면접', value: 11, unit: '건' },
   { label: '진행중 공고', value: 4, unit: '개' },
 ]
 
@@ -17,10 +17,17 @@ interface Interview {
 }
 
 const SCHEDULE: Interview[] = [
+  { time: '09:30', name: '이서연', posting: 'QA 엔지니어', stage: '1차 면접' },
   { time: '10:00', name: '김도현', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
   { time: '10:20', name: '크리스토퍼 알렉산더 반 데 베르그', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
+  { time: '10:40', name: '오세훈', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
+  { time: '11:30', name: '임재현', posting: '데이터 엔지니어', stage: '2차 면접' },
+  { time: '13:00', name: '최민서', posting: 'QA 엔지니어', stage: '1차 면접' },
+  { time: '13:30', name: '배수진', posting: '프로덕트 디자이너 (신입·경력)', stage: '포트폴리오 발표' },
   { time: '14:00', name: '정우진', posting: 'UX 디자이너', stage: '포트폴리오 발표' },
+  { time: '15:00', name: '신동혁', posting: '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)', stage: '1차 기술면접' },
   { time: '16:30', name: '박지훈', posting: '프론트엔드 개발자 (경력)', stage: '1차 면접' },
+  { time: '16:50', name: '문가영', posting: '프론트엔드 개발자 (경력)', stage: '1차 면접' },
 ]
 
 const SLOT_LIMIT = 3

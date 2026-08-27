@@ -134,6 +134,14 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
 /* 면접 일정 — 행도 면접 일정 화면으로 간다(05-design §0.5 진입점).
    .statcard 와 같은 이유로 <a> 의 UA 기본 밑줄·링크색을 리셋한다. */
 .ivlist{ margin-top:var(--sp-3); }
+/* 카드는 앞 3개 슬롯까지만 보여 주고 나머지는 면접 일정 화면으로 넘긴다 */
+.ivmore{ display:block; padding:var(--sp-3); margin:0 calc(-1 * var(--sp-3)); width:calc(100% + var(--sp-5));
+         border-top:var(--border-w) solid var(--border-soft); border-radius:var(--r-ctl);
+         text-align:right; font-family:var(--sans); font-size:var(--font-sm); font-weight:600;
+         color:var(--leaf); text-decoration:none; white-space:nowrap;
+         transition:background var(--dur-fast) var(--ease); }
+.ivmore:hover{ background:var(--bg-sunken); }
+.ivmore:focus-visible{ outline:2px solid var(--leaf); outline-offset:2px; }
 .ivrow{ display:flex; align-items:baseline; gap:var(--sp-4);
         padding:var(--sp-3); margin:0 calc(-1 * var(--sp-3));
         border-top:var(--border-w) solid var(--border-soft); border-radius:var(--r-ctl);
@@ -356,7 +364,7 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
       </a>
       <a class="statcard" href="mockup-interviews.html">
         <span class="slabel">오늘 면접</span>
-        <span class="snum">4<span class="sunit">건</span></span>
+        <span class="snum">11<span class="sunit">건</span></span>
       </a>
       <a class="statcard" href="mockup-postings.html">
         <span class="slabel">진행중 공고</span>
@@ -369,37 +377,39 @@ body{ background:var(--bg); height:100vh; display:flex; overflow:hidden; }
         <h2><a href="mockup-interviews.html">면접 일정 <span class="go">전체 →</span></a></h2>
         <div class="ivlist">
           <div class="ivslot">
+            <a class="ivrow" href="mockup-interviews.html?slot=09:30">
+              <span class="ivtime">09:30</span>
+              <span class="ivbody">
+                <span class="ivname">이서연</span>
+                <span class="ivsub">QA 엔지니어 · 1차 면접</span>
+              </span>
+            </a>
+          </div>
+          <div class="ivslot">
             <a class="ivrow" href="mockup-interviews.html?slot=10:00">
               <span class="ivtime">10:00</span>
               <span class="ivbody">
-                <span class="ivname">김도현 <em>외 1명</em></span>
+                <span class="ivname">김도현 <em>외 2명</em></span>
                 <span class="ivsub">백엔드 개발자 (신입) · 1차 기술면접</span>
               </span>
             </a>
             <div class="ivpop" role="tooltip">
-              <div class="ivpop-head">10시 면접 2건</div>
+              <div class="ivpop-head">10시 면접 3건</div>
               <div class="ivpop-item"><span class="ivpop-t">10:00</span><span class="ivpop-n">김도현</span></div>
               <div class="ivpop-item"><span class="ivpop-t">10:20</span><span class="ivpop-n">크리스토퍼 알렉산더 반 데 베르그</span></div>
+              <div class="ivpop-item"><span class="ivpop-t">10:40</span><span class="ivpop-n">오세훈</span></div>
             </div>
           </div>
           <div class="ivslot">
-            <a class="ivrow" href="mockup-interviews.html?slot=14:00">
-              <span class="ivtime">14:00</span>
+            <a class="ivrow" href="mockup-interviews.html?slot=11:30">
+              <span class="ivtime">11:30</span>
               <span class="ivbody">
-                <span class="ivname">정우진</span>
-                <span class="ivsub">UX 디자이너 · 포트폴리오 발표</span>
+                <span class="ivname">임재현</span>
+                <span class="ivsub">데이터 엔지니어 · 2차 면접</span>
               </span>
             </a>
           </div>
-          <div class="ivslot">
-            <a class="ivrow" href="mockup-interviews.html?slot=16:30">
-              <span class="ivtime">16:30</span>
-              <span class="ivbody">
-                <span class="ivname">박지훈</span>
-                <span class="ivsub">프론트엔드 개발자 (경력) · 1차 면접</span>
-              </span>
-            </a>
-          </div>
+          <a class="ivmore" href="mockup-interviews.html">외 4건 더 →</a>
         </div>
       </section>
 

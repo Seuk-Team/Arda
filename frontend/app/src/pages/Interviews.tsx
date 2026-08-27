@@ -14,10 +14,17 @@ interface Interview {
 const DATE = '2026.08.26'
 
 const MOCK: Interview[] = [
-  { id: 1, time: '10:00', applicant: '김도현', posting: '백엔드 개발자 (신입)', round: '1차 기술면접', interviewer: '이지훈' },
-  { id: 2, time: '10:20', applicant: '크리스토퍼 알렉산더 반 데 베르그', posting: '백엔드 개발자 (신입)', round: '1차 기술면접', interviewer: '이지훈' },
-  { id: 3, time: '14:00', applicant: '정우진', posting: 'UX 디자이너', round: '포트폴리오 발표', interviewer: '한소미' },
-  { id: 4, time: '16:30', applicant: '박지훈', posting: '프론트엔드 개발자 (경력)', round: '1차 면접', interviewer: '김채용 외 2명' },
+  { id: 1, time: '09:30', applicant: '이서연', posting: 'QA 엔지니어', round: '1차 면접', interviewer: '한소미' },
+  { id: 2, time: '10:00', applicant: '김도현', posting: '백엔드 개발자 (신입)', round: '1차 기술면접', interviewer: '이지훈' },
+  { id: 3, time: '10:20', applicant: '크리스토퍼 알렉산더 반 데 베르그', posting: '백엔드 개발자 (신입)', round: '1차 기술면접', interviewer: '이지훈' },
+  { id: 4, time: '10:40', applicant: '오세훈', posting: '백엔드 개발자 (신입)', round: '1차 기술면접', interviewer: '이지훈' },
+  { id: 5, time: '11:30', applicant: '임재현', posting: '데이터 엔지니어', round: '2차 면접', interviewer: '김채용 외 2명' },
+  { id: 6, time: '13:00', applicant: '최민서', posting: 'QA 엔지니어', round: '1차 면접', interviewer: '한소미' },
+  { id: 7, time: '13:30', applicant: '배수진', posting: '프로덕트 디자이너 (신입·경력)', round: '포트폴리오 발표', interviewer: '한소미' },
+  { id: 8, time: '14:00', applicant: '정우진', posting: 'UX 디자이너', round: '포트폴리오 발표', interviewer: '한소미' },
+  { id: 9, time: '15:00', applicant: '신동혁', posting: '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)', round: '1차 기술면접', interviewer: '이지훈' },
+  { id: 10, time: '16:30', applicant: '박지훈', posting: '프론트엔드 개발자 (경력)', round: '1차 면접', interviewer: '김채용 외 2명' },
+  { id: 11, time: '16:50', applicant: '문가영', posting: '프론트엔드 개발자 (경력)', round: '1차 면접', interviewer: '김채용 외 2명' },
 ]
 
 export default function Interviews() {
