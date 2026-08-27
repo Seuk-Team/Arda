@@ -20,6 +20,7 @@ from app import models  # noqa: F401 — 테이블을 메타데이터에 등록�
 from app.db import Base, engine
 from app.errors import ErrorCode, ErrorResponse
 from app.logging_conf import setup_logging
+from app.security import APP_ENV
 
 logger = setup_logging()
 
@@ -28,6 +29,17 @@ logger = setup_logging()
 async def lifespan(app: FastAPI):
     # 스키마가 굳기 전까지는 마이그레이션 없이 create_all 로 만든다 (app/db.py 참고)
     Base.metadata.create_all(engine)
+
+    # APP_ENV 하나가 보안 게이트 두 개(공개 가입 차단·JWT_SECRET 필수)를 함께 켜고 끈다.
+    # 기본값이 dev 라 서버에서 빠뜨리면 아무 에러 없이 꺼진 채로 뜬다 (#122).
+    # 어느 모드로 떴는지 기동 로그에 남겨, 배포 후 로그만 봐도 알 수 있게 한다.
+    if APP_ENV == "production":
+        logger.info("startup: APP_ENV=production — 보안 게이트 켜짐")
+    else:
+        logger.warning(
+            f"startup: APP_ENV={APP_ENV} — 보안 게이트 꺼짐. 공개 가입이 열려 있고 "
+            "기본 JWT 시크릿으로 서명한다. 로컬이 아니면 APP_ENV=production 을 설정해야 한다"
+        )
 
     # G2 — SQS 클라이언트 예열. 별도 스레드로 돌려 부팅을 막지 않는다
     # (--reload 개발 중에는 저장할 때마다 재기동한다). 이유는 mail.warm_up 참고.
