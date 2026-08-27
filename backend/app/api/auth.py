@@ -6,7 +6,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
 from app.models import User
 from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserOut
-from app.security import create_access_token, hash_password, verify_password
+from app.security import APP_ENV, create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -17,6 +17,15 @@ def signup(
     db: Session = Depends(get_db),
     caller: User | None = Depends(get_current_user_optional),
 ):
+    # production 에서는 admin 만 계정을 만든다. 공개 가입을 열어두면 외부 URL 에서
+    # 누구나 recruiter 로 가입해 지원자 개인정보 전체를 볼 수 있다 (project-review S1).
+    # 로컬(dev)은 그대로 열어둔다 — 최초 admin 은 scripts/create_admin.py 로 만든다.
+    if APP_ENV == "production":
+        if caller is None:
+            raise HTTPException(http.HTTP_401_UNAUTHORIZED, "인증이 필요합니다")
+        if caller.role != "admin":
+            raise HTTPException(http.HTTP_403_FORBIDDEN, "계정 생성은 admin 만 할 수 있습니다")
+
     role = body.role if (caller and caller.role == "admin") else "recruiter"
     row = User(
         email=body.email,
