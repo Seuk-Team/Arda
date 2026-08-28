@@ -9,7 +9,9 @@ library;
 
 import '../models/applicant.dart';
 import '../models/job_posting.dart';
+import '../models/evaluation.dart';
 import '../models/stage.dart';
+import '../models/stage_history.dart';
 
 /// 목업 상단의 공고 + 시안 5번의 공고 리스트 3건.
 ///
@@ -149,4 +151,80 @@ Map<Stage, int> postingCounts(int jobPostingId) => switch (jobPostingId) {
     Stage.accepted: 97,
     Stage.rejected: 130,
   },
+};
+
+/// 단계 이력 — 시안(2026-08-28) 2번의 김도현 예시를 그대로 옮겼다.
+/// **최신이 위**로 오도록 정렬해 둔다.
+final mockStageHistory = <int, List<StageHistory>>{
+  1: [
+    StageHistory(
+      id: 4,
+      applicationId: 1,
+      fromStage: Stage.interview,
+      toStage: Stage.accepted,
+      changedByName: '김채용',
+      mailQueued: true,
+      createdAt: DateTime(2026, 8, 27, 14, 20),
+    ),
+    StageHistory(
+      id: 3,
+      applicationId: 1,
+      fromStage: Stage.screening,
+      toStage: Stage.interview,
+      changedByName: '김채용',
+      mailQueued: true,
+      createdAt: DateTime(2026, 8, 24, 10, 5),
+    ),
+    StageHistory(
+      id: 2,
+      applicationId: 1,
+      fromStage: Stage.applied,
+      toStage: Stage.screening,
+      changedByName: '이서연',
+      mailQueued: false,
+      createdAt: DateTime(2026, 8, 21, 9, 12),
+    ),
+    // from_stage 가 NULL — 최초 접수. changed_by 도 NULL(시스템)이다
+    StageHistory(
+      id: 1,
+      applicationId: 1,
+      toStage: Stage.applied,
+      mailQueued: false,
+      createdAt: DateTime(2026, 8, 20, 22, 41),
+    ),
+  ],
+};
+
+/// 평가 — 시안 3번의 김도현 예시(3명, 평균 4.3)를 그대로 옮겼다.
+final mockEvaluations = <int, EvaluationSummary>{
+  1: EvaluationSummary(
+    items: [
+      Evaluation(
+        id: 1,
+        applicationId: 1,
+        evaluatorName: '이지훈',
+        score: 5,
+        comment: '문제 정의 → 측정 → 개선 순으로 설명이 또렷했습니다. '
+            '대용량 처리 경험도 수치로 답변.',
+        createdAt: DateTime(2026, 8, 24),
+      ),
+      Evaluation(
+        id: 2,
+        applicationId: 1,
+        evaluatorName: '한소미',
+        score: 4,
+        comment: '기술 스택은 요건과 일치. 팀 협업 사례가 한 가지뿐이라 '
+            '2차에서 더 볼 필요가 있습니다.',
+        createdAt: DateTime(2026, 8, 24),
+      ),
+      Evaluation(
+        id: 3,
+        applicationId: 1,
+        evaluatorName: '김채용',
+        score: 4,
+        comment: '서류 기준 적합. 면접에서 아키텍처 설계 경험을 확인하면 좋겠습니다.',
+        createdAt: DateTime(2026, 8, 23),
+      ),
+    ],
+  ),
 };

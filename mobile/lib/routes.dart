@@ -19,6 +19,12 @@ abstract final class Routes {
   /// 한 공고의 지원자 리스트. 인자로 JobPosting 을 받는다
   static const applicants = '/applicants';
 
+  /// 단계 이력. 인자로 (지원자, 공고명) 을 받는다 (시안 2번)
+  static const stageHistory = '/applicants/history';
+
+  /// 평가 목록. 인자로 Applicant 를 받는다 (시안 3번)
+  static const evaluations = '/applicants/evaluations';
+
   /// 지원자 상세. 인자로 Applicant 를 받는다
   static const applicantDetail = '/applicants/detail';
 }

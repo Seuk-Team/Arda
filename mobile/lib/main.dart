@@ -7,7 +7,9 @@ import 'models/job_posting.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
+import 'screens/evaluations_screen.dart';
 import 'screens/postings_screen.dart';
+import 'screens/stage_history_screen.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -52,11 +54,29 @@ class ArdaApp extends StatelessWidget {
             builder: (_) => ApplicantsScreen(posting: posting),
           );
         }
-        if (settings.name == Routes.applicantDetail) {
+        if (settings.name == Routes.stageHistory) {
+          final args = settings.arguments! as (Applicant, String);
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) =>
+                StageHistoryScreen(applicant: args.$1, postingTitle: args.$2),
+          );
+        }
+        if (settings.name == Routes.evaluations) {
           final applicant = settings.arguments! as Applicant;
           return MaterialPageRoute(
             settings: settings,
-            builder: (_) => ApplicantDetailScreen(applicant: applicant),
+            builder: (_) => EvaluationsScreen(applicant: applicant),
+          );
+        }
+        if (settings.name == Routes.applicantDetail) {
+          final args = settings.arguments! as (Applicant, String);
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => ApplicantDetailScreen(
+              applicant: args.$1,
+              postingTitle: args.$2,
+            ),
           );
         }
         return null;

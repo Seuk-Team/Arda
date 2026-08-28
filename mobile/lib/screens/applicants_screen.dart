@@ -68,7 +68,7 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
                 onTap: () => Navigator.pushNamed(
                   context,
                   Routes.applicantDetail,
-                  arguments: applicants[i],
+                  arguments: (applicants[i], widget.posting.title),
                 ),
               ),
             ),

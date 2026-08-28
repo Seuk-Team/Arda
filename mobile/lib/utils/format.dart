@@ -11,3 +11,7 @@ String formatDate(DateTime d) => '${d.year}.${_two(d.month)}.${_two(d.day)}';
 
 /// `48명`
 String formatCount(int n) => '$n명';
+
+/// `2026.08.27 14:20` — 단계 이력처럼 시각까지 필요한 곳.
+String formatDateTime(DateTime d) =>
+    '${formatDate(d)} ${_two(d.hour)}:${_two(d.minute)}';
