@@ -14,10 +14,14 @@ class StageTabs extends StatelessWidget {
     super.key,
     required this.selected,
     required this.onSelected,
+    required this.counts,
   });
 
   final Stage selected;
   final ValueChanged<Stage> onSelected;
+
+  /// 단계 → 인원. 시안: 막대는 비율만, **숫자는 탭이** 보여 준다
+  final Map<Stage, int> counts;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +45,7 @@ class StageTabs extends StatelessWidget {
             for (final stage in Stage.values) ...[
               _Tab(
                 label: stage.label,
+                count: counts[stage] ?? 0,
                 isSelected: stage == selected,
                 onTap: () => onSelected(stage),
               ),
@@ -57,11 +62,13 @@ class StageTabs extends StatelessWidget {
 class _Tab extends StatelessWidget {
   const _Tab({
     required this.label,
+    required this.count,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
+  final int count;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -84,17 +91,35 @@ class _Tab extends StatelessWidget {
             height: AppType.menuItemHeight,
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
-            child: Text(
-              label,
-              // 탭 라벨은 한 줄 고정. 두 줄이 되면 버그다 (§2)
-              softWrap: false,
-              style: TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.sm,
-                fontWeight: AppType.wSemiBold,
-                color: isSelected ? AppColors.leaf : AppColors.textSub,
-                shadows: isSelected ? AppTextShadow.heading : null,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  // 탭 라벨은 한 줄 고정. 두 줄이 되면 버그다 (§2)
+                  softWrap: false,
+                  style: TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.sm,
+                    fontWeight: AppType.wSemiBold,
+                    color: isSelected ? AppColors.leaf : AppColors.textSub,
+                    shadows: isSelected ? AppTextShadow.heading : null,
+                  ),
+                ),
+                const SizedBox(width: AppSpace.s2),
+                // 시안: 막대가 못 담는 값을 탭이 읽히게 한다
+                Text(
+                  "$count",
+                  softWrap: false,
+                  style: TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.sm,
+                    fontWeight: AppType.wSemiBold,
+                    color: isSelected ? AppColors.leaf : AppColors.textSub,
+                    fontFeatures: AppType.tabularNums,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

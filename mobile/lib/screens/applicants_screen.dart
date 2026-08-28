@@ -28,6 +28,9 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
   /// 목업이 `지원 접수` 에 `.on` 을 붙여 둔 것을 그대로 따른다.
   Stage _selected = Stage.applied;
 
+  /// 단계별 인원 — 퍼널 바와 탭이 함께 쓴다
+  Map<Stage, int> get _counts => stageCounts(mockApplicants);
+
   /// role/app.md §3: 단계 탭은 **필터**다. 선택한 단계만 보여 준다.
   List<Applicant> get _visible =>
       mockApplicants.where((a) => a.currentStage == _selected).toList();
@@ -40,17 +43,18 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
       appBar: const AppTopBar(),
       body: Column(
         children: [
-          PostingHeader(posting: mockPosting),
+          PostingHeader(posting: mockPosting, counts: _counts),
           StageTabs(
             selected: _selected,
             onSelected: (stage) => setState(() => _selected = stage),
+            counts: _counts,
           ),
           Expanded(
             // 목업 `.mlist` — 카드 사이 8px, 바깥 여백 12px
             child: ListView.separated(
               padding: const EdgeInsets.all(AppSpace.s4),
               itemCount: applicants.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpace.s2),
+              separatorBuilder: (_, _) => const SizedBox(height: AppSpace.s3),
               itemBuilder: (_, i) => ApplicantCard(
                 applicant: applicants[i],
                 onTap: () => Navigator.pushNamed(
