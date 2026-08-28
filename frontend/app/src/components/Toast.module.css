@@ -1,0 +1,47 @@
+/* 화면 오른쪽 아래에 쌓인다. z-index 는 스케일 안에서만 (§8 — --z-toast 40) */
+.wrap {
+  position: fixed;
+  right: var(--sp-5);
+  bottom: var(--sp-5);
+  z-index: var(--z-toast, 40);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  pointer-events: none;
+}
+
+.toast {
+  max-width: 360px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  border: var(--border-w) solid transparent;
+  box-shadow: 0 8px 28px rgba(27, 33, 23, 0.14), 0 2px 6px rgba(27, 33, 23, 0.06);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+/* 성공은 연두 워시, 실패는 적갈 — §1 이 정한 판단 색 그대로다 */
+.ok {
+  background: #EFF7E2;
+  border-color: #8CC63F;
+  color: var(--text);
+}
+
+.fail {
+  background: #F7EFED;
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: rise var(--dur-base) var(--ease);
+  }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}

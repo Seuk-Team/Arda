@@ -5,6 +5,7 @@ import { applications, postings as postingsApi, stages as stagesApi } from '../a
 import type { ApplicationListItem, Posting, Stage } from '../api/types'
 import { STAGE_LABEL, careerText, fmtDate, stageTone, withRo } from '../lib/stage'
 import ApplicantPanel from './ApplicantPanel'
+import Kanban from './Kanban'
 import styles from './PostingApplicants.module.css'
 
 /* 공고의 지원자 화면 (05-design §0.5 "본 작업 화면") — D1·D4.
@@ -49,6 +50,7 @@ export default function PostingApplicants() {
   const [term, setTerm] = useState('')
   const [stage, setStage] = useState<Stage | null>(null)
   const [page, setPage] = useState(0)
+  const [view, setView] = useState<'list' | 'kanban'>('list')
 
   /* 상세 패널에 열려 있는 지원자 */
   const [openId, setOpenId] = useState<number | null>(null)
@@ -292,8 +294,22 @@ export default function PostingApplicants() {
 
         {/* 칸반은 큐 8번(D2·D3)이라 아직 없다. 자리만 두고 잠가 둔다 */}
         <div className={styles.vtoggle} role="group" aria-label="보기 방식">
-          <button type="button" className={styles.vOn}>목록</button>
-          <button type="button" disabled title="준비 중">칸반</button>
+          <button
+            type="button"
+            className={view === 'list' ? styles.vOn : undefined}
+            aria-pressed={view === 'list'}
+            onClick={() => setView('list')}
+          >
+            목록
+          </button>
+          <button
+            type="button"
+            className={view === 'kanban' ? styles.vOn : undefined}
+            aria-pressed={view === 'kanban'}
+            onClick={() => setView('kanban')}
+          >
+            칸반
+          </button>
         </div>
       </div>
 
@@ -346,6 +362,9 @@ export default function PostingApplicants() {
 
       <div className={styles.body}>
       <main className="page-content">
+        {view === 'kanban' ? (
+          <Kanban postingId={postingId} tick={tick} onChanged={() => setTick((n) => n + 1)} />
+        ) : (
         <div className={styles.panel}>
           <div className={`${styles.row} ${styles.rowSel} ${styles.thead}`}>
             <input
@@ -421,6 +440,7 @@ export default function PostingApplicants() {
             </div>
           )}
         </div>
+        )}
       </main>
 
       {openId !== null && (

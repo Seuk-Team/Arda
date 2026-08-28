@@ -1,0 +1,125 @@
+/* 칸반 보드. 목업에 없는 화면이라 05-design §0.5·§6 서술과 기존 토큰만으로 짰다.
+   §9 — 모바일은 칸반 금지. 768px 이하에서는 아예 감춘다(화면이 목록으로 넘어간다). */
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+  /* 칸이 다섯이라 좁아지면 가로로 민다 — 본문이 가로 스크롤되지는 않는다 (§7) */
+  overflow-x: auto;
+  padding-bottom: var(--sp-3);
+}
+
+.col {
+  background: var(--bg-sunken);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--r-card);
+  min-height: 160px;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+/* 드롭 영역 표시 (§6) */
+.colOver {
+  background: var(--sprout-soft);
+  border-color: var(--sprout);
+}
+
+.colHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+}
+
+.colName {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.colCount {
+  margin-left: auto;
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) var(--sp-3);
+}
+
+.card {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-3);
+  cursor: grab;
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+
+.card:hover { box-shadow: var(--sh-card); }
+.card:active { cursor: grabbing; }
+
+/* 원본 자리 표시 (§6) — 끌고 가는 동안 있던 자리를 비워 두지 않고 흐리게 남긴다 */
+.dragging {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.cardName {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.cardSub {
+  margin-top: 2px;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 드래그 대체 수단 (§10). 44px 터치 타깃은 §9 */
+.moveLabel { display: block; margin-top: var(--sp-2); }
+
+.move {
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  cursor: pointer;
+}
+
+.move:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+.move:disabled { cursor: not-allowed; }
+
+.empty,
+.more,
+.state {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.more { margin-top: var(--sp-2); }
+
+.state {
+  padding: var(--sp-6);
+  text-align: center;
+  font-size: var(--font-sm);
+}
+
+@media (max-width: 768px) {
+  .board { display: none; }
+}

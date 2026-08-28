@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import { AuthProvider } from './auth/AuthContext'
+import { ToastProvider } from './components/Toast'
 import RequireAuth from './auth/RequireAuth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -14,6 +15,7 @@ import Settings from './pages/Settings'
 export default function App() {
   return (
     <AuthProvider>
+      <ToastProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<RequireAuth />}>
@@ -29,6 +31,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </ToastProvider>
     </AuthProvider>
   )
 }

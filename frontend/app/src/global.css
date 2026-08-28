@@ -106,3 +106,16 @@ h1, h2, h3 { text-wrap: balance; }
 .stage-progress { color: var(--text-sub); }
 .stage-accepted { color: var(--leaf); font-weight: 700; }
 .stage-rejected { color: var(--danger); font-weight: 700; }
+
+/* 화면에는 없고 보조기기에만 읽히는 라벨 (§10) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
