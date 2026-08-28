@@ -14,7 +14,7 @@
 
 ## 운영 서버 계정 (중요)
 
-**운영 서버는 회원가입이 잠겨 있다** (`APP_ENV=production` — 공개 signup 차단, #117). 배포 URL로 로그인이 필요하면 **팀 채널에서 팀장에게 계정 생성을 요청**한다 (admin이 만들어준다). 로컬 개발은 기존처럼 자유 가입.
+**운영 서버는 공개 회원가입이 잠겨 있다** (`APP_ENV=production` — 공개 signup 차단, #117). **전 팀원 admin 계정 발급됨 (08/28)** — 초기 비밀번호는 팀 채널 공지 참고. 추가 계정이 필요하면 아무 admin이나 로그인 후 `POST /auth/signup`(Swagger `/docs`)으로 만든다. 로컬 개발은 기존처럼 자유 가입.
 
 ## 구성 (요약)
 
@@ -42,9 +42,10 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 | 프론트 | Vercel 자동 배포 연결 완료 — 머지하면 바로 URL에 뜬다. 수직 슬라이스(게이트 마지막 조건)는 지원 폼 화면 대기 중 |
 | 앱 | 실 API 베이스 주소 확보 — W3 연동 때 위 주소 사용 |
 | 에이전트 | ANTHROPIC_API_KEY 서버 주입·실호출 검증 완료 — 배포 URL 기준 E2E 데모 가능. AI 요약이 운영에서 실동작 |
-| 백엔드 | 코어 API 전부 배포 Swagger에서 동작. 워커 SQS 대기 중 — 실발송 E2E는 수직 슬라이스 때. Dockerfile에 `scripts/` COPY 누락(이슈, create_admin 우회 실행 중) |
+| 백엔드 | 코어 API 전부 배포 Swagger에서 동작. 워커 SQS 대기 중 — 실발송 E2E는 수직 슬라이스 때. Dockerfile `scripts/` COPY 누락은 레포에서 수정됨(#124) — 서버 이미지는 다음 재배포 때 반영 |
 
 ## 주의
 
 - 시크릿(SSH 키·admin 비밀번호·API 키)은 이 문서에 없다 — 필요하면 팀장에게.
+- SSH 키 없는 PC에서 서버 작업이 필요하면: AWS 콘솔 → EC2 Instance Connect(브라우저 셸, 유저 `ubuntu`). 단, 보안그룹에 SSH 소스 `13.209.1.56/29`(서울 Instance Connect 대역)를 **임시 추가**하고 작업 후 제거한다 (08/28 실사용).
 - SES는 아직 샌드박스(승인 대기) — 메일 실발송 테스트는 검증된 수신자(팀원 메일 등록)로만 가능.
