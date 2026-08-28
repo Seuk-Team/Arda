@@ -24,7 +24,7 @@
                                                      PostgreSQL db      ├ EC2 (docker compose)
                                                      SQS 워커 worker    ┘
 파일: 브라우저 ── presigned URL ──> S3 (서버 미경유)
-메일: api → SQS 큐 → worker → SES (샌드박스 — 프로덕션 승인 대기 중)
+메일: api → SQS 큐 → worker → SES (샌드박스 — 해제 신청 08/27 거절, 검증된 수신자만 발송 가능)
 ```
 
 - EC2: 서울, t3.micro + 스왑 2G, 고정 IP(Elastic IP). SSH는 팀장 PC에서만 열려 있다.
@@ -48,4 +48,4 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 
 - 시크릿(SSH 키·admin 비밀번호·API 키)은 이 문서에 없다 — 필요하면 팀장에게.
 - SSH 키 없는 PC에서 서버 작업이 필요하면: AWS 콘솔 → EC2 Instance Connect(브라우저 셸, 유저 `ubuntu`). 단, 보안그룹에 SSH 소스 `13.209.1.56/29`(서울 Instance Connect 대역)를 **임시 추가**하고 작업 후 제거한다 (08/28 실사용).
-- SES는 아직 샌드박스(승인 대기) — 메일 실발송 테스트는 검증된 수신자(팀원 메일 등록)로만 가능.
+- SES는 샌드박스 유지 — **해제(발송 한도 증가) 신청이 08/27 거절됨.** 실발송 테스트는 검증된 수신자(팀원 메일 등록)로만 가능하고, 데모도 이 방식으로 충분. 재신청(사용 사례 구체화)은 인프라 판단.
