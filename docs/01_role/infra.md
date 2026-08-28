@@ -57,7 +57,7 @@
 | 6 | ~~GitHub 브랜치 보호 + CODEOWNERS~~ ✅ | |
 | 7 | ~~J1 Docker compose~~ ✅ | [#27](https://github.com/Team-Seuk/Arda/pull/27) |
 | 8 | ~~mockup.html 색 리터럴 정리~~ ✅ | |
-| 9 | ~~M2 실배포 1차~~ ✅ (08/27 — [07-deploy](../00_overview/07-deploy.md) 신설) | 잔여: SES 재신청 판단(해제 거절 08/27) · 팀원 메일 SES 검증 · **초기 버전 게이트 판정(09/04 금)** |
+| 9 | ~~M2 실배포 1차~~ ✅ (08/27 — [07-deploy](../00_overview/07-deploy.md) 신설) | 잔여: SES 재신청 결과 확인(08/27 거절 → 08/28 SNS 바운스·컴플레인트 연결 후 재신청 제출) · 팀원 메일 SES 검증 · **초기 버전 게이트 판정(09/04 금)** |
 | 10 | 운영 계정 정비 ✅ (08/28) | admin 리셋 + 전 팀원 admin 발급 (07-deploy 계정 절) |
 | 11 | M3 CI/CD (J4) 착수 | W3. 재배포 자동화가 수동 절차(07-deploy) 대체 |
 
