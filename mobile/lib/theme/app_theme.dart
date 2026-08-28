@@ -61,6 +61,9 @@ ThemeData buildAppTheme() {
           vertical: AppSpace.s3,
         ),
         shape: const RoundedRectangleBorder(borderRadius: AppShape.ctl),
+        // §6: disabled 도 정의해야 완성이다. Material 기본 회색 대신 토큰을 쓴다
+        disabledBackgroundColor: AppColors.bgSunken,
+        disabledForegroundColor: AppColors.neutral,
         textStyle: const TextStyle(
           fontFamily: AppType.fontFamily,
           fontSize: AppType.body,

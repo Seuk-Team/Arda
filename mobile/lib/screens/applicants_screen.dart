@@ -53,8 +53,11 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
               separatorBuilder: (_, _) => const SizedBox(height: AppSpace.s2),
               itemBuilder: (_, i) => ApplicantCard(
                 applicant: applicants[i],
-                onTap: () =>
-                    Navigator.pushNamed(context, Routes.applicantDetail),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  Routes.applicantDetail,
+                  arguments: applicants[i],
+                ),
               ),
             ),
           ),

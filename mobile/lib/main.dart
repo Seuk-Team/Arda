@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'models/applicant.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
@@ -37,7 +38,17 @@ class ArdaApp extends StatelessWidget {
       initialRoute: Routes.applicants,
       routes: {
         Routes.applicants: (_) => const ApplicantsScreen(),
-        Routes.applicantDetail: (_) => const ApplicantDetailScreen(),
+      },
+      // 상세는 "어느 지원자인지"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
+      onGenerateRoute: (settings) {
+        if (settings.name == Routes.applicantDetail) {
+          final applicant = settings.arguments! as Applicant;
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => ApplicantDetailScreen(applicant: applicant),
+          );
+        }
+        return null;
       },
       builder: (context, child) {
         // 05-design §5: prefers-reduced-motion 대응 필수.

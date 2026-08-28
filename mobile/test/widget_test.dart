@@ -2,6 +2,7 @@
 // 리스트 내용 검증은 카드 리스트 조각에서 추가한다.
 
 import 'package:arda/main.dart';
+import 'package:arda/screens/applicant_detail_screen.dart';
 import 'package:arda/widgets/app_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,9 +20,10 @@ void main() {
 
     await tester.tap(find.text('박지훈')); // 지원 접수 탭의 카드를 눌러 상세로 간다
     await tester.pumpAndSettle();
-    expect(find.text('지원자 상세'), findsOneWidget);
+    expect(find.byType(ApplicantDetailScreen), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Back'));
+    // 상세는 목업 .dclose 규격의 닫기 버튼으로 나온다
+    await tester.tap(find.bySemanticsLabel('상세 닫기'));
     await tester.pumpAndSettle();
     expect(find.byType(AppTopBar), findsOneWidget);
   });
