@@ -5,7 +5,6 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
-import 'screens/postings_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -35,9 +34,8 @@ class ArdaApp extends StatelessWidget {
       theme: buildAppTheme(),
       // 05-design §0-4: 라이트 온리. 기기가 다크 모드여도 따라가지 않는다
       themeMode: ThemeMode.light,
-      initialRoute: Routes.postings,
+      initialRoute: Routes.applicants,
       routes: {
-        Routes.postings: (_) => const PostingsScreen(),
         Routes.applicants: (_) => const ApplicantsScreen(),
         Routes.applicantDetail: (_) => const ApplicantDetailScreen(),
       },

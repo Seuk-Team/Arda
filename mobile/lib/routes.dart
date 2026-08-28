@@ -2,14 +2,18 @@
 ///
 /// 화면 구성은 05-design §0.5 화면 지도와 role/app.md §3 범위를 따른다.
 /// 앱은 웹의 전 화면을 옮기지 않는다 — 칸반·지원 폼은 앱 범위 밖이다.
+///
+/// **아직 앞에 붙지 않은 화면이 둘 있다.**
+/// - 로그인: 만든 뒤 큐 7번(실제 JWT 연동)에서 첫 화면으로 건다
+/// - 공고 리스트: 모바일 목업이 없어 대기 중. 나오면 지원자 리스트 앞에 끼운다
+///
+/// 그때까지 지원자 리스트가 첫 화면이다. 내용 없는 화면을 앱에 남겨 두지 않기
+/// 위해서다 — 뼈대용 빈 공고 화면은 역할이 끝나 지웠다(05-design §6 완성의 정의).
 library;
 
 abstract final class Routes {
-  /// 공고 리스트 — 앱의 첫 화면
-  static const postings = '/';
-
-  /// 공고 하나의 지원자 리스트
-  static const applicants = '/applicants';
+  /// 지원자 리스트 — 현재의 첫 화면
+  static const applicants = '/';
 
   /// 지원자 상세
   static const applicantDetail = '/applicants/detail';
