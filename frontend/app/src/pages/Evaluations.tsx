@@ -1,57 +1,107 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import PageHead from '../components/PageHead'
+import { ApiError } from '../api/client'
+import { applications, assignments, evaluations, postings as postingsApi } from '../api/endpoints'
+import type { ApplicationDetail, Posting } from '../api/types'
+import { useAuth } from '../auth/AuthContext'
+import { STAGE_LABEL, careerText, fmtDate } from '../lib/stage'
 import styles from './Evaluations.module.css'
 
 /* 면접관 관점 — 내게 배정된 평가 대기 큐 + 우측 평가 패널 (05-design §0.5).
-   등록하면 자동으로 다음 지원자로 넘어간다. */
-interface Assignment {
-  id: number
-  name: string
-  posting: string
-  stage: string
-  assigned: string
-  edu: string
-  career: string
-  skills: string
+   등록하면 자동으로 다음 지원자로 넘어간다.
+
+   큐는 GET /interviewers/{me}/applications 가 준다. 그 응답은 배정 관계만 담아서
+   (application_id·배정일) 이름·공고를 알 수 없다 — 지원자마다 상세를 한 번 더 부른다. */
+interface QueueItem {
+  applicationId: number
+  assignedAt: string
+  detail: ApplicationDetail
 }
 
-const QUEUE: Assignment[] = [
-  { id: 1, name: '김도현', posting: '백엔드 개발자 (신입)', stage: '면접', assigned: '2026.08.20', edu: 'OO대학교 컴퓨터공학과', career: '2년 (백엔드)', skills: 'Python · FastAPI · PostgreSQL' },
-  { id: 2, name: '박서연', posting: '프론트엔드 개발자', stage: '서류 검토', assigned: '2026.08.21', edu: 'OO대학교 시각디자인학과', career: '1년 (프론트엔드)', skills: 'React · TypeScript · Figma' },
-  { id: 3, name: '이준호', posting: '백엔드 개발자 (신입)', stage: '면접', assigned: '2026.08.19', edu: 'OO대학교 소프트웨어학과', career: '신입', skills: 'Java · Spring Boot' },
-  { id: 4, name: '최유진', posting: '데이터 엔지니어', stage: '서류 검토', assigned: '2026.08.22', edu: 'OO대학교 통계학과', career: '3년 (데이터)', skills: 'Python · SQL · Spark' },
-  { id: 5, name: '정민재', posting: '백엔드 개발자 (신입)', stage: '면접', assigned: '2026.08.18', edu: '부트캠프 수료', career: '1년 (백엔드)', skills: 'Python · Django · PostgreSQL' },
-  { id: 6, name: '한소희', posting: '프론트엔드 개발자', stage: '서류 검토', assigned: '2026.08.23', edu: 'OO대학교 컴퓨터공학과', career: '2년 (프론트엔드)', skills: 'Vue · JavaScript · CSS' },
-]
-
 export default function Evaluations() {
-  const [queue, setQueue] = useState(QUEUE)
+  const { user } = useAuth()
+
+  const [queue, setQueue] = useState<QueueItem[] | null>(null)
+  const [postingMap, setPostingMap] = useState<Map<number, Posting>>(new Map())
+  const [error, setError] = useState<string | null>(null)
+
   const [openId, setOpenId] = useState<number | null>(null)
   const [score, setScore] = useState<number | null>(null)
   const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const current = queue.find((a) => a.id === openId) ?? null
+  const current = queue?.find((a) => a.applicationId === openId) ?? null
 
-  function open(a: Assignment) {
-    setOpenId(a.id)
+  useEffect(() => {
+    const ac = new AbortController()
+    postingsApi
+      .list(ac.signal)
+      .then((list) => setPostingMap(new Map(list.map((p) => [p.id, p]))))
+      .catch(() => {
+        /* 공고 이름을 못 받아도 큐는 보여 준다 */
+      })
+    return () => ac.abort()
+  }, [])
+
+  const load = useCallback(
+    async (userId: number, signal: AbortSignal) => {
+      const res = await assignments.mine(userId, signal)
+      const details = await Promise.all(
+        res.assignments.map(async (a) => ({
+          applicationId: a.application_id,
+          assignedAt: a.created_at,
+          detail: await applications.detail(a.application_id, signal),
+        })),
+      )
+      return details
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!user) return
+    const ac = new AbortController()
+    setError(null)
+    load(user.id, ac.signal)
+      .then(setQueue)
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
+        setError(err instanceof ApiError ? err.message : '평가 대기 목록을 불러오지 못했습니다')
+      })
+    return () => ac.abort()
+  }, [user, load])
+
+  function open(item: QueueItem) {
+    setOpenId(item.applicationId)
     setScore(null)
     setComment('')
+    setSubmitError(null)
   }
 
-  function close() {
-    setOpenId(null)
-  }
+  const close = useCallback(() => setOpenId(null), [])
 
-  /* 등록하면 그 사람을 큐에서 빼고 다음 지원자를 바로 연다 (§0.5 연속 심사) */
-  function submit() {
-    if (score === null || current === null) return
-    const i = queue.findIndex((a) => a.id === current.id)
-    const rest = queue.filter((a) => a.id !== current.id)
-    setQueue(rest)
-    const next = rest[i] ?? rest[i - 1] ?? null
-    setOpenId(next ? next.id : null)
-    setScore(null)
-    setComment('')
+  /* 등록하면 그 사람을 큐에서 빼고 다음 지원자를 바로 연다 (§0.5 연속 심사).
+     서버가 받아 준 뒤에 뺀다 — 먼저 빼면 실패했을 때 되돌릴 자리가 없다. */
+  async function submit() {
+    if (score === null || current === null || queue === null) return
+    setSaving(true)
+    setSubmitError(null)
+    try {
+      await evaluations.create(current.applicationId, score, comment)
+      const i = queue.findIndex((a) => a.applicationId === current.applicationId)
+      const rest = queue.filter((a) => a.applicationId !== current.applicationId)
+      setQueue(rest)
+      const next = rest[i] ?? rest[i - 1] ?? null
+      setOpenId(next ? next.applicationId : null)
+      setScore(null)
+      setComment('')
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : '평가를 등록하지 못했습니다')
+    } finally {
+      setSaving(false)
+    }
   }
 
   useEffect(() => {
@@ -60,13 +110,13 @@ export default function Evaluations() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [close])
 
   return (
     <>
       <PageHead
         title="평가 현황"
-        actions={<span className={styles.meta}>평가 대기 {queue.length}명</span>}
+        actions={<span className={styles.meta}>평가 대기 {queue?.length ?? 0}명</span>}
       />
 
       <div className={styles.body}>
@@ -79,23 +129,27 @@ export default function Evaluations() {
               <span className={styles.num}>배정일</span>
             </div>
 
-            {queue.map((a) => (
+            {queue?.map((a) => (
               <div
-                key={a.id}
-                className={`${styles.row} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
+                key={a.applicationId}
+                className={`${styles.row} ${styles.item} ${a.applicationId === openId ? styles.cur : ''}`}
                 tabIndex={0}
-                aria-current={a.id === openId ? 'true' : undefined}
+                aria-current={a.applicationId === openId ? 'true' : undefined}
                 onClick={() => open(a)}
               >
-                <span className={styles.name}>{a.name}</span>
-                <span className={styles.posting}>{a.posting}</span>
+                <span className={styles.name}>{a.detail.name}</span>
+                <span className={styles.posting}>
+                  {postingMap.get(a.detail.job_posting_id)?.title ?? '—'}
+                </span>
                 {/* 판단 전이라 색 없이 라벨로만 (§1) */}
-                <span className={styles.stage}>{a.stage}</span>
-                <span className={styles.num}>{a.assigned}</span>
+                <span className={styles.stage}>{STAGE_LABEL[a.detail.current_stage]}</span>
+                <span className={styles.num}>{fmtDate(a.assignedAt)}</span>
               </div>
             ))}
 
-            {queue.length === 0 && (
+            {error !== null && <p className={styles.empty} role="alert">{error}</p>}
+            {error === null && queue === null && <p className={styles.empty}>불러오는 중…</p>}
+            {error === null && queue?.length === 0 && (
               <p className={styles.empty}>평가 대기 중인 지원자가 없습니다.</p>
             )}
           </div>
@@ -105,8 +159,8 @@ export default function Evaluations() {
           {current && (
             <div className={styles.sideInner}>
               <div className={styles.sideHead}>
-                <span className={styles.sideName}>{current.name}</span>
-                <span className={styles.stage}>{current.stage}</span>
+                <span className={styles.sideName}>{current.detail.name}</span>
+                <span className={styles.stage}>{STAGE_LABEL[current.detail.current_stage]}</span>
               </div>
               <button type="button" className={styles.close} aria-label="패널 닫기" onClick={close}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -115,9 +169,9 @@ export default function Evaluations() {
               <div className={styles.sec}>
                 <h2>지원 정보</h2>
                 <dl className={styles.list}>
-                  <dt>학력</dt><dd>{current.edu}</dd>
-                  <dt>경력</dt><dd>{current.career}</dd>
-                  <dt>기술</dt><dd>{current.skills}</dd>
+                  <dt>학력</dt><dd>{current.detail.education ?? '—'}</dd>
+                  <dt>경력</dt><dd>{careerText(current.detail.career_years)}</dd>
+                  <dt>기술</dt><dd>{current.detail.skills?.join(' · ') || '—'}</dd>
                 </dl>
               </div>
 
@@ -129,6 +183,7 @@ export default function Evaluations() {
                       key={n}
                       type="button"
                       aria-pressed={score === n}
+                      disabled={saving}
                       onClick={() => setScore(n)}
                     >
                       {n}
@@ -141,16 +196,18 @@ export default function Evaluations() {
                   aria-label="평가 코멘트 입력"
                   placeholder="평가 코멘트를 입력합니다"
                   value={comment}
+                  disabled={saving}
                   onChange={(e) => setComment(e.target.value)}
                 />
+                {submitError && <p className={styles.hint} role="alert">{submitError}</p>}
                 <div className={styles.actions}>
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={score === null}
+                    disabled={score === null || saving}
                     onClick={submit}
                   >
-                    등록
+                    {saving ? '등록 중…' : '등록'}
                   </button>
                 </div>
                 <p className={styles.hint}>등록하면 다음 지원자로 넘어갑니다</p>

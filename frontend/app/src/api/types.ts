@@ -29,3 +29,55 @@ export interface Posting {
   /* 서버가 응답 시점에 계산해 준다. 마감일이 없으면 null, 지났으면 음수 */
   d_day: number | null
 }
+
+/* 단계 코드. 01-erd.md 의 applications.current_stage 와 같은 값 */
+export type Stage = 'applied' | 'screening' | 'interview' | 'accepted' | 'rejected'
+
+export interface ApplicationListItem {
+  id: number
+  job_posting_id: number
+  name: string
+  email: string
+  current_stage: Stage
+  career_years: number | null
+  created_at: string
+  /* sort=score 일 때만 채워진다. 평가가 없으면 null — 0 이 아니다 */
+  avg_score: number | null
+}
+
+export interface SearchResult {
+  items: ApplicationListItem[]
+  /* with_total=false 로 부르면 null. "0건"이 아니라 "세지 않았다"는 뜻 (H5) */
+  total: number | null
+  took_ms: number
+  next_cursor: string | null
+}
+
+export interface AssignedApplications {
+  assignments: Assignment[]
+  count: number
+}
+
+export interface Assignment {
+  id: number
+  application_id: number
+  interviewer_id: number
+  assigned_by: number
+  created_at: string
+}
+
+export interface ApplicationDetail {
+  id: number
+  job_posting_id: number
+  name: string
+  email: string
+  phone: string
+  education: string | null
+  career_years: number | null
+  skills: string[] | null
+  self_intro: string | null
+  ai_summary: string | null
+  current_stage: Stage
+  created_at: string
+  avg_score: number | null
+}

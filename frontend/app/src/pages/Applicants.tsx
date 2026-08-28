@@ -1,58 +1,99 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PageHead from '../components/PageHead'
+import { ApiError } from '../api/client'
+import { applications, postings as postingsApi } from '../api/endpoints'
+import type { ApplicationListItem, Posting } from '../api/types'
+import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import styles from './Applicants.module.css'
 
 /* 전 공고 통합 검색 테이블 (05-design §0.5). 칸반 없음. */
-type Stage = '지원 접수' | '서류 검토' | '면접' | '최종 합격' | '불합격'
-
-interface Applicant {
-  id: number
-  name: string
-  posting: string
-  stage: Stage
-  career: string
-  score: string
-  applied: string
-}
-
-const MOCK: Applicant[] = [
-  { id: 1, name: '김도현', posting: '백엔드 개발자 (신입)', stage: '면접', career: '2년', score: '4.5', applied: '2026.03.12' },
-  { id: 2, name: '크리스토퍼 알렉산더 반 데 베르그', posting: '백엔드 개발자 (신입)', stage: '면접', career: '12년', score: '4.8', applied: '2026.03.12' },
-  { id: 3, name: '윤하늘', posting: '프론트엔드 개발자 (경력)', stage: '최종 합격', career: '1년', score: '5.0', applied: '2026.03.11' },
-  { id: 4, name: '박지훈', posting: '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)', stage: '지원 접수', career: '신입', score: '—', applied: '2026.03.11' },
-  { id: 5, name: '정우진', posting: '데이터 엔지니어', stage: '서류 검토', career: '1년', score: '4.0', applied: '2026.03.11' },
-  { id: 6, name: '강민수', posting: '프론트엔드 개발자 (경력)', stage: '불합격', career: '신입', score: '2.0', applied: '2026.03.10' },
-  { id: 7, name: '이서연', posting: 'QA 엔지니어', stage: '서류 검토', career: '4년', score: '4.2', applied: '2026.03.10' },
-  { id: 8, name: '한지우', posting: '데이터 엔지니어', stage: '최종 합격', career: '3년', score: '4.9', applied: '2026.03.09' },
-  { id: 9, name: '최민서', posting: 'QA 엔지니어', stage: '서류 검토', career: '2년', score: '3.8', applied: '2026.03.09' },
-  { id: 10, name: '오세훈', posting: '백엔드 개발자 (신입)', stage: '면접', career: '3년', score: '4.4', applied: '2026.03.08' },
-  { id: 11, name: '심예린', posting: '데이터 엔지니어', stage: '서류 검토', career: '2년', score: '3.9', applied: '2026.03.02' },
-  { id: 12, name: '곽민준', posting: '백엔드 개발자 (신입)', stage: '지원 접수', career: '신입', score: '—', applied: '2026.03.01' },
-]
-
 const FIELDS = ['전체', '이름', '공고'] as const
-const TOTAL = '1,248'
+type Field = (typeof FIELDS)[number]
 
-/* 색은 판단에만 (05-design §1) — 진행 중은 무채, 합격만 연두, 불합격만 적갈 */
-function stageClass(stage: Stage) {
-  if (stage === '최종 합격') return styles.stageAccepted
-  if (stage === '불합격') return styles.stageRejected
-  return styles.stageProgress
+const PAGE_SIZE = 20
+
+const TONE_CLASS = {
+  progress: styles.stageProgress,
+  accepted: styles.stageAccepted,
+  rejected: styles.stageRejected,
 }
 
 export default function Applicants() {
-  const [field, setField] = useState<(typeof FIELDS)[number]>('전체')
+  const [field, setField] = useState<Field>('전체')
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  /* 타이핑마다 서버를 때리지 않는다. 10만 건 검색은 한 번이 비싸다. */
+  const [term, setTerm] = useState('')
+  const [page, setPage] = useState(0)
 
-  const list = useMemo(() => {
-    const term = q.trim().toLowerCase()
-    if (!term) return MOCK
-    return MOCK.filter((a) => {
-      const hay = field === '이름' ? a.name : field === '공고' ? a.posting : `${a.name} ${a.posting}`
-      return hay.toLowerCase().includes(term)
-    })
-  }, [q, field])
+  const [rows, setRows] = useState<ApplicationListItem[] | null>(null)
+  const [total, setTotal] = useState<number | null>(null)
+  const [tookMs, setTookMs] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [postingMap, setPostingMap] = useState<Map<number, Posting>>(new Map())
+
+  const debounce = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    window.clearTimeout(debounce.current)
+    debounce.current = window.setTimeout(() => {
+      setTerm(q.trim())
+      setPage(0)
+    }, 300)
+    return () => window.clearTimeout(debounce.current)
+  }, [q])
+
+  /* 공고명은 목록에 없다 — 지원자 행은 job_posting_id 만 준다. 한 번 받아 두고 이름을 붙인다 */
+  useEffect(() => {
+    const ac = new AbortController()
+    postingsApi
+      .list(ac.signal)
+      .then((list) => setPostingMap(new Map(list.map((p) => [p.id, p]))))
+      .catch(() => {
+        /* 공고 이름을 못 받아도 목록 자체는 보여 준다 */
+      })
+    return () => ac.abort()
+  }, [])
+
+  /* "공고" 검색은 서버 q 가 이름·이메일만 보므로 posting_id 로 바꿔 보낸다.
+     API 가 공고를 하나만 받아서, 여러 개가 걸리면 첫 번째만 쓴다. */
+  const postingIdFilter = useMemo(() => {
+    if (field !== '공고' || term === '') return undefined
+    const hit = [...postingMap.values()].find((p) =>
+      p.title.toLowerCase().includes(term.toLowerCase()),
+    )
+    return hit?.id ?? -1 // 걸리는 공고가 없으면 빈 결과가 되도록 없는 id 를 보낸다
+  }, [field, term, postingMap])
+
+  useEffect(() => {
+    const ac = new AbortController()
+    setError(null)
+    applications
+      .search(
+        {
+          q: field === '공고' ? undefined : term || undefined,
+          posting_id: postingIdFilter,
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+          with_total: true,
+        },
+        ac.signal,
+      )
+      .then((res) => {
+        setRows(res.items)
+        setTotal(res.total)
+        setTookMs(res.took_ms)
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
+        setError(err instanceof ApiError ? err.message : '지원자를 불러오지 못했습니다')
+      })
+    return () => ac.abort()
+  }, [term, field, postingIdFilter, page])
+
+  const pages = total === null ? 1 : Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const from = page * PAGE_SIZE + 1
+  const to = page * PAGE_SIZE + (rows?.length ?? 0)
 
   return (
     <>
@@ -78,7 +119,7 @@ export default function Applicants() {
                   role="option"
                   aria-selected={f === field}
                   className={f === field ? styles.ddSel : undefined}
-                  onClick={() => { setField(f); setOpen(false) }}
+                  onClick={() => { setField(f); setOpen(false); setPage(0) }}
                 >
                   {f}
                 </li>
@@ -98,8 +139,12 @@ export default function Applicants() {
             </button>
           )}
         </div>
-        {/* 10만 건 검색 무대라 응답 시간을 표기한다 (05-design §0.5) */}
-        <span className={styles.meta}>{q ? `${list.length}건` : `${TOTAL}건`} · 0.14초</span>
+        {/* 10만 건 검색 무대라 응답 시간을 표기한다 (05-design §0.5).
+            숫자는 서버가 잰 took_ms 다 — 화면이 지어내지 않는다 */}
+        <span className={styles.meta}>
+          {total === null ? '—' : `${total.toLocaleString()}건`}
+          {tookMs !== null && ` · ${(tookMs / 1000).toFixed(2)}초`}
+        </span>
       </div>
 
       <main className="page-content">
@@ -113,32 +158,49 @@ export default function Applicants() {
             <span className={styles.num}>지원일</span>
           </div>
 
-          {list.map((a) => (
+          {rows?.map((a) => (
             <div key={a.id} className={`${styles.row} ${styles.item}`} tabIndex={0}>
               <span className={styles.name}>{a.name}</span>
-              <span className={styles.posting}>{a.posting}</span>
-              <span className={stageClass(a.stage)}>{a.stage}</span>
-              <span className={styles.num}>{a.career}</span>
-              <span className={styles.num}>{a.score}</span>
-              <span className={styles.num}>{a.applied}</span>
+              <span className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
+              <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
+              <span className={styles.num}>{careerText(a.career_years)}</span>
+              {/* 서버는 sort=score 로 부를 때만 평균을 채운다. 지원일순인 이 화면에서는
+                  아직 못 받는다 — 목업이 미평가에 쓰는 표기를 그대로 둔다 */}
+              <span className={styles.num}>{a.avg_score === null ? '—' : a.avg_score.toFixed(1)}</span>
+              <span className={styles.num}>{fmtDate(a.created_at)}</span>
             </div>
           ))}
 
-          {list.length === 0 && (
-            <p className={styles.empty}>검색 결과가 없습니다.</p>
+          {error !== null && <p className={styles.empty} role="alert">{error}</p>}
+          {error === null && rows === null && <p className={styles.empty}>불러오는 중…</p>}
+          {error === null && rows?.length === 0 && (
+            <p className={styles.empty}>{term ? '검색 결과가 없습니다.' : '등록된 지원자가 없습니다.'}</p>
           )}
 
-          <div className={styles.foot}>
-            <span>{q ? `${list.length}명` : `${TOTAL}명 중 1–${list.length}`}</span>
-            {!q && (
+          {rows !== null && rows.length > 0 && (
+            <div className={styles.foot}>
+              <span>{total === null ? `${rows.length}명` : `${total.toLocaleString()}명 중 ${from}–${to}`}</span>
               <span className={styles.pager}>
-                <button type="button" className={styles.page} disabled>이전</button>
-                <button type="button" className={`${styles.page} ${styles.pageCur}`}>1</button>
-                <button type="button" className={styles.page}>2</button>
-                <button type="button" className={styles.page}>다음</button>
+                <button
+                  type="button"
+                  className={styles.page}
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  이전
+                </button>
+                <button type="button" className={`${styles.page} ${styles.pageCur}`}>{page + 1}</button>
+                <button
+                  type="button"
+                  className={styles.page}
+                  disabled={page + 1 >= pages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  다음
+                </button>
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </main>
     </>

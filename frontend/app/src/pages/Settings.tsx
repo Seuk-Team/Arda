@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import PageHead from '../components/PageHead'
+import { useAuth } from '../auth/AuthContext'
+import { ROLE_LABEL } from '../lib/stage'
 import styles from './Settings.module.css'
 
 /* 내 계정 / 사용자·권한(관리자) / 메일 템플릿 (05-design §0.5) */
 const TABS = ['내 계정', '사용자·권한', '메일 템플릿'] as const
 
+/* 사용자 목록 API 가 아직 없다 (02-api.md 인증 절에 signup/login/me 뿐).
+   관리자 화면이라 만들어 낼 수 없어 목데이터를 유지한다. */
 const USERS = [
   { id: 1, name: '김채용', email: 'admin@arda.com', role: '관리자', active: true },
   { id: 2, name: '이서연', email: 'recruiter1@arda.com', role: '채용담당자', active: true },
@@ -18,6 +22,7 @@ const MAIL_STAGES = ['서류 검토', '면접', '최종 합격', '불합격'] as
 const DRAFT = '(문구 작성 중)'
 
 export default function Settings() {
+  const { user } = useAuth()
   const [tab, setTab] = useState<(typeof TABS)[number]>('내 계정')
   const [stage, setStage] = useState<(typeof MAIL_STAGES)[number]>('서류 검토')
 
@@ -43,19 +48,28 @@ export default function Settings() {
           <div role="tabpanel" className={styles.form}>
             <div className={styles.field}>
               <label htmlFor="f-name">이름</label>
-              <input className={styles.input} id="f-name" type="text" defaultValue="김채용" />
+              <input className={styles.input} id="f-name" type="text" value={user?.name ?? ''} readOnly />
             </div>
             <div className={styles.field}>
               <label htmlFor="f-email">이메일</label>
-              <input className={styles.input} id="f-email" type="email" defaultValue="admin@arda.com" />
+              <input className={styles.input} id="f-email" type="email" value={user?.email ?? ''} readOnly />
             </div>
             <div className={styles.field}>
               <label htmlFor="f-role">역할</label>
               {/* 역할은 관리자가 사용자·권한에서 바꾼다 — 여기서는 읽기 전용 */}
-              <input className={styles.input} id="f-role" type="text" defaultValue="관리자" disabled />
+              <input
+                className={styles.input}
+                id="f-role"
+                type="text"
+                value={user ? ROLE_LABEL[user.role] : ''}
+                disabled
+              />
             </div>
+            {/* 값은 GET /auth/me 다. 고치는 API 가 아직 없어(02-api.md 인증 절)
+                메일 템플릿 탭과 같은 방식으로 저장을 잠가 둔다. */}
+            <p className={styles.note}>내 정보 수정 API가 아직 없어 저장할 수 없습니다.</p>
             <div className={styles.formActions}>
-              <button type="button" className="btn btn-primary">저장</button>
+              <button type="button" className="btn btn-primary" disabled>저장</button>
             </div>
           </div>
         )}

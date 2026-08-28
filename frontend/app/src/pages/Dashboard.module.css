@@ -358,3 +358,11 @@
   margin-left: var(--sp-5);
   flex-shrink: 0;
 }
+
+/* loading / empty / error 공용 자리 (05-design §6) */
+.state {
+  padding: var(--sp-5);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  word-break: keep-all;
+}
