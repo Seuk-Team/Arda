@@ -27,6 +27,8 @@ class SttResponse(BaseModel):
     raw: str
     resolved: str
     duration_ms: int
+    audio_duration_sec: float
+    cost_usd: float
 
 
 class SummaryOut(BaseModel):

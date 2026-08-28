@@ -15,13 +15,20 @@ from app.agent.entity_resolver import resolve_entities
 logger = logging.getLogger(__name__)
 
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+WHISPER_PRICE_PER_MINUTE = 0.006
+
+
+def _estimate_stt_cost(audio_duration_sec: float) -> float:
+    return audio_duration_sec / 60.0 * WHISPER_PRICE_PER_MINUTE
 
 
 def transcribe(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """오디오 바이트를 Whisper로 전사하고 엔티티 해석을 적용한다.
 
     Returns:
-        {"raw": 원본 전사, "resolved": 전처리 결과, "duration_ms": 처리 시간}
+        {"raw": 원본 전사, "resolved": 전처리 결과,
+         "duration_ms": 처리 시간, "audio_duration_sec": 오디오 길이,
+         "cost_usd": 추정 비용}
     """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -43,6 +50,9 @@ def transcribe(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     raw_text = response.text.strip()
     resolved_text = resolve_entities(raw_text)
 
+    audio_duration_sec = getattr(response, "duration", 0.0) or 0.0
+    cost = _estimate_stt_cost(audio_duration_sec)
+
     logger.info(
         "stt_transcribe",
         extra={
@@ -50,6 +60,8 @@ def transcribe(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
             "raw_length": len(raw_text),
             "resolved_length": len(resolved_text),
             "duration_ms": elapsed_ms,
+            "audio_duration_sec": round(audio_duration_sec, 2),
+            "cost_usd": round(cost, 6),
         },
     )
 
@@ -57,4 +69,6 @@ def transcribe(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
         "raw": raw_text,
         "resolved": resolved_text,
         "duration_ms": elapsed_ms,
+        "audio_duration_sec": round(audio_duration_sec, 2),
+        "cost_usd": round(cost, 6),
     }

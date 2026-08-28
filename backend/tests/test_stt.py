@@ -7,12 +7,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.agent.stt import transcribe
+from app.agent.stt import _estimate_stt_cost, transcribe
 
 
 @dataclass
 class FakeTranscription:
     text: str = ""
+    duration: float = 10.0
 
 
 class TestTranscribeNoKey:
@@ -43,6 +44,8 @@ class TestTranscribeWithMock:
         assert "raw" in result
         assert "resolved" in result
         assert "duration_ms" in result
+        assert "audio_duration_sec" in result
+        assert "cost_usd" in result
 
     def test_raw_matches_whisper_output(self):
         result = self._run("  김도현 파이썬 이년 경력  ")
@@ -104,6 +107,33 @@ class TestTranscribeWithMock:
         result = self._run("   ")
         assert result["raw"] == ""
         assert result["resolved"] == ""
+
+
+class TestSttCost:
+    """STT 비용 추정 검증."""
+
+    def test_one_minute(self):
+        assert _estimate_stt_cost(60.0) == pytest.approx(0.006)
+
+    def test_ten_seconds(self):
+        assert _estimate_stt_cost(10.0) == pytest.approx(0.001)
+
+    def test_zero(self):
+        assert _estimate_stt_cost(0.0) == 0.0
+
+    def test_cost_in_result(self):
+        fake_resp = FakeTranscription(text="테스트", duration=30.0)
+        mock_client = MagicMock()
+        mock_client.audio.transcriptions.create.return_value = fake_resp
+
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}),
+            patch("openai.OpenAI", return_value=mock_client),
+        ):
+            result = transcribe(b"audio")
+
+        assert result["audio_duration_sec"] == 30.0
+        assert result["cost_usd"] == pytest.approx(0.003)
 
 
 class TestTranscribeKeyPresent:
