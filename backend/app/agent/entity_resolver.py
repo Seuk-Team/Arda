@@ -83,6 +83,15 @@ def _parse_native(text: str) -> int | None:
     return total if total > 0 else None
 
 
+_SINO_FALSE_POSITIVES = frozenset({
+    "이번", "이점", "이대",
+    "사건", "사회", "사원", "사장", "사대", "사채",
+    "오일",
+    "일대", "일원",
+    "구원", "구명",
+})
+
+
 def normalize_numbers(text: str) -> str:
     """텍스트 속 한글 수사를 아라비아 숫자로 변환.
 
@@ -90,8 +99,18 @@ def normalize_numbers(text: str) -> str:
     '삼백이십오 명'  → '325 명'
     """
     def _replace_sino(m: re.Match) -> str:
-        v = _parse_sino(m.group())
-        return str(v) if v is not None else m.group()
+        matched = m.group()
+
+        if len(matched) >= 2 and not any(ch in _SINO_SCALES for ch in matched):
+            return matched
+
+        if len(matched) == 1:
+            after = text[m.end():].lstrip()
+            if after and matched + after[0] in _SINO_FALSE_POSITIVES:
+                return matched
+
+        v = _parse_sino(matched)
+        return str(v) if v is not None else matched
 
     def _replace_native(m: re.Match) -> str:
         v = _parse_native(m.group())

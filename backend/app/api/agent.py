@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status as htt
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent.entity_resolver import resolve_entities
 from app.agent.prompts import render
 from app.agent.runtime import run_agent
 from app.agent.summarizer import generate_summary
@@ -101,9 +102,10 @@ def chat(
 ):
     """에이전트 채팅 (M3). 읽기 도구로 지원자 검색·조회를 돕는다."""
     system_prompt, _ = render("agent")
+    message = resolve_entities(body.message)
 
     result = run_agent(
-        message=body.message,
+        message=message,
         history=body.history,
         db=db,
         user=user,

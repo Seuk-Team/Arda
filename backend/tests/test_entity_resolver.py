@@ -41,6 +41,38 @@ class TestNormalizeNumbers:
     def test_arabic_untouched(self):
         assert normalize_numbers("경력 3년 이상") == "경력 3년 이상"
 
+    def test_false_positive_이번(self):
+        assert normalize_numbers("이번 면접에서 확인해주세요") == "이번 면접에서 확인해주세요"
+
+    def test_false_positive_사건(self):
+        assert normalize_numbers("해당 사건은 종료됐습니다") == "해당 사건은 종료됐습니다"
+
+    def test_false_positive_이점(self):
+        assert normalize_numbers("이 시스템의 이점을 설명해주세요") == "이 시스템의 이점을 설명해주세요"
+
+    def test_false_positive_사회(self):
+        assert normalize_numbers("사회 경험이 풍부합니다") == "사회 경험이 풍부합니다"
+
+    def test_false_positive_사원(self):
+        assert normalize_numbers("신입 사원 채용") == "신입 사원 채용"
+
+    def test_false_positive_이대(self):
+        assert normalize_numbers("이대 졸업") == "이대 졸업"
+
+    def test_false_positive_사장(self):
+        assert normalize_numbers("사장님과 면담") == "사장님과 면담"
+
+    def test_false_positive_multi_unit_이사(self):
+        assert normalize_numbers("이사회에서 결정") == "이사회에서 결정"
+
+    def test_real_number_still_converts(self):
+        assert normalize_numbers("경력 이년 이상") == "경력 2년 이상"
+
+    def test_real_number_with_false_positive_mixed(self):
+        result = normalize_numbers("이번 면접에서 삼년 경력자 찾아줘")
+        assert "이번" in result
+        assert "3년" in result
+
 
 # ── 기술 용어 음차 정규화 ────────────────────────────────
 
