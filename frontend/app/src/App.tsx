@@ -5,6 +5,7 @@ import RequireAuth from './auth/RequireAuth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
+import PostingApplicants from './pages/PostingApplicants'
 import Applicants from './pages/Applicants'
 import Interviews from './pages/Interviews'
 import Evaluations from './pages/Evaluations'
@@ -19,6 +20,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/postings" element={<Postings />} />
+            <Route path="/postings/:id" element={<PostingApplicants />} />
             <Route path="/applicants" element={<Applicants />} />
             <Route path="/interviews" element={<Interviews />} />
             <Route path="/evaluations" element={<Evaluations />} />

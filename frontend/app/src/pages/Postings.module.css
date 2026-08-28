@@ -74,3 +74,8 @@
   color: var(--text-sub);
   word-break: keep-all;
 }
+
+/* 행 = 그 공고의 지원자 화면으로 (05-design §0.5) */
+.clickable {
+  cursor: pointer;
+}

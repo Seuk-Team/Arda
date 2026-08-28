@@ -183,3 +183,85 @@
   color: var(--text-sub);
   padding: var(--sp-6) 0;
 }
+
+/* 시간대 선택 — mockup-interviews.html 의 .dd 규격과 같다 */
+.dd {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 36px;
+}
+
+.ddBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ddBtn:hover { background: var(--bg-sunken); }
+.ddBtn:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.ddBtn svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.ddOpen .ddBtn svg { transform: rotate(180deg); }
+
+.ddMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 120px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  z-index: var(--z-dropdown, 20);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  box-shadow: 0 8px 28px rgba(27, 33, 23, 0.14), 0 2px 6px rgba(27, 33, 23, 0.06);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+
+.ddOpen .ddMenu {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ddMenu li {
+  padding: 10px var(--sp-3);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: var(--font-sm);
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ddMenu li:hover { background: #EFF7E2; }
+.ddSel { color: var(--leaf); font-weight: 700; }

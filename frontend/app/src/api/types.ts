@@ -81,3 +81,31 @@ export interface ApplicationDetail {
   created_at: string
   avg_score: number | null
 }
+
+export interface Note {
+  id: number
+  application_id: number
+  author_id: number
+  author_name: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export interface StageChangeOut {
+  application_id: number
+  from_stage: Stage
+  to_stage: Stage
+  changed_by: number
+  changed_at: string
+  /* 지원자에게 통지 메일이 큐에 올라갔는지 (G1) */
+  mail_queued: boolean
+}
+
+export interface BulkStageOut {
+  changed: number
+  changed_ids: number[]
+  /* 이미 그 단계였던 건. 실패가 아니다 */
+  skipped: number[]
+  mail_queued: number
+}

@@ -3,8 +3,11 @@ import { api } from './client'
 import type {
   ApplicationDetail,
   AssignedApplications,
+  BulkStageOut,
+  Note,
   Posting,
   SearchResult,
+  StageChangeOut,
   Stage,
   TokenResponse,
   User,
@@ -19,6 +22,8 @@ export const auth = {
 export const postings = {
   /* GET /postings 는 봉투 없이 배열을 그대로 준다 (backend/app/api/postings.py) */
   list: (signal?: AbortSignal) => api.get<Posting[]>('/postings', { signal }),
+
+  get: (id: number, signal?: AbortSignal) => api.get<Posting>(`/postings/${id}`, { signal }),
 }
 
 interface SearchQuery {
@@ -47,6 +52,23 @@ export const applications = {
     })
     return res.total ?? 0
   },
+}
+
+export const notes = {
+  list: (applicationId: number, signal?: AbortSignal) =>
+    api.get<Note[]>(`/applications/${applicationId}/notes`, { signal }),
+  create: (applicationId: number, body: string) =>
+    api.post<Note>(`/applications/${applicationId}/notes`, { body }),
+}
+
+export const stages = {
+  /* 단계 변경 (D3). rejected 는 사유가 없으면 422 다 (D8) */
+  change: (applicationId: number, to_stage: Stage, reason?: string) =>
+    api.patch<StageChangeOut>(`/applications/${applicationId}/stage`, { to_stage, reason: reason || null }),
+
+  /* 여러 명 한 번에 (D9). 전부 성공하거나 전부 롤백된다 */
+  bulk: (application_ids: number[], to_stage: Stage, reason?: string) =>
+    api.post<BulkStageOut>('/applications/bulk-stage', { application_ids, to_stage, reason: reason || null }),
 }
 
 export const evaluations = {

@@ -34,3 +34,14 @@ export const ROLE_LABEL: Record<'admin' | 'recruiter' | 'interviewer', string> =
   recruiter: '채용담당자',
   interviewer: '면접관',
 }
+
+/* "면접으로" / "서류 검토로" — 받침 유무로 조사를 고른다.
+   한글 음절은 0xAC00 부터 28 개씩 묶이고, 그 안의 0 번이 받침 없는 글자다. */
+export function withRo(word: string): string {
+  const last = word.charCodeAt(word.length - 1)
+  const isHangul = last >= 0xac00 && last <= 0xd7a3
+  const hasBatchim = isHangul && (last - 0xac00) % 28 !== 0
+  // ㄹ 받침(코드 8)은 "로" 를 쓴다 — "서울로" 처럼
+  const isRieul = isHangul && (last - 0xac00) % 28 === 8
+  return word + (hasBatchim && !isRieul ? '으로' : '로')
+}

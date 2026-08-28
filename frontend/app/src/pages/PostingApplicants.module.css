@@ -1,0 +1,553 @@
+/* mockup.html 의 공고의 지원자 화면 규격을 옮긴 것 (§12-1 시안 복제).
+   값은 전부 토큰이다 — 새 색·새 간격을 만들지 않았다. */
+
+.head {
+  flex: none;
+  background: var(--bg-elev);
+  border-bottom: var(--border-w) solid var(--border);
+  padding: var(--sp-4) var(--content-x);
+}
+
+.headTop {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  min-height: calc(96px - var(--sp-4) * 2);
+}
+
+.title {
+  font-size: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  line-height: 1.2;
+  /* 긴 공고명은 두 줄까지. 한 덩어리인 말이 쪼개지지 않게 balance (§2·§7) */
+  min-width: 0;
+  word-break: keep-all;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.back {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.back:hover { background: var(--bg-sunken); }
+.back:active { background: var(--sunken-hover); }
+.back:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.back svg {
+  width: 20px;
+  height: 20px;
+  stroke: var(--text);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.meta {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+  flex: none;
+  margin-left: auto;
+}
+
+/* ── 단계 퍼널 = 단계 필터 ───────────────────────────── */
+.funnel {
+  display: grid;
+  column-gap: 2px;
+  margin-top: var(--sp-4);
+}
+
+.seg {
+  height: 14px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.seg:hover { opacity: 0.75; }
+.seg:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+/* 고른 단계는 남기고 나머지를 죽인다 — 색을 더 만들지 않고 대비로 표시한다 */
+.segOn { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.flabels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-3);
+}
+
+.flabel {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.flabel b {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ── 툴바 ────────────────────────────────────────────── */
+.toolbar {
+  flex: none;
+  min-height: 64px;
+  background: var(--bg-elev);
+  border-bottom: var(--border-w) solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--content-x);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 1 480px;
+  min-width: 260px;
+  height: 40px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid transparent;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.search:focus-within {
+  background: var(--bg-elev);
+  border-color: var(--leaf);
+}
+
+.search input {
+  border: none;
+  background: none;
+  outline: none;
+  width: 100%;
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.search input::placeholder { color: var(--text-sub); }
+
+.sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex: none;
+}
+
+.sx {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  background: none;
+  border: var(--border-w) solid var(--text-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.sx:hover { background: var(--bg-sunken); }
+.sx:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.sx svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* ── 검색 대상 드롭다운 ──────────────────────────────── */
+.dd {
+  position: relative;
+  flex: none;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.ddBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  height: 100%;
+}
+
+.ddBtn span {
+  width: calc(var(--font-sm) * 3);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ddBtn:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.ddBtn svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-base) var(--ease);
+}
+
+.ddOpen .ddBtn svg { transform: rotate(180deg); }
+
+.ddMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: calc(-1 * var(--sp-3));
+  min-width: 132px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  z-index: var(--z-dropdown, 20);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--sh-overlay, 0 8px 28px rgba(27, 33, 23, 0.14));
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+
+.ddOpen .ddMenu {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.ddMenu li {
+  padding: 10px var(--sp-3);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: var(--font-sm);
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ddMenu li:hover { background: #EFF7E2; }
+.ddSel { color: var(--leaf); font-weight: 700; }
+
+/* 고른 단계를 알려 주고 해제까지 겸한다 (면접 일정 화면의 슬롯 칩과 같은 방식) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 32px;
+  padding: 0 var(--sp-3);
+  flex: none;
+  border-radius: 999px;
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-sunken);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.chip:hover { background: var(--sunken-hover); }
+.chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+/* ── 목록/칸반 토글 ──────────────────────────────────── */
+.vtoggle {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  height: 40px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  overflow: hidden;
+}
+
+.vtoggle button {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0 var(--sp-4);
+  border: none;
+  background: var(--bg-elev);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.vtoggle button:hover:not(:disabled) { background: var(--bg-sunken); }
+.vtoggle button:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.vtoggle button + button { border-left: var(--border-w) solid var(--border); }
+
+.vtoggle button:disabled {
+  color: var(--text-sub);
+  cursor: not-allowed;
+}
+
+.vOn {
+  background: #EFF7E2 !important;
+  color: var(--leaf) !important;
+  text-shadow: var(--ts-heading);
+}
+
+/* ── 표 ──────────────────────────────────────────────── */
+.panel {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  overflow: hidden;
+}
+
+.row {
+  display: grid;
+  align-items: center;
+  gap: var(--sp-3);
+  grid-template-columns: minmax(120px, 1.2fr) 96px 72px minmax(160px, 1.4fr) 72px 108px;
+  padding: 0 var(--sp-6);
+}
+
+.thead {
+  height: 48px;
+  border-bottom: var(--border-w) solid var(--border);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.thead span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item {
+  height: 56px;
+  border-bottom: var(--border-w) solid var(--border-soft);
+  font-size: var(--font-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.item:hover { background: #F6F9F2; }
+.item:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+
+.name {
+  font-size: var(--font-body);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.email {
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stageProgress { color: var(--text-sub); white-space: nowrap; }
+.stageAccepted { color: var(--leaf); font-weight: 700; white-space: nowrap; }
+.stageRejected { color: var(--danger); font-weight: 700; white-space: nowrap; }
+
+/* loading / empty / error 공용 자리 (§6) */
+.state {
+  padding: var(--sp-6);
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-6);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager { display: flex; gap: var(--sp-2); }
+
+.page {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.page:hover:not(:disabled) { background: var(--bg-sunken); }
+.page:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.page:disabled {
+  color: var(--text-sub);
+  cursor: not-allowed;
+}
+
+.pageCur {
+  background: #EFF7E2;
+  color: var(--leaf);
+  font-weight: 700;
+  border-color: #8CC63F;
+}
+
+/* 상세 패널이 열리면 옆에 나란히 (오버레이 아님, §9) */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.body > main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── 일괄 단계 변경 (D9) ─────────────────────────────── */
+.bulkbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--content-x);
+  background: #EFF7E2;
+  border-bottom: var(--border-w) solid #8CC63F;
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.bulkCount { font-weight: 700; white-space: nowrap; }
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+
+.bulkReason {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.bulkReason input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.bulkReason input:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+
+.bulkErr {
+  width: 100%;
+  font-size: var(--font-sm);
+  color: var(--danger);
+  word-break: keep-all;
+}
+
+/* 체크박스 칸이 생기면서 열이 하나 늘어난다 */
+.rowSel {
+  grid-template-columns: 32px minmax(120px, 1.2fr) 96px 72px minmax(160px, 1.4fr) 72px 108px;
+}
+
+.row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--leaf);
+  cursor: pointer;
+  margin: 0;
+}
+
+/* 패널에 물려 있는 행 — .vtoggle button.on 과 같은 연두 워시다. 새 색이 아니다 */
+.cur, .cur:hover { background: #EFF7E2; }
+
+/* 일괄 변경 버튼 — 상세 패널의 단계 버튼과 같은 규격 */
+.btnStage,
+.btnReject {
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.btnStage:hover:not(:disabled) { background: var(--bg-sunken); }
+.btnStage:focus-visible,
+.btnReject:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+/* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
+.btnReject { color: var(--danger); border-color: var(--danger); }
+.btnReject:hover:not(:disabled) { background: #F7EFED; }
+
+.btnStage:disabled,
+.btnReject:disabled {
+  color: var(--text-sub);
+  border-color: var(--border);
+  cursor: not-allowed;
+}

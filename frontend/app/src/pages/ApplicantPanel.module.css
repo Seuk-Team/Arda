@@ -1,0 +1,254 @@
+/* mockup.html 의 .dpanel 규격 (§12-1 시안 복제).
+   flex 자식이라 열리면 콘텐츠가 밀린다 — 오버레이가 아니다.
+   1100px 이하에서만 화면을 덮는다 (§9). */
+
+.panel {
+  flex: none;
+  width: 420px;
+  background: var(--bg-elev);
+  border-left: var(--border-w) solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.inner {
+  width: 420px;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 1100px) {
+  .panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: 0 8px 28px rgba(27, 33, 23, 0.14);
+  }
+}
+
+.close {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  z-index: var(--z-sticky, 10);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.close:hover { background: var(--bg-sunken); }
+.close:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+.close svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--text);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky, 10);
+  background: var(--bg-elev);
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  padding-right: 72px;
+}
+
+.name {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  min-width: 0;
+  word-break: keep-all;
+  /* 긴 이름이 잘리지 않게 두 줄까지. 한 덩어리인 성이 쪼개지지 않게 balance (§7) */
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stageProgress { color: var(--text-sub); white-space: nowrap; flex: none; }
+.stageAccepted { color: var(--leaf); font-weight: 700; white-space: nowrap; flex: none; }
+.stageRejected { color: var(--danger); font-weight: 700; white-space: nowrap; flex: none; }
+
+.sec {
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+
+.sec h2 {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  margin-bottom: var(--sp-3);
+}
+
+/* AI 제안 = 앰버 점선 (§1 불변 규약) */
+.aibox {
+  background: var(--ai-soft);
+  border: var(--border-w) dashed var(--ai);
+  border-radius: var(--r-card);
+  padding: var(--sp-4);
+}
+
+.aicap {
+  font-size: var(--font-caption);
+  color: var(--ai);
+  margin-bottom: var(--sp-2);
+}
+
+.aibody {
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+  white-space: pre-wrap;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--sp-3) var(--sp-4);
+  font-size: var(--font-sm);
+}
+
+.list dt { color: var(--text-sub); white-space: nowrap; }
+.list dd { color: var(--text); word-break: keep-all; }
+
+/* ── 단계 변경 ───────────────────────────────────────── */
+.stageBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.btnStage,
+.btnReject {
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.btnStage:hover:not(:disabled) { background: var(--bg-sunken); }
+.btnStage:focus-visible,
+.btnReject:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+/* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
+.btnReject {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btnReject:hover:not(:disabled) { background: #F7EFED; }
+
+.btnStage:disabled,
+.btnReject:disabled {
+  color: var(--text-sub);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+
+.reasonBox {
+  margin-top: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.reasonBox label {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.input {
+  width: 100%;
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text);
+  resize: vertical;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+  border-color: var(--leaf);
+}
+
+.input:disabled { color: var(--text-sub); cursor: not-allowed; }
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sp-2);
+}
+
+.err {
+  margin-top: var(--sp-2);
+  font-size: var(--font-sm);
+  color: var(--danger);
+  word-break: keep-all;
+}
+
+/* ── 메모 ────────────────────────────────────────────── */
+.note {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: var(--border-w) solid var(--border-soft);
+}
+
+.nmeta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.nauthor { font-size: var(--font-sm); font-weight: 600; color: var(--text); }
+.ndate { font-size: var(--font-caption); color: var(--text-sub); font-variant-numeric: tabular-nums; }
+
+.nbody {
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+  white-space: pre-wrap;
+}
+
+.state {
+  padding: var(--sp-5);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  word-break: keep-all;
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { ApiError } from '../api/client'
 import { postings as postingsApi } from '../api/endpoints'
@@ -29,6 +30,7 @@ function deadlineText(p: Posting): string {
 }
 
 export default function Postings() {
+  const navigate = useNavigate()
   const [rows, setRows] = useState<Posting[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,7 +69,7 @@ export default function Postings() {
             </thead>
             <tbody>
               {rows?.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id} className={styles.clickable} onClick={() => navigate(`/postings/${p.id}`)}>
                   <td className={styles.name}>{p.title}</td>
                   <td>
                     <span className={`badge ${p.status === 'open' ? 'badge-open' : 'badge-closed'}`}>
