@@ -1,4 +1,8 @@
-/// 모바일 상단 바 — `mockup-mobile.html` 의 `.mbar` 를 옮긴 것.
+/// 모바일 상단 바 — 시안(2026-08-28).
+///
+/// 시안의 전 화면이 `[←] 화면 제목  [동작]` 형태다.
+/// 목업(`.mbar`)은 로고 `Arda` 를 달았지만, 화면이 여럿으로 늘면서 지금 어느
+/// 화면인지가 로고보다 중요해졌다. 로고는 로그인 화면에만 남는다.
 ///
 /// 05-design §9: 모바일에는 사이드바를 넣지 않는다. 상단 바가 그 자리를 대신한다.
 library;
@@ -8,11 +12,21 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
-  const AppTopBar({super.key, this.onSearchPressed});
+  const AppTopBar({
+    super.key,
+    required this.title,
+    this.showBack = false,
+    this.onSearchPressed,
+  });
+
+  final String title;
+
+  /// 공고 → 지원자로 파고들 때만 뒤로가기를 단다. 첫 화면에는 없다
+  final bool showBack;
 
   final VoidCallback? onSearchPressed;
 
-  /// `.mbar` 는 세로 패딩 `--sp-2`(8) + 터치 타깃 44 = 60
+  /// 터치 타깃 44 + 위아래 여백 8 = 60
   static const _height = AppLayout.minTouchTarget + AppSpace.s2 * 2;
 
   @override
@@ -35,19 +49,43 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         child: SizedBox(
           height: _height,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s2),
             child: Row(
               children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpace.s3),
-                  child: _Logo(),
+                if (showBack) ...[
+                  AppIconButton(
+                    icon: Icons.arrow_back,
+                    semanticLabel: '뒤로',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: AppSpace.s1),
+                ] else
+                  const SizedBox(width: AppSpace.s2),
+
+                Expanded(
+                  child: Text(
+                    title,
+                    // 05-design §7: 제목은 한 줄 ellipsis
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: const TextStyle(
+                      fontFamily: AppType.fontFamily,
+                      fontSize: AppType.h1,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.22,
+                      color: AppColors.text,
+                      shadows: AppTextShadow.heading,
+                    ),
+                  ),
                 ),
-                const Spacer(),
-                _IconButton(
-                  onPressed: onSearchPressed,
-                  semanticLabel: '검색',
-                  icon: Icons.search,
-                ),
+
+                if (onSearchPressed != null)
+                  AppIconButton(
+                    icon: Icons.search,
+                    semanticLabel: '검색',
+                    onPressed: onSearchPressed,
+                  ),
               ],
             ),
           ),
@@ -57,47 +95,18 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-/// 목업 `.logo` — 첫 글자 `A` 만 잎초록, 나머지는 잉크.
-class _Logo extends StatelessWidget {
-  const _Logo();
-
-  @override
-  Widget build(BuildContext context) {
-    const base = TextStyle(
-      fontFamily: AppType.fontFamily,
-      fontSize: AppType.h1,
-      fontWeight: FontWeight.w700,
-      letterSpacing: -0.22, // 목업 letter-spacing:-.01em × 22px
-      color: AppColors.text,
-      shadows: AppTextShadow.heading,
-    );
-
-    return Text.rich(
-      const TextSpan(
-        children: [
-          TextSpan(text: 'A', style: TextStyle(color: AppColors.leaf)),
-          TextSpan(text: 'rda'),
-        ],
-        style: base,
-      ),
-      maxLines: 1,
-      softWrap: false,
-    );
-  }
-}
-
-/// 목업 `.micon` — 44×44 터치 타깃, 테두리 1px, press 시 채움.
-/// 05-design §5: 모바일은 hover 없음 전제라 press 만 정의한다.
-class _IconButton extends StatelessWidget {
-  const _IconButton({
-    required this.onPressed,
-    required this.semanticLabel,
+/// 상단 바의 아이콘 버튼 — 44×44 터치 타깃(05-design §9), 테두리 없음.
+class AppIconButton extends StatelessWidget {
+  const AppIconButton({
+    super.key,
     required this.icon,
+    required this.semanticLabel,
+    required this.onPressed,
   });
 
-  final VoidCallback? onPressed;
-  final String semanticLabel;
   final IconData icon;
+  final String semanticLabel;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -105,20 +114,18 @@ class _IconButton extends StatelessWidget {
       button: true,
       label: semanticLabel,
       child: Material(
-        color: AppColors.bgElev,
-        shape: const RoundedRectangleBorder(
-          borderRadius: AppShape.ctl,
-          side: BorderSide(color: AppColors.border, width: AppShape.borderW),
-        ),
+        color: Colors.transparent,
+        shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
-          highlightColor: AppColors.sunkenHover,
-          splashColor: AppColors.sunkenHover,
+          // §5: 모바일은 hover 없음 전제 — press 만 정의한다
+          highlightColor: AppColors.bgSunken,
+          splashColor: AppColors.bgSunken,
           child: SizedBox(
             width: AppLayout.minTouchTarget,
             height: AppLayout.minTouchTarget,
-            child: Icon(icon, size: 20, color: AppColors.text),
+            child: Icon(icon, size: 24, color: AppColors.text),
           ),
         ),
       ),

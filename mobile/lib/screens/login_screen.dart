@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _submit() {
     // 큐 7번에서 POST /auth/login → 토큰 저장 → 실패 시 아래 오류 문구로 바뀐다
-    Navigator.pushReplacementNamed(context, Routes.applicants);
+    Navigator.pushReplacementNamed(context, Routes.postings);
   }
 
   @override

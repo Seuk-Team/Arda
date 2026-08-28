@@ -1,24 +1,24 @@
 /// 화면 이름과 경로. 화면이 늘어나면 여기에만 추가한다.
 ///
-/// 화면 구성은 05-design §0.5 화면 지도와 role/app.md §3 범위를 따른다.
-/// 앱은 웹의 전 화면을 옮기지 않는다 — 칸반·지원 폼은 앱 범위 밖이다.
+/// 화면 구성은 05-design §0.5 화면 지도와 role/app.md §3 범위,
+/// 그리고 시안(2026-08-28)을 따른다. 계층은 이렇다:
 ///
-/// **아직 앞에 붙지 않은 화면이 둘 있다.**
-/// - 로그인: 만든 뒤 큐 7번(실제 JWT 연동)에서 첫 화면으로 건다
-/// - 공고 리스트: 모바일 목업이 없어 대기 중. 나오면 지원자 리스트 앞에 끼운다
+///   공고 리스트 → 그 공고의 지원자 → 지원자 상세
 ///
-/// 그때까지 지원자 리스트가 첫 화면이다. 내용 없는 화면을 앱에 남겨 두지 않기
-/// 위해서다 — 뼈대용 빈 공고 화면은 역할이 끝나 지웠다(05-design §6 완성의 정의).
+/// 로그인은 만들어 뒀지만 아직 앞에 붙이지 않았다 — 큐 7번(실제 JWT 연동)에서
+/// 첫 화면으로 건다. 확인은 `flutter run --route=/login` 으로 한다.
 library;
 
 abstract final class Routes {
-  /// 지원자 리스트 — 현재의 첫 화면
-  static const applicants = '/';
+  /// 채용 공고 목록 — 앱의 첫 화면 (시안 5번)
+  static const postings = '/';
 
-  /// 로그인 — 아직 첫 화면이 아니다. 큐 7번(JWT 연동)에서 앞에 끼운다.
-  /// 확인은 flutter run --route=/login 으로 한다
+  /// 로그인 — 아직 첫 화면이 아니다
   static const login = '/login';
 
-  /// 지원자 상세
+  /// 한 공고의 지원자 리스트. 인자로 JobPosting 을 받는다
+  static const applicants = '/applicants';
+
+  /// 지원자 상세. 인자로 Applicant 를 받는다
   static const applicantDetail = '/applicants/detail';
 }

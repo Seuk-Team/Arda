@@ -4,7 +4,7 @@
 import 'package:arda/routes.dart';
 import 'package:arda/screens/login_screen.dart';
 import 'package:arda/theme/app_theme.dart';
-import 'package:arda/widgets/app_top_bar.dart';
+import 'package:arda/widgets/posting_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:arda/main.dart';
@@ -51,7 +51,7 @@ void main() {
   testWidgets('로그인하면 지원자 목록으로 넘어간다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
 
-    final ctx = tester.element(find.byType(AppTopBar));
+    final ctx = tester.element(find.byType(PostingCard).first);
     Navigator.pushNamed(ctx, Routes.login);
     await tester.pumpAndSettle();
 
@@ -62,7 +62,7 @@ void main() {
     await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(AppTopBar), findsOneWidget);
+    expect(find.byType(PostingCard), findsWidgets);
     expect(find.byType(LoginScreen), findsNothing);
   });
 }

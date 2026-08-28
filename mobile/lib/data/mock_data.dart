@@ -11,15 +11,36 @@ import '../models/applicant.dart';
 import '../models/job_posting.dart';
 import '../models/stage.dart';
 
-/// 목업 상단의 공고 — "백엔드 개발자 (신입) · 마감 D-12"
+/// 목업 상단의 공고 + 시안 5번의 공고 리스트 3건.
 ///
 /// 마감일은 고정 날짜라 D-day 표기는 실제 오늘 날짜에 따라 달라진다.
-/// 목업의 `D-12` 를 그대로 박아 두면 계산이 맞는지 확인할 수 없어 날짜로 뒀다.
-final mockPosting = JobPosting(
-  id: 1,
-  title: '백엔드 개발자 (신입)',
-  deadline: DateTime(2026, 9, 9),
-);
+/// 시안의 `D-12` 를 그대로 박아 두면 계산이 맞는지 확인할 수 없어 날짜로 뒀다.
+final mockPostings = <JobPosting>[
+  JobPosting(
+    id: 1,
+    title: '백엔드 개발자 (신입)',
+    status: PostingStatus.open,
+    deadline: DateTime(2026, 9, 9),
+  ),
+
+  // 05-design §7 극단값 — 긴 공고명이 두 줄로 잘리는지 보는 카드다 (시안 5번)
+  JobPosting(
+    id: 2,
+    title: '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 담당자',
+    status: PostingStatus.open,
+    deadline: DateTime(2026, 9, 18),
+  ),
+
+  JobPosting(
+    id: 3,
+    title: '데이터 엔지니어',
+    status: PostingStatus.closed,
+    deadline: DateTime(2026, 2, 10),
+  ),
+];
+
+/// 지원자 화면이 쓰는 기본 공고 (공고 리스트에서 고르기 전까지)
+final mockPosting = mockPostings.first;
 
 /// 목업 카드 6장. **순서도 목업 그대로**(최신 지원일 → 오래된 순).
 final mockApplicants = <Applicant>[
@@ -105,3 +126,27 @@ Map<Stage, int> stageCounts(List<Applicant> applicants) {
       stage: applicants.where((a) => a.currentStage == stage).length,
   };
 }
+
+/// 공고별 단계 인원 — 공고 리스트 카드의 퍼널 막대가 쓴다.
+///
+/// 1번 공고는 실제 목데이터(6명)에서 세고, 나머지 둘은 시안 5번의 숫자를 옮겼다.
+/// 지원자 목데이터는 1번 공고 것만 있다.
+Map<Stage, int> postingCounts(int jobPostingId) => switch (jobPostingId) {
+  1 => stageCounts(
+    mockApplicants.where((a) => a.jobPostingId == 1).toList(),
+  ),
+  2 => const {
+    Stage.applied: 9,
+    Stage.screening: 7,
+    Stage.interview: 4,
+    Stage.accepted: 1,
+    Stage.rejected: 1,
+  },
+  _ => const {
+    Stage.applied: 120,
+    Stage.screening: 210,
+    Stage.interview: 340,
+    Stage.accepted: 97,
+    Stage.rejected: 130,
+  },
+};
