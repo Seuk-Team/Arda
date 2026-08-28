@@ -65,3 +65,12 @@
   color: var(--text-sub);
   white-space: nowrap;
 }
+
+/* loading / empty / error 공용 자리 (§6) */
+.state {
+  padding: var(--sp-6);
+  text-align: center;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  word-break: keep-all;
+}

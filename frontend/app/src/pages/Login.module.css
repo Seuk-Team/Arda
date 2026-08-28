@@ -59,3 +59,16 @@
   outline-offset: 1px;
   border-color: var(--leaf);
 }
+
+/* 로그인 실패 문구. --danger 는 §1 확정 토큰 */
+.error {
+  font-size: var(--font-sm);
+  color: var(--danger);
+  word-break: keep-all;
+}
+
+.input:disabled {
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  cursor: not-allowed;
+}

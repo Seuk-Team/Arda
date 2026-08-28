@@ -1,0 +1,29 @@
+/* 로그인 화면과 같은 자리·같은 카드 규격 (Login.module.css 와 동일 기준) */
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--bg);
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  text-align: center;
+}
+
+.msg {
+  font-size: var(--font-body);
+  color: var(--text);
+  word-break: keep-all;
+}

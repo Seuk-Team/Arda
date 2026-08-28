@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
+import { AuthProvider } from './auth/AuthContext'
+import RequireAuth from './auth/RequireAuth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
@@ -10,17 +12,21 @@ import Settings from './pages/Settings'
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<Layout />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/postings" element={<Postings />} />
-        <Route path="/applicants" element={<Applicants />} />
-        <Route path="/interviews" element={<Interviews />} />
-        <Route path="/evaluations" element={<Evaluations />} />
-        <Route path="/settings" element={<Settings />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/postings" element={<Postings />} />
+            <Route path="/applicants" element={<Applicants />} />
+            <Route path="/interviews" element={<Interviews />} />
+            <Route path="/evaluations" element={<Evaluations />} />
+            <Route path="/settings" element={<Settings />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </AuthProvider>
   )
 }
