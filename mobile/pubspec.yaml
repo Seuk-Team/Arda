@@ -45,6 +45,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -105,3 +106,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# 앱 아이콘 생성 설정 — flutter_launcher_icons (개발용 도구, 앱에 포함되지 않는다)
+#
+# 원본 하나(assets/icon/app_icon.png)를 바꾸고 아래를 다시 돌리면 전 해상도가 갱신된다:
+#   dart run flutter_launcher_icons
+#
+# 캐릭터 "아르"는 임시다. 브랜드 아이콘 시안이 나오면 원본만 교체하면 된다.
+flutter_launcher_icons:
+  android: true
+  # iOS 는 빌드하지 않지만(ADR-0010) 아이콘 자산은 함께 맞춰 둔다 — 호환 유지 규율
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  remove_alpha_ios: true
+  # Android 8+ 적응형 아이콘. 배경은 05-design 의 --bg-elev(흰색)
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
