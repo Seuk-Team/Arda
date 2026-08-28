@@ -22,7 +22,7 @@ class PostingHeader extends StatelessWidget {
     final deadline = posting.deadlineLabel(today ?? DateTime.now());
 
     return Container(
-      padding: const EdgeInsets.all(AppSpace.s3),
+      padding: const EdgeInsets.all(AppSpace.s4),
       decoration: const BoxDecoration(
         color: AppColors.bgElev,
         border: Border(

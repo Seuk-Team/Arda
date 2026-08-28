@@ -33,7 +33,7 @@ class StageTabs extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.s3,
+          horizontal: AppSpace.s4,
           vertical: AppSpace.s2,
         ),
         child: Row(
@@ -81,7 +81,7 @@ class _Tab extends StatelessWidget {
           highlightColor: AppColors.bgSunken,
           splashColor: AppColors.bgSunken,
           child: Container(
-            height: AppLayout.minTouchTarget,
+            height: AppType.menuItemHeight,
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
             child: Text(

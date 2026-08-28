@@ -23,7 +23,7 @@ void main() {
     expect(find.byType(ApplicantDetailScreen), findsOneWidget);
 
     // 상세는 목업 .dclose 규격의 닫기 버튼으로 나온다
-    await tester.tap(find.bySemanticsLabel('상세 닫기'));
+    await tester.tap(find.bySemanticsLabel('뒤로'));
     await tester.pumpAndSettle();
     expect(find.byType(AppTopBar), findsOneWidget);
   });

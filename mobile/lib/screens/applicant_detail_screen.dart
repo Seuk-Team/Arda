@@ -21,27 +21,21 @@ class ApplicantDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgElev,
+      backgroundColor: AppColors.bg,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Header(applicant: applicant),
           Expanded(
             child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DetailSection(
-                    title: '지원 정보',
-                    child: DetailFieldList(
-                      fields: {
-                        '학력': applicant.education ?? '—',
-                        '경력': applicant.careerLabel,
-                        '지원일': formatDate(applicant.createdAt),
-                      },
-                    ),
-                  ),
-                ],
+              // 시안: 화면 여백 16dp
+              padding: const EdgeInsets.all(AppSpace.s4),
+              child: DetailFieldList(
+                fields: {
+                  '학력': applicant.education ?? '—',
+                  '경력': applicant.careerLabel,
+                  '지원일': formatDate(applicant.createdAt),
+                },
               ),
             ),
           ),
@@ -52,7 +46,11 @@ class ApplicantDetailScreen extends StatelessWidget {
   }
 }
 
-/// 목업 `.dhead` + `.dclose` — 이름·단계, 오른쪽 위에 닫기 버튼.
+/// 상세 헤더 — 시안(2026-08-28): 왼쪽 뒤로가기 · 이름 · 오른쪽 단계 칩.
+///
+/// 목업(.dhead)은 오른쪽 위 X 로 닫는 오버레이였지만, 시안은 전 화면이
+/// 왼쪽 뒤로가기(←)를 쓴다. 공고 → 지원자 → 상세로 파고드는 계층이라
+/// 안드로이드의 뒤로가기와 방향이 같다.
 class _Header extends StatelessWidget {
   const _Header({required this.applicant});
 
@@ -69,57 +67,47 @@ class _Header extends StatelessWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: Stack(
-          children: [
-            Padding(
-              // 목업 .dhead: 24 / 24 / 16, 닫기 버튼 자리로 오른쪽만 80
-              padding: const EdgeInsets.fromLTRB(
-                AppSpace.s5,
-                AppSpace.s5,
-                80,
-                AppSpace.s4,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  // 05-design §7: 긴 이름은 한 줄 ellipsis
-                  Flexible(
-                    child: Text(
-                      applicant.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                      style: const TextStyle(
-                        fontFamily: AppType.fontFamily,
-                        fontSize: AppType.h1,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.22,
-                        color: AppColors.text,
-                        shadows: AppTextShadow.heading,
-                      ),
-                    ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.s2,
+            AppSpace.s2,
+            AppSpace.s4,
+            AppSpace.s2,
+          ),
+          child: Row(
+            children: [
+              _BackButton(onPressed: () => Navigator.pop(context)),
+              const SizedBox(width: AppSpace.s2),
+              // 05-design §7: 긴 이름은 한 줄 ellipsis
+              Expanded(
+                child: Text(
+                  applicant.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: const TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.h1,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.22,
+                    color: AppColors.text,
+                    shadows: AppTextShadow.heading,
                   ),
-                  const SizedBox(width: AppSpace.s3),
-                  StageLabel(stage: applicant.currentStage),
-                ],
+                ),
               ),
-            ),
-            Positioned(
-              top: AppSpace.s4,
-              right: AppSpace.s4,
-              child: _CloseButton(onPressed: () => Navigator.pop(context)),
-            ),
-          ],
+              const SizedBox(width: AppSpace.s3),
+              StageLabel(stage: applicant.currentStage),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// 목업 `.dclose` — 44×44 터치 타깃.
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.onPressed});
+/// 뒤로가기 — 시안은 테두리 없는 맨 화살표다. 44×44 터치 타깃은 유지한다 (§9).
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
 
   final VoidCallback onPressed;
 
@@ -127,22 +115,20 @@ class _CloseButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '상세 닫기',
+      label: '뒤로',
       child: Material(
-        color: AppColors.bgElev,
-        shape: const RoundedRectangleBorder(
-          borderRadius: AppShape.ctl,
-          side: BorderSide(color: AppColors.border, width: AppShape.borderW),
-        ),
+        color: Colors.transparent,
+        shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
-          highlightColor: AppColors.sunkenHover,
-          splashColor: AppColors.sunkenHover,
+          // §5: 모바일은 hover 없음 전제 — press 만 정의한다
+          highlightColor: AppColors.bgSunken,
+          splashColor: AppColors.bgSunken,
           child: const SizedBox(
             width: AppLayout.minTouchTarget,
             height: AppLayout.minTouchTarget,
-            child: Icon(Icons.close, size: 18, color: AppColors.text),
+            child: Icon(Icons.arrow_back, size: 24, color: AppColors.text),
           ),
         ),
       ),

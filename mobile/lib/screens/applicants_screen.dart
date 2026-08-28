@@ -48,7 +48,7 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
           Expanded(
             // 목업 `.mlist` — 카드 사이 8px, 바깥 여백 12px
             child: ListView.separated(
-              padding: const EdgeInsets.all(AppSpace.s3),
+              padding: const EdgeInsets.all(AppSpace.s4),
               itemCount: applicants.length,
               separatorBuilder: (_, _) => const SizedBox(height: AppSpace.s2),
               itemBuilder: (_, i) => ApplicantCard(

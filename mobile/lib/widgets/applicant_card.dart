@@ -32,8 +32,8 @@ class ApplicantCard extends StatelessWidget {
         highlightColor: AppColors.bgSunken,
         splashColor: AppColors.bgSunken,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 72),
-          padding: const EdgeInsets.all(AppSpace.s3),
+          constraints: const BoxConstraints(minHeight: 88),
+          padding: const EdgeInsets.all(AppSpace.s4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
