@@ -6,6 +6,7 @@ import 'models/applicant.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
+import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -38,6 +39,7 @@ class ArdaApp extends StatelessWidget {
       initialRoute: Routes.applicants,
       routes: {
         Routes.applicants: (_) => const ApplicantsScreen(),
+        Routes.login: (_) => const LoginScreen(),
       },
       // 상세는 "어느 지원자인지"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
       onGenerateRoute: (settings) {

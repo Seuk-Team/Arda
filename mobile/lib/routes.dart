@@ -15,6 +15,10 @@ abstract final class Routes {
   /// 지원자 리스트 — 현재의 첫 화면
   static const applicants = '/';
 
+  /// 로그인 — 아직 첫 화면이 아니다. 큐 7번(JWT 연동)에서 앞에 끼운다.
+  /// 확인은 flutter run --route=/login 으로 한다
+  static const login = '/login';
+
   /// 지원자 상세
   static const applicantDetail = '/applicants/detail';
 }
