@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.3 · 2026-08-31** — v1.3: `users.role` 을 `admin`/`member` 2종으로 축소, A3(면접관 조회 제한) 폐지 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 테이블·컬럼 구조는 그대로다 — 바뀐 것은 `role` 의 허용값과 접근 규칙뿐.
+> **상태: 확정 v1.4 · 2026-08-31** — v1.4: 시맨틱 검색용 `application_embeddings` 를 문서에 반영 ([ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md)). 테이블은 코드에 먼저 들어가 있었고 이 문서가 비어 있었다 — 문서를 코드에 맞췄다.
+> v1.3 (2026-08-31): `users.role` 을 `admin`/`member` 2종으로 축소, A3(면접관 조회 제한) 폐지 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 테이블·컬럼 구조는 그대로다 — 바뀐 것은 `role` 의 허용값과 접근 규칙뿐.
 > v1.2 (2026-08-31): 면접 일정 자동화 3테이블 `interviewer_availability`·`schedule_proposals`·`schedule_slots` 추가 ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
 > v1.1 (2026-08-25): `job_postings.deadline`·`public_token`(B4·B6), `stage_history.reason`(D8) 추가 (팀장 승인)
 >
@@ -29,6 +30,7 @@ erDiagram
     users ||--o{ interviewer_availability : "가용 시간"
     applications ||--o{ schedule_proposals : "일정 제안"
     schedule_proposals ||--o{ schedule_slots : "후보 슬롯"
+    applications ||--o| application_embeddings : "임베딩"
 ```
 
 ## 단계(stage) — 고정 enum
@@ -237,3 +239,20 @@ erDiagram
 
 - UNIQUE `(proposal_id, interviewer_id, start_at)` — 같은 제안 안 중복 슬롯 방지
 - 슬롯은 생성 시점의 가용 시간 **스냅샷**이다 — 이후 면접관이 가용 시간을 지워도 이미 나간 제안은 유효(지원자가 보고 있는 선택지가 바뀌면 안 된다). 확정 시점에 겹침(같은 면접관의 다른 confirmed 슬롯)만 재검증한다.
+
+## application_embeddings — 시맨틱 검색용 벡터 (RAG · v1.4)
+
+지원서의 스킬·학력·경력·자기소개서를 하나로 이어 붙여 768차원 벡터 한 개로 만든 것. "Python 경험자 찾아줘" 같은 역량 검색이 여기를 탄다. ([ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md))
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| application_id | bigint | FK → applications.id, UNIQUE, NOT NULL | 지원서 1건당 벡터 1개 |
+| embedding | vector(768) | NOT NULL | pgvector 타입. `jhgan/ko-sroberta-multitask` 출력, 정규화됨 |
+| model_name | varchar(100) | NOT NULL | 만든 모델. 모델을 바꾸면 이 값으로 재생성 대상을 고른다 |
+| created_at | timestamptz | NOT NULL | |
+
+- 인덱스 `ix_application_embeddings_hnsw` — `USING hnsw (embedding vector_cosine_ops)`. 없으면 검색이 매번 전건 스캔이다
+- **pgvector 확장이 필요하다.** 확장이 없는 서버에서는 이 테이블을 만들지 않고 시맨틱 검색만 꺼진 채 API 가 뜬다 ([07-deploy](07-deploy.md) 2026-08-31 절 — 이걸 안 해서 API 가 재시작 루프에 빠진 적이 있다)
+- 생성 시점: 지원서 접수 백그라운드 작업 + 백필 CLI `python -m app.agent.embedder`. 서버 기동 시 자동 생성하지 않는다 (ADR-0011 비용 가드)
+- 이 테이블은 **파생 데이터**다 — 지우고 백필로 다시 만들 수 있다

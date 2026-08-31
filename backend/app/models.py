@@ -461,3 +461,15 @@ if Vector is not None:
         created_at: Mapped[datetime] = mapped_column(
             DateTime(timezone=True), nullable=False, server_default=func.now()
         )
+
+        __table_args__ = (
+            # ADR-0021 확정 인덱스. 없으면 <=> 가 매번 전건 스캔이라
+            # 10만 건에서 검색이 초 단위로 늘어진다.
+            # 마이그레이션 파일을 쌓지 않는 규약(db.py)이라 create_all 이 만든다.
+            Index(
+                "ix_application_embeddings_hnsw",
+                "embedding",
+                postgresql_using="hnsw",
+                postgresql_ops={"embedding": "vector_cosine_ops"},
+            ),
+        )
