@@ -17,6 +17,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pgvector>=0.3",
     "sentence-transformers>=3.0",
+    # torch 는 sentence-transformers 의 전이 의존이지만, [tool.uv.sources] 는
+    # 프로젝트가 직접 선언한 의존에만 적용되므로 여기 명시한다.
+    "torch>=2.0",
 ]
 
 [dependency-groups]
@@ -26,3 +29,18 @@ dev = [
 
 [tool.uv]
 package = false
+
+# 운영은 EC2 t3.micro (GPU 없음). PyPI 기본 torch 는 Linux 에서 CUDA 런타임
+# (nvidia-*, cuda-toolkit) 을 끌고 와 배포 이미지가 수 GB 커진다.
+# Linux 만 PyTorch CPU 전용 인덱스로 고정한다 — Windows/macOS 의 PyPI 기본 휠은
+# 이미 CPU-only 라 건드리지 않는다(팀원 환경 영향 없음).
+# https://docs.astral.sh/uv/guides/integration/pytorch/
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
