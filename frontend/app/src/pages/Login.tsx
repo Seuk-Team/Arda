@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import styles from './Login.module.css'
@@ -11,12 +11,20 @@ interface FromState {
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login } = useAuth()
+  const { user, loading, login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+
+  /* 이미 로그인된 사용자가 /login 에 오면 폼을 또 보여주지 않는다.
+     pending 중엔 제외 — login() 직후 setUser 가 먼저 돌면 handleSubmit 의
+     navigate 와 겹치지만 둘 다 replace 라 무해하다. */
+  if (!loading && !pending && user) {
+    const to = (location.state as FromState | null)?.from?.pathname ?? '/dashboard'
+    return <Navigate to={to} replace />
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

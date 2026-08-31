@@ -19,6 +19,8 @@ export default function App() {
     <AuthProvider>
       <ToastProvider>
       <Routes>
+        {/* 루트는 대시보드로. 비로그인은 RequireAuth 가 /login 으로 보낸다 */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
         {/* 공개 지원 폼 (C1). 지원자는 로그인이 없으므로 RequireAuth·Layout 밖이다. */}
         <Route path="/apply/:token" element={<Apply />} />
