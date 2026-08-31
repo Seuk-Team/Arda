@@ -64,7 +64,7 @@
 }
 
 .dayToday {
-  margin-left: auto;
+  margin-left: var(--sp-3);
   height: 36px;
   padding: 0 var(--sp-4);
   background: var(--bg-elev);
@@ -272,7 +272,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-left: var(--sp-2);
+  margin-left: auto;
   font-size: var(--font-sm);
   color: var(--text-sub);
   white-space: nowrap;
@@ -284,4 +284,225 @@
   height: 16px;
   accent-color: var(--leaf);
   cursor: pointer;
+}
+
+/* ── 월 그리드 ────────────────────────────────────
+   05-design §0.5 (2026-08-31 팀장 결정). 넘치는 하루는 셀에서 3건까지만 보이고
+   나머지는 +N건으로 접는다 — 그날 목록(아래 테이블)이 펼치는 자리다. */
+.calPanel {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  overflow: hidden;
+  margin-bottom: var(--sp-5);
+}
+
+.dow,
+.grid {
+  display: grid;
+  /* minmax(0,1fr) 이라야 긴 이름이 칸을 밀어내지 않는다 (§3 삐져나옴 금지) */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.dow {
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.dowCell {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding-left: var(--sp-2);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.cell {
+  min-height: 108px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  overflow: hidden;
+  text-align: left;
+  background: var(--bg-elev);
+  border: 0;
+  border-right: var(--border-w) solid var(--border-soft);
+  border-bottom: var(--border-w) solid var(--border-soft);
+  font-family: var(--sans);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.cell:nth-child(7n) {
+  border-right: 0;
+}
+
+.cell:hover {
+  background: var(--bg);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: -2px;
+}
+
+/* 이번 달이 아닌 날 — 지우지 않고 한 단계 흐리게만 (§1 판단 전 정보엔 색 없음) */
+.outside .date {
+  color: var(--neutral);
+}
+
+.date {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  align-self: flex-start;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--font-num);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* 오늘 강조 — 연두 워시 + 잎초록 글자 (대비 확보) */
+.today .date {
+  background: var(--sprout-soft);
+  color: var(--leaf);
+  font-weight: 700;
+}
+
+/* 고른 날 — 목록에 펼쳐진 날이 어느 칸인지 */
+.selected {
+  background: var(--bg-sunken);
+  box-shadow: inset 0 0 0 2px var(--leaf);
+}
+
+.selected:hover {
+  background: var(--bg-sunken);
+}
+
+/* 면접 칩 — 판단 전 정보라 무채다 (§1) */
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 20px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  font-size: var(--font-caption);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.selected .chip {
+  background: var(--bg-elev);
+}
+
+.chipTime {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+}
+
+.chipName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.more {
+  padding-left: var(--sp-2);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 768 이하 주간 스트립 (§9) — 월 그리드가 안 들어가므로 한 주만, 건수만 (칸반 금지와 같은 근거) */
+.cellNarrow {
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+
+.count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 그 달에 면접이 없을 때 (§6 empty) */
+.monthEmpty {
+  margin: calc(-1 * var(--sp-3)) 0 var(--sp-5);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+/* ── 그날 목록 머리 ──────────────────────────────── */
+.dayHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.dayTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  text-shadow: var(--ts-heading);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 스켈레톤 (§6 — loading 은 스켈레톤 우선) */
+.skelPill,
+.skelRow {
+  display: inline-block;
+  height: 16px;
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  animation: pulse var(--dur-slow) var(--ease) infinite alternate;
+}
+
+.skelPill {
+  width: 40px;
+}
+
+.skelRow {
+  width: 60%;
+}
+
+@keyframes pulse {
+  from { opacity: 1; }
+  to { opacity: 0.55; }
+}
+
+@media (max-width: 768px) {
+  /* 좌우 여백이 좁아 날짜 칩만으로도 한 줄이 찬다 */
+  .dowCell {
+    justify-content: center;
+    padding-left: 0;
+  }
+
+  .dayHead {
+    flex-wrap: wrap;
+  }
 }

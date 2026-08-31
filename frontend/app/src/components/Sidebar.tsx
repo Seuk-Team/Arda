@@ -40,10 +40,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M15.6 14.6c2.6.4 4.6 2.4 4.6 4.9" />
     </>
   ),
-  interviews: (
+  /* 캘린더 — 월 그리드 화면이라 날짜 칸까지 그린다 (2026-08-31 메뉴 개편) */
+  calendar: (
     <>
       <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
       <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" />
+      <path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2" />
     </>
   ),
   evaluations: <path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z" />,
@@ -59,7 +61,7 @@ const NAV = [
   { to: '/dashboard', label: '대시보드', icon: 'dashboard' },
   { to: '/postings', label: '채용 공고', icon: 'postings' },
   { to: '/applicants', label: '지원자', icon: 'applicants' },
-  { to: '/interviews', label: '면접 일정', icon: 'interviews' },
+  { to: '/interviews', label: '캘린더', icon: 'calendar' },
   { to: '/evaluations', label: '평가 현황', icon: 'evaluations' },
   { to: '/settings', label: '설정', icon: 'settings' },
 ] as const
