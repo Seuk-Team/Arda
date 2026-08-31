@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status as http
 from sqlalchemy import func, select
@@ -7,14 +8,65 @@ from sqlalchemy.orm import Session
 
 from app import mail
 from app.agent.summarizer import generate_summary_bg
+from app.api.files import _extract_ext, _validate_upload
 from app.api.postings import auto_close
 from app.db import get_db
-from app.models import Application, JobPosting, StageHistory
-from app.schemas.application import ApplicationCreate, ApplicationOut, PostingPublicOut
+from app.models import FILE_KINDS, Application, File, JobPosting, StageHistory
+from app.schemas.application import (
+    ApplicationCreate,
+    ApplicationOut,
+    PostingPublicOut,
+    SubmittedFile,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
+
+
+# 서버가 발급하는 키 모양 (files.py `_build_key`). 이 모양이 아니면 우리가 낸 키가 아니다.
+_S3_KEY = re.compile(
+    r"^applications/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+    rf"({'|'.join(FILE_KINDS)})\.([a-z0-9]{{1,10}})$"
+)
+
+
+def _validate_files(items: list[SubmittedFile]) -> None:
+    """접수와 함께 온 파일 메타를 본다 (F1 → C2).
+
+    **지원서를 만들기 전에** 부른다. 넣고 나서 거절하면 롤백에 기대게 되는데,
+    그러면 "이력서 없는 지원서"가 남을 여지가 생긴다 — 담당자가 받을 수 없는
+    지원서다. 걸릴 것은 아무것도 쓰기 전에 걸린다.
+
+    presign 발급 때 이미 한 번 봤지만 여기서 다시 본다 — **presign 을 건너뛰고 이
+    엔드포인트만 두드리면** 아무 값이나 `files` 행이 되기 때문이다. 특히 키는
+    "서버가 낸 모양인가"와 "키 안의 종류가 `kind` 와 같은가"까지 본다. 키를 그냥
+    믿으면 남의 이력서 키를 자기 지원서에 붙일 수 있다.
+
+    저장하는 확장자는 **키에 박힌 것**을 쓴다 — S3 에 실제로 올라간 객체가 그것이다.
+    """
+    seen: set[str] = set()
+    for item in items:
+        matched = _S3_KEY.match(item.s3_key)
+        if matched is None or matched.group(1) != item.kind:
+            raise HTTPException(
+                http.HTTP_422_UNPROCESSABLE_ENTITY, "잘못된 파일 키입니다"
+            )
+        if item.kind in seen:
+            raise HTTPException(
+                http.HTTP_422_UNPROCESSABLE_ENTITY,
+                f"'{item.kind}' 파일이 둘 이상입니다",
+            )
+        seen.add(item.kind)
+
+        # 원본 파일명의 확장자도 키와 같아야 한다 — 다르면 담당자가 받을 때
+        # `이력서.pdf` 인데 내용은 hwp 인 파일이 된다.
+        if _extract_ext(item.filename) != matched.group(2):
+            raise HTTPException(
+                http.HTTP_422_UNPROCESSABLE_ENTITY,
+                "파일명과 업로드된 파일의 확장자가 다릅니다",
+            )
+        _validate_upload(matched.group(2), item.content_type, item.size_bytes)
 
 
 def _openable(db: Session, posting: JobPosting | None) -> JobPosting:
@@ -60,13 +112,14 @@ def get_posting(posting_id: int, db: Session = Depends(get_db)):
 def submit(posting_id: int, body: ApplicationCreate, bg: BackgroundTasks, db: Session = Depends(get_db)):
     # B4 — 마감된 공고에 제출하면 410. 조회와 같은 판정을 쓴다.
     _openable(db, db.get(JobPosting, posting_id))
+    _validate_files(body.files)  # 쓰기 전에 본다
 
     row = Application(
         job_posting_id=posting_id,
         source="form",
         current_stage="applied",
         privacy_agreed_at=func.now(),  # 서버 시각. 클라이언트 값을 믿지 않는다
-        **body.model_dump(exclude={"privacy_agreed"}),
+        **body.model_dump(exclude={"privacy_agreed", "files"}),
     )
     db.add(row)
     try:
@@ -74,6 +127,20 @@ def submit(posting_id: int, body: ApplicationCreate, bg: BackgroundTasks, db: Se
     except IntegrityError:  # C6 — UNIQUE(job_posting_id, email)
         db.rollback()
         raise HTTPException(http.HTTP_409_CONFLICT, "이미 이 공고에 지원했습니다")
+
+    # F1 → C2. 지원서 행이 생긴 뒤에야 files.application_id 를 채울 수 있다.
+    # 값은 위에서 이미 검증했다.
+    for item in body.files:
+        db.add(
+            File(
+                application_id=row.id,
+                s3_key=item.s3_key,
+                filename=item.filename,
+                size_bytes=item.size_bytes,
+                content_type=item.content_type,
+                kind=item.kind,
+            )
+        )
 
     # D5 — 접수도 이력이다. 시스템이 한 것이므로 changed_by 는 NULL
     db.add(StageHistory(application_id=row.id, from_stage=None, to_stage="applied"))
