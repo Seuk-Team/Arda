@@ -237,10 +237,10 @@ export default function Dashboard() {
      전환을 못 걸면(모션 최소화·목적지 없음) 그냥 이동한다 */
   function goCalendar() {
     if (calRef.current === null) {
-      navigate('/interviews')
+      navigate('/calendar')
       return
     }
-    startMorph(calRef.current, '/interviews', 'calendar')
+    startMorph(calRef.current, '/calendar', 'calendar')
   }
 
   /* 카드 안 빈자리를 눌러도 캘린더로 간다. 카드 안의 조작(주 이동·날짜 선택)은 제자리 */
@@ -328,7 +328,7 @@ export default function Dashboard() {
             </button>
             {/* 키보드로도 캘린더에 닿는 길 (§10) — 전환은 여기서도 같은 것을 탄다 */}
             <Link
-              to="/interviews"
+              to="/calendar"
               className={styles.go}
               onClick={(e) => {
                 if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return

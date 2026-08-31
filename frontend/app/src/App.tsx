@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import { AuthProvider } from './auth/AuthContext'
 import { ToastProvider } from './components/Toast'
@@ -16,6 +16,13 @@ import Evaluations from './pages/Evaluations'
 import Settings from './pages/Settings'
 /* three.js 를 초기 번들에서 빼기 위해 이 페이지도 지연 로드한다 (Sidebar 의 ArViewer 와 같은 청크) */
 const ArDemo = lazy(() => import('./pages/ArDemo'))
+
+/* 캘린더는 08/31 에 /interviews 에서 /calendar 로 옮겼다. 옛 경로로 들어오면
+   쿼리(?slot= 같은 딥링크)를 그대로 달고 새 경로로 보낸다. */
+function LegacyCalendarRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/calendar${search}`} replace />
+}
 
 export default function App() {
   return (
@@ -44,7 +51,9 @@ export default function App() {
             <Route path="/postings" element={<Postings />} />
             <Route path="/postings/:id" element={<PostingApplicants />} />
             <Route path="/applicants" element={<Applicants />} />
-            <Route path="/interviews" element={<Interviews />} />
+            <Route path="/calendar" element={<Interviews />} />
+            {/* 옛 경로. 북마크·메일 링크가 깨지지 않게 남긴다 */}
+            <Route path="/interviews" element={<LegacyCalendarRedirect />} />
             <Route path="/evaluations" element={<Evaluations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>

@@ -61,7 +61,7 @@ const NAV = [
   { to: '/dashboard', label: '대시보드', icon: 'dashboard' },
   { to: '/postings', label: '채용 공고', icon: 'postings' },
   { to: '/applicants', label: '지원자', icon: 'applicants' },
-  { to: '/interviews', label: '캘린더', icon: 'calendar' },
+  { to: '/calendar', label: '캘린더', icon: 'calendar' },
   { to: '/evaluations', label: '평가 현황', icon: 'evaluations' },
   { to: '/settings', label: '설정', icon: 'settings' },
 ] as const

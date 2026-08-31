@@ -49,9 +49,11 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 
 스키마는 `create_all` 로 만들지만([db.py](../../backend/app/db.py)), **이미 데이터가 있는 DB** 는 값·제약을 바꿀 수단이 없다. 그런 변경은 `backend/scripts/` 에 SQL 파일로 두고 여기에 실행법을 적는다.
 
-| 파일 | 언제 | 실행 |
-|---|---|---|
-| `migrate_roles_to_member.sql` | 역할 2종화 배포 시 1회 ([ADR-0017](../03_decision/0017-등급-이분화.md)) | `psql "$DATABASE_URL" -f backend/scripts/migrate_roles_to_member.sql` |
+| 파일 | 언제 | 실행 | 상태 |
+|---|---|---|---|
+| `migrate_roles_to_member.sql` | 역할 2종화 배포 시 1회 ([ADR-0017](../03_decision/0017-등급-이분화.md)) | `psql "$DATABASE_URL" -f backend/scripts/migrate_roles_to_member.sql` | **2026-08-31 실행 완료** |
+
+**2026-08-31 실행 기록**: 새 코드를 먼저 배포(`docker compose -f docker-compose.prod.yml up -d --build` — api·worker 재생성, 컨테이너의 `ROLES` 가 `("admin", "member")` 인 것을 확인)한 뒤 컨테이너 안에서 돌렸다. `UPDATE 1`(interviewer 1명 → member), 결과 `admin 6 / member 1`, 제약이 `CHECK (role IN ('admin','member'))` 로 교체된 것까지 확인. 서버에서는 `docker compose -f docker-compose.prod.yml exec -T db psql -U postgres -d arda -v ON_ERROR_STOP=1 -f - < backend/scripts/migrate_roles_to_member.sql` 로 실행한다.
 
 역할 이행은 `recruiter`·`interviewer` → `member` 로 바꾸고 `ck_users_role` 체크 제약을 새 값으로 갈아끼운다. **새 코드(`ROLES = ("admin", "member")`)가 올라간 뒤에 돌린다.** 트랜잭션 하나로 묶여 있어 중간에 실패하면 전부 되돌아가고, 모르는 role 값이 남아 있으면 일부러 멈춘다.
 
