@@ -137,3 +137,49 @@ export interface Interview {
   start_at: string
   end_at: string
 }
+
+/* ── 아르 에이전트 (backend/app/api/agent.py) ─────────────────── */
+
+/* 서버가 그대로 Anthropic messages 로 넘긴다 — user/assistant 가 번갈아야 하고
+   content 가 비면 안 된다 (runtime.py run_agent). */
+export interface AgentHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AgentToolCall {
+  name: string
+  input: Record<string, unknown>
+}
+
+/* 쓰기 도구는 실행되지 않은 채 여기로 온다. 사람이 확인해야 실행된다 (ADR-0003) */
+export interface AgentPendingAction {
+  tool_name: string
+  arguments: Record<string, unknown>
+  description: string
+}
+
+export interface AgentChatRequest {
+  message: string
+  history: AgentHistoryMessage[]
+}
+
+export interface AgentChatResponse {
+  reply: string
+  tool_calls: AgentToolCall[]
+  pending_action: AgentPendingAction | null
+  input_tokens: number
+  output_tokens: number
+  model: string
+  cost_usd: number
+}
+
+export interface AgentConfirmRequest {
+  tool_name: string
+  arguments: Record<string, unknown>
+}
+
+export interface AgentConfirmResponse {
+  ok: boolean
+  result: Record<string, unknown>
+}

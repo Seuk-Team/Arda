@@ -96,3 +96,27 @@ export const assignments = {
   mine: (userId: number, signal?: AbortSignal) =>
     api.get<AssignedApplications>(`/interviewers/${userId}/applications`, { signal }),
 }
+
+/* ── 아르 에이전트 (agent.py) ─────────────────────────────────
+   맨 위 import 블록을 건드리지 않으려고 여기서 따로 들여온다 — 같은 파일을 여럿이 고친다. */
+import type {
+  AgentChatRequest,
+  AgentChatResponse,
+  AgentConfirmRequest,
+  AgentConfirmResponse,
+  AgentHistoryMessage,
+} from './types'
+
+export const agent = {
+  /* 자연어 한 마디. 대화 이력은 화면이 들고 매번 같이 보낸다 (서버는 저장하지 않는다) */
+  chat: (message: string, history: AgentHistoryMessage[], signal?: AbortSignal) =>
+    api.post<AgentChatResponse>('/agent/chat', { message, history } satisfies AgentChatRequest, { signal }),
+
+  /* 확인 카드에서 [확인]을 눌렀을 때만 부른다. 쓰기 도구는 이 경로로만 실행된다 */
+  confirm: (tool_name: string, args: Record<string, unknown>, signal?: AbortSignal) =>
+    api.post<AgentConfirmResponse>(
+      '/agent/confirm',
+      { tool_name, arguments: args } satisfies AgentConfirmRequest,
+      { signal },
+    ),
+}

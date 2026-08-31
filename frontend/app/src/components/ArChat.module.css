@@ -1,0 +1,200 @@
+/* 아르 채팅. 패널 셸 안을 세로로 꽉 채운다 — 바깥이 폭·열림을 정하고 여기는 높이만 쓴다.
+   값은 전부 tokens.css (05-design §1~§5). 하드코딩 색·간격 없음. */
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--sans);
+}
+
+/* ── 대화 흐름 ───────────────────────────────────────── */
+.stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* 긴 응답을 끝까지 굴려도 뒤 화면이 따라 움직이지 않는다 */
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+/* 빈 상태 — 첫 진입 안내 한 줄 (시안의 입력 문구 그대로) */
+.empty {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+/* 사람 말: 가라앉은 바탕, 오른쪽 정렬. 말꼬리는 오른쪽 아래 모서리를 접어서 */
+.user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-card);
+  border-bottom-right-radius: 2px;
+  background: var(--bg-sunken);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 아르 말: 흰 면 + 실선 — 확인이 필요한 제안(앰버 점선)과 눈으로 구분된다 */
+.ar {
+  align-self: flex-start;
+  max-width: 90%;
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  border-top-left-radius: 2px;
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 실행 로그: 무엇을 했는지만 담백하게. 말풍선을 주지 않는다 */
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.logCap {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.logLine {
+  font-size: var(--font-caption);
+  line-height: 1.7;
+  color: var(--text-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 실패는 조용히 지나가면 안 된다 (§6) */
+.error {
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--danger);
+  border-radius: var(--r-card);
+  background: var(--danger-soft);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--danger);
+  font-weight: 600;
+  word-break: keep-all;
+}
+
+/* ── 확인 카드 (앰버 점선 = AI 제안, §1 불변 규약) ───── */
+.ask {
+  padding: var(--sp-3);
+  border: var(--border-w) dashed var(--ai);
+  border-radius: var(--r-card);
+  background: var(--ai-soft);
+}
+
+.askCap {
+  display: block;
+  font-size: var(--font-caption);
+  color: var(--ai);
+  margin-bottom: var(--sp-2);
+}
+
+.askBody {
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.askActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* ── 대기 ────────────────────────────────────────────── */
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--leaf);
+  border-radius: var(--r-pill);
+}
+
+/* 도는 것 자체가 정보다 — reduced-motion 에서는 tokens.css 가 멈춘 원으로 남긴다 */
+@media (prefers-reduced-motion: no-preference) {
+  .spinner {
+    animation: spin var(--dur-slow) linear infinite;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── 입력 ────────────────────────────────────────────── */
+.composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-top: var(--border-w) solid var(--border-soft);
+  background: var(--bg-elev);
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 120px;
+  padding: var(--sp-3);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--r-card);
+  background: var(--bg-sunken);
+  font-family: var(--sans);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text);
+  resize: none;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.field::placeholder { color: var(--text-sub); }
+.field:hover:not(:disabled) { border-color: var(--sunken-hover); }
+
+.field:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+  border-color: var(--leaf);
+}
+
+.field:disabled {
+  color: var(--text-sub);
+  cursor: not-allowed;
+}
+
+/* 터치 타깃 44px (§9) */
+.send {
+  flex: none;
+  min-height: 44px;
+}
