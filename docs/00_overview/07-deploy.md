@@ -41,6 +41,37 @@
   **프론트 주소가 늘면 여기에도 추가해야 한다.** 빠지면 그 출처에서만 업로드가 실패하는데, **API 는 정상이고 서버 로그에도 안 남는다** — CORS 는 브라우저만 검사하기 때문이다. 서버 간 PUT(테스트·curl)은 영향을 받지 않아서, 이 결함은 브라우저로 실제 파일을 올려봐야만 드러난다.
   버킷이 공개되는 설정이 아니다 — 업로드 권한은 그대로 presigned URL 이 정한다.
 
+## 2026-08-31 저녁 — pgvector 도입과 그 과정의 장애
+
+**증상**: 재배포 직후 API 가 재시작 루프(`exit=3`, `restarts=10`)에 빠져 `/health` 가 502.
+
+**원인**: [ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md)(RAG)이 DB 커넥션마다
+`CREATE EXTENSION IF NOT EXISTS vector` 를 거는데 운영 DB 이미지(`postgres:16-alpine`)에
+확장이 없었다. 커넥션 생성에서 예외가 나면서 lifespan 이 죽었다 — **확장 하나 때문에
+API 전체가 안 뜬 것**이다.
+
+**조치 2단계**
+1. **fix-forward**(`6c7308a`): 확장을 못 켜면 경고만 남기고 넘어간다. `create_all` 도
+   `application_embeddings`(vector 타입)를 건너뛰게 했다 — 그 CREATE TABLE 이 실패하면
+   뒤 테이블까지 못 만든다. 시맨틱 검색만 꺼지고 API 는 뜬다.
+2. **DB 이미지 교체**: `postgres:16-alpine` → **`pgvector/pgvector:pg16`**. 같은 PG 16 이라
+   `arda_pgdata` 볼륨을 그대로 쓴다. 교체 후 `CREATE EXTENSION vector`(0.8.6) 성공,
+   `application_embeddings` 생성 확인, 데이터 무사(users 7 · applications 7).
+
+**교체 시 한 것 (다음에도 그대로)**
+- 먼저 덤프: `docker compose -f docker-compose.prod.yml exec -T db pg_dump -U postgres -d arda > ~/arda-db-backup-<날짜>.sql` (서버 `~/arda-db-backup-20260831.sql`, compose 원본은 `docker-compose.prod.yml.bak`)
+- 이미지 줄만 교체 후 `docker compose -f docker-compose.prod.yml up -d db`
+- **alpine(musl) → debian(glibc)** 로 libc 가 바뀌므로 텍스트 인덱스 정렬 기준이 달라질 수 있다 → `REINDEX DATABASE arda;`
+- api 재기동 후 기동 로그에 pgvector 경고가 **없는지** 확인
+
+**남은 것**
+- `docker-compose.prod.yml` 은 **서버에만 있고 repo 에 없다.** 이번 이미지 교체도 repo 에 안 남았다 — 서버를 새로 만들면 alpine 으로 되돌아간다. `infra/` 로 올리는 게 맞다(인프라 오너).
+- 기존 지원자 7명의 **임베딩 백필**이 없다. 테이블만 있고 임베딩은 요약 생성 시점에 만들어진다(`summarizer.py`) — 기존 건까지 검색되게 하려면 백필 필요(에이전트 오너).
+
+**배포 관련 두 가지 기억할 것**
+- 백엔드는 수동 배포라 **프론트(Vercel 자동)와 쉽게 어긋난다.** 이번에도 배포본 프롬프트가 `#151`·`#153` 이전 버전이라 에이전트가 자기 이름("아르")을 몰랐다.
+- 컨테이너 `Started` 이후 **실제 서비스까지 약 2분** 걸린다(런타임 패키지 설치 + 임포트). 배포 직후 502 는 조금 기다려 본다.
+
 ## 재배포 (현재는 수동 — 팀장)
 
 main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. **CI/CD(J4, main 머지 시 자동 배포)는 W3에 이 절차를 대체한다.** 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
