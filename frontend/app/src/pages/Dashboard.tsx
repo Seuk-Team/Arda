@@ -301,7 +301,7 @@ export default function Dashboard() {
           onClick={onCalCardClick}
         >
           <div className={styles.calHead}>
-            <h2 className={styles.calTitle}>면접 일정</h2>
+            <h2 className={styles.calTitle}>캘린더</h2>
             <span className={styles.calMonth}>{fmtMonth(calSel)}</span>
             <button
               type="button"
