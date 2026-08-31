@@ -1,0 +1,216 @@
+/* 공개 지원 폼. 로그인 화면처럼 사이드바 없는 독립 페이지다 (05-design §0.5).
+   값은 전부 tokens.css — 이 화면만의 색·간격을 새로 만들지 않는다 (§11). */
+
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--sp-5);
+  background: var(--bg);
+}
+
+.card {
+  width: 640px;
+  max-width: 100%;
+  padding: var(--sp-6);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.logo {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  white-space: nowrap;
+}
+
+.seed {
+  color: var(--leaf);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+}
+
+.desc {
+  margin: 0 0 var(--sp-5);
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text-sub);
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+/* 로딩·마감·잘못된 링크·완료 안내가 같은 자리를 쓴다 (§6 상태) */
+.notice {
+  margin: 0;
+  font-size: var(--font-body);
+  line-height: 1.7;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.input {
+  height: 40px;
+  padding: 0 var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  font-family: var(--sans);
+  font-size: var(--font-body);
+  color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.textarea {
+  min-height: 76px;
+  resize: vertical;
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  font-family: var(--sans);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-sub);
+}
+
+.input:hover,
+.textarea:hover {
+  border-color: var(--sunken-hover);
+}
+
+.input:focus,
+.textarea:focus {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+  border-color: var(--leaf);
+}
+
+.input:disabled,
+.textarea:disabled {
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  cursor: not-allowed;
+}
+
+.upload {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--bg-sunken);
+}
+
+.fileName,
+.fileEmpty {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-sm);
+  font-weight: 400;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.fileName {
+  color: var(--text);
+}
+
+.fileEmpty {
+  color: var(--text-sub);
+}
+
+.fileInput {
+  flex: none;
+  max-width: 200px;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.fileInput:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+.hint {
+  margin: calc(-1 * var(--sp-2)) 0 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.agree {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.agree input[type='checkbox'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--leaf);
+  cursor: pointer;
+}
+
+.agree input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+.req {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+/* 제출 실패·중복 지원 문구. --danger 는 §1 확정 토큰 */
+.error {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--danger);
+  word-break: keep-all;
+}
