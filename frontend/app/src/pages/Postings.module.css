@@ -54,9 +54,10 @@
   background: var(--bg-sunken);
 }
 
+/* 공고명에 색을 주지 않는다 — 다른 화면의 표(지원자·평가·면접 일정)와 같은 규격이고,
+   행 클릭 가능은 hover 배경으로 알린다 (05-design §1: 색은 판단에만) */
 .name {
   font-weight: 600;
-  color: var(--leaf);
 }
 
 .num {

@@ -179,9 +179,10 @@
   color: var(--text-sub);
 }
 
+/* 좌우 여백은 테이블 첫 칸(--sp-6)과 맞춘다 — 안 맞추면 빈 문구만 패널 테두리에 붙는다 */
 .empty {
   color: var(--text-sub);
-  padding: var(--sp-6) 0;
+  padding: var(--sp-6);
 }
 
 /* 시간대 선택 — mockup-interviews.html 의 .dd 규격과 같다 */
