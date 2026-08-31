@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.1 · 2026-08-25** — v1.1: `job_postings.deadline`·`public_token`(B4·B6), `stage_history.reason`(D8) 추가 (팀장 승인)
+> **상태: 확정 v1.2 · 2026-08-31** — v1.2: 면접 일정 자동화 3테이블 `interviewer_availability`·`schedule_proposals`·`schedule_slots` 추가 ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
+> v1.1 (2026-08-25): `job_postings.deadline`·`public_token`(B4·B6), `stage_history.reason`(D8) 추가 (팀장 승인)
 >
 > **규칙: 확정 이후의 모든 변경은 전원 합의로만 한다.**
 > 임의로 테이블·컬럼을 추가/변경하지 않는다. 필요하면 팀 채널에 제안 → 합의 → 이 문서 갱신 → 마이그레이션 순서.
@@ -24,6 +25,9 @@ erDiagram
     users ||--o{ application_notes : "작성"
     users ||--o{ interviewer_assignments : "배정됨"
     applications ||--o{ interviewer_assignments : "배정"
+    users ||--o{ interviewer_availability : "가용 시간"
+    applications ||--o{ schedule_proposals : "일정 제안"
+    schedule_proposals ||--o{ schedule_slots : "후보 슬롯"
 ```
 
 ## 단계(stage) — 고정 enum
@@ -178,3 +182,51 @@ erDiagram
 | created_at | timestamptz | NOT NULL | |
 
 - UNIQUE `(application_id, interviewer_id)`
+
+## interviewer_availability — 면접관 가용 시간 (일정 자동화 · v1.2)
+
+면접관이 "면접 가능한 시간대"를 등록한다. 후보 슬롯 생성의 입력이다. ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| interviewer_id | bigint | FK → users.id, NOT NULL | role=interviewer(또는 그 이상) 검사는 코드에서 |
+| start_at | timestamptz | NOT NULL | |
+| end_at | timestamptz | NOT NULL, CHECK(start_at < end_at) | |
+| created_at | timestamptz | NOT NULL | |
+
+- 인덱스 `(interviewer_id, start_at)` — 면접관별 기간 조회
+- 반복 규칙(매주 화 14~18시 등)은 두지 않는다 — 구간 행을 여러 개 넣는 것으로 갈음(범위 절제). 필요해지면 그때 논의.
+
+## schedule_proposals — 면접 일정 제안 (일정 자동화 · v1.2)
+
+지원자 1명에게 보내는 "이 중에서 고르세요" 제안 한 건. 지원자는 로그인이 없으므로 `public_token`(B6)과 같은 **토큰 공개 접근** 패턴을 쓴다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| application_id | bigint | FK → applications.id, NOT NULL | |
+| token | varchar(64) | UNIQUE, NOT NULL | 지원자 공개 접근 토큰. 메일 링크에 실린다 |
+| status | varchar(20) | NOT NULL, default `proposed` | `proposed` / `confirmed` / `expired` / `canceled` |
+| confirmed_slot_id | bigint | FK → schedule_slots.id, NULL 허용 | 지원자가 고른 슬롯. `confirmed` 때만 값 존재 |
+| expires_at | timestamptz | NULL 허용 | 선택 기한. 지나면 조회 시점 판정으로 `expired` (B4 마감 판정과 같은 방식 — 스케줄러 없음) |
+| created_by | bigint | FK → users.id, NOT NULL | 제안한 담당자 |
+| created_at / updated_at | timestamptz | NOT NULL | |
+
+- 인덱스 `(application_id, created_at DESC)` — 지원자 상세에서 최신 제안 표시
+- 재제안 시 새 행을 만들고 이전 행은 `canceled` — 이력이 남는다(stage_history와 같은 철학)
+- 확정·변경 통보 메일은 `email_logs` + SQS 파이프라인(G2)을 그대로 재사용한다 — 스키마 변경 없음
+
+## schedule_slots — 제안에 묶인 후보 슬롯 (일정 자동화 · v1.2)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| proposal_id | bigint | FK → schedule_proposals.id, NOT NULL | |
+| interviewer_id | bigint | FK → users.id, NOT NULL | 이 슬롯에 들어갈 면접관 |
+| start_at | timestamptz | NOT NULL | |
+| end_at | timestamptz | NOT NULL, CHECK(start_at < end_at) | |
+| created_at | timestamptz | NOT NULL | |
+
+- UNIQUE `(proposal_id, interviewer_id, start_at)` — 같은 제안 안 중복 슬롯 방지
+- 슬롯은 생성 시점의 가용 시간 **스냅샷**이다 — 이후 면접관이 가용 시간을 지워도 이미 나간 제안은 유효(지원자가 보고 있는 선택지가 바뀌면 안 된다). 확정 시점에 겹침(같은 면접관의 다른 confirmed 슬롯)만 재검증한다.
