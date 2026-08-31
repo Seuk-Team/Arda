@@ -17,8 +17,8 @@
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
+  gap: var(--sp-2);
+  /* 좌우 여백은 패널 셸(.rail .inner) 이 준다 — 시안의 aginner padding 16px 한 겹 */
 }
 
 /* 빈 상태 — 첫 진입 안내 한 줄 (시안의 입력 문구 그대로) */
@@ -43,21 +43,39 @@
   overflow-wrap: anywhere;
 }
 
-/* 아르 말: 흰 면 + 실선 — 확인이 필요한 제안(앰버 점선)과 눈으로 구분된다 */
-.ar {
-  align-self: flex-start;
-  max-width: 90%;
+/* 아르 말: 26px 아이콘 + 말풍선 가로 배치 (시안 #agSurface) */
+.arRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.arIcon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+/* 아르가 한 말은 전부 AI 산출물이다 — 앰버 점선 (§1 불변 규약).
+   말꼬리는 왼쪽 위 모서리를 접어서. */
+.ar,
+.ask {
+  flex: 1;
+  min-width: 0;
   padding: var(--sp-3);
-  border: var(--border-w) solid var(--border);
+  border: var(--border-w) dashed var(--ai);
   border-radius: var(--r-card);
   border-top-left-radius: 2px;
-  background: var(--bg-elev);
+  background: var(--ai-soft);
   font-size: var(--font-sm);
   line-height: 1.7;
   color: var(--text);
-  white-space: pre-wrap;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+.ar {
+  white-space: pre-wrap;
 }
 
 /* 실행 로그: 무엇을 했는지만 담백하게. 말풍선을 주지 않는다 */
@@ -80,6 +98,13 @@
   overflow-wrap: anywhere;
 }
 
+/* 시안의 "✓ 검색: …" 체크. 장식이 아니라 "끝난 일"이라는 표시라 텍스트가 아닌 CSS 로 —
+   aria-live 가 읽는 문장에는 들어가지 않는다. */
+.logLine::before {
+  content: "✓";
+  margin-right: var(--sp-1);
+}
+
 /* 실패는 조용히 지나가면 안 된다 (§6) */
 .error {
   padding: var(--sp-3);
@@ -93,33 +118,21 @@
   word-break: keep-all;
 }
 
-/* ── 확인 카드 (앰버 점선 = AI 제안, §1 불변 규약) ───── */
-.ask {
-  padding: var(--sp-3);
-  border: var(--border-w) dashed var(--ai);
-  border-radius: var(--r-card);
-  background: var(--ai-soft);
-}
-
-.askCap {
-  display: block;
-  font-size: var(--font-caption);
-  color: var(--ai);
-  margin-bottom: var(--sp-2);
-}
-
+/* ── 확인 카드 — 말풍선(.ask)은 .ar 와 같은 규격, 버튼만 그 안에 들어간다 ── */
 .askBody {
-  font-size: var(--font-sm);
-  line-height: 1.7;
-  color: var(--text);
   word-break: keep-all;
 }
 
 .askActions {
   display: flex;
-  justify-content: flex-end;
   gap: var(--sp-2);
-  margin-top: var(--sp-3);
+  margin-top: var(--sp-2);
+}
+
+/* 시안의 radius 8px = --r-card (.btn 기본값 --r-ctl 6px 와 다르다).
+   높이는 시안(약 30px)이 아니라 .btn 기본 40px 그대로 둔다 — §9 터치 타깃. */
+.askBtn {
+  border-radius: var(--r-card);
 }
 
 /* ── 대기 ────────────────────────────────────────────── */
@@ -151,50 +164,72 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── 입력 ────────────────────────────────────────────── */
+/* ── 입력 ──────────────────────────────────────────────
+   시안: 가라앉은 바탕의 알약 한 덩어리 안에 입력 + 마이크 + 힌트가 나란히. */
 .composer {
   flex: none;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4) var(--sp-4);
-  border-top: var(--border-w) solid var(--border-soft);
-  background: var(--bg-elev);
+  /* 높이는 min-height 로 잡고 글줄은 가운데 정렬한다 — textarea 에 min-height 를 주면
+     한 줄일 때 글자가 위로 붙어 위아래 여백이 어긋난다(팀장 지적 08/31). */
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  margin-top: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--bg-sunken);
 }
 
 .field {
   flex: 1;
   min-width: 0;
-  min-height: 44px;
+  /* 딱 한 줄 높이. 남는 높이는 .composer 의 패딩이 위아래 같게 만든다 */
+  min-height: 1.55em;
   max-height: 120px;
-  padding: var(--sp-3);
-  border: var(--border-w) solid transparent;
-  border-radius: var(--r-card);
-  background: var(--bg-sunken);
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-family: var(--sans);
   font-size: var(--font-sm);
   line-height: 1.55;
   color: var(--text);
   resize: none;
-  transition: border-color var(--dur-fast) var(--ease);
 }
 
 .field::placeholder { color: var(--text-sub); }
-.field:hover:not(:disabled) { border-color: var(--sunken-hover); }
-
-.field:focus-visible {
-  outline: 2px solid var(--leaf);
-  outline-offset: 1px;
-  border-color: var(--leaf);
-}
 
 .field:disabled {
   color: var(--text-sub);
   cursor: not-allowed;
 }
 
-/* 터치 타깃 44px (§9) */
-.send {
+/* 음성 입력 자리. 아직 안 붙였으므로 상시 disabled — 눌러도 아무 일 없는 버튼을 두지 않는다 */
+.mic {
   flex: none;
-  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-sub);
+  cursor: not-allowed;
+}
+
+.mic svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.hint {
+  flex: none;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
 }

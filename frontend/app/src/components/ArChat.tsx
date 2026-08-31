@@ -4,6 +4,7 @@ import { ApiError } from '../api/client'
 import { agent } from '../api/endpoints'
 import type { AgentHistoryMessage, AgentPendingAction, AgentToolCall } from '../api/types'
 import { useToast } from './Toast'
+import Sprout from './Sprout'
 import styles from './ArChat.module.css'
 
 /* 아르 에이전트 채팅 (ADR-0009 확인 카드 · ADR-0003 "AI는 추천까지, 확정은 사람").
@@ -205,7 +206,13 @@ export default function ArChat({
 
         {items.map((item) => {
           if (item.kind === 'user') return <p key={item.id} className={styles.user}>{item.text}</p>
-          if (item.kind === 'ar') return <p key={item.id} className={styles.ar}>{item.text}</p>
+          /* 아르 말은 아이콘 + 앰버 점선 말풍선 가로 배치 (시안 #agSurface) */
+          if (item.kind === 'ar') return (
+            <div key={item.id} className={styles.arRow}>
+              <Sprout className={styles.arIcon} />
+              <p className={styles.ar}>{item.text}</p>
+            </div>
+          )
           if (item.kind === 'error') return <p key={item.id} className={styles.error}>{item.text}</p>
           return (
             <div key={item.id} className={styles.log}>
@@ -219,26 +226,29 @@ export default function ArChat({
 
         {/* 쓰기 도구는 여기서 멈춘다. 앰버 점선 = AI 제안 (§1 불변 규약) */}
         {pending && (
-          <div className={styles.ask}>
-            <span className={styles.askCap}>확인이 필요합니다</span>
-            <p className={styles.askBody}>{pending.description}</p>
-            <div className={styles.askActions}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={cancelPending}
-                disabled={busy === 'confirm'}
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => void confirmPending()}
-                disabled={busy === 'confirm'}
-              >
-                확인
-              </button>
+          <div className={styles.arRow}>
+            <Sprout className={styles.arIcon} />
+            <div className={styles.ask}>
+              <p className={styles.askBody}>{pending.description}</p>
+              {/* 버튼은 말풍선 안에 — 시안과 같은 순서(확인 · 취소) */}
+              <div className={styles.askActions}>
+                <button
+                  type="button"
+                  className={`btn btn-primary ${styles.askBtn}`}
+                  onClick={() => void confirmPending()}
+                  disabled={busy === 'confirm'}
+                >
+                  확인
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-secondary ${styles.askBtn}`}
+                  onClick={cancelPending}
+                  disabled={busy === 'confirm'}
+                >
+                  취소
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -266,14 +276,22 @@ export default function ArChat({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
         />
+        {/* 음성 입력은 자리만 잡아 둔다 — 아직 붙이지 않았으므로 눌리지 않는다.
+            시안(#agSurface)의 마이크 SVG 그대로. */}
         <button
           type="button"
-          className={`btn btn-primary ${styles.send}`}
-          onClick={() => void send()}
-          disabled={locked || draft.trim() === ''}
+          className={styles.mic}
+          disabled
+          aria-label="음성 입력 — 준비 중"
+          title="음성 입력 — 준비 중"
         >
-          보내기
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+          </svg>
         </button>
+        {/* 시안(1-right-panel.html #agSurface)의 문구 그대로 */}
+        <span className={styles.hint}>Esc 닫기</span>
       </div>
     </div>
   )

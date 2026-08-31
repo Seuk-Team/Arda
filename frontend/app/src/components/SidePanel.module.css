@@ -104,12 +104,30 @@
   border-bottom: var(--border-w) solid var(--border-soft);
 }
 
+/* 시안 #agSurface 헤더의 28px 아르 */
+.headIcon {
+  flex: none;
+  display: flex;
+}
+
+.headIcon svg {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
 .title {
   font-size: var(--font-h2);
   font-weight: 600;
   color: var(--text);
   text-shadow: var(--ts-heading);
   white-space: nowrap;
+}
+
+/* 시안의 아르 제목은 본문 크기(--font-body)다 — 상세 패널 제목(--font-h2)과 다르므로
+   rail 에만 건다. content 의 겉모습은 그대로 둔다. */
+.rail .title {
+  font-size: var(--font-body);
 }
 
 .sub {

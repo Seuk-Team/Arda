@@ -5,6 +5,7 @@
    본문(채팅)은 ArChat.tsx(다른 오너)가 채운다 — 여기는 둘을 잇기만 한다. */
 import type { RefObject } from 'react'
 import SidePanel from './SidePanel'
+import Sprout from './Sprout'
 import ArChat, { type ArMotion } from './ArChat'
 
 export type { ArMotion }
@@ -28,6 +29,8 @@ export default function ArPanel({ open, onClose, onMotion, triggerRef }: Props) 
       label="아르 에이전트"
       title="아르"
       subtitle="에이전트"
+      /* 시안 헤더의 28px 새싹 — 크기는 SidePanel 의 .headIcon 이 준다 */
+      icon={<Sprout />}
       closeLabel="아르 패널 닫기"
       triggerRef={triggerRef}
     >

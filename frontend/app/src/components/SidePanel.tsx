@@ -26,6 +26,9 @@ interface Props {
      안 주면 콘텐츠 위에 떠 있는 닫기 버튼 */
   title?: string
   subtitle?: string
+  /* 제목 왼쪽 아이콘. 시안 #agSurface 헤더의 28px 아르 —
+     rail 만 쓴다(content 는 안 주므로 겉모습이 그대로다). */
+  icon?: ReactNode
   /* 바깥에서 aria-controls 로 가리킬 때 */
   id?: string
   /* 닫을 때 포커스를 되돌릴 곳 */
@@ -41,6 +44,7 @@ export default function SidePanel({
   closeLabel,
   title,
   subtitle,
+  icon,
   id,
   triggerRef,
   children,
@@ -103,6 +107,7 @@ export default function SidePanel({
           closeButton
         ) : (
           <header className={styles.head}>
+            {icon !== undefined && <span className={styles.headIcon}>{icon}</span>}
             <b className={styles.title}>{title}</b>
             {subtitle !== undefined && <span className={styles.sub}>{subtitle}</span>}
             {closeButton}
