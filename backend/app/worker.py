@@ -3,7 +3,7 @@
 SQS 를 long polling 으로 읽어 `email_logs` 한 행을 SES 로 보낸다.
 API 프로세스와 분리된 이유는 mail.py 머리말에 있다.
 
-**재시도와 상한**: 실패하면 예외를 다시 던져 메시지를 삭제하지 않는다. 큐의
+재시도와 상한: 실패하면 예외를 다시 던져 메시지를 삭제하지 않는다. 큐의
 가시성 타임아웃(60초)이 지나면 SQS 가 다시 준다. 큐의 RedrivePolicy 가
 maxReceiveCount=3 이므로 3번째 전달까지만 오고 그 뒤에는 DLQ(arda-mail-dlq)로
 빠진다. 횟수를 세는 주체는 SQS 이고, 이 코드는 그 결과를 `retry_count` ·
@@ -143,7 +143,6 @@ def _interview_at(db: Session, application_id: int) -> str | None:
         f"일정 선택 링크: {PUBLIC_APP_BASE_URL}/schedule/{proposal.token}"
     )
 
-
 def _context(db: Session, log: EmailLog) -> tuple[str, str, str | None]:
     """문구에 채울 지원자명·공고명·면접일시를 읽는다."""
     application = db.get(Application, log.application_id)
@@ -157,7 +156,6 @@ def _context(db: Session, log: EmailLog) -> tuple[str, str, str | None]:
         _interview_at(db, application.id) if log.stage == "interview" else None
     )
     return application.name, posting.title if posting else "", interview_at
-
 
 def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:
     """메시지 한 건을 처리한다. 실패하면 예외를 다시 던진다(= 메시지를 안 지운다)."""
@@ -202,7 +200,6 @@ def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:
     finally:
         db.commit()
 
-
 def _process(message: dict) -> None:
     """메시지 하나를 세션 하나로 처리한다."""
     body = json.loads(message["Body"])
@@ -214,7 +211,6 @@ def _process(message: dict) -> None:
         handle(db, email_log_id, receive_count)
     finally:
         db.close()
-
 
 def poll_once(queue_url: str) -> int:
     """한 번 폴링해 받은 만큼 처리한다. 처리에 성공한 건수를 돌려준다."""
@@ -242,12 +238,10 @@ def poll_once(queue_url: str) -> int:
 
     return done
 
-
 def _stop(signum, frame) -> None:
     global _running
     logger.info("종료 신호 수신 — 폴링을 멈춘다 (signal=%s)", signum)
     _running = False
-
 
 def main() -> None:
     setup_logging()
