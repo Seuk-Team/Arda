@@ -105,8 +105,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     # 상태 코드별 에러 코드 매핑
     code_map = {
         400: ErrorCode.VALIDATION_FAILED,
-        # 401 과 403 을 같은 코드로 내보내면 프론트가 "로그인하러 보낼지"와
-        # "권한 없다고 알릴지"를 구분할 수 없다 (#60, 팀장 승인)
         401: ErrorCode.UNAUTHORIZED,
         403: ErrorCode.FORBIDDEN,
         404: ErrorCode.NOT_FOUND,

@@ -20,8 +20,17 @@ interface AuthValue {
 
 const Ctx = createContext<AuthValue | null>(null)
 
+/* 로컬 개발에서는 로그인 화면을 건너뛴다 — 화면 하나 보려고 매번 로그인하지 않게.
+   import.meta.env.DEV 는 vite dev 에서만 참이고 빌드 번들에서는 이 상수가 죽은 코드로
+   제거된다. 배포에 새어나갈 수 없다.
+   토큰이 있으면(한 번 로그인했으면) 그쪽이 우선이고, 없으면 이 사용자로 화면만 연다 —
+   토큰이 없으니 API 는 401 을 주고, 데이터가 필요한 화면은 §6 에러 상태로 뜬다. */
+const DEV_USER: User | null = import.meta.env.DEV
+  ? { id: 0, email: 'dev@local', name: '개발', role: 'admin' }
+  : null
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User | null>(getToken() === null ? DEV_USER : null)
   const [loading, setLoading] = useState(getToken() !== null)
   const [error, setError] = useState<ApiError | null>(null)
   /* 값을 바꿔 부트스트랩을 다시 돌리는 용도 */
