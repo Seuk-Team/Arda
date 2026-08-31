@@ -62,10 +62,25 @@ def _call_llm(client, prompt_text: str) -> tuple[str, int, int]:
     return raw, response.usage.input_tokens, response.usage.output_tokens
 
 
+def _strip_fences(raw: str) -> str:
+    """LLM이 코드펜스로 감싼 경우 벗긴다."""
+    s = raw.strip()
+    if s.startswith("```"):
+        first_nl = s.index("\n") if "\n" in s else len(s)
+        s = s[first_nl + 1 :]
+    if s.endswith("```"):
+        s = s[: -3]
+    return s.strip()
+
+
 def _parse_json(raw: str, step: str, application_id: int) -> dict | None:
-    """JSON 파싱. 실패하면 None."""
+    """JSON 파싱. 코드펜스가 있으면 벗기고 시도한다. 실패하면 None."""
     try:
         return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    try:
+        return json.loads(_strip_fences(raw))
     except json.JSONDecodeError:
         logger.warning("JSON 파싱 실패 (step=%s): application_id=%d", step, application_id)
         return None

@@ -111,7 +111,7 @@ class Application(Base):
     # AI 요약: 접수 시 1회 생성해 저장한다. 패널을 열 때마다 생성하지 않는다.
     ai_summary: Mapped[str | None] = mapped_column(Text)
     ai_summary_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ai_summary_model: Mapped[str | None] = mapped_column(String(50))
+    ai_summary_model: Mapped[str | None] = mapped_column(String(200))
 
     current_stage: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=text("'applied'")
