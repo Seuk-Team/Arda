@@ -28,14 +28,43 @@
 }
 
 .nav {
+  position: relative;
   margin-top: var(--sp-6);
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+/* 활성 표시 판. 항목 배경이 아니라 이 한 장이 옮겨 다닌다 — 화면 전환 때
+   메뉴가 "이동"해야 하기 때문(팀장 지시). 평소엔 transition 이 없어 즉시 붙는다. */
+.navPill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  pointer-events: none;
+}
+
+:global(body[data-morph]) .navPill {
+  transition: transform var(--dur-base) var(--ease);
+}
+
+:global(body[data-morph]) .link {
+  transition: color var(--dur-base) var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(body[data-morph]) .navPill,
+  :global(body[data-morph]) .link {
+    transition: none;
+  }
+}
+
 /* 메뉴 항목 높이 48px — §2 가 내비 항목 높이로 못박은 값 */
 .link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -70,9 +99,9 @@
 }
 
 /* 굵은 글씨·글자 그림자 없음 — 강조는 배경과 색으로만 한다.
-   .link 가 이미 font-weight 500 이라 :active 에서도 굵어지지 않는다. */
+   .link 가 이미 font-weight 500 이라 :active 에서도 굵어지지 않는다.
+   배경(흰 판)은 .navPill 이 대신 그린다 — 전환 때 미끄러져 이동해야 해서. */
 .active {
-  background: var(--bg-elev);
   color: var(--leaf);
 }
 

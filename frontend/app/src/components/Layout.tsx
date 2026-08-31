@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ArPanel, { type ArMotion } from './ArPanel'
+import MorphNav from './MorphNav'
 import type { Motion } from './ArViewer'
 import styles from './Layout.module.css'
 
@@ -35,18 +36,23 @@ export default function Layout() {
   }, [])
 
   return (
-    <div className={styles.shell}>
-      <Sidebar
-        arOpen={arOpen}
-        arMotion={shownMotion}
-        onToggleAr={toggleAr}
-        onArHover={setArHovered}
-        arButtonRef={arButtonRef}
-      />
-      <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
-      <main className={styles.main}>
-        <Outlet />
-      </main>
-    </div>
+    /* 화면 전환(대시보드 축소판 → 캘린더)은 라우트 밖에서 살아 있어야 한다 —
+       떠나는 화면이 언마운트된 뒤에도 도형이 남아 이어져야 하기 때문 */
+    <MorphNav>
+      <div className={styles.shell}>
+        <Sidebar
+          arOpen={arOpen}
+          arMotion={shownMotion}
+          onToggleAr={toggleAr}
+          onArHover={setArHovered}
+          arButtonRef={arButtonRef}
+        />
+        <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
+        {/* 전환이 페이드아웃·페이드인 대상으로 잡는 본문 껍데기 */}
+        <main className={styles.main} data-morph-shell="">
+          <Outlet />
+        </main>
+      </div>
+    </MorphNav>
   )
 }

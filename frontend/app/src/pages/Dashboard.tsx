@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
+import { useMorphNav } from '../components/MorphNav'
 import { ApiError } from '../api/client'
 import { applications, assignments, postings as postingsApi, schedules } from '../api/endpoints'
-import type { ApplicationListItem, Posting, ScheduleStatus, Stage } from '../api/types'
+import type { ApplicationListItem, Interview, Posting, ScheduleStatus, Stage } from '../api/types'
 import { STAGE_LABEL, fmtDate } from '../lib/stage'
 import { useAuth } from '../auth/AuthContext'
 import styles from './Dashboard.module.css'
@@ -55,9 +56,65 @@ function fmtSlot(iso: string): string {
 /* 공고 카드의 3단 레일. 왼쪽부터 검토 → 진행 → 완료 */
 const RAIL_STAGES: Stage[] = ['screening', 'interview', 'accepted']
 
+/* ── 면접 일정 축소판 ─────────────────────────────────────────────
+   캘린더 화면(Interviews.tsx)과 같은 소스(GET /schedules)를 같은 규칙으로 읽는다 —
+   확정된 일정만, 주 시작은 일요일(국내 관행), 칸 배정은 KST 기준.
+   여기서 등록·수정은 없다. 넘치는 건 캘린더 화면이 받는다. */
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+
+/* 목록에 그리는 최대 건수. 대시보드는 요약이라 하루치를 다 펴지 않는다 */
+const CAL_LIMIT = 4
+
+const timeFmt = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false,
+})
+
+const dayFmt = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+})
+
+function hhmm(iso: string): string {
+  return timeFmt.format(new Date(iso))
+}
+
+function isoDayKey(iso: string): string {
+  const parts = dayFmt.formatToParts(new Date(iso))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+function startOfToday(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setDate(x.getDate() + n)
+  return x
+}
+
+function startOfWeek(d: Date): Date {
+  return addDays(d, -d.getDay())
+}
+
+function dayKey(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+function fmtMonth(d: Date): string {
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  /* 축소판 → 전체 캘린더 전환. leaving 동안 이 화면은 축소판만 남기고 진다 */
+  const { leaving, start: startMorph } = useMorphNav()
+  const calRef = useRef<HTMLElement>(null)
 
   const [data, setData] = useState<DashboardData | null>(null)
   const [rails, setRails] = useState<Record<number, number[]>>({})
@@ -134,6 +191,64 @@ export default function Dashboard() {
     return () => ac.abort()
   }, [user])
 
+  /* 축소판이 보는 날. 주(스트립)는 이 날에서 파생된다 — 상태를 둘로 두면 어긋난다 */
+  const [calSel, setCalSel] = useState(startOfToday)
+  const [ivs, setIvs] = useState<Interview[] | null>(null)
+  const [ivError, setIvError] = useState<string | null>(null)
+
+  const calWeek = useMemo(() => startOfWeek(calSel), [calSel])
+
+  useEffect(() => {
+    const ac = new AbortController()
+    setIvs(null)
+
+    schedules
+      .interviews({ from: calWeek.toISOString(), to: addDays(calWeek, 7).toISOString() }, ac.signal)
+      .then((res) => { setIvs(res.items); setIvError(null) })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
+        setIvs([])
+        setIvError(err instanceof ApiError ? err.message : '면접 일정을 불러오지 못했습니다')
+      })
+
+    return () => ac.abort()
+  }, [calWeek])
+
+  const calByDay = useMemo(() => {
+    const map = new Map<string, Interview[]>()
+    for (const iv of ivs ?? []) {
+      const bucket = map.get(isoDayKey(iv.start_at))
+      if (bucket) bucket.push(iv)
+      else map.set(isoDayKey(iv.start_at), [iv])
+    }
+    for (const bucket of map.values()) bucket.sort((a, b) => a.start_at.localeCompare(b.start_at))
+    return map
+  }, [ivs])
+
+  const calDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(calWeek, i)),
+    [calWeek],
+  )
+  const calItems = calByDay.get(dayKey(calSel)) ?? []
+  const todayKey = dayKey(startOfToday())
+
+  /* 축소판 도형이 캘린더 화면으로 확장되며 이어진다 (MorphNav).
+     전환을 못 걸면(모션 최소화·목적지 없음) 그냥 이동한다 */
+  function goCalendar() {
+    if (calRef.current === null) {
+      navigate('/interviews')
+      return
+    }
+    startMorph(calRef.current, '/interviews', 'calendar')
+  }
+
+  /* 카드 안 빈자리를 눌러도 캘린더로 간다. 카드 안의 조작(주 이동·날짜 선택)은 제자리 */
+  function onCalCardClick(e: React.MouseEvent<HTMLElement>) {
+    if (e.target instanceof Element && e.target.closest('button, a') !== null) return
+    goCalendar()
+  }
+
   const interviewTotal = data?.pipe.find((g) => g.stage === 'interview')?.total
 
   const stats = [
@@ -164,7 +279,8 @@ export default function Dashboard() {
   return (
     <>
       <PageHead title="대시보드" />
-      <main className="page-content">
+      {/* 전환 중에는 축소판만 남기고 나머지가 진다 (data-leaving → CSS) */}
+      <main className={`page-content ${styles.page}`} data-leaving={leaving ? '' : undefined}>
         {error !== null && <p className={styles.state} role="alert">{error}</p>}
 
         <div className={styles.stats}>
@@ -177,6 +293,109 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+
+        {/* ── 면접 일정 축소판 — 누르면 캘린더 화면으로 이어진다 ────────── */}
+        <section
+          ref={calRef}
+          className={`${styles.card} ${styles.calCard}`}
+          onClick={onCalCardClick}
+        >
+          <div className={styles.calHead}>
+            <h2 className={styles.calTitle}>면접 일정</h2>
+            <span className={styles.calMonth}>{fmtMonth(calSel)}</span>
+            <button
+              type="button"
+              className={styles.calToday}
+              onClick={() => setCalSel(startOfToday())}
+            >
+              오늘
+            </button>
+            <button
+              type="button"
+              className={styles.calNav}
+              aria-label="이전 주"
+              onClick={() => setCalSel(addDays(calSel, -7))}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className={styles.calNav}
+              aria-label="다음 주"
+              onClick={() => setCalSel(addDays(calSel, 7))}
+            >
+              ›
+            </button>
+            {/* 키보드로도 캘린더에 닿는 길 (§10) — 전환은 여기서도 같은 것을 탄다 */}
+            <Link
+              to="/interviews"
+              className={styles.go}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                e.preventDefault()
+                goCalendar()
+              }}
+            >
+              캘린더 →
+            </Link>
+          </div>
+
+          <div className={styles.dow} aria-hidden="true">
+            {DOW.map((d) => <span key={d} className={styles.dowCell}>{d}</span>)}
+          </div>
+
+          <div className={styles.strip}>
+            {calDays.map((d) => {
+              const key = dayKey(d)
+              const n = calByDay.get(key)?.length ?? 0
+              const cls = [
+                styles.stripCell,
+                key === todayKey ? styles.stripToday : '',
+                key === dayKey(calSel) ? styles.stripSel : '',
+              ].filter(Boolean).join(' ')
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={cls}
+                  aria-pressed={key === dayKey(calSel)}
+                  aria-current={key === todayKey ? 'date' : undefined}
+                  aria-label={`${key.replaceAll('-', '.')} ${DOW[d.getDay()]}요일, ${n ? `면접 ${n}건` : '면접 없음'}`}
+                  onClick={() => setCalSel(d)}
+                >
+                  <span className={styles.stripDate}>{d.getDate()}</span>
+                  {n > 0 && <span className={styles.stripCount}>{n}</span>}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className={styles.calList}>
+            {ivError !== null && <p className={styles.calState} role="alert">{ivError}</p>}
+
+            {ivError === null && ivs === null && [0, 1, 2].map((i) => (
+              <span key={i} className={styles.calSkel} />
+            ))}
+
+            {ivError === null && ivs !== null && calItems.length === 0 && (
+              <p className={styles.calState}>이 날짜에 잡힌 면접이 없습니다. 확정된 일정만 표시됩니다.</p>
+            )}
+
+            {calItems.slice(0, CAL_LIMIT).map((iv) => (
+              <div key={iv.proposal_id} className={styles.calRow}>
+                <span className={styles.calTime}>{hhmm(iv.start_at)}</span>
+                <span className={styles.calName}>{iv.applicant_name}</span>
+                <span className={styles.calPosting}>{iv.posting_title}</span>
+              </div>
+            ))}
+
+            {calItems.length > CAL_LIMIT && (
+              <button type="button" className={styles.moreLink} onClick={goCalendar}>
+                외 {calItems.length - CAL_LIMIT}건 →
+              </button>
+            )}
+          </div>
+        </section>
 
         <div className={styles.card}>
           <div className={styles.pipeHead}>
