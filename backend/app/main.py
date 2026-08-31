@@ -182,6 +182,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 from app.api.applications import router as applications_router  # noqa: E402
 from app.api.assignments import router as assignments_router  # noqa: E402
 from app.api.auth import router as auth_router  # noqa: E402
+from app.api.availability import router as availability_router  # noqa: E402
 from app.api.evaluations import router as evaluations_router  # noqa: E402
 from app.api.files import router as files_router  # noqa: E402
 from app.api.notes import router as notes_router  # noqa: E402
@@ -194,6 +195,7 @@ app.include_router(agent_router)
 app.include_router(applications_router)
 app.include_router(assignments_router)
 app.include_router(auth_router)
+app.include_router(availability_router)
 app.include_router(evaluations_router)
 app.include_router(files_router)
 app.include_router(notes_router)
