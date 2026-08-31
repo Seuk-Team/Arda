@@ -35,6 +35,7 @@ POSTING_STATUSES = ("draft", "open", "closed")
 APPLICATION_SOURCES = ("form", "manual")
 FILE_KINDS = ("resume", "cover_letter")
 EMAIL_STATUSES = ("queued", "sent", "failed")
+PROPOSAL_STATUSES = ("proposed", "confirmed", "expired", "canceled")
 
 
 def _in(column: str, values: tuple[str, ...]) -> str:
@@ -303,4 +304,124 @@ class InterviewerAssignment(Base):
 
     __table_args__ = (
         UniqueConstraint("application_id", "interviewer_id", name="uq_interviewer_assignments"),
+    )
+
+
+# ── interviewer_availability — 면접관 가용 시간 (일정 자동화 · v1.2) ──
+class InterviewerAvailability(Base):
+    """면접관이 등록하는 "면접 가능한 시간대". 후보 슬롯 생성의 입력이다 (ADR-0016).
+
+    반복 규칙(매주 화 14~18시 등)은 두지 않는다 — 구간 행을 여러 개 넣는 것으로 갈음.
+    """
+
+    __tablename__ = "interviewer_availability"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # role=interviewer(또는 그 이상) 검사는 코드에서
+    interviewer_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False
+    )
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("start_at < end_at", name="ck_interviewer_availability_range"),
+        # 면접관별 기간 조회
+        Index("ix_interviewer_availability_user_start", "interviewer_id", "start_at"),
+    )
+
+
+# ── schedule_proposals — 면접 일정 제안 (일정 자동화 · v1.2) ─────────
+class ScheduleProposal(Base):
+    """지원자 1명에게 보내는 "이 중에서 고르세요" 제안 한 건.
+
+    지원자는 로그인이 없으므로 public_token(B6)과 같은 토큰 공개 접근 패턴을 쓴다.
+    재제안 시 새 행을 만들고 이전 행은 canceled — 이력이 남는다(stage_history와 같은 철학).
+    만료는 스케줄러 없이 조회 시점 판정(B4 마감과 같은 방식).
+    """
+
+    __tablename__ = "schedule_proposals"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    application_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("applications.id"), nullable=False
+    )
+    # 지원자 공개 접근 토큰. 메일 링크에 실린다
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'proposed'")
+    )
+    # 지원자가 고른 슬롯. confirmed 때만 값 존재.
+    # slots가 이 테이블을 FK로 참조하는 순환 관계라 use_alter로 ALTER 분리 생성.
+    confirmed_slot_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "schedule_slots.id",
+            use_alter=True,
+            name="fk_schedule_proposals_confirmed_slot",
+        ),
+    )
+    # 선택 기한. 지나면 조회 시점 판정으로 expired
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    # 지원자 공개 페이지·상세 조회용. FK 경로가 둘(proposal_id / confirmed_slot_id)이라 명시.
+    slots: Mapped[list["ScheduleSlot"]] = relationship(
+        foreign_keys="ScheduleSlot.proposal_id", order_by="ScheduleSlot.start_at"
+    )
+
+    __table_args__ = (
+        CheckConstraint(_in("status", PROPOSAL_STATUSES), name="ck_schedule_proposals_status"),
+        # 지원자 상세에서 최신 제안 표시
+        Index(
+            "ix_schedule_proposals_app_created",
+            "application_id",
+            text("created_at DESC"),
+        ),
+    )
+
+
+# ── schedule_slots — 제안에 묶인 후보 슬롯 (일정 자동화 · v1.2) ──────
+class ScheduleSlot(Base):
+    """슬롯은 생성 시점의 가용 시간 스냅샷이다 — 이후 면접관이 가용 시간을 지워도
+    이미 나간 제안은 유효하다(지원자가 보고 있는 선택지가 바뀌면 안 된다).
+    확정 시점에 겹침(같은 면접관의 다른 confirmed 슬롯)만 재검증한다.
+    """
+
+    __tablename__ = "schedule_slots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("schedule_proposals.id"), nullable=False
+    )
+    # 이 슬롯에 들어갈 면접관
+    interviewer_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False
+    )
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint("start_at < end_at", name="ck_schedule_slots_range"),
+        # 같은 제안 안 중복 슬롯 방지
+        UniqueConstraint(
+            "proposal_id", "interviewer_id", "start_at", name="uq_schedule_slots"
+        ),
     )
