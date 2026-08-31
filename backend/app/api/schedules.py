@@ -22,6 +22,7 @@ from app.models import (
     Application,
     InterviewerAssignment,
     InterviewerAvailability,
+    JobPosting,
     ScheduleProposal,
     ScheduleSlot,
     User,
