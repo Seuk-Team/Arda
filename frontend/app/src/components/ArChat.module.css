@@ -56,17 +56,15 @@
   height: 26px;
 }
 
-/* 아르가 한 말은 전부 AI 산출물이다 — 앰버 점선 (§1 불변 규약).
-   말꼬리는 왼쪽 위 모서리를 접어서. */
+/* 아르 말풍선 공통 뼈대. 말꼬리는 왼쪽 위 모서리를 접어서 —
+   사용자(오른쪽 정렬 · sunken 채움 · 오른쪽 아래 꼬리)와 정렬·색·꼬리 셋으로 구분된다. */
 .ar,
 .ask {
   flex: 1;
   min-width: 0;
   padding: var(--sp-3);
-  border: var(--border-w) dashed var(--ai);
   border-radius: var(--r-card);
   border-top-left-radius: 2px;
-  background: var(--ai-soft);
   font-size: var(--font-sm);
   line-height: 1.7;
   color: var(--text);
@@ -74,8 +72,39 @@
   overflow-wrap: anywhere;
 }
 
+/* 일반 발화는 흰 카드 + 실선 (2026-08-31 개편) — 앰버 점선을 전 발화에 칠하면
+   "점선 = 확정 대기 제안"(§1) 규약이 희석된다. 점선은 아래 .ask 만 쓴다. */
 .ar {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+}
+
+/* 확인 카드 = AI 제안 (확정 대기) — 여기만 앰버 점선 (§1 불변 규약) */
+.ask {
+  background: var(--ai-soft);
+  border: var(--border-w) dashed var(--ai);
+}
+
+/* 문단·불릿은 마크다운 렌더(mdBlocks)가 블록으로 나눈다 — 컨테이너의 pre-wrap 은
+   블록 사이 빈 줄을 이중으로 벌리므로 문단 안에서만 줄바꿈을 살린다 */
+.ar p {
+  margin: 0;
   white-space: pre-wrap;
+}
+
+.ar p + p,
+.ar p + ul,
+.ar ul + p {
+  margin-top: var(--sp-2);
+}
+
+.ar ul {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+
+.ar li + li {
+  margin-top: var(--sp-1);
 }
 
 /* 실행 로그: 무엇을 했는지만 담백하게. 말풍선을 주지 않는다 */

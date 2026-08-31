@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent, ReactElement } from 'react'
+import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
 import { ApiError } from '../api/client'
 import { agent } from '../api/endpoints'
 import type { AgentHistoryMessage, AgentPendingAction, AgentToolCall } from '../api/types'
@@ -54,6 +54,53 @@ function errorText(err: unknown) {
     return err.message
   }
   return '요청을 처리하지 못했습니다.'
+}
+
+/* ── 최소 마크다운 (굵게 · 불릿) ─────────────────────────────
+   LLM 답변의 **…** 와 "- " 가 생 기호로 노출되던 것을 그린다 (2026-08-31).
+   딱 이 둘만 — 헤딩·링크·코드는 프롬프트에서 막는 게 맞고, 여기서 더 그리지 않는다. */
+function mdInline(text: string): ReactNode[] {
+  return text
+    .split(/\*\*(.+?)\*\*/g)
+    .map((part, i) => (i % 2 === 1 ? <b key={i}>{part}</b> : part))
+}
+
+function mdBlocks(text: string): ReactElement[] {
+  const out: ReactElement[] = []
+  let para: string[] = []
+  let list: string[] = []
+
+  const flushPara = () => {
+    if (para.length === 0) return
+    out.push(<p key={out.length}>{mdInline(para.join('\n'))}</p>)
+    para = []
+  }
+  const flushList = () => {
+    if (list.length === 0) return
+    out.push(
+      <ul key={out.length}>
+        {list.map((line, i) => <li key={i}>{mdInline(line)}</li>)}
+      </ul>,
+    )
+    list = []
+  }
+
+  for (const line of text.split('\n')) {
+    const bullet = /^\s*[-*]\s+(.*)$/.exec(line)
+    if (bullet) {
+      flushPara()
+      list.push(bullet[1])
+    } else if (line.trim() === '') {
+      flushPara()
+      flushList()
+    } else {
+      flushList()
+      para.push(line)
+    }
+  }
+  flushPara()
+  flushList()
+  return out
 }
 
 type Body =
@@ -210,7 +257,8 @@ export default function ArChat({
           if (item.kind === 'ar') return (
             <div key={item.id} className={styles.arRow}>
               <Sprout className={styles.arIcon} />
-              <p className={styles.ar}>{item.text}</p>
+              {/* ul 이 들어갈 수 있어 p 가 아니라 div — 문단·불릿은 mdBlocks 가 나눈다 */}
+              <div className={styles.ar}>{mdBlocks(item.text)}</div>
             </div>
           )
           if (item.kind === 'error') return <p key={item.id} className={styles.error}>{item.text}</p>
