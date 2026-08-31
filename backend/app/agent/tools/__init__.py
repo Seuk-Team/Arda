@@ -20,6 +20,7 @@ from .read import (
     list_interviews,
     list_postings,
     search_applications,
+    search_users,
 )
 from .write import (
     WRITE_TOOL_NAMES,
@@ -179,6 +180,33 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "search_users",
+        "description": (
+            "내부 사용자(면접관, 어드민 등)를 검색합니다. "
+            "이름이나 이메일 키워드(q)로 찾고, 역할(role)로 필터할 수 있습니다. "
+            "면접관을 이름으로 찾아 ID를 확인할 때 씁니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "q": {
+                    "type": "string",
+                    "description": "이름 또는 이메일 검색어 (부분 일치)",
+                },
+                "role": {
+                    "type": "string",
+                    "enum": ["admin", "member"],
+                    "description": "역할 필터",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "최대 결과 수 (기본 20, 최대 50)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "change_stage",
         "description": (
             "지원자의 단계를 변경합니다. "
@@ -289,6 +317,7 @@ _DISPATCH = {
     "search_applications": search_applications,
     "get_application": get_application,
     "list_postings": list_postings,
+    "search_users": search_users,
     "list_availability": list_availability,
     "get_schedule_status": get_schedule_status,
     "list_interviews": list_interviews,

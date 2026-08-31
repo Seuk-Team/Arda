@@ -330,6 +330,36 @@ def list_interviews(db: Session, user: User, params: dict) -> list[dict]:
     ]
 
 
+def search_users(db: Session, user: User, params: dict) -> list[dict]:
+    """내부 사용자(면접관 등) 검색. 이름·이메일 키워드로 찾는다."""
+    limit = min(int(params.get("limit", 20)), 50)
+
+    stmt = select(User)
+
+    q = params.get("q")
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(User.name.ilike(like), User.email.ilike(like))
+        )
+
+    role = params.get("role")
+    if role:
+        stmt = stmt.where(User.role == role)
+
+    stmt = stmt.order_by(User.name).limit(limit)
+    rows = db.scalars(stmt).all()
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role,
+        }
+        for u in rows
+    ]
+
+
 def _app_to_dict(app: Application) -> dict:
     return {
         "id": app.id,
