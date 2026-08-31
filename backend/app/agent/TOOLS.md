@@ -26,13 +26,50 @@ JWT는 현재 요청의 것을 그대로 전달 — 에이전트가 별도 슈�
 
 | 도구명 | 하는 일 | 동등 REST | 비고 |
 |---|---|---|---|
-| `search_applications` | 이름·이메일·단계·시맨틱 검색으로 지원자 찾기 | `GET /api/v1/applications?q=&stage=` | H1·H2. semantic 파라미터로 역량 기반 검색 가능 |
+| `search_applications` | 이름·이메일·단계 + **역량 기반 시맨틱 검색**으로 지원자 찾기 | `GET /api/v1/applications?q=&stage=` | H1·H2. 전역 검색 경로 사용. `semantic` 은 §2.1 |
 | `get_application` | 지원자 상세 (프로필·AI 요약·평가·이력·파일·메모 수) | `GET /api/v1/applications/{id}` | D4. 평가·이력·메모를 한 번에 반환하므로 개별 조회 도구 불필요 |
 | `list_postings` | 채용공고 목록 + 공고별 지원자 수 | `GET /api/v1/postings` | 공고 이름 → posting_id 변환에 사용 |
 | `search_users` | 내부 사용자(면접관·어드민) 이름·이메일 검색 | `GET /api/v1/users?q=` | 면접관 이름 → user_id 변환에 사용 |
 | `list_availability` | 면접관의 가용 시간(면접 가능한 시간대) 조회 | `GET /api/v1/availability?interviewer_id=` | 일정 제안 전 빈 시간 확인용 |
 | `get_schedule_status` | 지원자의 면접 일정 제안 상태 조회 | `GET /api/v1/schedules/status/{application_id}` | none/proposed/confirmed/expired/canceled |
 | `list_interviews` | 확정된 면접 일정 목록 조회 | `GET /api/v1/schedules/interviews` | 기간 필터, mine=true로 내 면접만 조회 가능 |
+
+### 2.1 `search_applications` 반환 계약 (ADR-0021)
+
+리스트가 아니라 **dict** 를 돌려준다. 검색이 온전히 돌았는지를 아르가 알아야 하기 때문이다.
+
+```json
+{ "results": [...], "count": 3, "search_mode": "semantic+keyword", "note": "..." }
+```
+
+| `search_mode` | 뜻 | 아르가 해야 할 것 |
+|---|---|---|
+| `semantic+keyword` | 벡터 + 키워드 둘 다 돔 | 그대로 답한다 |
+| `keyword_fallback` | **벡터가 못 돌아 키워드로만 찾음** (pgvector·모델·임베딩 없음, 임계값 밖) | 0건이어도 "없습니다" 로 단정 금지. `note` 를 전달 |
+| `lexical` / `all` | 이름·이메일 검색 | 그대로 답한다 |
+
+결과 항목의 `matched_by` 는 `both` > `semantic` > `keyword` 순 신뢰도이고, `similarity`(0~1)는
+벡터에 걸린 건에만 붙는다. 정렬은 이미 이 순서다.
+
+**임계값**: 두 겹이다. 절대 상한 `SEMANTIC_MAX_DISTANCE`(기본 0.70) + 1등 기준 상대 창
+`SEMANTIC_RELATIVE_WINDOW`(기본 0.15). 절대 상한 하나로는 안 걸러진다 — 실측 근거는
+`embedder.py` 임계값 주석.
+
+**병합**: 벡터 결과 ∪ 키워드 결과, id 중복 제거. 키워드는 이름·이메일뿐 아니라
+스킬·자기소개서·학력까지 본다 — 그래야 벡터가 죽어도 "Python 경험자" 가 걸린다.
+
+**임베딩 입력**: 스킬 + 학력 + 경력. **자기소개서는 넣지 않는다** — 모델
+`max_seq_length` 가 128토큰이라 자소서를 넣으면 잘린 상투구가 벡터를 지배해 순위가
+망가진다(ADR-0021 구현 메모). 자소서는 키워드 쪽이 계속 훑는다. 되돌리려면
+`EMBEDDING_INCLUDE_INTRO=1`.
+
+**백필**: `python -m app.agent.embedder`(`--dry-run` 으로 대상 건수만, `--force` 로 전건 재생성).
+서버 기동 시 자동 실행하지 않는다 (ADR-0011 비용 가드). `model_name` 에 모델 + 입력 규칙
+버전(`.../text-v2`)을 적어두므로, 규칙이 바뀌면 백필이 낡은 벡터를 알아서 다시 만든다.
+
+**주의**: `sentence-transformers`·`pgvector` 가 컨테이너에 없거나 DB 에 `vector` 확장이
+없으면 시맨틱 검색은 조용히 꺼지고 키워드 폴백만 돈다. 배포 후 실제로 벡터가 도는지는
+`search_mode` 값으로 확인한다.
 
 ### 쓰기 도구 (확인 필수)
 

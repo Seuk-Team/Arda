@@ -37,7 +37,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "지원자를 검색합니다. 이름·이메일 키워드(q), 의미 기반 검색(semantic), "
             "단계(stage), 공고 ID, 정렬(sort: created_at|score), 순서(order: asc|desc), "
             "결과 수(limit, 기본 10·최대 50)를 조합할 수 있습니다. "
-            "'Python 경험자', '클라우드 인프라' 같은 역량 기반 검색은 semantic을 씁니다."
+            "'Python 경험자', '클라우드 인프라' 같은 역량 기반 검색은 semantic을 씁니다. "
+            "반환: {results, count, search_mode, note?}. search_mode가 keyword_fallback이면 "
+            "의미 검색이 돌지 못한 것이므로 결과가 비어도 '지원자가 없다'고 단정하지 말고 "
+            "note의 이유를 담당자에게 전달하세요."
         ),
         "input_schema": {
             "type": "object",

@@ -6,6 +6,9 @@
 
 from __future__ import annotations
 
+import logging
+import re
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,40 +23,196 @@ from app.models import (
 )
 
 
-def search_applications(
-    db: Session, user: User, params: dict
-) -> list[dict]:
-    """지원자 통합 검색. 에이전트의 핵심 도구 — 16개 시나리오 중 14개에서 호출."""
+# ── 시맨틱 검색어에서 키워드를 뽑는 규칙 ─────────────────────────────
+# 벡터 검색이 죽어 있어도 "Python 경험자" 는 찾아져야 한다. 자연어 질의에서
+# 검색에 쓸 만한 낱말만 남기고 조사·상투어를 버린다. 형태소 분석기를 붙이지
+# 않은 이유: 의존성 하나 더 늘리는 값에 비해, 역량 검색어의 신호는 대부분
+# 영문 기술어(Python, AWS)와 두 글자 이상 한글 명사에 실려 있다.
+_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9+#.]*|[가-힣]{2,}")
+_STOPWORDS = {
+    "경험", "경험자", "경력", "사람", "지원자", "개발자", "이상", "이하", "미만",
+    "있는", "있으신", "있고", "가진", "찾아줘", "찾아", "찾기", "보여줘", "알려줘",
+    "누구", "관련", "가능", "필요", "정도", "해본", "다루는", "쓰는", "출신",
+    "and", "or", "the", "with", "of", "in", "for",
+}
+
+logger = logging.getLogger(__name__)
+
+
+def _keywords(text: str) -> list[str]:
+    """자연어 질의에서 검색 키워드를 뽑는다. 순서 유지, 중복 제거."""
+    out: list[str] = []
+    for token in _TOKEN.findall(text or ""):
+        if len(token) < 2 or token.lower() in _STOPWORDS:
+            continue
+        if token.lower() not in {t.lower() for t in out}:
+            out.append(token)
+    return out
+
+
+def _keyword_filter(keywords: list[str]):
+    """키워드 OR 조건. 이름·이메일뿐 아니라 스킬·자기소개서·학력까지 본다.
+
+    ADR-0021 은 ILIKE 를 "이름·이메일" 로만 적었지만, 그 범위로는 역량 검색에
+    아무것도 걸리지 않아 병합의 한쪽이 항상 빈다 (보고서의 ADR 차이 항목).
+    """
+    clauses = []
+    for kw in keywords:
+        like = f"%{kw}%"
+        clauses.append(
+            or_(
+                Application.name.ilike(like),
+                Application.email.ilike(like),
+                Application.education.ilike(like),
+                Application.self_intro.ilike(like),
+                func.array_to_string(Application.skills, ",").ilike(like),
+            )
+        )
+    return or_(*clauses)
+
+
+def _keyword_hits(app: Application, keywords: list[str]) -> int:
+    """이 지원자가 몇 개의 키워드에 걸렸는지 — 키워드 결과 정렬에 쓴다."""
+    haystack = " ".join(
+        filter(
+            None,
+            [
+                app.name or "",
+                app.email or "",
+                app.education or "",
+                app.self_intro or "",
+                ", ".join(app.skills or []),
+            ],
+        )
+    ).lower()
+    return sum(1 for kw in keywords if kw.lower() in haystack)
+
+
+def _semantic_search(db: Session, user: User, params: dict, limit: int) -> dict:
+    """벡터 + 키워드 하이브리드 검색 (ADR-0021 결과 병합).
+
+    벡터 검색이 불가능하거나(pgvector·모델·임베딩 없음) 임계값 안에 아무것도
+    없으면 **키워드 검색으로 내려앉고 그 사실을 note 로 알린다.** 조용히 빈
+    리스트를 반환하면 아르가 "지원자가 없습니다" 라고 단정한다.
+    """
+    from app.agent.embedder import MAX_DISTANCE, EmbeddingUnavailable, search_similar
+
+    semantic = params["semantic"]
+    keywords = _keywords(semantic)
+
+    stage = params.get("stage")
+    if isinstance(stage, str):
+        stage = [stage]
+    posting_id = params.get("posting_id")
+    # 단계·공고 필터는 벡터 검색 뒤에 걸리므로 그만큼 넉넉히 뽑아둔다.
+    fetch_limit = limit * 3 if (stage or posting_id) else limit
+
+    distances: dict[int, float] = {}
+    degraded: str | None = None
+    try:
+        distances = dict(search_similar(db, semantic, limit=fetch_limit))
+    except EmbeddingUnavailable as exc:
+        degraded = exc.reason
+    except Exception:  # 벡터 검색이 터져도 검색 자체는 살아 있어야 한다
+        logger.exception("벡터 검색 실패 — 키워드 검색으로 대체")
+        degraded = "시맨틱 검색 중 오류가 발생했습니다"
+        # **rollback 이 없으면 폴백이 통째로 500 이 된다.** PG 는 실패한 문장 하나로
+        # 트랜잭션 전체를 abort 시키므로, 바로 아래 키워드 쿼리가
+        # InFailedSqlTransaction 으로 터진다. "pgvector 파이썬 패키지는 있는데 DB
+        # 확장은 없는" 상태(= 2026-08-31 운영)에서 실제로 재현된다:
+        # application_embeddings 테이블이 없어 SELECT 가 죽고 → 폴백도 죽는다.
+        db.rollback()
+
+    stmt = select(Application)
+    conditions = []
+    if distances:
+        conditions.append(Application.id.in_(list(distances)))
+    if keywords:
+        conditions.append(_keyword_filter(keywords))
+    if not conditions:
+        # 벡터도 못 쓰고 뽑을 키워드도 없다 — 검색어 자체가 조사·상투어뿐이다.
+        return {
+            "results": [],
+            "count": 0,
+            "search_mode": "keyword_fallback" if degraded else "semantic",
+            "note": (
+                f"검색어 '{semantic}' 에서 쓸 만한 키워드를 뽑지 못했습니다. "
+                "기술명·직무명을 넣어 다시 시도해 주세요."
+                + (f" (시맨틱 검색 불가: {degraded})" if degraded else "")
+            ),
+        }
+    stmt = stmt.where(or_(*conditions))
+    if stage:
+        stmt = stmt.where(Application.current_stage.in_(stage))
+    if posting_id:
+        stmt = stmt.where(Application.job_posting_id == int(posting_id))
+
+    apps = list(db.scalars(stmt.limit(fetch_limit)).all())
+
+    rows = []
+    for app in apps:
+        distance = distances.get(app.id)
+        hits = _keyword_hits(app, keywords) if keywords else 0
+        if distance is not None and hits:
+            matched_by, rank = "both", 0
+        elif distance is not None:
+            matched_by, rank = "semantic", 1
+        elif hits:
+            matched_by, rank = "keyword", 2
+        else:
+            continue
+        row = _app_to_dict(app) | {"matched_by": matched_by}
+        if distance is not None:
+            row["similarity"] = round(1.0 - distance, 3)
+        if hits:
+            row["keyword_hits"] = hits
+        rows.append((rank, distance if distance is not None else 1.0, -hits, row))
+
+    rows.sort(key=lambda r: (r[0], r[1], r[2]))
+    results = [r[3] for r in rows][:limit]
+
+    if degraded:
+        mode = "keyword_fallback"
+        note = (
+            f"시맨틱(벡터) 검색을 쓸 수 없어 키워드 검색으로 대체했습니다 — {degraded}. "
+            "표현이 다르지만 의미가 비슷한 지원자는 빠질 수 있으니, 결과가 부족하면 "
+            "다른 키워드로도 찾아보시라고 안내해 주세요."
+        )
+    elif not distances:
+        mode = "keyword_fallback"
+        note = (
+            f"유사도 임계값(코사인 거리 {MAX_DISTANCE}) 안에 드는 지원자가 없어 "
+            "키워드 검색 결과만 보여줍니다."
+        )
+    else:
+        mode = "semantic+keyword"
+        note = None
+
+    if not results and note is None:
+        note = "조건에 맞는 지원자를 찾지 못했습니다."
+
+    payload = {"results": results, "count": len(results), "search_mode": mode}
+    if note:
+        payload["note"] = note
+    return payload
+
+
+def search_applications(db: Session, user: User, params: dict) -> dict:
+    """지원자 통합 검색. 에이전트의 핵심 도구 — 16개 시나리오 중 14개에서 호출.
+
+    반환 형태는 항상 dict 다: {"results": [...], "count": n, "search_mode": ...}
+    (+ 알릴 것이 있으면 "note"). 검색이 온전히 돌았는지 아르가 알아야 하므로
+    리스트만 돌려주지 않는다.
+    """
     # 검색 결과는 도구 결과로 컨텍스트에 들어간 뒤 이후 모든 라운드에 재전송된다.
     # 기본 50건은 그것만으로 수천 토큰이라, 실제로 필요한 만큼만 가져온다.
     limit = min(int(params.get("limit", 10)), 50)
 
-    # ── 시맨틱 검색: semantic 파라미터가 있으면 벡터 유사도 검색 ──
-    semantic = params.get("semantic")
-    if semantic:
-        from app.agent.embedder import search_similar
+    # ── 시맨틱 검색: semantic 파라미터가 있으면 벡터 + 키워드 하이브리드 ──
+    if params.get("semantic"):
+        return _semantic_search(db, user, params, limit)
 
-        similar_ids = search_similar(db, semantic, limit=limit)
-        if not similar_ids:
-            return []
-        stmt = (
-            select(Application)
-            .where(Application.id.in_(similar_ids))
-        )
-        stage = params.get("stage")
-        if stage:
-            if isinstance(stage, str):
-                stage = [stage]
-            stmt = stmt.where(Application.current_stage.in_(stage))
-        posting_id = params.get("posting_id")
-        if posting_id:
-            stmt = stmt.where(Application.job_posting_id == int(posting_id))
-        apps = db.scalars(stmt).all()
-        id_order = {aid: i for i, aid in enumerate(similar_ids)}
-        apps.sort(key=lambda a: id_order.get(a.id, len(similar_ids)))
-        return [_app_to_dict(a) | {"search_type": "semantic"} for a in apps]
-
-    # ── 기존 ILIKE 검색 ──
+    # ── 기존 ILIKE 검색 (이름·이메일) ──
     stmt = select(Application)
 
     q = params.get("q")
@@ -97,15 +256,35 @@ def search_applications(
         order_expr = avg_expr.desc() if order == "desc" else avg_expr.asc()
         stmt = stmt.order_by(order_expr.nullslast(), Application.id.desc())
         rows = db.execute(stmt.limit(limit)).all()
-        return [
+        results = [
             _app_to_dict(row[0]) | {"avg_score": round(float(row.avg_score), 1) if row.avg_score else None}
             for row in rows
         ]
+        return _lexical_payload(results, limit, q)
 
     direction = Application.created_at.desc if order == "desc" else Application.created_at.asc
     stmt = stmt.order_by(direction(), Application.id.desc())
     apps = db.scalars(stmt.limit(limit)).all()
-    return [_app_to_dict(a) for a in apps]
+    return _lexical_payload([_app_to_dict(a) for a in apps], limit, q)
+
+
+def _lexical_payload(results: list[dict], limit: int, q: str | None) -> dict:
+    """이름·이메일 검색 결과를 도구 반환 형태로 감싼다."""
+    payload = {
+        "results": results,
+        "count": len(results),
+        "search_mode": "lexical" if q else "all",
+    }
+    if not results:
+        payload["note"] = (
+            "이름·이메일에 일치하는 지원자가 없습니다. 역량으로 찾는 것이라면 "
+            "semantic 파라미터를 쓰세요."
+            if q
+            else "지원자가 없습니다."
+        )
+    elif len(results) == limit:
+        payload["note"] = f"결과가 {limit}건에서 잘렸습니다. 더 있을 수 있습니다."
+    return payload
 
 
 def get_application(db: Session, user: User, params: dict) -> dict | None:
