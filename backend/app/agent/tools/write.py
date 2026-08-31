@@ -17,12 +17,17 @@ from app.deps import assert_can_view_application
 from app.models import (
     Application,
     InterviewerAssignment,
+    InterviewerAvailability,
+    ScheduleProposal,
+    ScheduleSlot,
     User,
 )
 from app.stage_service import apply_stage_change, publish_all, require_reason
 from app.stages import StageTransitionError
 
-WRITE_TOOL_NAMES = frozenset({"change_stage", "assign_interviewer", "draft_email"})
+WRITE_TOOL_NAMES = frozenset({
+    "change_stage", "assign_interviewer", "draft_email", "create_schedule_proposal",
+})
 
 
 def change_stage(db: Session, user: User, params: dict) -> dict:
@@ -114,6 +119,128 @@ def assign_interviewer(db: Session, user: User, params: dict) -> dict:
     }
 
 
+def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
+    """면접 일정 제안 생성. 배정된 면접관의 가용 시간에서 후보 슬롯을 뽑는다."""
+    import logging
+    import secrets
+
+    from app import mail
+    from app.api.schedules import _build_candidates
+
+    logger = logging.getLogger(__name__)
+
+    if user.role not in ("admin", "recruiter"):
+        return {"error": "일정 제안 권한이 없습니다"}
+
+    application_id = int(params["application_id"])
+    slot_minutes = int(params.get("slot_minutes", 60))
+    max_slots = int(params.get("max_slots", 5))
+
+    app = db.get(Application, application_id)
+    if app is None:
+        return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
+
+    interviewer_ids = list(
+        db.scalars(
+            select(InterviewerAssignment.interviewer_id).where(
+                InterviewerAssignment.application_id == application_id
+            )
+        )
+    )
+    if not interviewer_ids:
+        return {"error": "배정된 면접관이 없습니다 — 먼저 면접관을 배정하세요"}
+
+    now = datetime.now(UTC)
+
+    windows = list(
+        db.scalars(
+            select(InterviewerAvailability)
+            .where(InterviewerAvailability.interviewer_id.in_(interviewer_ids))
+            .where(InterviewerAvailability.end_at > now)
+        )
+    )
+
+    confirmed: dict[int, list[tuple[datetime, datetime]]] = {}
+    rows = db.execute(
+        select(ScheduleSlot.interviewer_id, ScheduleSlot.start_at, ScheduleSlot.end_at)
+        .join(ScheduleProposal, ScheduleProposal.confirmed_slot_id == ScheduleSlot.id)
+        .where(ScheduleProposal.status == "confirmed")
+        .where(ScheduleSlot.interviewer_id.in_(interviewer_ids))
+        .where(ScheduleSlot.end_at > now)
+    ).all()
+    for iid, s, e in rows:
+        confirmed.setdefault(iid, []).append((s, e))
+
+    candidates = _build_candidates(windows, confirmed, slot_minutes, max_slots, now)
+    if not candidates:
+        return {"error": "생성 가능한 후보 슬롯이 없습니다 — 면접관 가용 시간을 확인하세요"}
+
+    from sqlalchemy import update
+    db.execute(
+        update(ScheduleProposal)
+        .where(ScheduleProposal.application_id == application_id)
+        .where(ScheduleProposal.status == "proposed")
+        .values(status="canceled", updated_at=now)
+    )
+
+    proposal = ScheduleProposal(
+        application_id=application_id,
+        token=secrets.token_urlsafe(16),
+        status="proposed",
+        created_by=user.id,
+    )
+    db.add(proposal)
+    db.flush()
+
+    slots = [
+        ScheduleSlot(
+            proposal_id=proposal.id,
+            interviewer_id=interviewer_id,
+            start_at=start,
+            end_at=end,
+        )
+        for interviewer_id, start, end in candidates
+    ]
+    db.add_all(slots)
+
+    log = mail.create_log(
+        db,
+        application_id=application_id,
+        to_email=app.email,
+        stage="interview",
+    )
+    db.commit()
+
+    mail_queued = True
+    try:
+        mail.publish(log.id)
+    except Exception:
+        mail_queued = False
+        logger.exception("제안 메일 큐 발행 실패 email_log_id=%s", log.id)
+
+    names = dict(
+        db.execute(
+            select(User.id, User.name).where(User.id.in_(interviewer_ids))
+        ).all()
+    )
+
+    return {
+        "ok": True,
+        "application_id": application_id,
+        "proposal_id": proposal.id,
+        "status": "proposed",
+        "slots": [
+            {
+                "interviewer_name": names.get(s.interviewer_id),
+                "start_at": s.start_at.isoformat(),
+                "end_at": s.end_at.isoformat(),
+            }
+            for s in slots
+        ],
+        "mail_queued": mail_queued,
+    }
+
+
 def draft_email(db: Session, user: User, params: dict) -> dict:
     """이메일 초안 생성. DB에 쓰지 않고 초안 텍스트만 반환한다."""
     application_id = int(params["application_id"])
@@ -134,7 +261,7 @@ def draft_email(db: Session, user: User, params: dict) -> dict:
         "interview": (
             f"{app.name}님 안녕하세요.\n\n"
             f"서류 검토 결과, 면접에 초대드리고자 합니다.\n"
-            f"가능한 일정을 알려주시면 조율하겠습니다.\n\n"
+            f"면접 일정 선택 링크를 별도로 보내드릴 예정이니 확인 부탁드립니다.\n\n"
             f"감사합니다."
         ),
         "accepted": (

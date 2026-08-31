@@ -11,8 +11,8 @@ from app.agent.tools.write import WRITE_TOOL_NAMES
 class TestToolDefinitions:
     """TOOL_DEFINITIONS 가 Claude 프로토콜에 맞는 형식인지."""
 
-    def test_six_tools_defined(self):
-        assert len(TOOL_DEFINITIONS) == 6
+    def test_ten_tools_defined(self):
+        assert len(TOOL_DEFINITIONS) == 10
 
     def test_all_have_required_fields(self):
         for td in TOOL_DEFINITIONS:
@@ -25,7 +25,9 @@ class TestToolDefinitions:
         defined_names = {td["name"] for td in TOOL_DEFINITIONS}
         expected = {
             "search_applications", "get_application", "list_postings",
-            "change_stage", "assign_interviewer", "draft_email",
+            "list_availability", "get_schedule_status", "list_interviews",
+            "change_stage", "create_schedule_proposal",
+            "assign_interviewer", "draft_email",
         }
         assert defined_names == expected
 
@@ -34,7 +36,10 @@ class TestToolDefinitions:
         assert WRITE_TOOL_NAMES.issubset(all_names)
 
     def test_write_tool_names(self):
-        assert WRITE_TOOL_NAMES == {"change_stage", "assign_interviewer", "draft_email"}
+        assert WRITE_TOOL_NAMES == {
+            "change_stage", "assign_interviewer", "draft_email",
+            "create_schedule_proposal",
+        }
 
 
 class TestExecuteTool:

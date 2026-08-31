@@ -13,11 +13,19 @@ from sqlalchemy.orm import Session
 
 from app.models import User
 
-from .read import get_application, list_postings, search_applications
+from .read import (
+    get_application,
+    get_schedule_status,
+    list_availability,
+    list_interviews,
+    list_postings,
+    search_applications,
+)
 from .write import (
     WRITE_TOOL_NAMES,
     assign_interviewer,
     change_stage,
+    create_schedule_proposal,
     draft_email,
 )
 
@@ -95,6 +103,77 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "list_availability",
+        "description": (
+            "면접관의 가용 시간(면접 가능한 시간대)을 조회합니다. "
+            "면접관 ID가 필수이며, from/to로 기간을 좁힐 수 있습니다. "
+            "일정 제안을 만들기 전에 면접관의 빈 시간을 확인할 때 씁니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "interviewer_id": {
+                    "type": "integer",
+                    "description": "면접관 사용자 ID",
+                },
+                "from": {
+                    "type": "string",
+                    "description": "이 시각 이후 종료분만 (ISO 8601)",
+                },
+                "to": {
+                    "type": "string",
+                    "description": "이 시각 이전 시작분만 (ISO 8601)",
+                },
+            },
+            "required": ["interviewer_id"],
+        },
+    },
+    {
+        "name": "get_schedule_status",
+        "description": (
+            "지원자의 최신 면접 일정 제안 상태를 조회합니다. "
+            "상태는 none(제안 없음), proposed(제안됨), confirmed(확정), "
+            "expired(만료), canceled(취소) 중 하나입니다. "
+            "confirmed이면 확정된 면접 시간과 면접관 이름을 포함합니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID",
+                },
+            },
+            "required": ["application_id"],
+        },
+    },
+    {
+        "name": "list_interviews",
+        "description": (
+            "확정된 면접 일정 목록을 조회합니다. "
+            "from/to로 기간을 좁히고, mine=true로 내 면접만 볼 수 있습니다. "
+            "면접관은 항상 본인 건만 조회됩니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string",
+                    "description": "이 시각 이후 시작분만 (ISO 8601)",
+                },
+                "to": {
+                    "type": "string",
+                    "description": "이 시각 이전 시작분만 (ISO 8601)",
+                },
+                "mine": {
+                    "type": "boolean",
+                    "description": "내가 면접관인 건만 (기본: false)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "change_stage",
         "description": (
             "지원자의 단계를 변경합니다. "
@@ -123,6 +202,34 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 },
             },
             "required": ["application_id", "to_stage"],
+        },
+    },
+    {
+        "name": "create_schedule_proposal",
+        "description": (
+            "지원자에게 면접 일정 후보를 제안합니다. "
+            "배정된 면접관의 가용 시간에서 후보 슬롯을 자동 생성하고, "
+            "지원자에게 선택 링크가 담긴 메일을 보냅니다. "
+            "면접관이 배정돼 있고 가용 시간이 등록돼 있어야 합니다. "
+            "이 도구는 사용자 확인 후에만 실행됩니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID",
+                },
+                "slot_minutes": {
+                    "type": "integer",
+                    "description": "슬롯 길이(분). 기본 60, 15~240",
+                },
+                "max_slots": {
+                    "type": "integer",
+                    "description": "최대 후보 슬롯 수. 기본 5, 1~20",
+                },
+            },
+            "required": ["application_id"],
         },
     },
     {
@@ -177,7 +284,11 @@ _DISPATCH = {
     "search_applications": search_applications,
     "get_application": get_application,
     "list_postings": list_postings,
+    "list_availability": list_availability,
+    "get_schedule_status": get_schedule_status,
+    "list_interviews": list_interviews,
     "change_stage": change_stage,
+    "create_schedule_proposal": create_schedule_proposal,
     "assign_interviewer": assign_interviewer,
     "draft_email": draft_email,
 }

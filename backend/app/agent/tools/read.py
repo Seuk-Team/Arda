@@ -10,7 +10,15 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.deps import scope_to_viewer
-from app.models import Application, Evaluation, JobPosting, User
+from app.models import (
+    Application,
+    Evaluation,
+    InterviewerAvailability,
+    JobPosting,
+    ScheduleProposal,
+    ScheduleSlot,
+    User,
+)
 
 
 def search_applications(
@@ -122,6 +130,7 @@ def get_application(db: Session, user: User, params: dict) -> dict | None:
         ],
         "files": [{"filename": f.filename, "kind": f.kind} for f in row.files],
         "notes_count": len(row.notes),
+        "schedule": _get_latest_schedule(db, application_id),
     }
 
 
@@ -142,6 +151,165 @@ def list_postings(db: Session, user: User, params: dict) -> list[dict]:
             "created_at": p.created_at.isoformat(),
         }
         for p, n in rows
+    ]
+
+
+def _get_latest_schedule(db: Session, application_id: int) -> dict | None:
+    """지원자의 최신 일정 제안 요약. get_application 결과에 포함."""
+    proposal = db.scalar(
+        select(ScheduleProposal)
+        .where(ScheduleProposal.application_id == application_id)
+        .order_by(ScheduleProposal.created_at.desc())
+        .limit(1)
+    )
+    if proposal is None:
+        return None
+
+    result = {"status": proposal.status}
+    if proposal.status == "confirmed" and proposal.confirmed_slot_id:
+        slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
+        if slot:
+            interviewer = db.get(User, slot.interviewer_id)
+            result["confirmed_slot"] = {
+                "start_at": slot.start_at.isoformat(),
+                "end_at": slot.end_at.isoformat(),
+                "interviewer_name": interviewer.name if interviewer else None,
+            }
+    return result
+
+
+def list_availability(db: Session, user: User, params: dict) -> list[dict]:
+    """면접관 가용 시간 조회. recruiter+ 또는 본인만."""
+    interviewer_id = int(params["interviewer_id"])
+
+    target = db.get(User, interviewer_id)
+    if target is None:
+        return {"error": f"사용자 {interviewer_id}를 찾을 수 없습니다"}
+    if target.role != "interviewer":
+        return {"error": "면접관이 아닌 사용자입니다"}
+    if user.id != interviewer_id and user.role not in ("admin", "recruiter"):
+        return {"error": "본인의 가용 시간만 조회할 수 있습니다"}
+
+    query = (
+        select(InterviewerAvailability)
+        .where(InterviewerAvailability.interviewer_id == interviewer_id)
+        .order_by(InterviewerAvailability.start_at)
+    )
+
+    from_at = params.get("from")
+    if from_at:
+        from datetime import datetime as dt
+        if isinstance(from_at, str):
+            from_at = dt.fromisoformat(from_at)
+        query = query.where(InterviewerAvailability.end_at > from_at)
+
+    to_at = params.get("to")
+    if to_at:
+        from datetime import datetime as dt
+        if isinstance(to_at, str):
+            to_at = dt.fromisoformat(to_at)
+        query = query.where(InterviewerAvailability.start_at < to_at)
+
+    rows = db.scalars(query).all()
+    return [
+        {
+            "id": r.id,
+            "interviewer_id": r.interviewer_id,
+            "start_at": r.start_at.isoformat(),
+            "end_at": r.end_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+def get_schedule_status(db: Session, user: User, params: dict) -> dict:
+    """지원자의 최신 면접 일정 제안 상태 조회."""
+    application_id = int(params["application_id"])
+
+    app = db.get(Application, application_id)
+    if app is None:
+        return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
+
+    proposal = db.scalar(
+        select(ScheduleProposal)
+        .where(ScheduleProposal.application_id == application_id)
+        .order_by(ScheduleProposal.created_at.desc())
+        .limit(1)
+    )
+    if proposal is None:
+        return {"status": "none", "message": "일정 제안이 없습니다"}
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    if (
+        proposal.status == "proposed"
+        and proposal.expires_at is not None
+        and proposal.expires_at <= now
+    ):
+        proposal.status = "expired"
+        proposal.updated_at = now
+        db.commit()
+
+    result = {
+        "status": proposal.status,
+        "created_at": proposal.created_at.isoformat(),
+    }
+    if proposal.expires_at:
+        result["expires_at"] = proposal.expires_at.isoformat()
+
+    if proposal.status == "confirmed" and proposal.confirmed_slot_id:
+        slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
+        if slot:
+            interviewer = db.get(User, slot.interviewer_id)
+            result["confirmed_slot"] = {
+                "start_at": slot.start_at.isoformat(),
+                "end_at": slot.end_at.isoformat(),
+                "interviewer_name": interviewer.name if interviewer else None,
+            }
+
+    return result
+
+
+def list_interviews(db: Session, user: User, params: dict) -> list[dict]:
+    """확정된 면접 목록 조회. 면접관은 본인 건만."""
+    query = (
+        select(ScheduleSlot, Application, JobPosting, User)
+        .join(ScheduleProposal, ScheduleProposal.confirmed_slot_id == ScheduleSlot.id)
+        .join(Application, Application.id == ScheduleProposal.application_id)
+        .join(JobPosting, JobPosting.id == Application.job_posting_id)
+        .join(User, User.id == ScheduleSlot.interviewer_id)
+        .where(ScheduleProposal.status == "confirmed")
+        .order_by(ScheduleSlot.start_at)
+    )
+
+    from_at = params.get("from")
+    if from_at:
+        from datetime import datetime as dt
+        if isinstance(from_at, str):
+            from_at = dt.fromisoformat(from_at)
+        query = query.where(ScheduleSlot.start_at >= from_at)
+
+    to_at = params.get("to")
+    if to_at:
+        from datetime import datetime as dt
+        if isinstance(to_at, str):
+            to_at = dt.fromisoformat(to_at)
+        query = query.where(ScheduleSlot.start_at < to_at)
+
+    if user.role == "interviewer" or params.get("mine"):
+        query = query.where(ScheduleSlot.interviewer_id == user.id)
+
+    rows = db.execute(query).all()
+    return [
+        {
+            "application_id": application.id,
+            "applicant_name": application.name,
+            "posting_title": posting.title,
+            "interviewer_name": interviewer.name,
+            "start_at": slot.start_at.isoformat(),
+            "end_at": slot.end_at.isoformat(),
+        }
+        for slot, application, posting, interviewer in rows
     ]
 
 
