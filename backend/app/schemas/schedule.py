@@ -34,6 +34,34 @@ class SlotOut(BaseModel):
     end_at: datetime
 
 
+class PublicSlotOut(BaseModel):
+    """지원자에게 보여주는 슬롯 — 면접관 정보는 노출하지 않는다."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    start_at: datetime
+    end_at: datetime
+
+
+class SchedulePublicOut(BaseModel):
+    """지원자용 일정·전형 현황 (공개, 토큰 접근)."""
+
+    status: str  # proposed / confirmed / expired
+    applicant_name: str
+    posting_title: str
+    current_stage: str  # 전형 진행 현황 — 링크 하나로 일정과 함께 확인한다
+    expires_at: datetime | None
+    slots: list[PublicSlotOut]
+    confirmed_slot: PublicSlotOut | None  # confirmed 때만 값 존재
+
+
+class ConfirmRequest(BaseModel):
+    """지원자의 슬롯 선택."""
+
+    slot_id: int
+
+
 class ProposalOut(BaseModel):
     """일정 제안 응답."""
 

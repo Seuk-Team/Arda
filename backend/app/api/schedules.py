@@ -26,7 +26,14 @@ from app.models import (
     ScheduleSlot,
     User,
 )
-from app.schemas.schedule import ProposalCreate, ProposalOut, SlotOut
+from app.schemas.schedule import (
+    ConfirmRequest,
+    ProposalCreate,
+    ProposalOut,
+    PublicSlotOut,
+    SchedulePublicOut,
+    SlotOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -210,4 +217,148 @@ def create_proposal(
         ],
         mail_queued=mail_queued,
         created_at=proposal.created_at,
+    )
+
+
+# ── 공개 라우트 — 지원자용 (토큰 접근, 로그인 없음) ──────────────────
+#
+# 공고 쪽 공개 경로는 api/public.py 에 있지만, 일정 로직은 이 파일에 모은다 —
+# 제안 생성과 확정이 같은 규칙(겹침 검증·상태 전이)을 공유하기 때문이다.
+
+
+def _get_proposal_by_token(db: Session, token: str) -> ScheduleProposal:
+    """토큰으로 제안을 찾고 조회 시점 판정을 한다 (B4 마감과 같은 방식).
+
+    - 없는 토큰 → 404
+    - canceled(재제안으로 대체된 옛 링크) → 410 Gone. 새 링크가 메일로 나갔다 —
+      "있었지만 끝났다"를 알려야 지원자가 옛 메일을 붙잡고 헤매지 않는다.
+    - proposed 인데 기한이 지남 → expired 로 바꿔 저장 (스케줄러 없음)
+    """
+    proposal = db.scalar(
+        select(ScheduleProposal).where(ScheduleProposal.token == token)
+    )
+    if proposal is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "유효하지 않은 링크입니다")
+    if proposal.status == "canceled":
+        raise HTTPException(
+            HTTPStatus.GONE, "이 일정 제안은 더 이상 유효하지 않습니다 — 최신 안내 메일을 확인해 주세요"
+        )
+
+    now = datetime.now(timezone.utc)
+    if (
+        proposal.status == "proposed"
+        and proposal.expires_at is not None
+        and proposal.expires_at <= now
+    ):
+        proposal.status = "expired"
+        proposal.updated_at = now
+        db.commit()
+
+    return proposal
+
+
+@router.get("/public/schedule/{token}", response_model=SchedulePublicOut)
+def get_schedule_public(token: str, db: Session = Depends(get_db)):
+    """지원자용 일정·전형 현황 조회. 공개 — 토큰이 곧 인증이다.
+
+    expired 도 200 으로 내려준다 — 지원자가 "기한이 지났다"와 자기 전형 현황을
+    봐야 하기 때문이다(빈 화면보다 낫다). confirmed 는 확정 시각 재확인 용도로
+    링크가 계속 살아 있다 — "24시간 언제든 확인"이 이 기능의 요지다.
+    """
+    proposal = _get_proposal_by_token(db, token)
+    application = db.get(Application, proposal.application_id)
+    posting = db.get(JobPosting, application.job_posting_id)
+
+    confirmed_slot = None
+    if proposal.status == "confirmed" and proposal.confirmed_slot_id is not None:
+        confirmed_slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
+
+    return SchedulePublicOut(
+        status=proposal.status,
+        applicant_name=application.name,
+        posting_title=posting.title if posting else "",
+        current_stage=application.current_stage,
+        expires_at=proposal.expires_at,
+        slots=[
+            PublicSlotOut.model_validate(s)
+            for s in sorted(proposal.slots, key=lambda s: s.start_at)
+        ],
+        confirmed_slot=(
+            PublicSlotOut.model_validate(confirmed_slot) if confirmed_slot else None
+        ),
+    )
+
+
+@router.post("/public/schedule/{token}/confirm", response_model=SchedulePublicOut)
+def confirm_schedule(token: str, body: ConfirmRequest, db: Session = Depends(get_db)):
+    """슬롯 선택 → 즉시 확정. 공개.
+
+    지원자의 슬롯 선택은 지원자 본인의 결정이므로 담당자 승인 없이 즉시 확정이다
+    (ADR-0016). 확정 통보 메일은 워커가 confirmed 상태를 보고 확정 시각을 싣는다.
+    """
+    proposal = _get_proposal_by_token(db, token)
+
+    # 같은 제안에 확정이 두 번 붙는 것을 막는다 — 더블클릭·중복 탭이 정상 사용이다
+    db.refresh(proposal, with_for_update=True)
+
+    if proposal.status == "confirmed":
+        raise HTTPException(HTTPStatus.CONFLICT, "이미 확정된 일정입니다")
+    if proposal.status == "expired":
+        raise HTTPException(
+            HTTPStatus.CONFLICT, "선택 기한이 지났습니다 — 담당자에게 문의해 주세요"
+        )
+
+    slot = db.get(ScheduleSlot, body.slot_id)
+    if slot is None or slot.proposal_id != proposal.id:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "슬롯을 찾을 수 없습니다")
+
+    # 확정 시점 겹침 재검증 — 제안이 나간 뒤 같은 면접관의 다른 면접이 먼저
+    # 확정됐을 수 있다 (슬롯은 생성 시점 스냅샷이다, models.py 참고)
+    clash = db.scalar(
+        select(ScheduleSlot.id)
+        .join(ScheduleProposal, ScheduleProposal.confirmed_slot_id == ScheduleSlot.id)
+        .where(ScheduleProposal.status == "confirmed")
+        .where(ScheduleSlot.interviewer_id == slot.interviewer_id)
+        .where(ScheduleSlot.start_at < slot.end_at)
+        .where(ScheduleSlot.end_at > slot.start_at)
+        .limit(1)
+    )
+    if clash is not None:
+        raise HTTPException(
+            HTTPStatus.CONFLICT,
+            "그 사이 마감된 시간입니다 — 다른 시간을 선택해 주세요",
+        )
+
+    now = datetime.now(timezone.utc)
+    proposal.status = "confirmed"
+    proposal.confirmed_slot_id = slot.id
+    proposal.updated_at = now
+
+    application = db.get(Application, proposal.application_id)
+    # 확정 통보 — 워커가 confirmed 를 보고 {면접일시}에 확정 시각(KST)을 싣는다
+    log = mail.create_log(
+        db,
+        application_id=application.id,
+        to_email=application.email,
+        stage="interview",
+    )
+    db.commit()
+    try:
+        mail.publish(log.id)
+    except Exception:
+        # 확정은 이미 저장됐다 — 메일이 늦는 것이 확정을 무르는 것보다 낫다
+        logger.exception("확정 통보 메일 큐 발행 실패 email_log_id=%s", log.id)
+
+    posting = db.get(JobPosting, application.job_posting_id)
+    return SchedulePublicOut(
+        status="confirmed",
+        applicant_name=application.name,
+        posting_title=posting.title if posting else "",
+        current_stage=application.current_stage,
+        expires_at=proposal.expires_at,
+        slots=[
+            PublicSlotOut.model_validate(s)
+            for s in sorted(proposal.slots, key=lambda s: s.start_at)
+        ],
+        confirmed_slot=PublicSlotOut.model_validate(slot),
     )
