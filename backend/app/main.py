@@ -26,7 +26,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 #프로젝트 내부모듈
 from app import mail
 from app import models  # noqa: F401 — 테이블을 메타데이터에 등록하려면 import 가 필요하다
-from app.db import Base, engine
+from app.db import Base, engine, pgvector_ready
 from app.errors import ErrorCode, ErrorResponse
 from app.logging_conf import setup_logging
 from app.security import APP_ENV
@@ -37,7 +37,12 @@ logger = setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 스키마가 굳기 전까지는 마이그레이션 없이 create_all 로 만든다 (app/db.py 참고)
-    Base.metadata.create_all(engine)
+    # 임베딩 테이블은 vector 타입을 쓰므로 확장이 없는 서버에서는 건너뛴다 —
+    # 안 그러면 CREATE TABLE 이 실패해 나머지 테이블까지 못 만든다.
+    tables = list(Base.metadata.sorted_tables)
+    if not pgvector_ready():
+        tables = [t for t in tables if t.name != "application_embeddings"]
+    Base.metadata.create_all(engine, tables=tables)
 
     # APP_ENV 하나가 보안 게이트 두 개(공개 가입 차단·JWT_SECRET 필수)를 함께 켜고 끈다.
     # 기본값이 dev 라 서버에서 빠뜨리면 아무 에러 없이 꺼진 채로 뜬다 (#122).
