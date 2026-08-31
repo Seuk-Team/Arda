@@ -57,9 +57,11 @@ export default function Postings() {
       />
       <main className="page-content">
         <div className={styles.panel}>
-          <table className={styles.table}>
+          {/* ≤768px 에서 칸을 블록으로 눕히면 브라우저가 표 의미를 버린다 —
+              role 을 명시해 스크린 리더에는 계속 표로 읽히게 한다 (§9 카드형 · §10) */}
+          <table className={styles.table} role="table">
             <thead>
-              <tr>
+              <tr role="row">
                 <th>공고명</th>
                 <th>상태</th>
                 <th className={styles.num}>지원자</th>
@@ -69,16 +71,22 @@ export default function Postings() {
             </thead>
             <tbody>
               {rows?.map((p) => (
-                <tr key={p.id} className={styles.clickable} onClick={() => navigate(`/postings/${p.id}`)}>
-                  <td className={styles.name}>{p.title}</td>
-                  <td>
+                <tr
+                  key={p.id}
+                  role="row"
+                  className={styles.clickable}
+                  onClick={() => navigate(`/postings/${p.id}`)}
+                >
+                  {/* data-label 은 카드형에서 각 칸이 달고 나갈 이름이다 — 표 머리가 사라지므로 */}
+                  <td role="cell" className={styles.name}>{p.title}</td>
+                  <td role="cell">
                     <span className={`badge ${p.status === 'open' ? 'badge-open' : 'badge-closed'}`}>
                       {STATUS_LABEL[p.status]}
                     </span>
                   </td>
-                  <td className={styles.num}>{p.application_count}명</td>
-                  <td className={styles.num}>{deadlineText(p)}</td>
-                  <td className={styles.num}>{fmtDate(p.created_at)}</td>
+                  <td role="cell" data-label="지원자" className={styles.num}>{p.application_count}명</td>
+                  <td role="cell" data-label="마감" className={styles.num}>{deadlineText(p)}</td>
+                  <td role="cell" data-label="등록일" className={styles.num}>{fmtDate(p.created_at)}</td>
                 </tr>
               ))}
             </tbody>

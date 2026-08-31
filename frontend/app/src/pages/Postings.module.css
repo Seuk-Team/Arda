@@ -80,3 +80,72 @@
 .clickable {
   cursor: pointer;
 }
+
+/* ── ≤768px — 표를 카드형으로 (§9 확정 브레이크포인트) ────────────────
+   375px 카드 안쪽은 218px 인데 이 표의 자연 폭은 298px 다. 가로 스크롤로 밀어 넣지 않고
+   한 행을 카드 한 장으로 눕힌다 — §9 "테이블은 카드형".
+   패널의 흰 판·테두리는 여기서 걷어낸다. 카드 위에 카드를 얹지 않기 위해서다. */
+@media (max-width: 768px) {
+  .panel {
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* 표 머리는 감춘다 — 각 칸이 data-label 로 자기 이름을 직접 단다 */
+  .table thead {
+    display: none;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+  }
+
+  .table tbody tr {
+    background: var(--bg-elev);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--r-card);
+    box-shadow: var(--sh-card);
+    padding: var(--sp-4);
+  }
+
+  .table tbody tr + tr {
+    margin-top: var(--sp-3);
+  }
+
+  .table td,
+  .table td:first-child,
+  .table td:last-child {
+    height: auto;
+    border: none;
+    padding: 0;
+  }
+
+  /* 값이 있는 칸만 라벨과 값을 양 끝으로 민다 */
+  .table td[data-label] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-top: var(--sp-2);
+  }
+
+  .table td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--font-caption);
+    font-weight: 500;
+    color: var(--text-sub);
+  }
+
+  /* 공고명은 카드 제목이다 — 라벨 없이 한 단계 크게 */
+  .table .name {
+    font-size: var(--font-body);
+    margin-bottom: var(--sp-2);
+  }
+}
