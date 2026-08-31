@@ -407,9 +407,9 @@ export default function Interviews() {
         )}
       </div>
 
-      <div className={styles.panel}>
+      <div className={`${styles.panel} cardify-panel`}>
         <table className={styles.table}>
-          <thead>
+          <thead className="cardify-head">
             <tr>
               <th>시각</th>
               <th>지원자</th>
@@ -428,11 +428,15 @@ export default function Interviews() {
               ))
               : shown.map((iv) => (
                 /* 행 클릭 = 그 지원자가 있는 공고 화면 (05-design §0.5 진입점) */
-                <tr key={iv.proposal_id} onClick={() => navigate(`/applicants?q=${encodeURIComponent(iv.applicant_name)}`)}>
-                  <td className={styles.num}>{hhmm(iv.start_at)}</td>
-                  <td className={styles.name}>{iv.applicant_name}</td>
-                  <td className={styles.posting}>{iv.posting_title}</td>
-                  <td className={styles.sub}>{iv.interviewer_name}</td>
+                <tr
+                  key={iv.proposal_id}
+                  className="cardify"
+                  onClick={() => navigate(`/applicants?q=${encodeURIComponent(iv.applicant_name)}`)}
+                >
+                  <td data-card-title="" className={styles.num}>{hhmm(iv.start_at)}</td>
+                  <td data-label="지원자" className={styles.name}>{iv.applicant_name}</td>
+                  <td data-label="공고" className={styles.posting}>{iv.posting_title}</td>
+                  <td data-label="면접관" className={styles.sub}>{iv.interviewer_name}</td>
                 </tr>
               ))}
           </tbody>

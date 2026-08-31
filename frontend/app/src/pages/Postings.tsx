@@ -56,11 +56,11 @@ export default function Postings() {
         actions={<button className="btn btn-primary">공고 등록</button>}
       />
       <main className="page-content">
-        <div className={styles.panel}>
+        <div className={`${styles.panel} cardify-panel`}>
           {/* ≤768px 에서 칸을 블록으로 눕히면 브라우저가 표 의미를 버린다 —
               role 을 명시해 스크린 리더에는 계속 표로 읽히게 한다 (§9 카드형 · §10) */}
           <table className={styles.table} role="table">
-            <thead>
+            <thead className="cardify-head">
               <tr role="row">
                 <th>공고명</th>
                 <th>상태</th>
@@ -74,12 +74,12 @@ export default function Postings() {
                 <tr
                   key={p.id}
                   role="row"
-                  className={styles.clickable}
+                  className={`${styles.clickable} cardify`}
                   onClick={() => navigate(`/postings/${p.id}`)}
                 >
                   {/* data-label 은 카드형에서 각 칸이 달고 나갈 이름이다 — 표 머리가 사라지므로 */}
-                  <td role="cell" className={styles.name}>{p.title}</td>
-                  <td role="cell">
+                  <td role="cell" data-card-title="" className={styles.name}>{p.title}</td>
+                  <td role="cell" data-label="상태">
                     <span className={`badge ${p.status === 'open' ? 'badge-open' : 'badge-closed'}`}>
                       {STATUS_LABEL[p.status]}
                     </span>

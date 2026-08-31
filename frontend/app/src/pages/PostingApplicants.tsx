@@ -365,8 +365,8 @@ export default function PostingApplicants() {
         {view === 'kanban' ? (
           <Kanban postingId={postingId} tick={tick} onChanged={() => setTick((n) => n + 1)} />
         ) : (
-        <div className={styles.panel}>
-          <div className={`${styles.row} ${styles.rowSel} ${styles.thead}`}>
+        <div className={`${styles.panel} cardify-panel`}>
+          <div className={`${styles.row} ${styles.rowSel} ${styles.thead} cardify-head`}>
             <input
               type="checkbox"
               aria-label="이 페이지 전체 선택"
@@ -384,7 +384,7 @@ export default function PostingApplicants() {
           {rows?.map((a) => (
             <div
               key={a.id}
-              className={`${styles.row} ${styles.rowSel} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
+              className={`${styles.row} ${styles.rowSel} ${styles.item} cardify ${a.id === openId ? styles.cur : ''}`}
               tabIndex={0}
               aria-current={a.id === openId ? 'true' : undefined}
               onClick={() => setOpenId(a.id)}
@@ -397,13 +397,13 @@ export default function PostingApplicants() {
                 onClick={(e) => e.stopPropagation()}
                 onChange={() => toggle(a.id)}
               />
-              <span className={styles.name}>{a.name}</span>
-              <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
-              <span className={styles.num}>{careerText(a.career_years)}</span>
-              <span className={styles.email}>{a.email}</span>
+              <span data-card-title="" className={styles.name}>{a.name}</span>
+              <span data-label="단계" className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
+              <span data-label="경력" className={styles.num}>{careerText(a.career_years)}</span>
+              <span data-label="이메일" className={styles.email}>{a.email}</span>
               {/* 서버는 sort=score 로 부를 때만 평균을 채운다 */}
-              <span className={styles.num}>{a.avg_score === null ? '—' : a.avg_score.toFixed(1)}</span>
-              <span className={styles.num}>{fmtDate(a.created_at)}</span>
+              <span data-label="평점" className={styles.num}>{a.avg_score === null ? '—' : a.avg_score.toFixed(1)}</span>
+              <span data-label="지원일" className={styles.num}>{fmtDate(a.created_at)}</span>
             </div>
           ))}
 

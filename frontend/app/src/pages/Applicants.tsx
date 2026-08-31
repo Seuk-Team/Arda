@@ -148,8 +148,8 @@ export default function Applicants() {
       </div>
 
       <main className="page-content">
-        <div className={styles.panel}>
-          <div className={`${styles.row} ${styles.thead}`}>
+        <div className={`${styles.panel} cardify-panel`}>
+          <div className={`${styles.row} ${styles.thead} cardify-head`}>
             <span>이름</span>
             <span>공고</span>
             <span>단계</span>
@@ -159,15 +159,15 @@ export default function Applicants() {
           </div>
 
           {rows?.map((a) => (
-            <div key={a.id} className={`${styles.row} ${styles.item}`} tabIndex={0}>
-              <span className={styles.name}>{a.name}</span>
-              <span className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
-              <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
-              <span className={styles.num}>{careerText(a.career_years)}</span>
+            <div key={a.id} className={`${styles.row} ${styles.item} cardify`} tabIndex={0}>
+              <span data-card-title="" className={styles.name}>{a.name}</span>
+              <span data-label="공고" className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
+              <span data-label="단계" className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
+              <span data-label="경력" className={styles.num}>{careerText(a.career_years)}</span>
               {/* 서버는 sort=score 로 부를 때만 평균을 채운다. 지원일순인 이 화면에서는
                   아직 못 받는다 — 목업이 미평가에 쓰는 표기를 그대로 둔다 */}
-              <span className={styles.num}>{a.avg_score === null ? '—' : a.avg_score.toFixed(1)}</span>
-              <span className={styles.num}>{fmtDate(a.created_at)}</span>
+              <span data-label="평가" className={styles.num}>{a.avg_score === null ? '—' : a.avg_score.toFixed(1)}</span>
+              <span data-label="지원일" className={styles.num}>{fmtDate(a.created_at)}</span>
             </div>
           ))}
 

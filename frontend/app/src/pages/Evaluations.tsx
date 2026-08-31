@@ -134,8 +134,8 @@ export default function Evaluations() {
 
       <div className={styles.body}>
         <main className="page-content">
-          <div className={styles.panel}>
-            <div className={`${styles.row} ${styles.thead}`}>
+          <div className={`${styles.panel} cardify-panel`}>
+            <div className={`${styles.row} ${styles.thead} cardify-head`}>
               <span>이름</span>
               <span>공고</span>
               <span>단계</span>
@@ -145,18 +145,18 @@ export default function Evaluations() {
             {queue?.map((a) => (
               <div
                 key={a.applicationId}
-                className={`${styles.row} ${styles.item} ${a.applicationId === openId ? styles.cur : ''}`}
+                className={`${styles.row} ${styles.item} cardify ${a.applicationId === openId ? styles.cur : ''}`}
                 tabIndex={0}
                 aria-current={a.applicationId === openId ? 'true' : undefined}
                 onClick={() => open(a)}
               >
-                <span className={styles.name}>{a.detail.name}</span>
-                <span className={styles.posting}>
+                <span data-card-title="" className={styles.name}>{a.detail.name}</span>
+                <span data-label="공고" className={styles.posting}>
                   {postingMap.get(a.detail.job_posting_id)?.title ?? '—'}
                 </span>
                 {/* 판단 전이라 색 없이 라벨로만 (§1) */}
-                <span className={styles.stage}>{STAGE_LABEL[a.detail.current_stage]}</span>
-                <span className={styles.num}>{fmtDate(a.assignedAt)}</span>
+                <span data-label="단계" className={styles.stage}>{STAGE_LABEL[a.detail.current_stage]}</span>
+                <span data-label="배정일" className={styles.num}>{fmtDate(a.assignedAt)}</span>
               </div>
             ))}
 

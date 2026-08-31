@@ -496,6 +496,13 @@
 }
 
 @media (max-width: 768px) {
+  /* 그날 목록 표를 카드형으로 눕힌다 (§9). 카드 생김새는 global.css 의 .cardify 가 맡는다 */
+  .table,
+  .table tbody,
+  .table td {
+    display: block;
+  }
+
   /* 좌우 여백이 좁아 날짜 칩만으로도 한 줄이 찬다 */
   .dowCell {
     justify-content: center;
