@@ -11,8 +11,9 @@ from app.agent.tools.write import WRITE_TOOL_NAMES
 class TestToolDefinitions:
     """TOOL_DEFINITIONS 가 Claude 프로토콜에 맞는 형식인지."""
 
-    def test_ten_tools_defined(self):
-        assert len(TOOL_DEFINITIONS) == 10
+    def test_all_tools_defined(self):
+        # 도구를 늘리면 이 숫자와 아래 이름 집합을 같이 고친다 (#153 search_users).
+        assert len(TOOL_DEFINITIONS) == 11
 
     def test_all_have_required_fields(self):
         for td in TOOL_DEFINITIONS:
@@ -25,11 +26,17 @@ class TestToolDefinitions:
         defined_names = {td["name"] for td in TOOL_DEFINITIONS}
         expected = {
             "search_applications", "get_application", "list_postings",
-            "list_availability", "get_schedule_status", "list_interviews",
-            "change_stage", "create_schedule_proposal",
+            "search_users", "list_availability", "get_schedule_status",
+            "list_interviews", "change_stage", "create_schedule_proposal",
             "assign_interviewer", "draft_email",
         }
         assert defined_names == expected
+
+    def test_dispatch_covers_every_definition(self):
+        """정의만 있고 실행 함수가 없는 도구가 생기지 않게 (10→11 누락의 재발 방지)."""
+        from app.agent.tools import _DISPATCH
+
+        assert {td["name"] for td in TOOL_DEFINITIONS} == set(_DISPATCH)
 
     def test_write_tools_are_subset(self):
         all_names = {td["name"] for td in TOOL_DEFINITIONS}
