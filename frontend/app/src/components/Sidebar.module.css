@@ -203,3 +203,48 @@
   height: 44px;
   border-radius: 50%;
 }
+
+/* ── ≤768px — 사이드바 접기 (§9 확정 브레이크포인트) ─────────────────
+   레일 폭 = 터치 타깃 44px(§9·HIG) + 좌우 패딩(--sp-2 ×2) + 오른쪽 경계선 = 61px.
+   경계선을 더하지 않으면 아르 정사각형이 43px 이 되어 44 를 1px 못 채운다(실측).
+   375px 화면에서 본문이 63px 로 눌리던 것을 315px 로 돌려놓는 것이 이 조각의 전부다.
+   라벨은 화면에서만 감추고 DOM 에는 남긴다 — 스크린 리더는 메뉴 이름을 계속 읽어야 한다(§10). */
+@media (max-width: 768px) {
+  .sidebar {
+    width: calc(44px + var(--sp-2) * 2 + var(--border-w));
+    padding-top: var(--sp-2);
+  }
+
+  /* "Arda" 는 레일 폭에 들어가지 않는다. 대시보드 진입은 내비 첫 항목이 이미 맡는다 */
+  .logo {
+    display: none;
+  }
+
+  .nav {
+    margin-top: 0;
+  }
+
+  .link {
+    justify-content: center;
+    padding: 0;
+    min-width: 44px;
+  }
+
+  .me {
+    justify-content: center;
+    padding: var(--sp-3) 0;
+  }
+
+  /* 시각적으로만 감춘다 — 읽히기는 그대로 읽힌다 */
+  .linkLabel,
+  .meText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

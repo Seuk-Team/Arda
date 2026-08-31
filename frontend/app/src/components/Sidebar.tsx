@@ -112,7 +112,7 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
             className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">{ICONS[item.icon]}</svg>
-            {item.label}
+            <span className={styles.linkLabel}>{item.label}</span>
           </NavLink>
         ))}
       </nav>
