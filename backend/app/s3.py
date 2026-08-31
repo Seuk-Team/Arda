@@ -11,9 +11,15 @@ import os
 from functools import lru_cache
 
 import boto3
+from botocore.config import Config
 
 BUCKET = os.getenv("S3_BUCKET", "")
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+
+# 로컬 개발용 S3 호환 스토리지(MinIO) 주소. 비어 있으면 실제 AWS 로 간다.
+# AWS 자격 없이도 업로드 흐름(F1·F2)을 브라우저에서 끝까지 돌려보기 위한 것 —
+# docker-compose.yml 의 minio 서비스와 짝이다. 운영(.env)에서는 설정하지 않는다.
+ENDPOINT = os.getenv("S3_ENDPOINT_URL") or None
 
 # presigned URL 의 수명. 짧을수록 새어 나갔을 때 위험이 줄고, 길수록 느린 회선에서
 # 업로드가 끊긴다. 이력서 몇 MB 기준으로 5분이면 충분하다.
@@ -27,6 +33,15 @@ def _client():
     모듈 최상단에서 만들면 AWS 설정이 없는 환경(테스트·CI)에서 임포트만 해도
     터진다. 서명 발급은 네트워크를 타지 않으므로 재사용해도 안전하다.
     """
+    if ENDPOINT:
+        # path-style 강제: 기본(virtual-host)이면 버킷이 호스트명에 붙어
+        # `arda-local.localhost:9000` 같은 주소가 나와 브라우저에서 안 풀린다.
+        return boto3.client(
+            "s3",
+            region_name=REGION,
+            endpoint_url=ENDPOINT,
+            config=Config(s3={"addressing_style": "path"}),
+        )
     return boto3.client("s3", region_name=REGION)
 
 

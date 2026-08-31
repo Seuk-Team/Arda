@@ -23,6 +23,12 @@ services:
       # 로컬 개발 스택. 이 줄을 빼면 production 으로 잠겨(#122) JWT_SECRET 미설정과
       # 겹쳐 api 컨테이너가 기동하지 못한다. 서버는 docker-compose.prod.yml 이 별도다.
       APP_ENV: dev
+      # 로컬 S3(MinIO). AWS 자격 없이 업로드(F1·F2)를 브라우저에서 돌려보기 위한 것.
+      # presign 서명은 네트워크를 안 타므로 주소는 브라우저 기준(localhost)이면 된다.
+      S3_ENDPOINT_URL: http://localhost:9000
+      S3_BUCKET: arda-local
+      AWS_ACCESS_KEY_ID: arda-local          # 로컬 전용. 실제 시크릿을 넣지 않는다
+      AWS_SECRET_ACCESS_KEY: arda-local-secret
     ports:
       - "8000:8000"
     volumes:
@@ -30,6 +36,36 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # 로컬 S3 (F1·F2). 브라우저가 presigned URL 로 localhost:9000 에 직접 올린다.
+  # CORS 는 MinIO 기본값(모든 출처 허용)이라 별도 설정이 없다.
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: arda-local            # api 의 AWS 키와 반드시 같아야 서명이 맞는다
+      MINIO_ROOT_PASSWORD: arda-local-secret
+    ports:
+      - "9000:9000"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # 버킷 생성 one-shot. 이미 있으면 조용히 지나간다
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 arda-local arda-local-secret &&
+      mc mb --ignore-existing local/arda-local
+      "
 
   # worker:  # G2 SQS 메일 워커 — 3주차. 코드가 생기면 그때 연다
   #   build: ./backend
@@ -40,3 +76,4 @@ services:
 
 volumes:
   pgdata:
+  miniodata:
