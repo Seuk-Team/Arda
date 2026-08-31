@@ -47,6 +47,8 @@
   /* ── 레이아웃 ──────────────────────────────────────────── */
   --sidebar-w: 216px;
   --content-x: 48px;
+  /* 좌우 여백. ≤768px 은 아래 미디어 쿼리가 줄인다 — 375px 에서 48px 씩 물면
+     제목 띠가 "채용 …" 으로 잘린다(§9 모바일). 데스크톱 확정값 48px 은 그대로다. */
 
   /* ── 테두리·radius·그림자 (05-design §4 확정) ──────────── */
   --r-ctl: 6px;
@@ -75,4 +77,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
+
+/* ≤768px — §9 확정 브레이크포인트. 여백 토큰 하나만 줄여 제목 띠와 본문이 같이 좁아진다 */
+@media (max-width: 768px) {
+  :root {
+    --content-x: var(--sp-4);
+  }
 }

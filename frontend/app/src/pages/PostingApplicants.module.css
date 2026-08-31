@@ -551,3 +551,33 @@
   border-color: var(--border);
   cursor: not-allowed;
 }
+
+/* ── ≤768px (§9) ─────────────────────────────────────────────
+   제목 띠와 도구 띠가 한 줄에 다 들어가지 않는다. 375px 에서 제목이 min-width:0 으로
+   눌려 "프/개" 처럼 한 글자씩 끊기고, 검색 줄은 오른쪽이 잘려 나갔다. 줄을 나눈다. */
+@media (max-width: 768px) {
+  .headTop {
+    flex-wrap: wrap;
+    min-height: 0;
+  }
+
+  /* 눌리는 대신 줄을 차지한다 — 두 줄 클램프는 그대로 (§2·§7) */
+  .title {
+    min-width: 6em;
+  }
+
+  .meta {
+    margin-left: 0;
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+    min-height: 0;
+    padding-top: var(--sp-3);
+    padding-bottom: var(--sp-3);
+  }
+
+  .search {
+    flex: 1 1 100%;
+  }
+}
