@@ -20,18 +20,31 @@ import signal
 import time
 from datetime import UTC, datetime
 from functools import lru_cache
+from zoneinfo import ZoneInfo
 
 import boto3
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import mail
 from app.db import SessionLocal
 from app.logging_conf import setup_logging
-from app.models import Application, EmailLog, JobPosting
+from app.models import (
+    Application,
+    EmailLog,
+    JobPosting,
+    ScheduleProposal,
+    ScheduleSlot,
+)
 
 logger = logging.getLogger(__name__)
 
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+
+# 지원자용 일정 선택 링크의 베이스 (postings.py 의 공개 지원 링크와 같은 값)
+PUBLIC_APP_BASE_URL = os.getenv("PUBLIC_APP_BASE_URL", "").rstrip("/")
+
+_WEEKDAYS_KO = "월화수목금토일"
 
 # 큐의 RedrivePolicy.maxReceiveCount 와 같은 값으로 맞춘다. 이 횟수째 전달이
 # 마지막이므로, 그때 실패하면 status 를 failed 로 남기고 메시지는 DLQ 로 보낸다.
@@ -94,14 +107,56 @@ def _send_via_ses(to_email: str, subject: str, body: str) -> None:
     logger.info("SES 수락 message_id=%s", resp.get("MessageId"))
 
 
-def _context(db: Session, log: EmailLog) -> tuple[str, str]:
-    """문구에 채울 지원자명·공고명을 읽는다."""
+def _format_kst(dt: datetime) -> str:
+    """확정 시각을 지원자가 읽을 한국 시간 문자열로. 예: 2026-09-07(월) 14:00"""
+    local = dt.astimezone(ZoneInfo("Asia/Seoul"))
+    return f"{local:%Y-%m-%d}({_WEEKDAYS_KO[local.weekday()]}) {local:%H:%M}"
+
+
+def _interview_at(db: Session, application_id: int) -> str | None:
+    """{면접일시} 자리에 넣을 문자열 (일정 자동화, ADR-0016).
+
+    라이브 제안이 있으면 선택 링크를, 확정됐으면 확정 시각을 싣는다.
+    둘 다 아니면 None → mail.render 가 기존 "별도 안내" 로 채운다.
+    """
+    proposal = db.scalar(
+        select(ScheduleProposal)
+        .where(ScheduleProposal.application_id == application_id)
+        .where(ScheduleProposal.status.in_(("proposed", "confirmed")))
+        .order_by(ScheduleProposal.created_at.desc())
+        .limit(1)
+    )
+    if proposal is None:
+        return None
+
+    if proposal.status == "confirmed" and proposal.confirmed_slot_id is not None:
+        slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
+        if slot is not None:
+            return _format_kst(slot.start_at)
+        return None
+
+    # proposed — 만료 전이면 선택 링크 안내
+    if proposal.expires_at is not None and proposal.expires_at <= datetime.now(UTC):
+        return None
+    return (
+        "아래 링크에서 원하시는 시간을 직접 선택해 주세요.\n"
+        f"일정 선택 링크: {PUBLIC_APP_BASE_URL}/schedule/{proposal.token}"
+    )
+
+
+def _context(db: Session, log: EmailLog) -> tuple[str, str, str | None]:
+    """문구에 채울 지원자명·공고명·면접일시를 읽는다."""
     application = db.get(Application, log.application_id)
     if application is None:
         raise LookupError(f"지원서를 찾을 수 없습니다: id={log.application_id}")
 
     posting = db.get(JobPosting, application.job_posting_id)
-    return application.name, posting.title if posting else ""
+
+    # 면접일시는 interview 문구에만 자리가 있다 — 다른 단계는 조회를 건너뛴다
+    interview_at = (
+        _interview_at(db, application.id) if log.stage == "interview" else None
+    )
+    return application.name, posting.title if posting else "", interview_at
 
 
 def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:

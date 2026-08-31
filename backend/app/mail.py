@@ -137,8 +137,17 @@ class UnknownStageTemplate(LookupError):
     """단계에 대응하는 문구가 없다. 워커가 잡아 failed 로 남긴다."""
 
 
-def render(stage: str, applicant_name: str, posting_title: str) -> tuple[str, str]:
-    """단계에 맞는 (제목, 본문) 을 만든다. 문구를 새로 지어내지 않는다."""
+def render(
+    stage: str,
+    applicant_name: str,
+    posting_title: str,
+    interview_at: str | None = None,
+) -> tuple[str, str]:
+    """단계에 맞는 (제목, 본문) 을 만든다. 문구를 새로 지어내지 않는다.
+
+    interview_at 은 {면접일시} 자리에 들어갈 문자열이다 — 일정 자동화(ADR-0016)가
+    확정 시각이나 선택 링크 안내를 넣는다. 없으면 기존처럼 "별도 안내".
+    """
     tpl = _TEMPLATES.get(stage)
     if tpl is None:
         raise UnknownStageTemplate(f"'{stage}' 단계에 해당하는 메일 문구가 없습니다")
@@ -147,7 +156,7 @@ def render(stage: str, applicant_name: str, posting_title: str) -> tuple[str, st
         "지원자명": applicant_name,
         "공고명": posting_title,
         "회사명": COMPANY_NAME,
-        "면접일시": INTERVIEW_AT_UNKNOWN,
+        "면접일시": interview_at or INTERVIEW_AT_UNKNOWN,
     }
     subject, body = tpl
     return subject.format(**values), body.format(**values)
