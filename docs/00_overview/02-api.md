@@ -34,7 +34,7 @@
 |---|---|---|---|
 | GET | /public/postings/{id} | 지원 폼용 공고 정보 | **공개**. 마감된 공고는 **410 Gone** (B4) |
 | GET | /public/postings/by-token/{token} | 공개 링크 토큰으로 공고 조회 | **공개**, B6. 마감은 410, 없는 토큰·미공개는 404 |
-| POST | /public/postings/{id}/applications | 지원서 제출 | **공개**, C1·C3. 중복 지원 409 (C6). 마감된 공고는 **410** (B4) |
+| POST | /public/postings/{id}/applications | 지원서 제출 | **공개**, C1·C3. 중복 지원 409 (C6). 마감된 공고는 **410** (B4). 본문에 `files[]`(presign 으로 받은 `s3_key`·`filename`·`size_bytes`·`content_type`·`kind`)를 함께 보내면 그때 `files` 행이 생긴다 — presign 시점에는 지원서가 없어 만들 수 없다 (F1 → C2) |
 | POST | /public/files/presign-upload | 이력서 업로드용 presigned URL 발급 | **공개**, F1. 확장자·용량 검증(F3) |
 
 ## 지원자 관리 (D·H)
