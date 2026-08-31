@@ -199,6 +199,12 @@ export default function MorphNav({ children }: { children: ReactNode }) {
       shape.style.height = `${d.height}px`
       const from = `translate(${p.rect.left - d.left}px, ${p.rect.top - d.top}px) scale(${sx}, ${sy})`
 
+      /* 복제본은 축소판의 자연 크기(p.rect)로 재 놓았는데, 그 위에 도형의 축소가
+         한 번 더 곱해진다 — 그대로 두면 전환 첫 프레임에 내용만 sx·sy 배로
+         쪼그라들어 "툭" 튄다. 도형의 축소를 되돌려 출발 프레임에서 축소판과
+         1:1 로 겹치게 하고, 이후엔 도형과 같은 비율로 함께 자란다. */
+      holder.style.transform = `scale(${1 / sx}, ${1 / sy})`
+
       grow = shape.animate([{ transform: from }, { transform: 'none' }], { duration, easing, fill: 'both' })
 
       anims.current.push(

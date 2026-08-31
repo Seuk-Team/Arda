@@ -25,6 +25,8 @@
   top: 0;
   left: 0;
   overflow: hidden;
+  /* 도형과 같은 모서리에서 자라야 축소를 되돌린 뒤에도 자리가 맞는다 (MorphNav 의 역스케일) */
+  transform-origin: top left;
 }
 
 /* 복제본은 카드 자체의 복사본이라 테두리·그림자가 겹친다. 도형이 이미 그리고 있으므로 지운다 */
