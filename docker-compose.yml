@@ -20,6 +20,9 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/arda
+      # 로컬 개발 스택. 이 줄을 빼면 production 으로 잠겨(#122) JWT_SECRET 미설정과
+      # 겹쳐 api 컨테이너가 기동하지 못한다. 서버는 docker-compose.prod.yml 이 별도다.
+      APP_ENV: dev
     ports:
       - "8000:8000"
     volumes:

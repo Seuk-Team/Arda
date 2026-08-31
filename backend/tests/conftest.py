@@ -6,14 +6,21 @@ DB 에 흔적이 남지 않으므로 운영 데이터와 섞이지 않는다.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import os
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+# APP_ENV 미설정은 production 으로 잠긴다(#122). 테스트는 개발 환경이므로 명시한다 —
+# `app.security` 를 import 하기 전에 해야 한다. 없으면 JWT_SECRET 미설정과 겹쳐
+# 기동 자체가 막힌다(.env 는 git 에 없어서 새 클론·CI 에서 특히).
+os.environ.setdefault("APP_ENV", "dev")
 
-from app.db import DATABASE_URL, Base
-from app.models import Application, JobPosting, User
+from datetime import UTC, datetime  # noqa: E402
+
+import pytest  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+
+from app.db import DATABASE_URL, Base  # noqa: E402
+from app.models import Application, JobPosting, User  # noqa: E402
 
 
 @pytest.fixture()
