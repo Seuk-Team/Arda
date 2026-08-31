@@ -1,62 +1,6 @@
-/* mockup.html 의 .dpanel 규격 (§12-1 시안 복제).
-   flex 자식이라 열리면 콘텐츠가 밀린다 — 오버레이가 아니다.
-   1100px 이하에서만 화면을 덮는다 (§9). */
-
-.panel {
-  flex: none;
-  width: 420px;
-  background: var(--bg-elev);
-  border-left: var(--border-w) solid var(--border);
-  position: relative;
-  overflow: hidden;
-}
-
-.inner {
-  width: 420px;
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-@media (max-width: 1100px) {
-  .panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 30;
-    box-shadow: 0 8px 28px rgba(27, 33, 23, 0.14);
-  }
-}
-
-.close {
-  position: absolute;
-  top: var(--sp-4);
-  right: var(--sp-4);
-  z-index: var(--z-sticky, 10);
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.close:hover { background: var(--bg-sunken); }
-.close:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
-
-.close svg {
-  width: 18px;
-  height: 18px;
-  stroke: var(--text);
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
+/* mockup.html 의 .dpanel 내용 (§12-1 시안 복제) — AI 요약 · 지원 정보 · 메모.
+   패널 껍데기(폭 420 · 테두리 · 스크롤 · 닫기 버튼 · 1100px 오버레이)는
+   components/SidePanel.module.css 의 .content 로 옮겼다. */
 
 .head {
   position: sticky;
