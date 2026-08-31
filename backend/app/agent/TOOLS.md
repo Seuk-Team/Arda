@@ -26,16 +26,21 @@ JWT는 현재 요청의 것을 그대로 전달 — 에이전트가 별도 슈�
 
 | 도구명 | 하는 일 | 동등 REST | 비고 |
 |---|---|---|---|
-| `search_applications` | 이름·이메일·단계 등으로 지원자 찾기 | `GET /api/v1/applications?q=&stage=` | H1·H2. 전역 검색 경로 사용 |
+| `search_applications` | 이름·이메일·단계·시맨틱 검색으로 지원자 찾기 | `GET /api/v1/applications?q=&stage=` | H1·H2. semantic 파라미터로 역량 기반 검색 가능 |
 | `get_application` | 지원자 상세 (프로필·AI 요약·평가·이력·파일·메모 수) | `GET /api/v1/applications/{id}` | D4. 평가·이력·메모를 한 번에 반환하므로 개별 조회 도구 불필요 |
 | `list_postings` | 채용공고 목록 + 공고별 지원자 수 | `GET /api/v1/postings` | 공고 이름 → posting_id 변환에 사용 |
+| `search_users` | 내부 사용자(면접관·어드민) 이름·이메일 검색 | `GET /api/v1/users?q=` | 면접관 이름 → user_id 변환에 사용 |
+| `list_availability` | 면접관의 가용 시간(면접 가능한 시간대) 조회 | `GET /api/v1/availability?interviewer_id=` | 일정 제안 전 빈 시간 확인용 |
+| `get_schedule_status` | 지원자의 면접 일정 제안 상태 조회 | `GET /api/v1/schedules/status/{application_id}` | none/proposed/confirmed/expired/canceled |
+| `list_interviews` | 확정된 면접 일정 목록 조회 | `GET /api/v1/schedules/interviews` | 기간 필터, mine=true로 내 면접만 조회 가능 |
 
 ### 쓰기 도구 (확인 필수)
 
 | 도구명 | 하는 일 | 동등 REST | 확인 후 동작 |
 |---|---|---|---|
 | `change_stage` | 단계 변경 | `PATCH /api/v1/applications/{id}/stage` | 이력 기록(D5) + 메일 큐 트리거. **확인 없이 실행 금지** |
-| `assign_interviewer` | 면접관 배정 | `POST /api/v1/applications/{id}/interviewers` | 어드민만 가능 (ADR-0013). 중복 배정은 무시 |
+| `assign_interviewer` | 면접관 배정 | `POST /api/v1/applications/{id}/interviewers` | 어드민만 가능 (ADR-0017). 중복 배정은 무시 |
+| `create_schedule_proposal` | 면접 일정 후보 제안 | `POST /api/v1/schedules/proposals` | 면접관 배정 + 가용 시간 등록 선행 필요 |
 | `draft_email` | 이메일 **초안** 생성 | *(HTTP 없음 — 템플릿 기반)* | 초안을 UI에 앰버로 표시. SES 호출은 사람이 발송할 때만 |
 
 ### 에이전트 전용 HTTP
@@ -73,8 +78,8 @@ JWT는 현재 요청의 것을 그대로 전달 — 에이전트가 별도 슈�
 |---|---|---|
 | M1 | 이력서 텍스트 추출 PoC | ✅ PR #76 |
 | M2 | 요약 파이프라인 (`summarizer.py` + `/summarize` API) | ✅ PR #83 |
-| M3 | 읽기 에이전트 (`runtime.py` + `/chat` API + 읽기 도구 3개) | ✅ PR #83 |
-| M4 | 쓰기 도구 + 확인 메커니즘 (`/confirm` API + 쓰기 도구 3개) | ✅ PR #83 |
+| M3 | 읽기 에이전트 (`runtime.py` + `/chat` API + 읽기 도구 7개) | ✅ PR #83, #151, #153 |
+| M4 | 쓰기 도구 + 확인 메커니즘 (`/confirm` API + 쓰기 도구 4개) | ✅ PR #83 |
 
 **남은 작업**: 프롬프트 튜닝 (W3) · 단위 테스트 · E2E 데모 시나리오 (API 키 필요)
 
