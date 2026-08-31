@@ -20,7 +20,8 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 #FastAPI
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 #프로젝트 내부모듈
@@ -96,10 +97,26 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestContextMiddleware)
 
+if APP_ENV != "production":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 
 @app.get("/health", tags=["system"])
 def health():
     return {"status": "ok"}
+
+
+if APP_ENV != "production":
+    _chat_test_path = Path(__file__).resolve().parent.parent / "chat_test.html"
+
+    @app.get("/chat-test", response_class=HTMLResponse, include_in_schema=False)
+    def chat_test():
+        return _chat_test_path.read_text(encoding="utf-8")
 
 
 @app.exception_handler(HTTPException)
