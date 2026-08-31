@@ -6,3 +6,4 @@
 - 화면: 칸반 보드(메인) / 지원자 상세 / 지원 폼(외부 공개) / 공고 관리 / 로그인 — 목업은 [../docs/04_planning/05_prototype.html](../docs/04_planning/05_prototype.html)
 - 모바일은 칸반 대신 단계 탭 + 리스트 (기획 §2-3)
 - **목데이터 필드명은 [../docs/00_overview/01-erd.md](../docs/00_overview/01-erd.md)와 동일하게 맞춘다** — 이후 API 연동이 필드 교체만으로 끝나게
+- 캐릭터 "아르"의 3D 에셋(`app/public/ar.glb`)을 고칠 일이 있으면 [ar3d/README.md](ar3d/README.md) — Blender 스크립트와 모션·표정 구조 설명

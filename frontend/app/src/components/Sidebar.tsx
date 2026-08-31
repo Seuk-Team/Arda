@@ -1,7 +1,18 @@
-﻿import type { ReactNode } from 'react'
+﻿import { Suspense, lazy } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { NavLink } from 'react-router-dom'
 import styles from './Sidebar.module.css'
-import Sprout from './Sprout'
+import type { Motion } from './ArViewer'
+import { useAuth } from '../auth/AuthContext'
+import { ROLE_LABEL } from '../lib/stage'
+
+/* three.js 가 초기 번들의 대부분이었다. 아르는 전 화면 사이드바에 상주하지만
+   첫 페인트에 필요한 건 아니라 별도 청크로 뺀다 — 타입만 정적으로 가져온다. */
+const ArViewer = lazy(() => import('./ArViewer'))
+
+/* 맥은 ⌘, 나머지는 Ctrl. 라벨에만 쓰므로 userAgent 로 충분하다. */
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
+const AR_HINT = IS_MAC ? '⌘K' : 'Ctrl+K'
 
 /* 아이콘은 mockup.html 사이드바에서 그대로 옮겼다 (§12-1 시안 복제).
    stroke·크기는 CSS 가 잡으므로 path 만 담는다. */
@@ -53,12 +64,24 @@ const NAV = [
   { to: '/settings', label: '설정', icon: 'settings' },
 ] as const
 
-const ME = { name: '김채용', role: '채용담당자' }
+interface Props {
+  /* 아르 패널 열림 여부 — 정사각형 버튼의 눌린 상태를 이걸로 그린다 */
+  arOpen: boolean
+  arMotion: Motion
+  onToggleAr: () => void
+  onArHover: (hovered: boolean) => void
+  arButtonRef: RefObject<HTMLButtonElement | null>
+}
 
-export default function Sidebar() {
+export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arButtonRef }: Props) {
+  /* 목업 상수를 실데이터로 교체. user 가 아직 없으면(부트스트랩 중) 스켈레톤 — §6 */
+  const { user } = useAuth()
+
   return (
     <aside className={styles.sidebar}>
-      <div className={styles.logo}>Arda</div>
+      <NavLink to="/dashboard" className={styles.logo}>
+        Arda
+      </NavLink>
 
       <nav className={styles.nav}>
         {NAV.map((item) => (
@@ -73,18 +96,49 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* 아르 상주 슬롯. 에이전트 패널은 아직 React 로 안 옮겨서 자리만 잡아 둔다. */}
-      <div className={styles.agent}>
-        <Sprout className={styles.agentChar} />
-        <span><b>아르</b></span>
-      </div>
+      {/* 아르 상주 슬롯 — 정사각형 전체가 에이전트 패널 토글 버튼이다 (ADR-0009 개정). */}
+      <button
+        ref={arButtonRef}
+        type="button"
+        className={styles.arSlot}
+        onClick={onToggleAr}
+        onMouseEnter={() => onArHover(true)}
+        onMouseLeave={() => onArHover(false)}
+        onFocus={() => onArHover(true)}
+        onBlur={() => onArHover(false)}
+        aria-label={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
+        title={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
+        aria-expanded={arOpen}
+        aria-controls="ar-panel"
+      >
+        {/* 폴백은 같은 크기의 빈 칸 — 청크가 늦게 와도 정사각형이 흔들리지 않는다 */}
+        <Suspense fallback={<span className={styles.arView} />}>
+          <ArViewer className={styles.arView} motion={arMotion} />
+        </Suspense>
+      </button>
 
+      {/* 표시 전용 — 클릭 진입은 두지 않는다 (팀장 결정 2026-08-31) */}
       <div className={styles.me}>
-        <div>
-          <div className={styles.meName}>{ME.name}</div>
-          <div className={styles.meRole}>{ME.role}</div>
-        </div>
-        <div className={styles.avatar}>{ME.name.charAt(0)}</div>
+        {user ? (
+          <>
+            <div className={styles.meText}>
+              <div className={styles.meName}>{user.name}</div>
+              <div className={styles.meRole}>{ROLE_LABEL[user.role]}</div>
+            </div>
+            <div className={styles.avatar} aria-hidden="true">
+              {user.name.charAt(0)}
+            </div>
+          </>
+        ) : (
+          /* 부트스트랩 중이거나 사용자를 못 받은 상태. 목업 이름을 대신 쓰지 않는다. */
+          <>
+            <div className={styles.meText}>
+              <div className={`${styles.meName} ${styles.skel}`} />
+              <div className={`${styles.meRole} ${styles.skel} ${styles.skelShort}`} />
+            </div>
+            <div className={`${styles.avatar} ${styles.skel}`} />
+          </>
+        )}
       </div>
     </aside>
   )

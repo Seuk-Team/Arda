@@ -1,0 +1,122 @@
+/* 사이드바 오른쪽에 붙는 두 번째 사이드바 (ADR-0009 2026-08-31 개정).
+   폭 0 → --ar-panel-w 로 늘어난다. flex 형제라 본문(main)은 겹치지 않고 좁아진다 (§3 깨짐 금지).
+   폭 애니메이션은 레이아웃을 건드리지만, "본문을 밀어낸다"가 요구사항이라 대체 수단이 없다.
+   대신 전환 대상은 폭 하나뿐이고, 내용은 opacity 로만 따라온다. */
+.panel {
+  /* 시안(1-right-panel.html)의 420px 를 360px 로 줄였다 —
+     사이드바 216 + 420 = 636 이면 1280 화면에서 본문 좌우 여백(--content-x 48×2)을 빼고
+     548px 밖에 안 남아 메인인 테이블이 눌린다. 360 이면 608px 이 남는다. */
+  --ar-panel-w: 360px;
+
+  flex: none;
+  width: 0;
+  overflow: hidden;
+  background: var(--bg-elev);
+  transition: width var(--dur-base) var(--ease);
+}
+
+.panel.open {
+  width: var(--ar-panel-w);
+}
+
+/* 폭이 줄어드는 동안 내용이 찌그러지지 않게 고정 폭을 유지한다 */
+.inner {
+  width: var(--ar-panel-w);
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-4);
+  border-right: var(--border-w) solid var(--border);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.panel.open .inner {
+  opacity: 1;
+}
+
+/* ── 헤더 ─────────────────────────────────────────── */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-3);
+  border-bottom: var(--border-w) solid var(--border-soft);
+}
+
+.title {
+  font-size: var(--font-h2);
+  font-weight: 600;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  white-space: nowrap;
+}
+
+.sub {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 터치 타깃 44×44 (DESIGN.md §3.6 · 05-design §9) */
+.close {
+  margin-left: auto;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: var(--r-ctl);
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.close svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.close:hover {
+  background: var(--bg-sunken);
+}
+
+.close:active {
+  background: var(--sunken-hover);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: -2px;
+}
+
+/* ── 본문 (ArChat 자리) ───────────────────────────── */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: var(--sp-3);
+}
+
+/* 모바일에서는 본문을 좁히는 대신 덮는다 — 216 + 360 이면 남는 폭이 없다 (§9) */
+@media (max-width: 768px) {
+  .panel {
+    --ar-panel-w: min(360px, 92vw);
+
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-modal);
+    box-shadow: var(--sh-overlay);
+  }
+}

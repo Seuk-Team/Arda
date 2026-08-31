@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout'
 import { AuthProvider } from './auth/AuthContext'
@@ -13,6 +14,8 @@ import Applicants from './pages/Applicants'
 import Interviews from './pages/Interviews'
 import Evaluations from './pages/Evaluations'
 import Settings from './pages/Settings'
+/* three.js 를 초기 번들에서 빼기 위해 이 페이지도 지연 로드한다 (Sidebar 의 ArViewer 와 같은 청크) */
+const ArDemo = lazy(() => import('./pages/ArDemo'))
 
 export default function App() {
   return (
@@ -26,6 +29,15 @@ export default function App() {
         <Route path="/apply/:token" element={<Apply />} />
         {/* 지원자용 면접 일정 선택 — 메일 링크 착지점 (ADR-0016). 마찬가지로 로그인 밖 */}
         <Route path="/schedule/:token" element={<Schedule />} />
+        {/* 아르 3D 모션 검토용. 내비 미노출·데이터 접근 없음 → 로그인 게이트 밖 */}
+        <Route
+          path="/dev/ar"
+          element={
+            <Suspense fallback={null}>
+              <ArDemo />
+            </Suspense>
+          }
+        />
         <Route element={<RequireAuth />}>
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />

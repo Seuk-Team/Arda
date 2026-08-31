@@ -10,6 +10,8 @@
 }
 
 .logo {
+  display: inline-block;
+  align-self: flex-start;
   font-size: var(--font-h1);
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -17,6 +19,12 @@
   text-shadow: var(--ts-heading);
   white-space: nowrap;
   padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+}
+
+.logo:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
 }
 
 .nav {
@@ -61,39 +69,49 @@
   color: var(--leaf);
 }
 
+/* 굵은 글씨·글자 그림자 없음 — 강조는 배경과 색으로만 한다.
+   .link 가 이미 font-weight 500 이라 :active 에서도 굵어지지 않는다. */
 .active {
   background: var(--bg-elev);
   color: var(--leaf);
-  font-weight: 700;
-  text-shadow: var(--ts-heading);
 }
 
 /* ── 아르 상주 슬롯 ─────────────────────────────
-   바닥으로 미는 역할을 .me 가 아니라 이쪽이 맡는다 (목업과 동일) */
-.agent {
+   바닥으로 미는 역할을 .me 가 아니라 이쪽이 맡는다 (목업과 동일).
+   사이드바 폭(216) 안쪽 좌우 패딩(--sp-2 ×2)을 뺀 정사각형이 통째로 버튼이다. */
+.arSlot {
   margin: auto 0 var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
   background: var(--bg-elev);
   border: var(--border-w) solid var(--sidebar-line);
   border-radius: var(--r-card);
-  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 
-.agentChar {
-  width: 24px;
-  height: 24px;
-  flex: none;
+.arSlot:hover {
+  box-shadow: var(--sh-card);
 }
 
-.agent b {
-  display: block;
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
+.arSlot:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 2px;
+}
+
+/* 패널이 열려 있는 동안 눌린 상태 */
+.arSlot[aria-expanded='true'] {
+  border-color: var(--leaf);
+  box-shadow: var(--sh-card);
+}
+
+.arView {
+  width: 100%;
+  height: 100%;
 }
 
 /* ── 프로필 ──────────────────────────────────────── */
@@ -105,6 +123,10 @@
   padding: var(--sp-3);
   border-top: var(--border-w) solid var(--sidebar-line);
   white-space: nowrap;
+}
+
+.meText {
+  min-width: 0;
 }
 
 .meName {
@@ -132,4 +154,23 @@
   font-size: var(--font-h2);
   font-weight: 700;
   color: var(--leaf);
+}
+
+/* 로딩·비로그인 자리 표시. 목업 문자열 대신 빈 블록을 둔다 (§6) */
+.skel {
+  width: 88px;
+  height: 1em;
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  opacity: 0.55;
+}
+
+.skelShort {
+  width: 56px;
+}
+
+.avatar.skel {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
 }
