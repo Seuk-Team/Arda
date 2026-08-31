@@ -16,61 +16,52 @@ from sqlalchemy.orm import Session
 from app.deps import assert_can_view_application
 from app.models import (
     Application,
-    EmailLog,
     InterviewerAssignment,
-    StageHistory,
     User,
 )
-from app.stages import NOTIFY_STAGES, StageTransitionError, validate_transition
+from app.stage_service import apply_stage_change, publish_all, require_reason
+from app.stages import StageTransitionError
 
 WRITE_TOOL_NAMES = frozenset({"change_stage", "assign_interviewer", "draft_email"})
 
 
 def change_stage(db: Session, user: User, params: dict) -> dict:
-    """단계 변경 + 이력 기록 + 메일 큐 발행."""
+    """단계 변경 + 이력 기록 + 메일 큐 발행.
+
+    **부수효과는 REST 와 같은 함수를 쓴다** (`app/stage_service.py`, #148). 전에는
+    여기서 `email_logs` 행을 직접 만들고 SQS 발행을 하지 않아, 에이전트로 단계를
+    바꾸면 메일이 영영 나가지 않는데 응답은 `mail_queued: true` 였다. 불합격
+    사유(D8)도 남지 않았다. 규칙만 공유하고 순서를 따로 쓰면 이렇게 갈린다.
+    """
     if user.role not in ("admin", "recruiter"):
         return {"error": "단계 변경 권한이 없습니다"}
 
     application_id = int(params["application_id"])
     to_stage = params["to_stage"]
+    reason = params.get("reason")
 
     app = db.get(Application, application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
-    from_stage = app.current_stage
+    # D8 — 불합격은 사유가 필수다. REST 와 같은 규칙을 쓴다.
+    # 도구는 예외 대신 error 를 돌려준다(에이전트가 사용자에게 되물어야 한다).
     try:
-        validate_transition(from_stage, to_stage)
+        require_reason(to_stage, reason)
+    except HTTPException as e:
+        return {"error": e.detail}
+
+    from_stage = app.current_stage
+    now = datetime.now(UTC)
+    try:
+        log_id = apply_stage_change(db, app, to_stage, user.id, reason, now)
     except StageTransitionError as e:
         return {"error": str(e)}
 
-    now = datetime.now(UTC)
-    app.current_stage = to_stage
-    app.updated_at = now
-
-    db.add(
-        StageHistory(
-            application_id=application_id,
-            from_stage=from_stage,
-            to_stage=to_stage,
-            changed_by=user.id,
-            created_at=now,
-        )
-    )
-
-    mail_queued = to_stage in NOTIFY_STAGES
-    if mail_queued:
-        db.add(
-            EmailLog(
-                application_id=application_id,
-                to_email=app.email,
-                stage=to_stage,
-                status="queued",
-                created_at=now,
-            )
-        )
-
     db.commit()
+
+    # 커밋 뒤 발행 — 롤백된 건의 메시지가 큐에 남지 않게.
+    mail_queued = bool(log_id) and publish_all([log_id]) == 1
 
     return {
         "ok": True,

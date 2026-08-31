@@ -148,3 +148,77 @@ class TestDraftEmail:
             "application_id": 99999,
         })
         assert "error" in result
+
+
+class TestStageChangeSideEffects:
+    """#148 재발 방지 — 에이전트 경로가 REST 와 같은 부수효과를 내는가.
+
+    전에는 `email_logs` 행만 만들고 SQS 발행을 하지 않아 **메일이 영영 나가지
+    않는데 응답은 `mail_queued: true`** 였다. 행 존재만 보는 테스트는 이 결함을
+    통과시킨다 — 그래서 여기서는 **발행이 실제로 불렸는지**를 본다.
+    """
+
+    def test_큐로_발행까지_한다(self, db: Session, recruiter_user, application, monkeypatch):
+        published: list[int] = []
+        monkeypatch.setattr("app.mail.publish", published.append)
+
+        result = change_stage(db, recruiter_user, {
+            "application_id": application.id,
+            "to_stage": "screening",
+        })
+        result = change_stage(db, recruiter_user, {
+            "application_id": application.id,
+            "to_stage": "interview",  # NOTIFY_STAGES — 메일이 나가야 하는 단계
+        })
+
+        assert result["mail_queued"] is True
+        assert len(published) == 1  # 행만 만들고 끝내면 여기서 걸린다
+
+    def test_큐가_죽어도_단계_변경은_성공한다(
+        self, db: Session, recruiter_user, application, monkeypatch
+    ):
+        # 담당자가 카드를 못 옮기는 것이 메일이 늦는 것보다 나쁘다.
+        def boom(_id):
+            raise RuntimeError("SQS down")
+
+        monkeypatch.setattr("app.mail.publish", boom)
+        change_stage(db, recruiter_user, {
+            "application_id": application.id,
+            "to_stage": "screening",
+        })
+        result = change_stage(db, recruiter_user, {
+            "application_id": application.id,
+            "to_stage": "interview",
+        })
+
+        assert result["ok"] is True
+        assert result["mail_queued"] is False
+
+    def test_불합격은_사유가_필요하다(self, db: Session, recruiter_user, application, monkeypatch):
+        # D8. REST 에는 있던 규칙이 에이전트 경로에는 없었다.
+        monkeypatch.setattr("app.mail.publish", lambda _id: None)
+        result = change_stage(db, recruiter_user, {
+            "application_id": application.id,
+            "to_stage": "rejected",
+        })
+        assert "error" in result
+        assert "사유" in result["error"]
+
+    def test_불합격_사유가_이력에_남는다(
+        self, db: Session, recruiter_user, application, monkeypatch
+    ):
+        monkeypatch.setattr("app.mail.publish", lambda _id: None)
+        result = change_stage(db, recruiter_user, {
+            "application_id": application.id,
+            "to_stage": "rejected",
+            "reason": "요구 기술 경험 부족",
+        })
+        assert result["ok"] is True
+
+        row = (
+            db.query(StageHistory)
+            .filter(StageHistory.application_id == application.id)
+            .order_by(StageHistory.id.desc())
+            .first()
+        )
+        assert row.reason == "요구 기술 경험 부족"

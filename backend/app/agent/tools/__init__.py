@@ -114,6 +114,13 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                     "enum": ["applied", "screening", "interview", "accepted", "rejected"],
                     "description": "변경할 단계",
                 },
+                "reason": {
+                    "type": "string",
+                    "description": (
+                        "단계 변경 사유. to_stage 가 rejected 이면 필수입니다 (D8) — "
+                        "없으면 사용자에게 사유를 되물으세요."
+                    ),
+                },
             },
             "required": ["application_id", "to_stage"],
         },
