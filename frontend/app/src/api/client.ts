@@ -79,6 +79,15 @@ function onUnauthorized() {
   setToken(null)
 }
 
+/* 로컬 개발 폴백 — 서버가 없거나(NETWORK) 401 이면 목 데이터로 대신 응답한다
+   (AuthContext DEV_USER 와 같은 원리). DEV 분기 안의 동적 import 라 배포 번들에는
+   mock.ts 가 아예 들어가지 않는다. 처리 못 하는 경로면 undefined — 원래 에러로 간다. */
+async function devMock(method: string, path: string, query?: RequestOptions['query']) {
+  if (!import.meta.env.DEV) return undefined
+  const { mockResponse } = await import('./mock')
+  return mockResponse(method, path, query)
+}
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, query, auth = true, signal } = options
 
@@ -100,6 +109,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   } catch (err) {
     // 취소는 에러가 아니다 — 부른 쪽이 알아서 무시하도록 그대로 던진다.
     if (err instanceof DOMException && err.name === 'AbortError') throw err
+    const mocked = await devMock(method, path, query)
+    if (mocked !== undefined) return mocked as T
     throw new ApiError('NETWORK', '서버에 연결하지 못했습니다', 0)
   }
 
@@ -119,7 +130,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     } catch {
       /* 본문이 JSON 이 아니면 위 기본값을 쓴다 */
     }
-    if (res.status === 401) onUnauthorized()
+    if (res.status === 401) {
+      /* 목이 받아 주면 토큰은 건드리지 않는다 — 로컬에서 실서버가 살아나면
+         다음 요청부터 자연히 실데이터로 돌아간다 */
+      const mocked = await devMock(method, path, query)
+      if (mocked !== undefined) return mocked as T
+      onUnauthorized()
+    }
     throw new ApiError(code, message, res.status, requestId)
   }
 
