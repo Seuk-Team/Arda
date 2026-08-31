@@ -229,3 +229,30 @@
   font-size: var(--font-caption);
   color: var(--text-sub);
 }
+
+/* ── 면접 가능 시간 (ADR-0016) ─────────────────────────────── */
+.slotForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-4);
+}
+
+.slotForm .field {
+  margin: 0;
+}
+
+.slotRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.error {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--font-sm);
+  color: var(--danger);
+  word-break: keep-all;
+}
