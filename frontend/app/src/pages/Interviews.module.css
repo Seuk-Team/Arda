@@ -265,3 +265,22 @@
 
 .ddMenu li:hover { background: #EFF7E2; }
 .ddSel { color: var(--leaf); font-weight: 700; }
+
+/* 내 면접만 — 담당자가 자기 면접을 추려 볼 때. 면접관 계정은 서버가 이미 걸러 준다 */
+.mine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: var(--sp-2);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mine input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--leaf);
+  cursor: pointer;
+}

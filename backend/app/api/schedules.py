@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,8 @@ from app.models import (
 )
 from app.schemas.schedule import (
     ConfirmRequest,
+    InterviewListOut,
+    InterviewOut,
     ProposalCreate,
     ProposalOut,
     ProposalStatusOut,
@@ -274,6 +276,53 @@ def get_latest_proposal(
         expires_at=proposal.expires_at,
         created_at=proposal.created_at,
     )
+
+
+@router.get("/schedules", response_model=InterviewListOut)
+def list_confirmed_interviews(
+    from_at: datetime | None = Query(None, alias="from", description="이 시각 이후 시작분만"),
+    to_at: datetime | None = Query(None, alias="to", description="이 시각 이전 시작분만"),
+    mine: bool = Query(False, description="내가 면접관인 건만"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """확정된 면접 목록 (ADR-0016). 면접 일정 화면의 데이터 소스.
+
+    **면접관은 항상 본인 건만 본다** — mine 값과 무관하게 강제한다. 남의 면접
+    일정에는 배정되지 않은 지원자의 이름·공고가 실려 A3 를 우회하는 창이 된다.
+    담당자(recruiter+)는 전체를 보고, mine=true 로 자기 것만 좁힐 수 있다.
+    """
+    query = (
+        select(ScheduleSlot, Application, JobPosting, User)
+        .join(ScheduleProposal, ScheduleProposal.confirmed_slot_id == ScheduleSlot.id)
+        .join(Application, Application.id == ScheduleProposal.application_id)
+        .join(JobPosting, JobPosting.id == Application.job_posting_id)
+        .join(User, User.id == ScheduleSlot.interviewer_id)
+        .where(ScheduleProposal.status == "confirmed")
+        .order_by(ScheduleSlot.start_at)
+    )
+    if from_at is not None:
+        query = query.where(ScheduleSlot.start_at >= from_at)
+    if to_at is not None:
+        query = query.where(ScheduleSlot.start_at < to_at)
+    if mine or user.role == "interviewer":
+        query = query.where(ScheduleSlot.interviewer_id == user.id)
+
+    rows = db.execute(query).all()
+    items = [
+        InterviewOut(
+            proposal_id=slot.proposal_id,
+            application_id=application.id,
+            applicant_name=application.name,
+            posting_title=posting.title,
+            interviewer_id=interviewer.id,
+            interviewer_name=interviewer.name,
+            start_at=slot.start_at,
+            end_at=slot.end_at,
+        )
+        for slot, application, posting, interviewer in rows
+    ]
+    return InterviewListOut(items=items, count=len(items))
 
 # ── 공개 라우트 — 지원자용 (토큰 접근, 로그인 없음) ──────────────────
 #

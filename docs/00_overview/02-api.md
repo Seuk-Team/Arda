@@ -82,6 +82,7 @@
 | GET | /interviewers/{user_id}/availability | 가용 시간 목록 | 본인 또는 recruiter+ |
 | DELETE | /availability/{id} | 가용 시간 삭제 | 본인 또는 admin. 이미 나간 제안의 슬롯은 스냅샷이라 영향 없음 |
 | POST | /applications/{id}/schedule-proposals | 일정 제안 생성 | recruiter+. 배정 면접관(E3) 가용 시간에서 후보 슬롯 생성 + 제안 메일 큐 발행 |
+| GET | /schedules | 확정 면접 목록 | 면접 일정 화면. 쿼리 `from`·`to`·`mine`. **면접관 계정은 `mine` 과 무관하게 본인 건만** (A3 — 남의 일정에 배정 안 된 지원자 이름이 실린다) |
 | GET | /applications/{id}/schedule-proposals | 최신 제안 상태 | A3 조회 규칙(배정 면접관도 가능). 대시보드·상세 패널 칩 용도. 제안 없으면 404 |
 | GET | /public/schedule/{token} | 지원자용 일정·전형 현황 조회 | **공개**. 만료된 제안은 조회 시점에 `expired` 판정(B4 방식). 없는 토큰 404 |
 | POST | /public/schedule/{token}/confirm | 슬롯 선택 → 확정 | **공개**. 본문 `{slot_id}`. 이미 확정·만료·취소면 409. 확정 시 통보 메일 큐 발행 |

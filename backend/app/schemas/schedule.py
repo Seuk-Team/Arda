@@ -85,3 +85,23 @@ class ProposalOut(BaseModel):
     slots: list[SlotOut]
     mail_queued: bool  # 제안 메일이 큐에 실렸는가 (실패해도 제안 자체는 유효)
     created_at: datetime
+
+
+class InterviewOut(BaseModel):
+    """확정된 면접 한 건 — 면접 일정 화면(시간축 뷰)의 행."""
+
+    proposal_id: int
+    application_id: int
+    applicant_name: str
+    posting_title: str
+    interviewer_id: int
+    interviewer_name: str
+    start_at: datetime
+    end_at: datetime
+
+
+class InterviewListOut(BaseModel):
+    """확정 면접 목록."""
+
+    items: list[InterviewOut]
+    count: int

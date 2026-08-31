@@ -6,6 +6,7 @@ import type {
   BulkStageOut,
   Note,
   Posting,
+  Interview,
   ScheduleStatus,
   SearchResult,
   StageChangeOut,
@@ -56,6 +57,12 @@ export const applications = {
 }
 
 export const schedules = {
+  /* 확정된 면접 목록. 면접관 계정은 서버가 본인 건만 준다 (A3) */
+  interviews: (
+    query: { from?: string; to?: string; mine?: boolean },
+    signal?: AbortSignal,
+  ) => api.get<{ items: Interview[]; count: number }>('/schedules', { query, signal }),
+
   /* 최신 일정 제안 상태 — 대시보드·상세 패널 칩 용도. 제안이 없으면 404 */
   latest: (applicationId: number, signal?: AbortSignal) =>
     api.get<ScheduleStatus>(`/applications/${applicationId}/schedule-proposals`, { signal }),

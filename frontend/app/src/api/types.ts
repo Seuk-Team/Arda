@@ -125,3 +125,15 @@ export interface ScheduleStatus {
   expires_at: string | null
   created_at: string
 }
+
+/* GET /schedules — 확정된 면접 목록 (면접 일정 화면) */
+export interface Interview {
+  proposal_id: number
+  application_id: number
+  applicant_name: string
+  posting_title: string
+  interviewer_id: number
+  interviewer_name: string
+  start_at: string
+  end_at: string
+}
