@@ -4,6 +4,7 @@
 여기에 비즈니스 로직을 두지 않는다.
 """
 
+#파이썬 기본 도구
 import logging
 import threading
 import time
@@ -11,15 +12,18 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+#.env
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
+#FastAPI
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+#프로젝트 내부모듈
 from app import mail
 from app import models  # noqa: F401 — 테이블을 메타데이터에 등록하려면 import 가 필요하다
 from app.db import Base, engine
