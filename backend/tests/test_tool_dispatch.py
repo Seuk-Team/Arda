@@ -11,8 +11,8 @@ from app.agent.tools.write import WRITE_TOOL_NAMES
 class TestToolDefinitions:
     """TOOL_DEFINITIONS 가 Claude 프로토콜에 맞는 형식인지."""
 
-    def test_ten_tools_defined(self):
-        assert len(TOOL_DEFINITIONS) == 10
+    def test_eleven_tools_defined(self):
+        assert len(TOOL_DEFINITIONS) == 11
 
     def test_all_have_required_fields(self):
         for td in TOOL_DEFINITIONS:

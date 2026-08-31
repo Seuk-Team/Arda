@@ -424,7 +424,7 @@ class TestConfirmEdgeCases:
 
     def test_all_write_tools_accepted(self, client: TestClient):
         """모든 쓰기 도구가 400 없이 통과하는지."""
-        for tool in ("change_stage", "assign_interviewer", "draft_email"):
+        for tool in ("change_stage", "assign_interviewer", "draft_email", "create_schedule_proposal"):
             with patch("app.api.agent.execute_tool", return_value='{"ok": true}'):
                 resp = client.post("/api/v1/agent/confirm", json={
                     "tool_name": tool,
