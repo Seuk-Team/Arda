@@ -19,7 +19,7 @@ import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
-from app.db import DATABASE_URL, Base  # noqa: E402
+from app.db import DATABASE_URL, Base, pgvector_ready  # noqa: E402
 from app.models import Application, JobPosting, User  # noqa: E402
 
 
@@ -27,7 +27,13 @@ from app.models import Application, JobPosting, User  # noqa: E402
 def db():
     """트랜잭션 격리 DB 세션. 테스트 끝나면 자동 롤백."""
     engine = create_engine(DATABASE_URL, future=True)
-    Base.metadata.create_all(engine)
+    # main.py lifespan 과 같은 판단: pgvector 확장이 없는 서버에서 vector 타입
+    # 테이블을 만들려 들면 CREATE 가 실패해 **나머지 테이블까지 못 만든다** —
+    # 그러면 DB 테스트가 통째로 죽는다. 확장이 없으면 그 테이블만 건너뛴다.
+    tables = list(Base.metadata.sorted_tables)
+    if not pgvector_ready():
+        tables = [t for t in tables if t.name != "application_embeddings"]
+    Base.metadata.create_all(engine, tables=tables)
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection)
