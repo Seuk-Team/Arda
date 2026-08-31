@@ -53,8 +53,14 @@ function fmtSlot(iso: string): string {
   return `${get('month')}.${get('day')} (${get('weekday')}) ${get('hour')}:${get('minute')}`
 }
 
-/* 공고 카드의 3단 레일. 왼쪽부터 검토 → 진행 → 완료 */
-const RAIL_STAGES: Stage[] = ['screening', 'interview', 'accepted']
+/* 공고 카드의 퍼널 레일. 공고의 지원자 화면(PostingApplicants)의 FUNNEL 과 같은
+   무채 램프 + 합격 연두 (§1 — 흐름 그래프 한정 허용). 불합격은 대시보드 범위 밖. */
+const RAIL: { stage: Stage; color: string }[] = [
+  { stage: 'applied', color: '#C9CFC3' },
+  { stage: 'screening', color: '#AEB6A8' },
+  { stage: 'interview', color: 'var(--neutral)' },
+  { stage: 'accepted', color: 'var(--sprout)' },
+]
 
 /* ── 면접 일정 축소판 ─────────────────────────────────────────────
    캘린더 화면(Interviews.tsx)과 같은 소스(GET /schedules)를 같은 규칙으로 읽는다 —
@@ -176,7 +182,7 @@ export default function Dashboard() {
         return Promise.all(
           open.map(async (p) => {
             const counts = await Promise.all(
-              RAIL_STAGES.map((s) => applications.countByStage(s, p.id, ac.signal)),
+              RAIL.map((r) => applications.countByStage(r.stage, p.id, ac.signal)),
             )
             return [p.id, counts] as const
           }),
@@ -294,6 +300,9 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* ── 캘린더 축소판(절반) + 진행중 공고(절반) — 2026-08-31 2열 개편.
+            1100px 아래에선 1열로 스택 (§9 확정 브레이크포인트 재사용) */}
+        <div className={styles.topGrid}>
         {/* ── 면접 일정 축소판 — 누르면 캘린더 화면으로 이어진다 ────────── */}
         <section
           ref={calRef}
@@ -303,29 +312,8 @@ export default function Dashboard() {
           <div className={styles.calHead}>
             <h2 className={styles.calTitle}>캘린더</h2>
             <span className={styles.calMonth}>{fmtMonth(calSel)}</span>
-            <button
-              type="button"
-              className={styles.calToday}
-              onClick={() => setCalSel(startOfToday())}
-            >
-              오늘
-            </button>
-            <button
-              type="button"
-              className={styles.calNav}
-              aria-label="이전 주"
-              onClick={() => setCalSel(addDays(calSel, -7))}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className={styles.calNav}
-              aria-label="다음 주"
-              onClick={() => setCalSel(addDays(calSel, 7))}
-            >
-              ›
-            </button>
+            {/* 주 이동·오늘 버튼은 뺐다 (2026-08-31 절반 너비 개편) — 축소판은 이번 주만,
+                다른 주·달은 캘린더 화면이 받는다 */}
             {/* 키보드로도 캘린더에 닿는 길 (§10) — 전환은 여기서도 같은 것을 탄다 */}
             <Link
               to="/calendar"
@@ -381,11 +369,22 @@ export default function Dashboard() {
               <p className={styles.calState}>이 날짜에 잡힌 면접이 없습니다. 확정된 일정만 표시됩니다.</p>
             )}
 
+            {calItems.length > 0 && (
+              /* 컬럼 머리 — 캘린더 화면의 그날 목록과 같은 구성(시각·지원자·공고·면접관) */
+              <div className={styles.calCols} aria-hidden="true">
+                <span className={styles.calTime}>시각</span>
+                <span className={styles.calName}>지원자</span>
+                <span className={styles.calPosting}>공고</span>
+                <span className={styles.calWho}>면접관</span>
+              </div>
+            )}
+
             {calItems.slice(0, CAL_LIMIT).map((iv) => (
               <div key={iv.proposal_id} className={styles.calRow}>
                 <span className={styles.calTime}>{hhmm(iv.start_at)}</span>
                 <span className={styles.calName}>{iv.applicant_name}</span>
                 <span className={styles.calPosting}>{iv.posting_title}</span>
+                <span className={styles.calWho}>{iv.interviewer_name}</span>
               </div>
             ))}
 
@@ -396,6 +395,47 @@ export default function Dashboard() {
             )}
           </div>
         </section>
+
+        <div className={styles.postingCol}>
+          <div className={styles.sectionTitle}>진행중 공고</div>
+          {data === null && error === null && <p className={styles.state}>불러오는 중…</p>}
+          {data !== null && data.openPostings.length === 0 && (
+            <p className={styles.state}>진행중인 공고가 없습니다.</p>
+          )}
+          <div className={styles.postingList}>
+            {data?.openPostings.map((p) => {
+              const counts = rails[p.id] ?? RAIL.map(() => 0)
+              const total = counts.reduce((a, b) => a + b, 0)
+              const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
+              return (
+                <button key={p.id} className={styles.postingCard} onClick={() => navigate(`/postings/${p.id}`)}>
+                  <div className={styles.postingTop}>
+                    <span className={styles.postingName}>{p.title}</span>
+                    {/* 마감일이 없는 공고(상시)는 D-day 를 그리지 않는다 */}
+                    {p.d_day !== null && (
+                      <span className={styles.postingDday}>
+                        {p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.postingRail}>
+                    {RAIL.map((r, i) => (
+                      <div key={r.stage} className={styles.railSeg} style={{ width: `${pct(counts[i])}%`, background: r.color }} />
+                    ))}
+                  </div>
+                  <div className={styles.postingCounts}>
+                    {RAIL.map((r, i) => (
+                      <span key={r.stage} className={r.stage === 'accepted' ? styles.countPass : undefined}>
+                        {STAGE_LABEL[r.stage]} {counts[i]}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        </div>
 
         <div className={styles.card}>
           <div className={styles.pipeHead}>
@@ -486,36 +526,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className={styles.sectionTitle}>진행중 공고</div>
-        {data === null && error === null && <p className={styles.state}>불러오는 중…</p>}
-        {data !== null && data.openPostings.length === 0 && (
-          <p className={styles.state}>진행중인 공고가 없습니다.</p>
-        )}
-        <div className={styles.postingList}>
-          {data?.openPostings.map((p) => {
-            const counts = rails[p.id] ?? [0, 0, 0]
-            const total = counts.reduce((a, b) => a + b, 0)
-            const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
-            return (
-              <button key={p.id} className={styles.postingCard} onClick={() => navigate(`/postings/${p.id}`)}>
-                <div className={styles.postingLeft}>
-                  <div className={styles.postingName}>{p.title}</div>
-                  <div className={styles.postingRail}>
-                    <div className={styles.railSeg} style={{ width: `${pct(counts[0])}%`, background: 'var(--border)' }} />
-                    <div className={styles.railSeg} style={{ width: `${pct(counts[1])}%`, background: 'var(--neutral)' }} />
-                    <div className={styles.railSeg} style={{ width: `${pct(counts[2])}%`, background: 'var(--sprout)' }} />
-                  </div>
-                </div>
-                {/* 마감일이 없는 공고(상시)는 D-day 를 그리지 않는다 */}
-                {p.d_day !== null && (
-                  <div className={styles.postingDday}>
-                    {p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`}
-                  </div>
-                )}
-              </button>
-            )
-          })}
-        </div>
       </main>
     </>
   )

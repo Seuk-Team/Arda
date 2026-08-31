@@ -1,10 +1,14 @@
 /* 캘린더 축소판 → 전체 화면 전환(MorphNav) 중에는 축소판만 남기고 나머지가 진다.
-   움직이는 값은 opacity 뿐이다 (05-design §5 — transform·opacity 위주) */
-.page > * {
+   움직이는 값은 opacity 뿐이다 (05-design §5 — transform·opacity 위주).
+   축소판은 .topGrid 안에 있으므로 그리드 자체는 남기고 그 형제들만 지운다 —
+   그리드를 통째로 지우면 축소판까지 같이 사라진다. */
+.page > *,
+.topGrid > * {
   transition: opacity var(--dur-base) var(--ease);
 }
 
-.page[data-leaving] > *:not(.calCard) {
+.page[data-leaving] > *:not(.topGrid),
+.page[data-leaving] .topGrid > *:not(.calCard) {
   opacity: 0;
 }
 
@@ -66,6 +70,27 @@
   white-space: nowrap;
 }
 
+/* ── 캘린더 축소판(절반) + 진행중 공고(절반) 2열 (2026-08-31 개편) ── */
+.topGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+  margin-bottom: var(--sp-5);
+}
+
+.topGrid .card { margin-bottom: 0; }
+
+.postingCol {
+  min-width: 0;
+}
+
+/* 1100px 아래는 1열 — §9 확정 브레이크포인트 재사용. 아르 패널이 열려 본문이 좁아지는
+   경우는 뷰포트 쿼리로 못 잡는다 — 목록 컬럼은 ellipsis 로 버틴다 (§7) */
+@media (max-width: 1100px) {
+  .topGrid { grid-template-columns: minmax(0, 1fr); }
+}
+
 
 /* ── 면접 일정 축소판 ─────────────────────────────────────────────
    캘린더 화면(Interviews.tsx)의 조각을 축소해 옮긴 것 — 요일 머리 + 그 주 7칸 +
@@ -97,37 +122,6 @@
   color: var(--text-sub);
   white-space: nowrap;
 }
-
-.calToday {
-  flex: none;
-  height: 32px;
-  padding: 0 var(--sp-3);
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.calNav {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  font-size: var(--font-body);
-  color: var(--text);
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.calToday:hover,
-.calNav:hover { background: var(--bg-sunken); }
-.calToday:active,
-.calNav:active { background: var(--sunken-hover); }
 
 .calHead .go { margin-left: var(--sp-2); }
 
@@ -208,12 +202,27 @@
 
 .stripSel .stripCount { background: var(--bg-elev); }
 
-/* 고른 날의 목록. 로딩·빈 상태에서도 카드 높이가 널뛰지 않게 바닥을 둔다 (§6) */
+/* 고른 날의 목록. 바닥은 로딩 스켈레톤·빈 문구 한 줄이 들어갈 만큼만 —
+   빈 날에 카드가 공허하게 길어지지 않게 낮췄다 (2026-08-31 절반 너비 개편) */
 .calList {
   margin-top: var(--sp-3);
   padding-top: var(--sp-2);
   border-top: var(--border-w) solid var(--border-soft);
-  min-height: 96px;
+  min-height: 48px;
+}
+
+/* 컬럼 머리 — 행과 같은 뼈대(클래스)를 쓰고 글자만 캡션으로 눌러 폭을 맞춘다 */
+.calCols {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-1);
+}
+
+.calCols span {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--text-sub);
 }
 
 .calRow {
@@ -234,9 +243,10 @@
   white-space: nowrap;
 }
 
+/* 이름·면접관은 고정 폭 — 머리행과 값이 세로로 나란히 서야 표로 읽힌다 */
 .calName {
   flex: none;
-  max-width: 160px;
+  width: 84px;
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text);
@@ -248,6 +258,16 @@
 .calPosting {
   flex: 1;
   min-width: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calWho {
+  flex: none;
+  width: 68px;
   font-size: var(--font-sm);
   color: var(--text-sub);
   white-space: nowrap;
@@ -552,10 +572,9 @@
   gap: var(--sp-2);
 }
 
+/* 세로 카드 — 제목/D-day 행 + 레일 + 단계별 건수 (2026-08-31 절반 너비 개편) */
 .postingCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: block;
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
@@ -571,12 +590,16 @@
   background: var(--bg-sunken);
 }
 
-.postingLeft {
-  flex: 1;
-  min-width: 0;
+.postingTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
 }
 
 .postingName {
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text);
@@ -587,12 +610,11 @@
 
 .postingRail {
   display: flex;
-  height: 4px;
+  height: 8px;
   border-radius: var(--r-pill);
   overflow: hidden;
   gap: 2px;
-  max-width: 480px;
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-3);
 }
 
 .railSeg {
@@ -600,12 +622,25 @@
   border-radius: var(--r-pill);
 }
 
+/* 단계별 건수 — 판단 전은 무채 글자, 합격만 잎초록 (§1) */
+.postingCounts {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.countPass { color: var(--leaf); }
+
 .postingDday {
   font-size: var(--font-num);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
-  margin-left: var(--sp-5);
   flex-shrink: 0;
 }
 
