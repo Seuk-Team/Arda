@@ -54,12 +54,13 @@ def admin_user(db: Session) -> User:
 
 
 @pytest.fixture()
-def recruiter_user(db: Session) -> User:
+def member_user(db: Session) -> User:
+    """일반 멤버. 배정과 무관한 쪽을 볼 때 쓴다 (ADR-0017)."""
     user = User(
-        email="test-recruiter@fixture.local",
+        email="test-member@fixture.local",
         password_hash="hashed",
-        name="담당자",
-        role="recruiter",
+        name="멤버",
+        role="member",
     )
     db.add(user)
     db.flush()
@@ -68,11 +69,16 @@ def recruiter_user(db: Session) -> User:
 
 @pytest.fixture()
 def interviewer_user(db: Session) -> User:
+    """면접관으로 배정되는 멤버.
+
+    이름을 그대로 두는 이유는 컬럼명 interviewer_id 와 같다 — "면접관"은 역할이
+    아니라 그 건에서 맡은 자리다. 역할 값은 member 다 (ADR-0017).
+    """
     user = User(
         email="test-interviewer@fixture.local",
         password_hash="hashed",
         name="면접관",
-        role="interviewer",
+        role="member",
     )
     db.add(user)
     db.flush()

@@ -1,12 +1,12 @@
-"""FastAPI 의존성 — 현재 사용자와 접근 제어 (A3)."""
+"""FastAPI 의존성 — 현재 사용자와 접근 제어 (ADR-0017)."""
 
 from fastapi import Depends, HTTPException, status as http
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import Select, exists, select
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Application, InterviewerAssignment, User
+from app.models import InterviewerAssignment, User
 from app.security import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -43,9 +43,16 @@ def get_current_user_optional(
 def require_roles(*allowed: str):
     """지정한 역할만 통과시키는 의존성을 만든다.
 
-    역할 위계는 admin > recruiter > interviewer (02-api.md). 상속을 코드로 두지 않고
-    허용 역할을 그때그때 나열한다 — 위계가 세 단계뿐이고, 나열하는 편이 각 엔드포인트에서
-    누가 통과하는지 바로 보인다.
+    역할은 **admin·member 둘뿐**이다 (ADR-0017). 위계가 아니라 조작 권한의 유무다:
+
+    - **조회는 로그인만 하면 전부 열린다.** 역할로 가리지 않는다.
+    - **admin 전용**은 넷뿐이다 — 면접관 배정/해제, 계정 생성, 메일 템플릿,
+      *남의* 가용 시간 조작.
+    - **member 제한**은 하나뿐 — 평가 작성은 배정된 건만(assert_can_evaluate).
+      나머지 조작(공고 CRUD·단계 변경·일괄 변경·일정 제안·에이전트)은 admin 과 같다.
+
+    그래서 실질적으로 `require_roles("admin")` 한 가지로만 쓰인다. 인자를 남겨 두는
+    이유는 역할이 다시 늘어날 때 호출부만 고치면 되게 하기 위함이다.
 
     인증 실패는 401(get_current_user), 역할 부족은 403 으로 나눈다.
     """
@@ -58,49 +65,36 @@ def require_roles(*allowed: str):
     return dependency
 
 
-# ── A3 지원자 접근 제어 ──────────────────────────────────────────────
-# 면접관은 본인이 배정된 지원자만 볼 수 있다 (02-api.md · 01-erd.md).
-# admin·recruiter 는 전부 볼 수 있다.
-#
-# 규칙을 각 엔드포인트에 흩어 쓰면 새 엔드포인트가 생길 때마다 빠뜨린다.
-# 목록/검색은 쿼리를 좁히는 쪽(scope_to_viewer)으로, 단건은 확인하는 쪽
-# (assert_can_view_application)으로 나눠 두 함수만 기억하면 되게 한다.
+# ── 평가 작성 제한 ────────────────────────────────────────────────────
+# 조회 제한(구 A3 — 면접관은 배정된 지원자만 조회)은 폐지됐다 (ADR-0017).
+# 전원이 내부 직원이고, 남의 건을 못 보게 막은 탓에 "왜 안 보이냐"는 문의와
+# 화면 분기만 늘었다. 남은 배정 기반 제한은 **평가 작성 하나뿐**이다 —
+# 평가는 면접을 본 사람이 남기는 기록이라 배정과 묶어야 의미가 지켜진다.
 
 
-def _assigned_application_ids(user: User) -> Select:
-    return select(InterviewerAssignment.application_id).where(
-        InterviewerAssignment.interviewer_id == user.id
-    )
-
-
-def scope_to_viewer(stmt: Select, user: User) -> Select:
-    """Application 을 고르는 SELECT 에 A3 제한을 건다.
-
-    면접관이 아니면 그대로 돌려준다. 목록·검색에서 쓴다 — 못 보는 건은 애초에
-    결과에 담기지 않으므로 건수·페이지네이션도 자동으로 맞는다.
-    """
-    if user.role != "interviewer":
-        return stmt
-    return stmt.where(Application.id.in_(_assigned_application_ids(user)))
-
-
-def assert_can_view_application(db: Session, user: User, application_id: int) -> None:
-    """단건 조회 권한을 확인한다. 배정되지 않았으면 403.
-
-    404 로 숨기지 않는 이유: 이용자가 전부 내부 직원이라 지원서의 존재 자체를
-    감출 필요가 없고, 403 이 "왜 안 보이는지"를 담당자에게 바로 알려준다.
-    """
-    if user.role != "interviewer":
-        return
-    assigned = db.scalar(
-        select(
-            exists().where(
-                InterviewerAssignment.application_id == application_id,
-                InterviewerAssignment.interviewer_id == user.id,
+def is_assigned_interviewer(db: Session, user: User, application_id: int) -> bool:
+    """그 지원자의 면접관으로 배정돼 있는가."""
+    return bool(
+        db.scalar(
+            select(
+                exists().where(
+                    InterviewerAssignment.application_id == application_id,
+                    InterviewerAssignment.interviewer_id == user.id,
+                )
             )
         )
     )
-    if not assigned:
+
+
+def assert_can_evaluate(db: Session, user: User, application_id: int) -> None:
+    """평가 작성 권한을 확인한다. admin 은 무제한, member 는 배정된 건만.
+
+    404 로 숨기지 않는 이유: 지원자 자체는 누구나 조회할 수 있으므로 감출 것이
+    없고, 403 이 "왜 못 쓰는지"를 바로 알려준다.
+    """
+    if user.role == "admin":
+        return
+    if not is_assigned_interviewer(db, user, application_id):
         raise HTTPException(
-            http.HTTP_403_FORBIDDEN, "본인에게 배정된 지원자만 조회할 수 있습니다"
+            http.HTTP_403_FORBIDDEN, "본인에게 배정된 지원자만 평가할 수 있습니다"
         )

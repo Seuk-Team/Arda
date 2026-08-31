@@ -13,7 +13,6 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.deps import assert_can_view_application
 from app.models import (
     Application,
     InterviewerAssignment,
@@ -38,9 +37,6 @@ def change_stage(db: Session, user: User, params: dict) -> dict:
     바꾸면 메일이 영영 나가지 않는데 응답은 `mail_queued: true` 였다. 불합격
     사유(D8)도 남지 않았다. 규칙만 공유하고 순서를 따로 쓰면 이렇게 갈린다.
     """
-    if user.role not in ("admin", "recruiter"):
-        return {"error": "단계 변경 권한이 없습니다"}
-
     application_id = int(params["application_id"])
     to_stage = params["to_stage"]
     reason = params.get("reason")
@@ -90,13 +86,10 @@ def assign_interviewer(db: Session, user: User, params: dict) -> dict:
     if db.get(Application, application_id) is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
+    # 역할 검사는 없다 — 누구나 면접관으로 배정될 수 있다 (ADR-0017).
     users = db.scalars(select(User).where(User.id.in_(interviewer_ids))).all()
     if len(users) != len(set(interviewer_ids)):
         return {"error": "존재하지 않는 사용자가 있습니다"}
-
-    bad = [u.id for u in users if u.role != "interviewer"]
-    if bad:
-        return {"error": f"면접관이 아닌 사용자입니다: {bad}"}
 
     db.execute(
         pg_insert(InterviewerAssignment)
@@ -128,9 +121,6 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     from app.api.schedules import _build_candidates
 
     logger = logging.getLogger(__name__)
-
-    if user.role not in ("admin", "recruiter"):
-        return {"error": "일정 제안 권한이 없습니다"}
 
     application_id = int(params["application_id"])
     slot_minutes = int(params.get("slot_minutes", 60))
@@ -249,13 +239,6 @@ def draft_email(db: Session, user: User, params: dict) -> dict:
     app = db.get(Application, application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
-
-    # A3 — 면접관은 배정된 지원자만. 초안에 지원자 이름·이메일이 담기므로,
-    # 이 확인이 없으면 /confirm 이 미배정 지원자 연락처를 내주는 우회로가 된다.
-    try:
-        assert_can_view_application(db, user, application_id)
-    except HTTPException as e:
-        return {"error": e.detail}
 
     templates = {
         "interview": (

@@ -69,7 +69,7 @@ def _make_mock_anthropic(*responses):
 def _make_deps():
     db = MagicMock()
     user = MagicMock()
-    user.role = "recruiter"
+    user.role = "member"
     return db, user
 
 

@@ -15,7 +15,8 @@ const TONE_CLASS = {
 }
 
 /* 지금 단계에서 갈 수 있는 곳. 규칙은 backend/app/stages.py 와 같다 —
-   전진은 한 칸씩, 불합격은 어디서든, 뒤로는 담당자 권한으로 허용. */
+   전진은 한 칸씩, 불합격은 어디서든, 뒤로 되돌리기도 허용.
+   단계 변경은 역할로 막지 않는다 — 로그인했으면 누구나 한다. */
 const ORDER: Stage[] = ['applied', 'screening', 'interview', 'accepted']
 
 function nextStages(from: Stage): Stage[] {

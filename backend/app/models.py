@@ -30,7 +30,7 @@ from app.db import Base
 
 # ── 고정값 (코드 상수) ────────────────────────────────────────────────
 STAGES = ("applied", "screening", "interview", "accepted", "rejected")
-ROLES = ("admin", "recruiter", "interviewer")
+ROLES = ("admin", "member")
 POSTING_STATUSES = ("draft", "open", "closed")
 APPLICATION_SOURCES = ("form", "manual")
 FILE_KINDS = ("resume", "cover_letter")
@@ -39,7 +39,7 @@ PROPOSAL_STATUSES = ("proposed", "confirmed", "expired", "canceled")
 
 
 def _in(column: str, values: tuple[str, ...]) -> str:
-    """체크 제약 문구를 만든다. 예: role IN ('admin', 'recruiter', 'interviewer')"""
+    """체크 제약 문구를 만든다. 예: role IN ('admin', 'member')"""
     joined = ", ".join("'" + v + "'" for v in values)
     return column + " IN (" + joined + ")"
 
@@ -282,9 +282,17 @@ class EmailLog(Base):
     )
 
 
-# ── interviewer_assignments — 면접관 배정 (A3) ───────────────────────
+# ── interviewer_assignments — 면접관 배정 (E3) ───────────────────────
 class InterviewerAssignment(Base):
-    """면접관은 본인이 배정된 지원자만 조회할 수 있다 (A3). 그 관계를 여기서 만든다."""
+    """"이 지원자의 면접관은 누구인가"를 담는 관계 테이블.
+
+    조회 제한(구 A3)은 폐지됐다 — 로그인한 사람은 모든 지원자를 본다 (ADR-0017).
+    이 관계가 남기는 제한은 하나뿐: member 는 배정된 건만 평가할 수 있다.
+    배정·해제 자체는 여전히 admin 전용 (ADR-0013).
+
+    interviewer_id 는 역할이 아니라 "그 건의 면접관"이라는 관계다 — 역할이
+    admin·member 둘로 줄어든 뒤에도 컬럼명은 그대로 둔다.
+    """
 
     __tablename__ = "interviewer_assignments"
 
@@ -317,7 +325,7 @@ class InterviewerAvailability(Base):
     __tablename__ = "interviewer_availability"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    # role=interviewer(또는 그 이상) 검사는 코드에서
+    # 누구나 면접관이 될 수 있다 — 대상 role 검사는 없다 (ADR-0017)
     interviewer_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("users.id"), nullable=False
     )

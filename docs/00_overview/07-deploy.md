@@ -45,6 +45,16 @@
 
 main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. **CI/CD(J4, main 머지 시 자동 배포)는 W3에 이 절차를 대체한다.** 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
 
+## 1회성 DB 이행
+
+스키마는 `create_all` 로 만들지만([db.py](../../backend/app/db.py)), **이미 데이터가 있는 DB** 는 값·제약을 바꿀 수단이 없다. 그런 변경은 `backend/scripts/` 에 SQL 파일로 두고 여기에 실행법을 적는다.
+
+| 파일 | 언제 | 실행 |
+|---|---|---|
+| `migrate_roles_to_member.sql` | 역할 2종화 배포 시 1회 ([ADR-0017](../03_decision/0017-등급-이분화.md)) | `psql "$DATABASE_URL" -f backend/scripts/migrate_roles_to_member.sql` |
+
+역할 이행은 `recruiter`·`interviewer` → `member` 로 바꾸고 `ck_users_role` 체크 제약을 새 값으로 갈아끼운다. **새 코드(`ROLES = ("admin", "member")`)가 올라간 뒤에 돌린다.** 트랜잭션 하나로 묶여 있어 중간에 실패하면 전부 되돌아가고, 모르는 role 값이 남아 있으면 일부러 멈춘다.
+
 ## 도메인별로 달라진 것 (08/27)
 
 | 도메인 | 달라진 것 |

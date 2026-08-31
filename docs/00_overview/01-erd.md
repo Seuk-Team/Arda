@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.2 · 2026-08-31** — v1.2: 면접 일정 자동화 3테이블 `interviewer_availability`·`schedule_proposals`·`schedule_slots` 추가 ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
+> **상태: 확정 v1.3 · 2026-08-31** — v1.3: `users.role` 을 `admin`/`member` 2종으로 축소, A3(면접관 조회 제한) 폐지 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 테이블·컬럼 구조는 그대로다 — 바뀐 것은 `role` 의 허용값과 접근 규칙뿐.
+> v1.2 (2026-08-31): 면접 일정 자동화 3테이블 `interviewer_availability`·`schedule_proposals`·`schedule_slots` 추가 ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
 > v1.1 (2026-08-25): `job_postings.deadline`·`public_token`(B4·B6), `stage_history.reason`(D8) 추가 (팀장 승인)
 >
 > **규칙: 확정 이후의 모든 변경은 전원 합의로만 한다.**
@@ -46,10 +47,12 @@ erDiagram
 | email | varchar(255) | UNIQUE, NOT NULL | 로그인 ID |
 | password_hash | varchar(255) | NOT NULL | bcrypt |
 | name | varchar(50) | NOT NULL | |
-| role | varchar(20) | NOT NULL | `admin` / `recruiter` / `interviewer` |
+| role | varchar(20) | NOT NULL | `admin` / `member` 2종 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 위계가 아니라 조작 권한의 유무다 — 조회는 로그인한 사람 전체에게 열려 있고, `admin` 에게만 남은 것은 면접관 배정/해제·계정 생성·메일 템플릿·**남의** 가용 시간이다. `member` 의 유일한 제한은 평가 작성(배정된 건만) |
 | created_at | timestamptz | NOT NULL, default now() | |
 
 비고: A5 로그인 이력(권장)은 `login_logs` 별도 테이블로 추가 가능 — 본 스키마 변경 없음.
+
+기존 DB 의 `recruiter`·`interviewer` 행 이행은 `backend/scripts/migrate_roles_to_member.sql` 로 한다 (체크 제약 교체 포함, 1회성). 실행법은 [07-deploy.md](07-deploy.md).
 
 ## job_postings — 채용 공고 (B1·B2)
 
@@ -169,9 +172,13 @@ erDiagram
 
 흐름: 단계 변경 → 이 레코드 생성 + SQS 발행 → 워커가 SES 발송 → status 갱신. 실패 시 재시도(G3), 상한 초과 시 `failed`.
 
-## interviewer_assignments — 면접관 배정 (A3)
+## interviewer_assignments — 면접관 배정 (E3)
 
-면접관은 **본인이 배정된 지원자만** 조회할 수 있다(A3, 필수). 이를 강제하려면 배정 관계가 필요하다.
+"이 지원자의 면접관은 누구인가"를 담는 관계 테이블. 배정·해제는 **admin 전용**이다 ([ADR-0013](../03_decision/0013-면접관-배정-정책.md)).
+
+옛 A3(면접관은 배정된 지원자만 조회)는 폐지됐다 — 조회는 로그인한 사람 전체에게 열려 있다 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 이 관계가 남기는 제한은 하나뿐: **`member` 는 배정된 건만 평가를 쓸 수 있다.**
+
+`interviewer_id` 는 역할이 아니라 "그 건의 면접관"이라는 관계다. 역할이 2종으로 줄어든 뒤에도 컬럼명은 그대로 두며, 배정 대상의 role 은 검사하지 않는다 — 누구나 면접관으로 배정될 수 있다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -190,7 +197,7 @@ erDiagram
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | bigint | PK | |
-| interviewer_id | bigint | FK → users.id, NOT NULL | role=interviewer(또는 그 이상) 검사는 코드에서 |
+| interviewer_id | bigint | FK → users.id, NOT NULL | 대상 role 검사 없음 — 누구나 면접관이 될 수 있다 ([ADR-0017](../03_decision/0017-등급-이분화.md)) |
 | start_at | timestamptz | NOT NULL | |
 | end_at | timestamptz | NOT NULL, CHECK(start_at < end_at) | |
 | created_at | timestamptz | NOT NULL | |

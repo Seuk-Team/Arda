@@ -4,13 +4,17 @@
 
 - 접두사: `/api/v1`
 - 인증: JWT Bearer. **공개**로 표시된 것 외에는 전부 로그인 필요.
-- 권한: `admin` > `recruiter` > `interviewer`. interviewer는 본인 배정 지원서만 조회 가능(A3).
+- 권한: **`admin` · `member` 2종** ([ADR-0017](../03_decision/0017-등급-이분화.md)). 위계가 아니다 — 아래 넷을 뺀 모든 조회·조작에서 둘은 동일하다.
+  - **조회는 로그인만 하면 전부 허용.** 옛 A3(면접관은 배정된 지원서만 조회)는 폐지됐다.
+  - **admin 전용**: ① 면접관 배정/해제 ② 계정 생성 ③ 메일 템플릿 ④ **남의** 가용 시간 등록·삭제.
+  - **member 제한**: 평가 **작성**은 자기에게 배정된 건만. 그 외 조작(공고 CRUD·단계 변경·일괄 변경·일정 제안·에이전트)은 admin 과 같다.
+  - 비고 열이 비어 있으면 "로그인한 사람이면 누구나"라는 뜻이다.
 
 ## 인증 (A)
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /auth/signup | 회원가입 | A1. 가입 시 role 지정은 admin만 |
+| POST | /auth/signup | 회원가입 | A1. **계정 생성은 admin만** (production). role 지정도 admin만 — 그 외에는 `member` 로 만들어진다. 로컬(dev)은 부트스트랩을 위해 열려 있다 |
 | POST | /auth/login | 로그인 → JWT 발급 | A1 |
 | GET | /auth/me | 내 정보·권한 조회 | A2 |
 
@@ -19,11 +23,11 @@
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
 | GET | /postings | 공고 목록 (+ 지원자 수) | B1·B3 |
-| POST | /postings | 공고 생성 | B1, recruiter+ |
+| POST | /postings | 공고 생성 | B1 |
 | GET | /postings/{id} | 공고 상세 | |
-| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 | B1·B2·B4, recruiter+ (#59, 팀장 승인). `deadline`(date, null 허용) — 과거 날짜는 422 |
-| DELETE | /postings/{id} | 삭제 | B1, recruiter+ (#59, 팀장 승인) |
-| POST | /postings/{id}/public-link | 공개 지원 링크 토큰 발급·재발급 | B6, recruiter+. 재발급하면 이전 토큰 즉시 무효 |
+| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 | B1·B2·B4. `deadline`(date, null 허용) — 과거 날짜는 422 |
+| DELETE | /postings/{id} | 삭제 | B1 |
+| POST | /postings/{id}/public-link | 공개 지원 링크 토큰 발급·재발급 | B6. 재발급하면 이전 토큰 즉시 무효 |
 
 - **마감일 자동 마감(B4)**: 별도 스케줄러가 없다. 공고를 **조회하는 시점**에 `deadline < 오늘` 이고 `status="open"` 이면 `closed` 로 바꿔 저장한다. 목록·상세·공개 조회·지원 제출이 모두 그 지점이다.
 - 공고 응답에는 `deadline` 과 계산값 `d_day`(남은 일수, 마감일 없으면 `null`)가 포함된다. 화면이 `D-12` 로 표시한다.
@@ -45,10 +49,10 @@
 | GET | /postings/{id}/applications | 지원자 목록 | D1. 쿼리: `q`(이름/이메일 검색, H1) · `stage`(H2) · 페이지네이션 |
 
 - **검색 범위 = 이름·이메일 확정.** 자소서 본문·메모 전문 검색은 H 복합 필터 튜닝 완료 후 여유가 있을 때만 `pg_trgm` GIN 인덱스로 확장한다. 스키마 변경이 아니라 인덱스+쿼리 추가라 미루는 비용이 없다. (한국어는 Postgres 기본 FTS로 형태소 분석이 안 되고, 자소서 5천 자 × 10만 건이면 인덱스 용량·쓰기 비용이 커진다)
-| POST | /postings/{id}/applications | 담당자 직접 등록 | D6, recruiter+ |
+| POST | /postings/{id}/applications | 담당자 직접 등록 | D6 |
 | GET | /applications/{id} | 지원자 상세 | D4 |
-| PATCH | /applications/{id}/stage | 단계 변경 | D3, recruiter+. 이력 기록(D5) + 메일 큐 발행(G1) 트리거. `reason`(선택) — **`to_stage="rejected"` 인데 없으면 422** (D8) |
-| POST | /applications/bulk-stage | 여러 명 단계 일괄 변경 | D9, recruiter+. 본문 `{application_ids, to_stage, reason?}`. 한 번에 **200명**까지(넘으면 422) |
+| PATCH | /applications/{id}/stage | 단계 변경 | D3. 이력 기록(D5) + 메일 큐 발행(G1) 트리거. `reason`(선택) — **`to_stage="rejected"` 인데 없으면 422** (D8) |
+| POST | /applications/bulk-stage | 여러 명 단계 일괄 변경 | D9. 본문 `{application_ids, to_stage, reason?}`. 한 번에 **200명**까지(넘으면 422) |
 | GET | /applications/{id}/history | 단계 이력 | D5. 응답에 `reason` 포함 (D8) |
 
 - **일괄 변경은 전부 성공하거나 전부 실패한다 (D9).** 한 건이라도 전환 규칙에 걸리거나 없는 id 가 섞이면 **전체 롤백 + 409**, 응답 `message` 에 `failed`·`not_found` id 목록이 담긴다. 30명만 바뀌고 끝나면 담당자가 무엇이 됐는지 알 수 없다.
@@ -59,7 +63,7 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /applications/{id}/evaluations | 평가 작성 (점수+코멘트) | E1 |
+| POST | /applications/{id}/evaluations | 평가 작성 (점수+코멘트) | E1. **admin 무제한, member 는 배정된 건만** (ADR-0017) — 미배정이면 403 |
 | GET | /applications/{id}/evaluations | 평가 목록 + 평균 | E2 |
 | PATCH | /evaluations/{id} | 평가 수정 | 본인 평가만 (A1 연결 후 강제). score·comment 부분 수정 허용. 08/25 검수에서 #50 구현을 계약에 반영(팀장 승인) |
 
@@ -67,10 +71,10 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /applications/{id}/interviewers | 면접관 배정 | E3, **admin만** ([ADR-0013](../03_decision/0013-면접관-배정-정책.md)). 중복 배정은 무시(멱등) |
-| GET | /applications/{id}/interviewers | 배정된 면접관 목록 | 그 지원자를 볼 수 있는 사람만 (A3) |
+| POST | /applications/{id}/interviewers | 면접관 배정 | E3, **admin만** ([ADR-0013](../03_decision/0013-면접관-배정-정책.md)). 중복 배정은 무시(멱등). **대상의 role 은 보지 않는다** — 누구나 면접관이 될 수 있다 |
+| GET | /applications/{id}/interviewers | 배정된 면접관 목록 | |
 | DELETE | /applications/{id}/interviewers/{user_id} | 배정 해제 | admin만 (ADR-0013) |
-| GET | /interviewers/{user_id}/applications | 배정받은 지원자 목록 | 본인 또는 recruiter+ |
+| GET | /interviewers/{user_id}/applications | 배정받은 지원자 목록 | 남의 것도 볼 수 있다 |
 
 ## 면접 일정 (S)
 
@@ -78,12 +82,12 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /interviewers/{user_id}/availability | 가용 시간 등록 | 본인 또는 admin |
-| GET | /interviewers/{user_id}/availability | 가용 시간 목록 | 본인 또는 recruiter+ |
-| DELETE | /availability/{id} | 가용 시간 삭제 | 본인 또는 admin. 이미 나간 제안의 슬롯은 스냅샷이라 영향 없음 |
-| POST | /applications/{id}/schedule-proposals | 일정 제안 생성 | recruiter+. 배정 면접관(E3) 가용 시간에서 후보 슬롯 생성 + 제안 메일 큐 발행 |
-| GET | /schedules | 확정 면접 목록 | 면접 일정 화면. 쿼리 `from`·`to`·`mine`. **면접관 계정은 `mine` 과 무관하게 본인 건만** (A3 — 남의 일정에 배정 안 된 지원자 이름이 실린다) |
-| GET | /applications/{id}/schedule-proposals | 최신 제안 상태 | A3 조회 규칙(배정 면접관도 가능). 대시보드·상세 패널 칩 용도. 제안 없으면 404 |
+| POST | /interviewers/{user_id}/availability | 가용 시간 등록 | **본인 또는 admin** — 남의 것은 admin 전용. 대상 role 검사 없음 |
+| GET | /interviewers/{user_id}/availability | 가용 시간 목록 | 남의 것도 볼 수 있다 |
+| DELETE | /availability/{id} | 가용 시간 삭제 | **본인 또는 admin**. 이미 나간 제안의 슬롯은 스냅샷이라 영향 없음 |
+| POST | /applications/{id}/schedule-proposals | 일정 제안 생성 | 배정 면접관(E3) 가용 시간에서 후보 슬롯 생성 + 제안 메일 큐 발행 |
+| GET | /schedules | 확정 면접 목록 | 면접 일정 화면. 쿼리 `from`·`to`·`mine`. 역할 분기 없음 — 전원이 전체를 보고, `mine=true` 로 자기가 면접관인 건만 좁힌다 (필터이지 권한이 아니다) |
+| GET | /applications/{id}/schedule-proposals | 최신 제안 상태 | 대시보드·상세 패널 칩 용도. 제안 없으면 404 |
 | GET | /public/schedule/{token} | 지원자용 일정·전형 현황 조회 | **공개**. 만료된 제안은 조회 시점에 `expired` 판정(B4 방식). 없는 토큰 404 |
 | POST | /public/schedule/{token}/confirm | 슬롯 선택 → 확정 | **공개**. 본문 `{slot_id}`. 이미 확정·만료·취소면 409. 확정 시 통보 메일 큐 발행 |
 
@@ -108,8 +112,8 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2, recruiter+. 기존 요약을 덮어쓴다 |
-| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3, recruiter+. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환 |
+| POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2. 기존 요약을 덮어쓴다 |
+| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환 |
 | POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출 |
 
 ## 시스템 (J)

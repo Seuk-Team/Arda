@@ -132,9 +132,9 @@ class TestAvailabilityWrite:
         )
         assert res.status_code == 201
 
-    def test_남의_가용_시간은_등록할_수_없다(self, as_user, recruiter_user: User, interviewer_user: User):
+    def test_남의_가용_시간은_등록할_수_없다(self, as_user, member_user: User, interviewer_user: User):
         # 담당자라도 면접관 일정을 대신 넣지 않는다 — 본인 또는 admin 만.
-        res = as_user(recruiter_user).post(
+        res = as_user(member_user).post(
             f"/api/v1/interviewers/{interviewer_user.id}/availability",
             json={
                 "start_at": (NOW + timedelta(days=1)).isoformat(),
@@ -164,43 +164,57 @@ class TestAvailabilityWrite:
         )
         assert res.status_code == 422
 
-    def test_면접관이_아닌_사용자에게는_등록할_수_없다(self, as_user, admin_user: User, recruiter_user: User):
+    def test_아무_멤버에게나_등록할_수_있다(self, as_user, admin_user: User, member_user: User):
+        """대상의 역할을 보지 않는다 — 누구나 면접관으로 배정될 수 있다 (ADR-0017)."""
         res = as_user(admin_user).post(
-            f"/api/v1/interviewers/{recruiter_user.id}/availability",
+            f"/api/v1/interviewers/{member_user.id}/availability",
             json={
                 "start_at": (NOW + timedelta(days=1)).isoformat(),
                 "end_at": (NOW + timedelta(days=1, hours=2)).isoformat(),
             },
         )
-        assert res.status_code == 422
+        assert res.status_code == 201
+
+    def test_없는_사용자에게는_등록할_수_없다(self, as_user, admin_user: User):
+        res = as_user(admin_user).post(
+            "/api/v1/interviewers/99999999/availability",
+            json={
+                "start_at": (NOW + timedelta(days=1)).isoformat(),
+                "end_at": (NOW + timedelta(days=1, hours=2)).isoformat(),
+            },
+        )
+        assert res.status_code == 404
 
 
 class TestAvailabilityRead:
-    def test_담당자는_볼_수_있다(self, as_user, db: Session, recruiter_user: User, interviewer_user: User):
-        # 제안을 만들려면 봐야 한다.
+    def test_다른_멤버도_볼_수_있다(self, as_user, db: Session, member_user: User, interviewer_user: User):
+        # 제안을 만들려면 봐야 한다. 조회는 로그인 전체에 열려 있다 (ADR-0017).
         add_window(db, interviewer_user, from_hours=24, hours=4)
-        res = as_user(recruiter_user).get(f"/api/v1/interviewers/{interviewer_user.id}/availability")
+        res = as_user(member_user).get(f"/api/v1/interviewers/{interviewer_user.id}/availability")
         assert res.status_code == 200
         assert res.json()["count"] == 1
 
-    def test_다른_면접관_것은_볼_수_없다(self, as_user, db: Session, interviewer_user: User):
+    def test_남의_것도_볼_수_있다(self, as_user, db: Session, interviewer_user: User):
+        """읽기는 막지 않는다 (ADR-0017). 막는 것은 남의 것을 *고치는* 쪽뿐이다."""
         other = User(
-            email="other-interviewer@fixture.local",
+            email="other-member@fixture.local",
             password_hash="hashed",
-            name="다른 면접관",
-            role="interviewer",
+            name="다른 멤버",
+            role="member",
         )
         db.add(other)
         db.flush()
+        add_window(db, interviewer_user, from_hours=24, hours=4)
         res = as_user(other).get(f"/api/v1/interviewers/{interviewer_user.id}/availability")
-        assert res.status_code == 403
+        assert res.status_code == 200
+        assert res.json()["count"] == 1
 
     def test_기간_필터는_걸친_구간도_포함한다(
-        self, as_user, db: Session, recruiter_user: User, interviewer_user: User
+        self, as_user, db: Session, member_user: User, interviewer_user: User
     ):
         # 24~28시 구간을 26~30시로 조회하면 걸쳐 있으므로 나와야 한다.
         add_window(db, interviewer_user, from_hours=24, hours=4)
-        res = as_user(recruiter_user).get(
+        res = as_user(member_user).get(
             f"/api/v1/interviewers/{interviewer_user.id}/availability",
             params={
                 "from": (NOW + timedelta(hours=26)).isoformat(),
@@ -216,9 +230,9 @@ class TestAvailabilityDelete:
         res = as_user(interviewer_user).delete(f"/api/v1/availability/{row.id}")
         assert res.status_code == 204
 
-    def test_남의_것은_지울_수_없다(self, as_user, db: Session, recruiter_user: User, interviewer_user: User):
+    def test_남의_것은_지울_수_없다(self, as_user, db: Session, member_user: User, interviewer_user: User):
         row = add_window(db, interviewer_user, from_hours=24, hours=2)
-        res = as_user(recruiter_user).delete(f"/api/v1/availability/{row.id}")
+        res = as_user(member_user).delete(f"/api/v1/availability/{row.id}")
         assert res.status_code == 403
 
     def test_없으면_404(self, as_user, interviewer_user: User):
@@ -229,30 +243,31 @@ class TestAvailabilityDelete:
 
 
 class TestProposalCreate:
-    def test_배정된_면접관이_없으면_422(self, as_user, recruiter_user: User, application: Application):
-        res = as_user(recruiter_user).post(
+    def test_배정된_면접관이_없으면_422(self, as_user, member_user: User, application: Application):
+        res = as_user(member_user).post(
             f"/api/v1/applications/{application.id}/schedule-proposals", json={}
         )
         assert res.status_code == 422
 
-    def test_가용_시간이_없으면_422(self, as_user, recruiter_user: User, assigned: Application):
-        res = as_user(recruiter_user).post(
+    def test_가용_시간이_없으면_422(self, as_user, member_user: User, assigned: Application):
+        res = as_user(member_user).post(
             f"/api/v1/applications/{assigned.id}/schedule-proposals", json={}
         )
         assert res.status_code == 422
 
-    def test_면접관은_제안을_만들_수_없다(self, as_user, db: Session, interviewer_user: User, assigned: Application):
+    def test_멤버도_제안을_만들_수_있다(self, as_user, db: Session, interviewer_user: User, assigned: Application):
+        """일정 제안은 admin 전용이 아니다 (ADR-0017)."""
         add_window(db, interviewer_user, from_hours=24, hours=4)
         res = as_user(interviewer_user).post(
             f"/api/v1/applications/{assigned.id}/schedule-proposals", json={}
         )
-        assert res.status_code == 403
+        assert res.status_code == 201
 
     def test_가용_시간을_슬롯으로_자른다(
-        self, as_user, db: Session, recruiter_user: User, interviewer_user: User, assigned: Application
+        self, as_user, db: Session, member_user: User, interviewer_user: User, assigned: Application
     ):
         add_window(db, interviewer_user, from_hours=24, hours=3)  # 3시간 → 60분 슬롯 3개
-        res = as_user(recruiter_user).post(
+        res = as_user(member_user).post(
             f"/api/v1/applications/{assigned.id}/schedule-proposals",
             json={"slot_minutes": 60, "max_slots": 5},
         )
@@ -264,22 +279,22 @@ class TestProposalCreate:
         assert body["url"].endswith(body["token"])
 
     def test_max_slots_를_넘지_않는다(
-        self, as_user, db: Session, recruiter_user: User, interviewer_user: User, assigned: Application
+        self, as_user, db: Session, member_user: User, interviewer_user: User, assigned: Application
     ):
         add_window(db, interviewer_user, from_hours=24, hours=10)
-        res = as_user(recruiter_user).post(
+        res = as_user(member_user).post(
             f"/api/v1/applications/{assigned.id}/schedule-proposals",
             json={"slot_minutes": 60, "max_slots": 2},
         )
         assert len(res.json()["slots"]) == 2
 
     def test_재제안하면_이전_제안은_canceled(
-        self, as_user, db: Session, recruiter_user: User, interviewer_user: User, assigned: Application
+        self, as_user, db: Session, member_user: User, interviewer_user: User, assigned: Application
     ):
         # 라이브 제안은 항상 최대 1건이어야 한다 — 옛 링크가 살아 있으면
         # 지원자가 두 링크에서 다른 시간을 고를 수 있다.
         add_window(db, interviewer_user, from_hours=24, hours=3)
-        client = as_user(recruiter_user)
+        client = as_user(member_user)
         first = client.post(f"/api/v1/applications/{assigned.id}/schedule-proposals", json={}).json()
         second = client.post(f"/api/v1/applications/{assigned.id}/schedule-proposals", json={}).json()
 
@@ -296,7 +311,7 @@ class TestProposalCreate:
         self,
         as_user,
         db: Session,
-        recruiter_user: User,
+        member_user: User,
         interviewer_user: User,
         assigned: Application,
         posting: JobPosting,
@@ -314,13 +329,13 @@ class TestProposalCreate:
         )
         db.add(other)
         db.flush()
-        booked = make_proposal(db, other, recruiter_user, n=1, status="confirmed")
+        booked = make_proposal(db, other, member_user, n=1, status="confirmed")
         slot = add_slot(db, booked, interviewer_user, from_hours=24)
         booked.confirmed_slot_id = slot.id
         db.flush()
 
         add_window(db, interviewer_user, from_hours=24, hours=2)  # 24~25 는 이미 찼다
-        res = as_user(recruiter_user).post(
+        res = as_user(member_user).post(
             f"/api/v1/applications/{assigned.id}/schedule-proposals",
             json={"slot_minutes": 60, "max_slots": 5},
         )
@@ -336,19 +351,19 @@ class TestPublicRead:
         assert public.get("/api/v1/public/schedule/nope").status_code == 404
 
     def test_취소된_제안은_410(
-        self, public: TestClient, db: Session, application: Application, recruiter_user: User
+        self, public: TestClient, db: Session, application: Application, member_user: User
     ):
         # 404 면 지원자가 "링크가 틀렸나" 하고 헤맨다. 새 링크가 메일로 나갔다는
         # 뜻이 전달돼야 한다.
-        p = make_proposal(db, application, recruiter_user, status="canceled")
+        p = make_proposal(db, application, member_user, status="canceled")
         res = public.get(f"/api/v1/public/schedule/{p.token}")
         assert res.status_code == 410
 
     def test_기한이_지나면_조회_시점에_expired_로_바뀐다(
-        self, public: TestClient, db: Session, application: Application, recruiter_user: User
+        self, public: TestClient, db: Session, application: Application, member_user: User
     ):
         # 스케줄러가 없다 — B4 마감과 같은 조회 시점 판정이다.
-        p = make_proposal(db, application, recruiter_user, expires_at=NOW - timedelta(hours=1))
+        p = make_proposal(db, application, member_user, expires_at=NOW - timedelta(hours=1))
         res = public.get(f"/api/v1/public/schedule/{p.token}")
         assert res.status_code == 200
         assert res.json()["status"] == "expired"
@@ -356,9 +371,9 @@ class TestPublicRead:
         assert p.status == "expired"  # 저장까지 된다
 
     def test_전형_현황을_함께_준다(
-        self, public: TestClient, db: Session, application: Application, recruiter_user: User
+        self, public: TestClient, db: Session, application: Application, member_user: User
     ):
-        p = make_proposal(db, application, recruiter_user)
+        p = make_proposal(db, application, member_user)
         body = public.get(f"/api/v1/public/schedule/{p.token}").json()
         assert body["applicant_name"] == application.name
         assert body["current_stage"] == application.current_stage
@@ -375,9 +390,9 @@ class TestPublicConfirm:
         db: Session,
         application: Application,
         interviewer_user: User,
-        recruiter_user: User,
+        member_user: User,
     ):
-        p = make_proposal(db, application, recruiter_user)
+        p = make_proposal(db, application, member_user)
         slot = add_slot(db, p, interviewer_user, from_hours=24)
         res = public.post(f"/api/v1/public/schedule/{p.token}/confirm", json={"slot_id": slot.id})
         assert res.status_code == 200
@@ -392,10 +407,10 @@ class TestPublicConfirm:
         db: Session,
         application: Application,
         interviewer_user: User,
-        recruiter_user: User,
+        member_user: User,
     ):
         # 더블클릭·중복 탭이 정상 사용이다.
-        p = make_proposal(db, application, recruiter_user)
+        p = make_proposal(db, application, member_user)
         slot = add_slot(db, p, interviewer_user, from_hours=24)
         public.post(f"/api/v1/public/schedule/{p.token}/confirm", json={"slot_id": slot.id})
         again = public.post(f"/api/v1/public/schedule/{p.token}/confirm", json={"slot_id": slot.id})
@@ -407,9 +422,9 @@ class TestPublicConfirm:
         db: Session,
         application: Application,
         interviewer_user: User,
-        recruiter_user: User,
+        member_user: User,
     ):
-        p = make_proposal(db, application, recruiter_user, expires_at=NOW - timedelta(hours=1))
+        p = make_proposal(db, application, member_user, expires_at=NOW - timedelta(hours=1))
         slot = add_slot(db, p, interviewer_user, from_hours=24)
         res = public.post(f"/api/v1/public/schedule/{p.token}/confirm", json={"slot_id": slot.id})
         assert res.status_code == 409
@@ -420,10 +435,10 @@ class TestPublicConfirm:
         db: Session,
         application: Application,
         interviewer_user: User,
-        recruiter_user: User,
+        member_user: User,
     ):
-        mine = make_proposal(db, application, recruiter_user, n=1)
-        theirs = make_proposal(db, application, recruiter_user, n=2)
+        mine = make_proposal(db, application, member_user, n=1)
+        theirs = make_proposal(db, application, member_user, n=2)
         other_slot = add_slot(db, theirs, interviewer_user, from_hours=48)
         res = public.post(
             f"/api/v1/public/schedule/{mine.token}/confirm", json={"slot_id": other_slot.id}
@@ -436,7 +451,7 @@ class TestPublicConfirm:
         db: Session,
         application: Application,
         interviewer_user: User,
-        recruiter_user: User,
+        member_user: User,
         posting: JobPosting,
     ):
         # 슬롯은 제안 생성 시점 스냅샷이라, 제안이 나간 뒤 같은 면접관의 다른
@@ -452,11 +467,11 @@ class TestPublicConfirm:
         )
         db.add(other)
         db.flush()
-        booked = make_proposal(db, other, recruiter_user, n=3, status="confirmed")
+        booked = make_proposal(db, other, member_user, n=3, status="confirmed")
         taken = add_slot(db, booked, interviewer_user, from_hours=24)
         booked.confirmed_slot_id = taken.id
 
-        mine = make_proposal(db, application, recruiter_user, n=4)
+        mine = make_proposal(db, application, member_user, n=4)
         same_time = add_slot(db, mine, interviewer_user, from_hours=24)
         db.flush()
 

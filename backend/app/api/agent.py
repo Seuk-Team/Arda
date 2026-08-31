@@ -15,12 +15,10 @@ from app.agent.runtime import run_agent
 from app.agent.summarizer import generate_summary
 from app.agent.tools import WRITE_TOOL_NAMES, execute_tool
 from app.db import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import get_current_user
 from app.models import Application, User
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
-
-require_recruiter = require_roles("admin", "recruiter")
 
 
 class SttResponse(BaseModel):
@@ -79,9 +77,9 @@ class ConfirmResponse(BaseModel):
 def regenerate_summary(
     application_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
-    """AI 요약 재생성. 담당자 이상만. 기존 요약을 덮어쓴다."""
+    """AI 요약 재생성. 로그인한 사람이면 누구나. 기존 요약을 덮어쓴다."""
     app = db.get(Application, application_id)
     if app is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
@@ -100,7 +98,7 @@ def regenerate_summary(
 def chat(
     body: ChatRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     """에이전트 채팅 (M3). 읽기 도구로 지원자 검색·조회를 돕는다."""
     system_prompt, _ = render("agent")
@@ -166,7 +164,7 @@ _STT_ALLOWED_TYPES = {
 @router.post("/stt", response_model=SttResponse)
 async def speech_to_text(
     file: UploadFile,
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     """음성 파일을 텍스트로 변환 (Whisper + 엔티티 해석)."""
     if file.content_type and file.content_type not in _STT_ALLOWED_TYPES:

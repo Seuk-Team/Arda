@@ -7,14 +7,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import get_current_user
 from app.models import Application, JobPosting, User
 from app.schemas.posting import PostingCreate, PostingOut, PostingUpdate, PublicLinkOut
 
 router = APIRouter(prefix="/api/v1/postings", tags=["postings"])
-
-# 공고를 만드는 것은 recruiter 이상 (02-api.md).
-require_recruiter = require_roles("admin", "recruiter")
 
 # 지원 폼이 열리는 곳. 비어 있으면 상대 경로로 준다 — 로컬·CI 에서 호스트를 모른다.
 PUBLIC_APP_BASE_URL = os.getenv("PUBLIC_APP_BASE_URL", "").rstrip("/")
@@ -79,7 +76,7 @@ def list_postings(
 def create_posting(
     body: PostingCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     posting = JobPosting(**body.model_dump(), created_by=user.id)
     db.add(posting)
@@ -101,9 +98,7 @@ def update_posting(
     posting_id: int,
     body: PostingUpdate,
     db: Session = Depends(get_db),
-    # 생성이 recruiter+ 인데 수정이 아무나면 막는 의미가 없다. #59 로 물어
-    # 팀장이 recruiter+ 로 확정했고 02-api.md 24행에 반영했다.
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     posting = _get_or_404(db, posting_id)
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -120,7 +115,7 @@ def update_posting(
 def issue_public_link(
     posting_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     """공개 지원 링크 발급·재발급 (B6).
 
@@ -144,7 +139,7 @@ def issue_public_link(
 def delete_posting(
     posting_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),  # #59 — 수정과 같은 이유
+    user: User = Depends(get_current_user),
 ):
     posting = _get_or_404(db, posting_id)
 

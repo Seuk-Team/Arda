@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app import mail
 from app.db import get_db
-from app.deps import assert_can_view_application, get_current_user, require_roles
+from app.deps import get_current_user
 from app.models import (
     Application,
     InterviewerAssignment,
@@ -42,8 +42,6 @@ from app.schemas.schedule import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["schedules"])
-
-require_recruiter = require_roles("admin", "recruiter")
 
 PUBLIC_APP_BASE_URL = os.getenv("PUBLIC_APP_BASE_URL", "").rstrip("/")
 
@@ -95,9 +93,9 @@ def create_proposal(
     application_id: int,
     body: ProposalCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
-    """일정 제안 생성. recruiter+.
+    """일정 제안 생성. 로그인한 사람이면 누구나 (ADR-0017).
 
     흐름: 배정 면접관의 가용 시간 → 후보 슬롯 → 제안 저장 → 제안 메일 큐 발행.
     재제안하면 기존 proposed 제안은 canceled 로 남는다(이력 보존, 라이브 제안은
@@ -236,13 +234,11 @@ def get_latest_proposal(
 ):
     """이 지원자의 최신 일정 제안 상태. 대시보드·상세 패널의 칩 용도.
 
-    면접관도 본인이 배정된 지원자면 볼 수 있어야 하므로 recruiter+ 가 아니라
-    A3 조회 규칙(assert_can_view_application)을 그대로 쓴다.
+    조회는 로그인한 사람 전체에게 열려 있다 (ADR-0017).
     제안이 하나도 없으면 404 — 화면은 "일정 없음"으로 그린다.
     """
     if db.get(Application, application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
-    assert_can_view_application(db, user, application_id)
 
     proposal = db.scalar(
         select(ScheduleProposal)
@@ -288,9 +284,8 @@ def list_confirmed_interviews(
 ):
     """확정된 면접 목록 (ADR-0016). 면접 일정 화면의 데이터 소스.
 
-    **면접관은 항상 본인 건만 본다** — mine 값과 무관하게 강제한다. 남의 면접
-    일정에는 배정되지 않은 지원자의 이름·공고가 실려 A3 를 우회하는 창이 된다.
-    담당자(recruiter+)는 전체를 보고, mine=true 로 자기 것만 좁힐 수 있다.
+    역할 분기가 없다 — 로그인한 사람은 전체를 보고, mine=true 로 자기가
+    면접관인 건만 좁힌다 (ADR-0017). 좁히는 것은 이제 필터이지 권한이 아니다.
     """
     query = (
         select(ScheduleSlot, Application, JobPosting, User)
@@ -305,7 +300,7 @@ def list_confirmed_interviews(
         query = query.where(ScheduleSlot.start_at >= from_at)
     if to_at is not None:
         query = query.where(ScheduleSlot.start_at < to_at)
-    if mine or user.role == "interviewer":
+    if mine:
         query = query.where(ScheduleSlot.interviewer_id == user.id)
 
     rows = db.execute(query).all()

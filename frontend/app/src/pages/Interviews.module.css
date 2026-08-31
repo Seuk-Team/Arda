@@ -266,7 +266,7 @@
 .ddMenu li:hover { background: #EFF7E2; }
 .ddSel { color: var(--leaf); font-weight: 700; }
 
-/* 내 면접만 — 담당자가 자기 면접을 추려 볼 때. 면접관 계정은 서버가 이미 걸러 준다 */
+/* 내 면접만 — 자기 면접을 추려 볼 때. 목록 자체는 전원에게 전부 보인다 */
 .mine {
   display: inline-flex;
   align-items: center;

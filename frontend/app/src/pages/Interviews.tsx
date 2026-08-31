@@ -39,8 +39,8 @@ export default function Interviews() {
 
   const [list, setList] = useState<Interview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  /* "내 면접만" — 면접관 계정은 서버가 어차피 본인 것만 주므로 이 체크는
-     담당자가 자기 면접을 추려 볼 때 쓰인다 */
+  /* "내 면접만" — 목록은 로그인한 전원에게 전부 보인다(A3 폐지). 자기 면접만
+     추려 보고 싶을 때 쓰는 체크이고, 거르는 주체는 이제 서버가 아니라 이 값이다 */
   const [mine, setMine] = useState(false)
 
   function move(days: number) {

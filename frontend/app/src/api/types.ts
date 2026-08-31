@@ -6,7 +6,7 @@ export interface User {
   id: number
   email: string
   name: string
-  role: 'admin' | 'recruiter' | 'interviewer'
+  role: 'admin' | 'member'
 }
 
 export interface TokenResponse {

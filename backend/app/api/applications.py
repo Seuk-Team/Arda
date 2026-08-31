@@ -6,12 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.agent.summarizer import generate_summary_bg
 from app.db import get_db
-from app.deps import (
-    assert_can_view_application,
-    get_current_user,
-    require_roles,
-    scope_to_viewer,
-)
+from app.deps import get_current_user
 from app.models import Application, JobPosting, StageHistory, User
 from app.schemas.application_detail import (
     ApplicationDetail,
@@ -29,9 +24,6 @@ from app.stage_service import apply_stage_change, publish_all, require_reason
 from app.stages import StageTransitionError
 
 router = APIRouter(prefix="/api/v1", tags=["applications"])
-
-# 단계 변경은 담당자 권한 (01-erd.md)
-require_recruiter = require_roles("admin", "recruiter")
 
 # 한 번에 바꿀 수 있는 최대 인원 (D9). 트랜잭션 하나가 붙드는 행 수의 상한이자,
 # 실수로 전체를 떨어뜨리는 일을 막는 안전장치다.
@@ -53,14 +45,12 @@ def list_applications(
 ):
     """공고별 지원자 목록 (D1). 최신순. 자소서 전문은 담지 않는다.
 
-    면접관에게는 본인 배정 건만 보인다 (A3).
+    조회는 로그인한 사람 전체에게 열려 있다 (ADR-0017).
     """
     if db.get(JobPosting, posting_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "공고를 찾을 수 없습니다")
 
-    stmt = scope_to_viewer(
-        select(Application).where(Application.job_posting_id == posting_id), user
-    )
+    stmt = select(Application).where(Application.job_posting_id == posting_id)
     rows = db.scalars(stmt.order_by(Application.created_at.desc())).all()
     return [ApplicationListItem.model_validate(r) for r in rows]
 
@@ -76,7 +66,6 @@ def get_application(
     selectinload 를 안 쓰면 관계마다 쿼리가 따로 나간다(N+1).
     상세 패널은 자주 열리므로 한 번에 읽는다.
     """
-    assert_can_view_application(db, user, application_id)
 
     row = db.scalar(
         select(Application)
@@ -105,7 +94,6 @@ def get_history(
 ):
     """단계 이력만 (D5). 최신순."""
     _get_or_404(db, application_id)
-    assert_can_view_application(db, user, application_id)
 
     rows = db.scalars(
         select(StageHistory)
@@ -120,7 +108,7 @@ def change_stage(
     application_id: int,
     body: StageChangeRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     """단계 변경 (D3) + 이력 기록 (D5) + 불합격 사유 (D8) + 통지 메일 큐 (G1).
 
@@ -128,8 +116,8 @@ def change_stage(
     "언제 누가 바꿨는지"를 복구할 방법이 없고, 이력만 남고 단계가 안 바뀌면
     화면과 어긋난다.
 
-    권한: 01-erd.md 가 뒤로 이동을 "담당자 권한"으로 규정하고, A3 는 면접관을
-    조회로 한정한다. 그래서 recruiter+ 로 둔다.
+    권한: 로그인한 사람이면 누구나 (ADR-0017). 단계 변경은 되돌릴 수 있고
+    이력(D5)에 누가 바꿨는지 남으므로, 역할로 막는 대신 기록으로 다룬다.
     """
     require_reason(body.to_stage, body.reason)
 
@@ -160,7 +148,7 @@ def change_stage(
 def bulk_stage(
     body: BulkStageRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_recruiter),
+    user: User = Depends(get_current_user),
 ):
     """여러 명의 단계를 한 번에 바꾼다 (D9).
 
@@ -238,9 +226,9 @@ def create_manual_application(
     body: ManualApplicationCreate,
     bg: BackgroundTasks,
     db: Session = Depends(get_db),
-    # 02-api.md 는 D6 을 recruiter+ 로 명시한다. 지시서는 인증이 없던 시점 기준이라
-    # "넣지 마라"고 하지만, #61(A3)로 인증이 들어와 이 파일에 이미 적용돼 있다.
-    user: User = Depends(require_recruiter),
+    # 로그인한 사람이면 누구나 (ADR-0017). 지시서는 인증이 없던 시점 기준이라
+    # "넣지 마라"고 하지만, #61 로 인증이 들어와 이 파일에 이미 적용돼 있다.
+    user: User = Depends(get_current_user),
 ):
     """담당자가 지원자를 직접 등록한다 (D6).
 

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status as http
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import assert_can_view_application, get_current_user
+from app.deps import get_current_user
 from app.models import File, User
 from app.s3 import EXPIRES_IN, presign_get, presign_put
 from app.schemas.file import (
@@ -123,16 +123,13 @@ def presign_download(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """다운로드용 presigned URL 발급 (F2). 로그인 필요.
+    """다운로드용 presigned URL 발급 (F2). 로그인한 사람이면 누구나 (ADR-0017).
 
-    면접관은 본인에게 배정된 지원자의 파일만 받을 수 있다 (A3). 지원서를 못 보는
-    사람이 그 지원서의 이력서를 받으면 접근 제어가 우회된다.
+    로그인 자체는 여전히 필수다 — 이력서는 개인정보이므로 토큰 없는 요청은 401.
     """
     row = db.get(File, file_id)
     if row is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "파일을 찾을 수 없습니다")
-
-    assert_can_view_application(db, user, row.application_id)
 
     return PresignDownloadResponse(
         download_url=presign_get(row.s3_key),

@@ -5,7 +5,7 @@ class SignupRequest(BaseModel):
     email: str
     password: str
     name: str
-    role: str = "recruiter"
+    role: str = "member"
 
 
 class LoginRequest(BaseModel):

@@ -17,16 +17,18 @@ def signup(
     db: Session = Depends(get_db),
     caller: User | None = Depends(get_current_user_optional),
 ):
-    # production 에서는 admin 만 계정을 만든다. 공개 가입을 열어두면 외부 URL 에서
-    # 누구나 recruiter 로 가입해 지원자 개인정보 전체를 볼 수 있다 (project-review S1).
-    # 로컬(dev)은 그대로 열어둔다 — 최초 admin 은 scripts/create_admin.py 로 만든다.
+    # 계정 생성은 admin 전용이다 (ADR-0017). 공개 가입을 열어두면 외부 URL 에서
+    # 누구나 가입해 지원자 개인정보 전체를 볼 수 있다 (project-review S1) — 조회가
+    # 로그인 전체에 열린 뒤로는 그 위험이 더 커졌다.
+    # 로컬(dev)만 열어둔다 — 최초 admin 은 scripts/create_admin.py 로 만든다.
     if APP_ENV == "production":
         if caller is None:
             raise HTTPException(http.HTTP_401_UNAUTHORIZED, "인증이 필요합니다")
         if caller.role != "admin":
             raise HTTPException(http.HTTP_403_FORBIDDEN, "계정 생성은 admin 만 할 수 있습니다")
 
-    role = body.role if (caller and caller.role == "admin") else "recruiter"
+    # 역할 지정은 admin 만 할 수 있다. 그 외에는 member 로 만든다.
+    role = body.role if (caller and caller.role == "admin") else "member"
     row = User(
         email=body.email,
         name=body.name,

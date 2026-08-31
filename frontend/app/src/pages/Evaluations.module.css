@@ -310,3 +310,11 @@
   font-size: var(--font-caption);
   color: var(--text-sub);
 }
+
+/* 등록 실패(§6 error). 보조 문구(.hint)와 같은 크기·색이면 실패가 묻힌다 */
+.err {
+  margin-top: var(--sp-2);
+  font-size: var(--font-sm);
+  color: var(--danger);
+  word-break: keep-all;
+}

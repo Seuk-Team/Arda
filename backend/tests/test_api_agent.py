@@ -15,18 +15,18 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import get_current_user
 from app.main import app
 from app.models import Application, User
 
 
 @pytest.fixture()
-def recruiter(db: Session) -> User:
+def member(db: Session) -> User:
     user = User(
-        email="api-recruiter@fixture.local",
+        email="api-member@fixture.local",
         password_hash="hashed",
-        name="API담당자",
-        role="recruiter",
+        name="API멤버",
+        role="member",
     )
     db.add(user)
     db.flush()
@@ -34,12 +34,17 @@ def recruiter(db: Session) -> User:
 
 
 @pytest.fixture()
-def interviewer(db: Session) -> User:
+def other_member(db: Session) -> User:
+    """배정도 없고 admin 도 아닌 또 다른 멤버.
+
+    예전에는 "권한 부족" 표본이었다. 에이전트 엔드포인트는 이제 로그인만 보므로
+    (ADR-0017) 같은 일을 할 수 있는지를 검증하는 표본으로 쓴다.
+    """
     user = User(
-        email="api-interviewer@fixture.local",
+        email="api-other-member@fixture.local",
         password_hash="hashed",
-        name="면접관",
-        role="interviewer",
+        name="다른멤버",
+        role="member",
     )
     db.add(user)
     db.flush()
@@ -47,11 +52,10 @@ def interviewer(db: Session) -> User:
 
 
 @pytest.fixture()
-def client(db: Session, recruiter: User) -> TestClient:
-    """recruiter 권한으로 인증된 TestClient."""
+def client(db: Session, member: User) -> TestClient:
+    """멤버로 인증된 TestClient."""
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_current_user] = lambda: recruiter
-    app.dependency_overrides[require_roles("admin", "recruiter")] = lambda: recruiter
+    app.dependency_overrides[get_current_user] = lambda: member
 
     yield TestClient(app, raise_server_exceptions=False)
 
@@ -59,10 +63,10 @@ def client(db: Session, recruiter: User) -> TestClient:
 
 
 @pytest.fixture()
-def interviewer_client(db: Session, interviewer: User) -> TestClient:
-    """interviewer 권한 TestClient (권한 부족 테스트용)."""
+def other_member_client(db: Session, other_member: User) -> TestClient:
+    """다른 멤버로 인증된 TestClient."""
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_current_user] = lambda: interviewer
+    app.dependency_overrides[get_current_user] = lambda: other_member
 
     yield TestClient(app, raise_server_exceptions=False)
 
@@ -377,13 +381,14 @@ class TestChatEdgeCases:
         )
         assert resp.status_code == 422
 
-    def test_interviewer_rejected(self, interviewer_client: TestClient):
-        """면접관은 채팅 권한 없음."""
-        resp = interviewer_client.post("/api/v1/agent/chat", json={
-            "message": "검색해줘",
-            "history": [],
-        })
-        assert resp.status_code == 403
+    def test_다른_멤버도_채팅할_수_있다(self, other_member_client: TestClient):
+        """에이전트 채팅은 로그인만 보면 된다 (ADR-0017)."""
+        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+            resp = other_member_client.post("/api/v1/agent/chat", json={
+                "message": "검색해줘",
+                "history": [],
+            })
+        assert resp.status_code == 200
 
     def test_cost_usd_is_numeric(self, client: TestClient):
         """cost_usd 가 숫자이고 음수가 아닌지."""
@@ -455,10 +460,10 @@ class TestConfirmEdgeCases:
         })
         assert resp.status_code == 400
 
-    def test_interviewer_can_confirm(self, interviewer_client: TestClient):
-        """면접관도 confirm 은 가능 (get_current_user 만 필요)."""
+    def test_다른_멤버도_confirm_할_수_있다(self, other_member_client: TestClient):
+        """confirm 은 로그인만 필요하다. 도구 안쪽에서 다시 권한을 본다."""
         with patch("app.api.agent.execute_tool", return_value='{"ok": true}'):
-            resp = interviewer_client.post("/api/v1/agent/confirm", json={
+            resp = other_member_client.post("/api/v1/agent/confirm", json={
                 "tool_name": "change_stage",
                 "arguments": {"application_id": 1, "to_stage": "interview_scheduled"},
             })
@@ -485,6 +490,11 @@ class TestSummarizeEdgeCases:
         resp = client.post("/api/v1/agent/applications/abc/summarize")
         assert resp.status_code == 422
 
-    def test_interviewer_rejected(self, interviewer_client: TestClient, application: Application):
-        resp = interviewer_client.post(f"/api/v1/agent/applications/{application.id}/summarize")
-        assert resp.status_code == 403
+    def test_다른_멤버도_요약을_재생성할_수_있다(
+        self, other_member_client: TestClient, application: Application
+    ):
+        with patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'):
+            resp = other_member_client.post(
+                f"/api/v1/agent/applications/{application.id}/summarize"
+            )
+        assert resp.status_code == 200

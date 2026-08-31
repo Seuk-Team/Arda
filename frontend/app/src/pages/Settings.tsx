@@ -3,22 +3,29 @@ import PageHead from '../components/PageHead'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
 import { api, ApiError } from '../api/client'
+import type { User } from '../api/types'
 import { ROLE_LABEL } from '../lib/stage'
 import styles from './Settings.module.css'
 
 /* 내 계정 / 사용자·권한(관리자) / 메일 템플릿 (05-design §0.5)
-   + 면접 가능 시간 — 면접관에게만 보인다(ADR-0016). */
-const TABS = ['내 계정', '사용자·권한', '메일 템플릿'] as const
+   + 면접 가능 시간 (ADR-0016).
+
+   역할은 admin·member 2종이다. 계정 생성과 메일 템플릿은 admin 전용이라
+   그 두 탭만 감춘다. 내 계정·면접 가능 시간은 로그인한 전원에게 보인다 —
+   본인 가용 시간 등록은 역할과 무관하기 때문이다. */
+const MY_TAB = '내 계정'
+const ADMIN_TABS = ['사용자·권한', '메일 템플릿'] as const
 const AVAILABILITY_TAB = '면접 가능 시간'
 
 /* 사용자 목록 API 가 아직 없다 (02-api.md 인증 절에 signup/login/me 뿐).
-   관리자 화면이라 만들어 낼 수 없어 목데이터를 유지한다. */
-const USERS = [
-  { id: 1, name: '김채용', email: 'admin@arda.com', role: '관리자', active: true },
-  { id: 2, name: '이서연', email: 'recruiter1@arda.com', role: '채용담당자', active: true },
-  { id: 3, name: '박정호', email: 'reviewer1@arda.com', role: '면접관', active: true },
-  { id: 4, name: '최민지', email: 'recruiter2@arda.com', role: '채용담당자', active: true },
-  { id: 5, name: '한도윤', email: 'reviewer2@arda.com', role: '면접관', active: false },
+   관리자 화면이라 만들어 낼 수 없어 목데이터를 유지한다.
+   역할 문자열은 화면 문구가 아니라 서버가 주는 코드로 둔다 — 라벨은 ROLE_LABEL 하나뿐이어야 한다. */
+const USERS: { id: number; name: string; email: string; role: User['role']; active: boolean }[] = [
+  { id: 1, name: '김채용', email: 'admin@arda.com', role: 'admin', active: true },
+  { id: 2, name: '이서연', email: 'recruiter1@arda.com', role: 'member', active: true },
+  { id: 3, name: '박정호', email: 'reviewer1@arda.com', role: 'member', active: true },
+  { id: 4, name: '최민지', email: 'recruiter2@arda.com', role: 'member', active: true },
+  { id: 5, name: '한도윤', email: 'reviewer2@arda.com', role: 'member', active: false },
 ]
 
 /* 메일 문구는 아직 확정되지 않았다. §12-2 대로 임의로 채우지 않는다. */
@@ -27,12 +34,15 @@ const DRAFT = '(문구 작성 중)'
 
 export default function Settings() {
   const { user } = useAuth()
-  const [tab, setTab] = useState<string>('내 계정')
+  const [tab, setTab] = useState<string>(MY_TAB)
   const [stage, setStage] = useState<(typeof MAIL_STAGES)[number]>('서류 검토')
 
-  /* 가용 시간은 면접관 본인 것만 등록된다 — 서버도 대상이 면접관이 아니면 422 다.
-     admin 이 남의 것을 대신 넣는 경로는 API 에는 있지만 화면은 아직 없다. */
-  const tabs: string[] = user?.role === 'interviewer' ? [...TABS, AVAILABILITY_TAB] : [...TABS]
+  /* 여기서 등록하는 건 언제나 본인 가용 시간이다. 남의 것을 대신 넣는 경로는
+     admin 전용이고 화면은 아직 없다. */
+  const tabs: string[] =
+    user?.role === 'admin'
+      ? [MY_TAB, ...ADMIN_TABS, AVAILABILITY_TAB]
+      : [MY_TAB, AVAILABILITY_TAB]
 
   return (
     <>
@@ -52,7 +62,7 @@ export default function Settings() {
           ))}
         </div>
 
-        {tab === '내 계정' && (
+        {tab === MY_TAB && (
           <div role="tabpanel" className={styles.form}>
             <div className={styles.field}>
               <label htmlFor="f-name">이름</label>
@@ -98,7 +108,9 @@ export default function Settings() {
                 <div key={u.id} className={`${styles.row} ${styles.item}`}>
                   <span className={styles.name}>{u.name}</span>
                   <span className={styles.sub}>{u.email}</span>
-                  <span className={u.role === '관리자' ? styles.admin : undefined}>{u.role}</span>
+                  <span className={u.role === 'admin' ? styles.admin : undefined}>
+                    {ROLE_LABEL[u.role]}
+                  </span>
                   <span className={u.active ? styles.on : styles.off}>
                     {u.active ? '활성' : '비활성'}
                   </span>

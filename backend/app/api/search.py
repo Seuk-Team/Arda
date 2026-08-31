@@ -12,7 +12,7 @@ from sqlalchemy import Select, func, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import get_current_user, scope_to_viewer
+from app.deps import get_current_user
 from app.models import STAGES, Application, Evaluation, JobPosting, User
 from app.schemas.search import ApplicationListItem, SearchResult
 
@@ -122,9 +122,8 @@ def search(
             stmt = stmt.where(Application.current_stage.in_(stage))
         if posting_id:
             stmt = stmt.where(Application.job_posting_id == posting_id)
-        # A3 — 면접관은 본인 배정 건만. total 도 이 뒤에서 세므로 건수·페이지네이션이
-        # 함께 좁혀진다 (먼저 세면 "결과 없음인데 총 10만" 같은 화면이 나온다).
-        return scope_to_viewer(stmt, user)
+        # 조회는 로그인한 사람 전체에게 열려 있다 (ADR-0017) — 좁히지 않는다.
+        return stmt
 
     # total 은 커서·offset 을 걸기 전에 센다 — 전체 결과 수이지 이번 페이지 수가 아니다.
     #

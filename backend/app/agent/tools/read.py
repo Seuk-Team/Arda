@@ -9,7 +9,6 @@ from __future__ import annotations
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.deps import scope_to_viewer
 from app.models import (
     Application,
     Evaluation,
@@ -44,8 +43,6 @@ def search_applications(
     if posting_id:
         stmt = stmt.where(Application.job_posting_id == int(posting_id))
 
-    stmt = scope_to_viewer(stmt, user)
-
     sort = params.get("sort", "created_at")
     order = params.get("order", "desc")
     limit = min(int(params.get("limit", 50)), 200)
@@ -67,7 +64,6 @@ def search_applications(
             stmt = stmt.where(Application.current_stage.in_(stage))
         if posting_id:
             stmt = stmt.where(Application.job_posting_id == int(posting_id))
-        stmt = scope_to_viewer(stmt, user)
 
         # 평가 없는 지원자(avg NULL)는 항상 뒤로 — Postgres DESC 기본이 NULLS FIRST 라
         # 그대로 두면 "점수 높은 순"에서 미평가자가 맨 위에 온다
@@ -179,16 +175,12 @@ def _get_latest_schedule(db: Session, application_id: int) -> dict | None:
 
 
 def list_availability(db: Session, user: User, params: dict) -> list[dict]:
-    """면접관 가용 시간 조회. recruiter+ 또는 본인만."""
+    """면접관 가용 시간 조회. 로그인한 사람이면 누구나 (ADR-0017)."""
     interviewer_id = int(params["interviewer_id"])
 
     target = db.get(User, interviewer_id)
     if target is None:
         return {"error": f"사용자 {interviewer_id}를 찾을 수 없습니다"}
-    if target.role != "interviewer":
-        return {"error": "면접관이 아닌 사용자입니다"}
-    if user.id != interviewer_id and user.role not in ("admin", "recruiter"):
-        return {"error": "본인의 가용 시간만 조회할 수 있습니다"}
 
     query = (
         select(InterviewerAvailability)
@@ -296,7 +288,8 @@ def list_interviews(db: Session, user: User, params: dict) -> list[dict]:
             to_at = dt.fromisoformat(to_at)
         query = query.where(ScheduleSlot.start_at < to_at)
 
-    if user.role == "interviewer" or params.get("mine"):
+    # 역할 분기 없음 — mine 은 이제 권한이 아니라 필터다 (ADR-0017)
+    if params.get("mine"):
         query = query.where(ScheduleSlot.interviewer_id == user.id)
 
     rows = db.execute(query).all()

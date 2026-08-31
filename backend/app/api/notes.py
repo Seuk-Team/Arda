@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import assert_can_view_application, get_current_user
+from app.deps import get_current_user
 from app.models import Application, ApplicationNote, User
 from app.schemas.note import NoteCreate, NoteOut, NoteUpdate
 
@@ -53,10 +53,9 @@ def list_notes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """메모 목록 (최신순). 그 지원자를 볼 수 있는 사람만 (A3)."""
+    """메모 목록 (최신순). 로그인한 사람이면 누구나 (ADR-0017)."""
     if db.get(Application, application_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
-    assert_can_view_application(db, user, application_id)
 
     # 작성자 이름을 함께 준다 — 목록에서 id 만 보면 누가 썼는지 알 수 없다.
     # 메모마다 사용자를 따로 조회하면 N+1 이므로 조인 한 번으로 끝낸다.
@@ -83,7 +82,6 @@ def create_note(
     """메모 작성. 작성자는 토큰의 사용자다."""
     if db.get(Application, application_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
-    assert_can_view_application(db, user, application_id)
 
     note = ApplicationNote(
         application_id=application_id, author_id=user.id, body=body.body

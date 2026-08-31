@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import assert_can_view_application, get_current_user, require_roles
+from app.deps import get_current_user, require_roles
 from app.models import Application, InterviewerAssignment, User
 from app.schemas.assignment import (
     AssignRequest,
@@ -18,6 +18,7 @@ from app.schemas.assignment import (
 router = APIRouter(prefix="/api/v1", tags=["assignments"])
 
 # 배정·해제는 어드민만 한다 — ADR-0013 "모든 배정 권한은 어드민 계정에 있다".
+# 역할이 admin·member 둘로 줄어든 뒤에도 이 제한은 그대로다 (ADR-0017).
 # 자동 배정(가중 라운드로빈)도 최종 확정은 어드민이 누르는 구조다.
 require_admin = require_roles("admin")
 
@@ -34,18 +35,11 @@ def assign_interviewers(
     if db.get(Application, application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
-    # 면접관 존재 및 role 확인
+    # 대상 사용자 존재 확인. 역할 검사는 없다 — 누구나 면접관으로 배정될 수
+    # 있다 (ADR-0017). "면접관"은 역할이 아니라 그 건에서 맡은 자리다.
     users = db.scalars(select(User).where(User.id.in_(body.interviewer_ids))).all()
     if len(users) != len(set(body.interviewer_ids)):
         raise HTTPException(HTTPStatus.NOT_FOUND, "없는 사용자가 있습니다")
-
-    # 면접관 역할 검증
-    bad = [u.id for u in users if u.role != "interviewer"]
-    if bad:
-        raise HTTPException(
-            HTTPStatus.UNPROCESSABLE_ENTITY,
-            f"면접관이 아닌 사용자입니다: {bad}",
-        )
 
     # 같은 사람을 두 번 배정하는 건 실수지 오류가 아니다.
     # UNIQUE 제약을 이용해 조용히 무시한다 (멱등성)
@@ -80,13 +74,10 @@ def list_interviewers(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """배정된 면접관 목록 (E3). 그 지원자를 볼 수 있는 사람만."""
+    """배정된 면접관 목록 (E3). 로그인한 사람이면 누구나 (ADR-0017)."""
     # 지원자 존재 확인
     if db.get(Application, application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
-
-    # 지원자를 못 보는 사람이 그 지원자의 배정 현황을 보면 A3 가 우회된다
-    assert_can_view_application(db, user, application_id)
 
     # 배정된 면접관 조회
     assignments = db.scalars(
@@ -135,14 +126,11 @@ def get_assigned_applications(
     db: Session = Depends(get_db),
     viewer: User = Depends(get_current_user),
 ):
-    """면접관이 배정받은 지원자 목록.
+    """면접관이 배정받은 지원자 목록. 로그인한 사람이면 누구나 (ADR-0017).
 
-    남의 배정 현황은 담당자 이상만 본다. 면접관끼리 서로 무엇을 맡았는지 들여다볼
-    이유가 없고, 그것까지 열면 A3 로 지원자를 가린 의미가 옅어진다.
+    남의 배정 현황도 열어 둔다 — 지원자 자체를 전원이 볼 수 있게 된 이상,
+    "누가 무엇을 맡았는지"만 가려 봐야 배정 조율에 방해만 된다.
     """
-    if viewer.id != user_id and viewer.role not in ("admin", "recruiter"):
-        raise HTTPException(HTTPStatus.FORBIDDEN, "본인의 배정만 조회할 수 있습니다")
-
     # 사용자 존재 확인
     if db.get(User, user_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "사용자를 찾을 수 없습니다")

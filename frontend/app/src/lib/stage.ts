@@ -1,4 +1,4 @@
-import type { Stage } from '../api/types'
+import type { Stage, User } from '../api/types'
 
 /* 단계 코드 → 화면 문구. 목업이 쓰는 말을 그대로 쓴다. */
 export const STAGE_LABEL: Record<Stage, string> = {
@@ -28,11 +28,11 @@ export function fmtDate(iso: string): string {
   return iso.slice(0, 10).replaceAll('-', '.')
 }
 
-/* 역할 코드 → 화면 문구 */
-export const ROLE_LABEL: Record<'admin' | 'recruiter' | 'interviewer', string> = {
+/* 역할 코드 → 화면 문구. 역할은 2종뿐이다 —
+   admin 만 배정·계정·메일 템플릿을 만지고, 조회는 로그인한 전원이 한다. */
+export const ROLE_LABEL: Record<User['role'], string> = {
   admin: '관리자',
-  recruiter: '채용담당자',
-  interviewer: '면접관',
+  member: '멤버',
 }
 
 /* "면접으로" / "서류 검토로" — 받침 유무로 조사를 고른다.

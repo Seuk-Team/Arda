@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.deps import assert_can_view_application, get_current_user
+from app.deps import assert_can_evaluate, get_current_user
 from app.models import Application, Evaluation, User
 from app.schemas.application_detail import EvaluationOut
 from app.schemas.evaluation import (
@@ -40,12 +40,16 @@ def create_evaluation(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """평가 작성 (E1). 작성자는 토큰의 사용자다."""
+    """평가 작성 (E1). 작성자는 토큰의 사용자다.
+
+    새 규칙에서 유일하게 남은 배정 기반 제한이다 — admin 은 무제한,
+    member 는 자기에게 배정된 건만 쓸 수 있다 (ADR-0017).
+    """
     # 지원자 존재 확인
     if db.get(Application, application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
-    assert_can_view_application(db, user, application_id)
+    assert_can_evaluate(db, user, application_id)
 
     evaluation = Evaluation(
         application_id=application_id,
@@ -66,13 +70,10 @@ def list_evaluations(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """평가 목록 + 평균 (E2)."""
+    """평가 목록 + 평균 (E2). 조회는 로그인한 사람이면 누구나 (ADR-0017)."""
     # 지원자 존재 확인
     if db.get(Application, application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
-
-    # 지원자를 못 보는 사람이 그 지원자의 평가를 보면 A3 가 우회된다
-    assert_can_view_application(db, user, application_id)
 
     # 최신순으로 평가 조회
     rows = db.scalars(
