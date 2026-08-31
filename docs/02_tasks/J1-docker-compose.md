@@ -45,7 +45,7 @@ ERD 확정과는 **무관하다.** 스키마가 바뀌어도 이 작업은 영�
 # docker-compose.yml (저장소 루트)
 services:
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16   # 2026-08-31 변경: 순정 postgres:16-alpine 에는 vector 확장이 없다
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres   # 로컬 전용. 실제 시크릿을 넣지 않는다
@@ -133,7 +133,7 @@ backend/app/ 아래 코드를 수정하지 마라.
 
 2단계.
 저장소 루트에 docker-compose.yml 을 만들어라.
-db(postgres:16-alpine, 헬스체크 pg_isready, named volume) 와
+db(pgvector/pgvector:pg16, 헬스체크 pg_isready, named volume) 와
 api(build ./backend, DATABASE_URL 은 db 서비스 이름을 가리킴, ./backend/app 마운트) 두 개.
 api 는 depends_on 으로 db 가 healthy 가 된 뒤에 뜬다.
 워커는 만들지 말고 주석으로 자리만 남겨라.

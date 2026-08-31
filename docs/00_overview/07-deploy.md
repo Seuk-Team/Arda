@@ -65,7 +65,8 @@ API 전체가 안 뜬 것**이다.
 - api 재기동 후 기동 로그에 pgvector 경고가 **없는지** 확인
 
 **남은 것**
-- `docker-compose.prod.yml` 은 **서버에만 있고 repo 에 없다.** 이번 이미지 교체도 repo 에 안 남았다 — 서버를 새로 만들면 alpine 으로 되돌아간다. `infra/` 로 올리는 게 맞다(인프라 오너).
+- **로컬 compose(`docker-compose.yml`)는 2026-08-31 에 `pgvector/pgvector:pg16` 으로 맞췄다** — repo 로 환경을 세워도 같은 장애가 안 난다. 다만 **기존 로컬 `pgdata` 볼륨(alpine=musl)을 쓰던 사람은** 베이스가 glibc 로 바뀌므로 `docker compose down -v`(권장) 또는 `REINDEX DATABASE arda;` 가 필요하다 — compose 의 `db` 주석에 같은 내용이 적혀 있다.
+- `docker-compose.prod.yml` 은 여전히 **서버에만 있고 repo 에 없다.** 운영 이미지 교체도 repo 에 안 남았다 — 서버를 새로 만들면 그쪽만 alpine 으로 되돌아간다. `infra/` 로 올리는 게 맞다(인프라 오너).
 - 기존 지원자 7명의 **임베딩 백필**이 없다. 테이블만 있고 임베딩은 요약 생성 시점에 만들어진다(`summarizer.py`) — 기존 건까지 검색되게 하려면 백필 필요(에이전트 오너).
 
 **배포 관련 두 가지 기억할 것**

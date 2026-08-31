@@ -1,7 +1,14 @@
 # docker-compose.yml (저장소 루트)
 services:
   db:
-    image: postgres:16-alpine
+    # pgvector 확장이 들어 있는 PG 16 이미지. 순정 postgres:16-alpine 에는 vector 확장이
+    # 없어서 RAG(ADR-0021)의 CREATE EXTENSION 이 실패하고 시맨틱 검색이 꺼진다
+    # (2026-08-31 운영에서 이걸로 API 가 재시작 루프에 빠졌다 — docs/00_overview/07-deploy.md).
+    # ※ 기존 pgdata 볼륨을 alpine(musl) 로 만들어 쓰던 사람은 베이스가 glibc 로 바뀌므로
+    #   텍스트 인덱스 정렬 기준이 달라진다. 둘 중 하나를 한다:
+    #     docker compose down -v          # 로컬 데이터를 버리고 새로 만든다 (권장)
+    #     docker compose exec db psql -U postgres -d arda -c 'REINDEX DATABASE arda;'
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres   # 로컬 전용. 실제 시크릿을 넣지 않는다
