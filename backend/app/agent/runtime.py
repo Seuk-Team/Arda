@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 AGENT_MODEL = os.getenv("AGENT_CHAT_MODEL", "claude-haiku-4-5-20251001")
 MAX_ROUNDS = 10
 
+# 대화 이력 상한 (메시지 개수 = user/assistant 쌍 × 2).
+# 이력은 라운드마다 통째로 재전송되므로 상한이 없으면 대화가 길어질수록
+# 호출당 입력이 선형으로, 대화 전체 비용은 제곱으로 늘어난다.
+MAX_HISTORY_MESSAGES = 20
+
+# 프롬프트 캐시 요율 (입력 단가 기준) — 쓰기 1.25배, 읽기 0.1배
+CACHE_WRITE_RATE = 1.25
+CACHE_READ_RATE = 0.10
+
 PRICING = {
     "claude-haiku-4-5-20251001": (1.00, 5.00),
     "claude-haiku-4-5": (1.00, 5.00),
@@ -35,9 +44,25 @@ PRICING = {
 }
 
 
-def _estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+def _estimate_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cache_write_tokens: int = 0,
+    cache_read_tokens: int = 0,
+) -> float:
+    """호출 비용(USD) 추정.
+
+    캐시를 켜면 캐시로 처리된 몫이 input_tokens 에서 빠진다. 캐시 항을 더하지
+    않으면 비용이 실제보다 작게 나온다 — 아낀 것이 아니라 안 보이는 것이다.
+    """
     input_price, output_price = PRICING.get(model, (1.00, 5.00))
-    return (input_tokens * input_price + output_tokens * output_price) / 1_000_000
+    return (
+        input_tokens * input_price
+        + cache_write_tokens * input_price * CACHE_WRITE_RATE
+        + cache_read_tokens * input_price * CACHE_READ_RATE
+        + output_tokens * output_price
+    ) / 1_000_000
 
 
 @dataclass
@@ -54,6 +79,8 @@ class AgentResult:
     pending_action: PendingAction | None = None
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
     model: str = ""
 
 
@@ -70,12 +97,25 @@ def _describe_action(name: str, args: dict) -> str:
     return f"{name} 실행"
 
 
+def _trim_history(history: list[dict]) -> list[dict]:
+    """대화 이력을 최근 MAX_HISTORY_MESSAGES 개로 자른다.
+
+    Anthropic 규칙상 messages 는 user 로 시작해야 하므로, 자른 뒤 맨 앞이
+    assistant 면 짝이 맞을 때까지 더 버린다.
+    """
+    trimmed = history[-MAX_HISTORY_MESSAGES:]
+    while trimmed and trimmed[0].get("role") != "user":
+        trimmed = trimmed[1:]
+    return trimmed
+
+
 def run_agent(
     message: str,
     history: list[dict],
     db: Session,
     user: User,
     system_prompt: str,
+    request_id: str | None = None,
 ) -> AgentResult:
     """에이전트 대화 루프를 실행한다. 동기 호출."""
     try:
@@ -85,24 +125,39 @@ def run_agent(
 
     client = anthropic.Anthropic()
 
-    messages = list(history)
+    messages = _trim_history(history)
     messages.append({"role": "user", "content": message})
 
     tools = TOOL_DEFINITIONS
 
     result = AgentResult(reply="", model=AGENT_MODEL)
 
+    rounds = 0
+
     for _ in range(MAX_ROUNDS):
+        rounds += 1
         response = client.messages.create(
             model=AGENT_MODEL,
             max_tokens=4096,
-            system=system_prompt,
+            # 고정부(도구 정의 + 시스템 프롬프트 ≈ 20KB)를 캐시한다. 렌더 순서가
+            # tools → system → messages 라, 마지막 system 블록의 표시가 도구까지
+            # 함께 묶는다. 두 번째 호출부터 이 몫이 0.1배 요금이 된다.
+            # 캐시가 걸렸는지는 cache_read_tokens 로 확인한다 (0이면 안 걸린 것).
+            system=[{
+                "type": "text",
+                "text": system_prompt,
+                "cache_control": {"type": "ephemeral"},
+            }],
             tools=tools,
             messages=messages,
         )
 
-        result.input_tokens += response.usage.input_tokens
-        result.output_tokens += response.usage.output_tokens
+        usage = response.usage
+        result.input_tokens += usage.input_tokens
+        result.output_tokens += usage.output_tokens
+        # 캐시 필드는 캐시를 쓰지 않는 응답에는 없거나 None 이다
+        result.cache_write_tokens += getattr(usage, "cache_creation_input_tokens", 0) or 0
+        result.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
 
         if response.stop_reason == "end_turn":
             texts = [b.text for b in response.content if b.type == "text"]
@@ -118,7 +173,11 @@ def run_agent(
         # 쓰기 도구가 포함되어 있으면 실행하지 않고 확인 요청으로 반환
         write_tool = next((tu for tu in tool_uses if tu.name in WRITE_TOOL_NAMES), None)
         if write_tool:
-            logger.info("pending_write_tool", extra={"tool": write_tool.name, "input": write_tool.input})
+            # 인자 값에는 지원자 이름·이메일이 들어올 수 있다. 키 이름만 남긴다 (J5)
+            logger.info(
+                "pending_write_tool",
+                extra={"tool": write_tool.name, "tool_args": sorted(write_tool.input)},
+            )
             result.tool_calls.append({"name": write_tool.name, "input": write_tool.input})
 
             texts = [b.text for b in response.content if b.type == "text"]
@@ -134,7 +193,7 @@ def run_agent(
 
         tool_results = []
         for tu in tool_uses:
-            logger.info("tool_call", extra={"tool": tu.name, "input": tu.input})
+            logger.info("tool_call", extra={"tool": tu.name, "tool_args": sorted(tu.input)})
             result.tool_calls.append({"name": tu.name, "input": tu.input})
 
             output = execute_tool(tu.name, tu.input, db, user)
@@ -148,12 +207,24 @@ def run_agent(
     else:
         result.reply = "도구 호출 횟수 제한에 도달했습니다. 질문을 더 구체적으로 해주세요."
 
-    cost = _estimate_cost(AGENT_MODEL, result.input_tokens, result.output_tokens)
+    cost = _estimate_cost(
+        AGENT_MODEL,
+        result.input_tokens,
+        result.output_tokens,
+        result.cache_write_tokens,
+        result.cache_read_tokens,
+    )
     logger.info(
         "agent_run",
         extra={
+            "request_id": request_id,
+            "user_id": user.id,
+            "model": AGENT_MODEL,
             "input_tokens": result.input_tokens,
             "output_tokens": result.output_tokens,
+            "cache_write_tokens": result.cache_write_tokens,
+            "cache_read_tokens": result.cache_read_tokens,
+            "rounds": rounds,
             "tool_calls": len(result.tool_calls),
             "cost_usd": round(cost, 6),
         },

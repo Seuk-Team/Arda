@@ -15,7 +15,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.agent.runtime import MAX_ROUNDS, AgentResult, run_agent
+from app.agent.runtime import (
+    MAX_HISTORY_MESSAGES,
+    MAX_ROUNDS,
+    AgentResult,
+    _trim_history,
+    run_agent,
+)
 
 
 @dataclass
@@ -236,3 +242,84 @@ class TestNoAnthropicPackage:
         with patch.dict("sys.modules", {"anthropic": None}):
             result = run_agent("테스트", [], db, user, "시스템 프롬프트")
         assert "anthropic" in result.reply.lower() or "설치" in result.reply
+
+
+class TestHistoryTrim:
+    """이력 상한 — 이력은 라운드마다 재전송되므로 무한히 쌓이면 안 된다."""
+
+    def test_짧은_이력은_그대로(self):
+        history = [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}]
+        assert _trim_history(history) == history
+
+    def test_상한을_넘으면_최근_것만_남는다(self):
+        history = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": str(i)}
+            for i in range(60)
+        ]
+        trimmed = _trim_history(history)
+        assert len(trimmed) <= MAX_HISTORY_MESSAGES
+        assert trimmed[-1] == history[-1]
+
+    def test_잘린_뒤에도_user_로_시작한다(self):
+        """Anthropic 은 messages 가 user 로 시작하기를 요구한다."""
+        history = [
+            {"role": "assistant" if i % 2 == 0 else "user", "content": str(i)}
+            for i in range(60)
+        ]
+        trimmed = _trim_history(history)
+        assert trimmed[0]["role"] == "user"
+
+    def test_빈_이력은_빈_채로(self):
+        assert _trim_history([]) == []
+
+
+@dataclass
+class FakeCachedUsage:
+    input_tokens: int = 10
+    output_tokens: int = 20
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
+
+
+class TestPromptCaching:
+    """고정부(도구 정의 + 시스템 프롬프트)에 캐시 표시가 붙어야 한다."""
+
+    def test_system_에_cache_control_이_붙는다(self):
+        mock_module = _make_mock_anthropic(
+            FakeResponse(content=[FakeTextBlock(text="네")], stop_reason="end_turn")
+        )
+        _run_with_mock("안녕", mock_module)
+
+        kwargs = mock_module.Anthropic.return_value.messages.create.call_args.kwargs
+        system = kwargs["system"]
+        assert isinstance(system, list), "system 은 블록 배열이어야 캐시 표시를 붙일 수 있다"
+        assert system[-1]["cache_control"] == {"type": "ephemeral"}
+        assert system[-1]["text"] == "시스템 프롬프트"
+
+    def test_캐시_토큰이_누적된다(self):
+        r1 = FakeResponse(
+            content=[FakeToolUseBlock(name="list_postings", input={})],
+            stop_reason="tool_use",
+            usage=FakeCachedUsage(cache_creation_input_tokens=5000),
+        )
+        r2 = FakeResponse(
+            content=[FakeTextBlock(text="공고 목록입니다.")],
+            stop_reason="end_turn",
+            usage=FakeCachedUsage(cache_read_input_tokens=5000),
+        )
+        result, _, _, _ = _run_with_mock(
+            "공고 보여줘", _make_mock_anthropic(r1, r2), execute_tool_return="[]",
+        )
+        assert result.cache_write_tokens == 5000
+        assert result.cache_read_tokens == 5000
+
+    def test_캐시_필드가_없는_응답도_처리한다(self):
+        """캐시가 안 걸린 응답에는 필드 자체가 없다 — 터지면 안 된다."""
+        result, _, _, _ = _run_with_mock(
+            "안녕",
+            _make_mock_anthropic(
+                FakeResponse(content=[FakeTextBlock(text="네")], stop_reason="end_turn")
+            ),
+        )
+        assert result.cache_write_tokens == 0
+        assert result.cache_read_tokens == 0

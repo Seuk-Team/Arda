@@ -5,7 +5,7 @@ M3: 읽기 에이전트 채팅 엔드포인트
 M4: 쓰기 도구 (예정)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status as http
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status as http
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -56,6 +56,9 @@ class ChatResponse(BaseModel):
     pending_action: PendingActionOut | None = None
     input_tokens: int
     output_tokens: int
+    # 캐시로 처리된 몫. cache_read_tokens 가 계속 0이면 캐시가 안 걸린 것이다
+    cache_write_tokens: int
+    cache_read_tokens: int
     model: str
     cost_usd: float
 
@@ -97,6 +100,7 @@ def regenerate_summary(
 @router.post("/chat", response_model=ChatResponse)
 def chat(
     body: ChatRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -110,6 +114,7 @@ def chat(
         db=db,
         user=user,
         system_prompt=system_prompt,
+        request_id=getattr(request.state, "request_id", None),
     )
 
     pending = None
@@ -121,7 +126,13 @@ def chat(
         )
 
     from app.agent.runtime import _estimate_cost, AGENT_MODEL
-    cost = _estimate_cost(AGENT_MODEL, result.input_tokens, result.output_tokens)
+    cost = _estimate_cost(
+        AGENT_MODEL,
+        result.input_tokens,
+        result.output_tokens,
+        result.cache_write_tokens,
+        result.cache_read_tokens,
+    )
 
     return ChatResponse(
         reply=result.reply,
@@ -129,6 +140,8 @@ def chat(
         pending_action=pending,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
+        cache_write_tokens=result.cache_write_tokens,
+        cache_read_tokens=result.cache_read_tokens,
         model=result.model,
         cost_usd=round(cost, 6),
     )

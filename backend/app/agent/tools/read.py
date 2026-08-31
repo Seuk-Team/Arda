@@ -24,7 +24,9 @@ def search_applications(
     db: Session, user: User, params: dict
 ) -> list[dict]:
     """지원자 통합 검색. 에이전트의 핵심 도구 — 16개 시나리오 중 14개에서 호출."""
-    limit = min(int(params.get("limit", 50)), 200)
+    # 검색 결과는 도구 결과로 컨텍스트에 들어간 뒤 이후 모든 라운드에 재전송된다.
+    # 기본 50건은 그것만으로 수천 토큰이라, 실제로 필요한 만큼만 가져온다.
+    limit = min(int(params.get("limit", 10)), 50)
 
     # ── 시맨틱 검색: semantic 파라미터가 있으면 벡터 유사도 검색 ──
     semantic = params.get("semantic")

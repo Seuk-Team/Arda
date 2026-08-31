@@ -85,3 +85,34 @@ class TestDescribeAction:
     def test_unknown_tool(self):
         desc = _describe_action("some_tool", {"x": 1})
         assert "some_tool" in desc
+
+
+class TestEstimateCostWithCache:
+    """캐시 요율 반영 검증 — 캐시 항을 빼먹으면 비용이 실제보다 작게 나온다."""
+
+    def test_cache_write_is_1_25x_input(self):
+        cost = _estimate_cost("claude-haiku-4-5", 0, 0, cache_write_tokens=1_000_000)
+        assert cost == pytest.approx(1.25)
+
+    def test_cache_read_is_0_1x_input(self):
+        cost = _estimate_cost("claude-haiku-4-5", 0, 0, cache_read_tokens=1_000_000)
+        assert cost == pytest.approx(0.10)
+
+    def test_cache_args_default_to_zero(self):
+        """기존 호출부(2인자)의 결과가 달라지면 안 된다."""
+        assert _estimate_cost("claude-haiku-4-5", 1000, 500) == pytest.approx(
+            _estimate_cost("claude-haiku-4-5", 1000, 500, 0, 0)
+        )
+
+    def test_all_terms_sum(self):
+        cost = _estimate_cost("claude-haiku-4-5", 1000, 500, 2000, 4000)
+        expected = (
+            1000 * 1.00 + 500 * 5.00 + 2000 * 1.00 * 1.25 + 4000 * 1.00 * 0.10
+        ) / 1_000_000
+        assert cost == pytest.approx(expected)
+
+    def test_캐시_읽기가_정가보다_싸다(self):
+        """같은 토큰 수라면 캐시 읽기가 항상 더 싸야 한다 — 이게 캐싱의 목적이다."""
+        uncached = _estimate_cost("claude-haiku-4-5", 10_000, 0)
+        cached = _estimate_cost("claude-haiku-4-5", 0, 0, cache_read_tokens=10_000)
+        assert cached < uncached

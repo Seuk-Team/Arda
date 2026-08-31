@@ -113,7 +113,7 @@
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
 | POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2. 기존 요약을 덮어쓴다 |
-| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환 |
+| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환. 응답에 사용량(`input_tokens`·`output_tokens`·`cache_write_tokens`·`cache_read_tokens`·`cost_usd`) 포함 — `cache_read_tokens` 가 계속 0이면 프롬프트 캐시가 안 걸린 것이다 ([ADR-0011](../03_decision/0011-에이전트-모델-비용.md)) |
 | POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출 |
 
 ## 시스템 (J)

@@ -36,7 +36,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "description": (
             "지원자를 검색합니다. 이름·이메일 키워드(q), 의미 기반 검색(semantic), "
             "단계(stage), 공고 ID, 정렬(sort: created_at|score), 순서(order: asc|desc), "
-            "결과 수(limit, 최대 200)를 조합할 수 있습니다. "
+            "결과 수(limit, 기본 10·최대 50)를 조합할 수 있습니다. "
             "'Python 경험자', '클라우드 인프라' 같은 역량 기반 검색은 semantic을 씁니다."
         ),
         "input_schema": {
@@ -73,7 +73,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "최대 결과 수 (기본 50, 최대 200)",
+                    "description": "최대 결과 수 (기본 10, 최대 50). 더 필요할 때만 올린다",
                 },
             },
             "required": [],
