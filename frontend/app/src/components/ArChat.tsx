@@ -290,8 +290,6 @@ export default function ArChat({
             <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
           </svg>
         </button>
-        {/* 시안(1-right-panel.html #agSurface)의 문구 그대로 */}
-        <span className={styles.hint}>Esc 닫기</span>
       </div>
     </div>
   )
