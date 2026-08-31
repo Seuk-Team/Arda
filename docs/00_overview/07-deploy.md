@@ -30,6 +30,16 @@
 - EC2: 서울, t3.micro + 스왑 2G, 고정 IP(Elastic IP). SSH는 팀장 PC에서만 열려 있다.
 - 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구.
 - 서버 compose는 `docker-compose.prod.yml`(로컬 개발용 루트 compose와 별개 — --reload 없음, DB 포트 비공개).
+- **S3 버킷 CORS (2026-08-31 설정)**: 이력서는 브라우저에서 S3 로 직행하는데, 버킷에 CORS 규칙이 **없어서 브라우저 업로드가 막혀 있었다.** 아래를 넣어 풀었다.
+
+  | 항목 | 값 |
+  |---|---|
+  | AllowedMethods | `PUT` |
+  | AllowedOrigins | `https://arda.seuk.cloud` · `https://arda-nu.vercel.app` · `http://localhost:5173` |
+  | AllowedHeaders | `*` (preflight 의 Content-Type 통과용) |
+
+  **프론트 주소가 늘면 여기에도 추가해야 한다.** 빠지면 그 출처에서만 업로드가 실패하는데, **API 는 정상이고 서버 로그에도 안 남는다** — CORS 는 브라우저만 검사하기 때문이다. 서버 간 PUT(테스트·curl)은 영향을 받지 않아서, 이 결함은 브라우저로 실제 파일을 올려봐야만 드러난다.
+  버킷이 공개되는 설정이 아니다 — 업로드 권한은 그대로 presigned URL 이 정한다.
 
 ## 재배포 (현재는 수동 — 팀장)
 
