@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app import mail
 from app.db import get_db
-from app.deps import require_roles
+from app.deps import assert_can_view_application, get_current_user, require_roles
 from app.models import (
     Application,
     InterviewerAssignment,
@@ -31,6 +31,7 @@ from app.schemas.schedule import (
     ConfirmRequest,
     ProposalCreate,
     ProposalOut,
+    ProposalStatusOut,
     PublicSlotOut,
     SchedulePublicOut,
     SlotOut,
@@ -220,6 +221,59 @@ def create_proposal(
         created_at=proposal.created_at,
     )
 
+
+
+@router.get(
+    "/applications/{application_id}/schedule-proposals",
+    response_model=ProposalStatusOut,
+)
+def get_latest_proposal(
+    application_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """이 지원자의 최신 일정 제안 상태. 대시보드·상세 패널의 칩 용도.
+
+    면접관도 본인이 배정된 지원자면 볼 수 있어야 하므로 recruiter+ 가 아니라
+    A3 조회 규칙(assert_can_view_application)을 그대로 쓴다.
+    제안이 하나도 없으면 404 — 화면은 "일정 없음"으로 그린다.
+    """
+    if db.get(Application, application_id) is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
+    assert_can_view_application(db, user, application_id)
+
+    proposal = db.scalar(
+        select(ScheduleProposal)
+        .where(ScheduleProposal.application_id == application_id)
+        .order_by(ScheduleProposal.created_at.desc())
+        .limit(1)
+    )
+    if proposal is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "일정 제안이 없습니다")
+
+    # 조회 시점 만료 판정 — 공개 라우트와 같은 규칙 (스케줄러 없음)
+    now = datetime.now(timezone.utc)
+    if (
+        proposal.status == "proposed"
+        and proposal.expires_at is not None
+        and proposal.expires_at <= now
+    ):
+        proposal.status = "expired"
+        proposal.updated_at = now
+        db.commit()
+
+    confirmed_slot = None
+    if proposal.status == "confirmed" and proposal.confirmed_slot_id is not None:
+        confirmed_slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
+
+    return ProposalStatusOut(
+        status=proposal.status,
+        confirmed_slot=(
+            PublicSlotOut.model_validate(confirmed_slot) if confirmed_slot else None
+        ),
+        expires_at=proposal.expires_at,
+        created_at=proposal.created_at,
+    )
 
 # ── 공개 라우트 — 지원자용 (토큰 접근, 로그인 없음) ──────────────────
 #

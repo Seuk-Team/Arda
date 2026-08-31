@@ -2,80 +2,67 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { ApiError } from '../api/client'
-import { applications, assignments, postings as postingsApi } from '../api/endpoints'
-import type { Posting, Stage } from '../api/types'
+import { applications, assignments, postings as postingsApi, schedules } from '../api/endpoints'
+import type { ApplicationListItem, Posting, ScheduleStatus, Stage } from '../api/types'
+import { STAGE_LABEL, fmtDate } from '../lib/stage'
 import { useAuth } from '../auth/AuthContext'
 import styles from './Dashboard.module.css'
 
-/* ── 면접 일정 (아직 목데이터) ──────────────────────────────────────
-   면접 일정을 담는 테이블이 아직 없다. 01-erd.md 에 interviewer_assignments
-   (누가 누구를 맡았나)는 있지만 scheduled_at·round 가 없어서 "언제 몇 차"를
-   물어볼 곳이 없다. 스키마는 팀장 소관이라 여기서는 목데이터를 유지한다. */
-interface Interview {
-  time: string
-  name: string
-  posting: string
-  stage: string
-}
-
-const SCHEDULE: Interview[] = [
-  { time: '09:30', name: '이서연', posting: 'QA 엔지니어', stage: '1차 면접' },
-  { time: '10:00', name: '김도현', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
-  { time: '10:20', name: '크리스토퍼 알렉산더 반 데 베르그', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
-  { time: '10:40', name: '오세훈', posting: '백엔드 개발자 (신입)', stage: '1차 기술면접' },
-  { time: '11:30', name: '임재현', posting: '데이터 엔지니어', stage: '2차 면접' },
-  { time: '13:00', name: '최민서', posting: 'QA 엔지니어', stage: '1차 면접' },
-  { time: '13:30', name: '배수진', posting: '프로덕트 디자이너 (신입·경력)', stage: '포트폴리오 발표' },
-  { time: '14:00', name: '정우진', posting: 'UX 디자이너', stage: '포트폴리오 발표' },
-  { time: '15:00', name: '신동혁', posting: '글로벌 커머스 플랫폼 백엔드 시스템 아키텍처 설계 및 대규모 트래픽 처리 인프라 운영 시니어 엔지니어 (10년 이상)', stage: '1차 기술면접' },
-  { time: '16:30', name: '박지훈', posting: '프론트엔드 개발자 (경력)', stage: '1차 면접' },
-  { time: '16:50', name: '문가영', posting: '프론트엔드 개발자 (경력)', stage: '1차 면접' },
+/* ── 지원자 현황 (리스트 ↔ 칸반) ─────────────────────────────────
+   면접 일정·전형 현황 두 카드를 지원자 단위 데이터 하나로 합쳤다 (2026-08-31).
+   두 뷰는 같은 데이터의 다른 모양일 뿐이다 — 숫자가 어긋나면 버그다.
+   불합격은 대시보드에서 뺀다: 여기는 "지금 움직이는 사람"의 요약이고,
+   불합격 목록은 통합검색에서 필터로 본다. */
+const PIPE_STAGES: { stage: Stage; pass?: boolean }[] = [
+  { stage: 'applied' },
+  { stage: 'screening' },
+  { stage: 'interview' },
+  { stage: 'accepted', pass: true },
 ]
 
-const SLOT_LIMIT = 3
+/* 단계당 표시 인원. 대시보드는 요약이라 전부 그리지 않는다 — 넘치면 "외 n명 →" */
+const GROUP_LIMIT = 5
 
-/* 같은 시간대끼리 묶되, 라벨과 대표 이름은 그 안에서 가장 이른 면접을 쓴다
-   (16:30 한 건을 16:00 으로 반올림하면 없는 일정을 보여주는 셈이다).
-   SCHEDULE 이 시각순이라 각 슬롯의 첫 항목이 곧 첫 타자다. */
-function groupByHour(list: Interview[]) {
-  const slots: { label: string; items: Interview[] }[] = []
-  for (const iv of list) {
-    const last = slots[slots.length - 1]
-    const sameHour = last && last.items[0].time.slice(0, 2) === iv.time.slice(0, 2)
-    if (sameHour) last.items.push(iv)
-    else slots.push({ label: iv.time, items: [iv] })
-  }
-  return slots
+interface PipeGroup {
+  stage: Stage
+  pass?: boolean
+  total: number
+  items: ApplicationListItem[]
 }
-
-/* ── 전형 현황 ────────────────────────────────────────────────────
-   단계는 서버가 가진 것만 쓴다. 대시보드 목업은 "1차 면접 / 2차 면접" 으로
-   나눠 그렸지만 applications.current_stage 에 회차 개념이 없어 물어볼 수 없다.
-   라벨은 공고 상세 화면의 퍼널(mockup.html)이 쓰는 것과 같게 맞췄다. */
-const FUNNEL_STAGES: { stage: Stage; label: string; pass?: boolean }[] = [
-  { stage: 'applied', label: '지원 접수' },
-  { stage: 'screening', label: '서류 검토' },
-  { stage: 'interview', label: '면접' },
-  { stage: 'accepted', label: '최종 합격', pass: true },
-]
-
-/* 공고 카드의 3단 레일. 왼쪽부터 검토 → 진행 → 완료 */
-const RAIL_STAGES: Stage[] = ['screening', 'interview', 'accepted']
 
 interface DashboardData {
   reviewWaiting: number
   openPostings: Posting[]
-  funnel: { label: string; count: number; pass?: boolean }[]
-  rails: Record<number, number[]>
+  /* 행에 공고명을 붙일 때 쓴다. 목록 API 가 id 만 주므로 여기서 잇는다 */
+  postingTitles: Record<number, string>
+  pipe: PipeGroup[]
+  /* 면접 단계 표시 인원의 일정 상태. 제안이 없으면 null (404) */
+  schedules: Record<number, ScheduleStatus | null>
 }
+
+/* 면접은 한국에서 열린다 — 지원자 페이지(Schedule.tsx)와 같은 이유로 KST 고정 */
+const slotFmt = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short',
+  hour: '2-digit', minute: '2-digit', hour12: false,
+})
+
+function fmtSlot(iso: string): string {
+  const parts = slotFmt.formatToParts(new Date(iso))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  return `${get('month')}.${get('day')} (${get('weekday')}) ${get('hour')}:${get('minute')}`
+}
+
+/* 공고 카드의 3단 레일. 왼쪽부터 검토 → 진행 → 완료 */
+const RAIL_STAGES: Stage[] = ['screening', 'interview', 'accepted']
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const slots = groupByHour(SCHEDULE)
 
   const [data, setData] = useState<DashboardData | null>(null)
+  const [rails, setRails] = useState<Record<number, number[]>>({})
   const [error, setError] = useState<string | null>(null)
+  const [view, setView] = useState<'list' | 'kanban'>('list')
 
   useEffect(() => {
     if (!user) return
@@ -83,33 +70,61 @@ export default function Dashboard() {
     setError(null)
 
     async function load(userId: number) {
-      const [assigned, allPostings, funnelCounts] = await Promise.all([
+      const [assigned, allPostings, pipe] = await Promise.all([
         assignments.mine(userId, ac.signal),
         postingsApi.list(ac.signal),
-        Promise.all(FUNNEL_STAGES.map((f) => applications.countByStage(f.stage, undefined, ac.signal))),
+        Promise.all(
+          PIPE_STAGES.map(async (p): Promise<PipeGroup> => {
+            const res = await applications.search(
+              { stage: p.stage, limit: GROUP_LIMIT, with_total: true },
+              ac.signal,
+            )
+            return { ...p, total: res.total ?? res.items.length, items: res.items }
+          }),
+        ),
       ])
 
-      const open = allPostings.filter((p) => p.status === 'open')
-      // 공고마다 레일 세 칸을 채운다. 공고 수 × 3 번이라 열린 공고만 부른다.
-      const railPairs = await Promise.all(
-        open.map(async (p) => {
-          const counts = await Promise.all(
-            RAIL_STAGES.map((s) => applications.countByStage(s, p.id, ac.signal)),
-          )
-          return [p.id, counts] as const
+      /* 면접 단계 표시 인원만 일정 상태를 묻는다 (최대 GROUP_LIMIT 번).
+         404 = 아직 제안이 없다 — 에러가 아니라 "일정 없음" 상태다 */
+      const ivItems = pipe.find((g) => g.stage === 'interview')?.items ?? []
+      const schedulePairs = await Promise.all(
+        ivItems.map(async (a) => {
+          try {
+            return [a.id, await schedules.latest(a.id, ac.signal)] as const
+          } catch (err) {
+            if (err instanceof ApiError && err.code === 'NOT_FOUND') return [a.id, null] as const
+            throw err
+          }
         }),
       )
 
+      const open = allPostings.filter((p) => p.status === 'open')
       return {
-        reviewWaiting: assigned.count,
-        openPostings: open,
-        funnel: FUNNEL_STAGES.map((f, i) => ({ label: f.label, count: funnelCounts[i], pass: f.pass })),
-        rails: Object.fromEntries(railPairs),
+        data: {
+          reviewWaiting: assigned.count,
+          openPostings: open,
+          postingTitles: Object.fromEntries(allPostings.map((p) => [p.id, p.title])),
+          pipe,
+          schedules: Object.fromEntries(schedulePairs),
+        },
+        open,
       }
     }
 
     load(user.id)
-      .then(setData)
+      .then(({ data, open }) => {
+        setData(data)
+        /* 공고 레일은 공고 수 × 3 호출이라 본 블록 뒤에 따로 채운다 —
+           레일이 늦어도 지원자 현황은 먼저 뜬다 */
+        return Promise.all(
+          open.map(async (p) => {
+            const counts = await Promise.all(
+              RAIL_STAGES.map((s) => applications.countByStage(s, p.id, ac.signal)),
+            )
+            return [p.id, counts] as const
+          }),
+        ).then((pairs) => setRails(Object.fromEntries(pairs)))
+      })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return
         if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
@@ -119,16 +134,32 @@ export default function Dashboard() {
     return () => ac.abort()
   }, [user])
 
+  const interviewTotal = data?.pipe.find((g) => g.stage === 'interview')?.total
+
   const stats = [
     { label: '내 리뷰 대기', value: data?.reviewWaiting, unit: '명' },
-    // 면접 일정 테이블이 없어 셀 수 없다. 위 SCHEDULE 주석 참고.
-    { label: '오늘 면접', value: SCHEDULE.length, unit: '건' },
+    { label: '면접 진행', value: interviewTotal, unit: '명' },
     { label: '진행중 공고', value: data?.openPostings.length, unit: '개' },
   ]
 
-  /* 퍼널 막대는 가장 큰 단계를 100% 로 잡는다. 고정값을 두면 실제 수가
-     그보다 커졌을 때 막대가 넘친다. */
-  const funnelMax = Math.max(1, ...(data?.funnel.map((f) => f.count) ?? [1]))
+  /* 행·카드는 그 공고의 지원자 화면으로 간다 (05-design §0.5 진입점) */
+  const goPosting = (a: ApplicationListItem) => navigate(`/postings/${a.job_posting_id}`)
+
+  function scheduleChip(a: ApplicationListItem) {
+    if (a.current_stage !== 'interview' || data === null) return null
+    const s = data.schedules[a.id]
+    if (s === undefined) return null
+    if (s !== null && s.status === 'confirmed' && s.confirmed_slot !== null) {
+      return <span className={`${styles.chip} ${styles.chipConfirmed}`}>{fmtSlot(s.confirmed_slot.start_at)}</span>
+    }
+    if (s !== null && s.status === 'proposed') {
+      return <span className={`${styles.chip} ${styles.chipNeutral}`}>일정 제안 중</span>
+    }
+    if (s !== null && s.status === 'expired') {
+      return <span className={`${styles.chip} ${styles.chipNeutral}`}>제안 만료</span>
+    }
+    return <span className={`${styles.chip} ${styles.chipNeutral}`}>일정 없음</span>
+  }
 
   return (
     <>
@@ -147,82 +178,93 @@ export default function Dashboard() {
           ))}
         </div>
 
-        <div className={styles.twoCol}>
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>
-              <Link to="/interviews">면접 일정 <span className={styles.go}>전체 →</span></Link>
-            </h2>
-            <div className={styles.scheduleList}>
-              {slots.slice(0, SLOT_LIMIT).map((slot) => {
-                const [first, ...rest] = slot.items
-                const postings = new Set(slot.items.map((iv) => iv.posting))
-                return (
-                  <div key={slot.label} className={styles.slot}>
-                    <button
-                      className={styles.scheduleItem}
-                      onClick={() => navigate(`/interviews?slot=${slot.label}`)}
-                    >
-                      <span className={styles.scheduleTime}>{slot.label}</span>
-                      <span className={styles.scheduleInfo}>
-                        <span className={styles.scheduleName}>
-                          {first.name}
-                          {rest.length > 0 && <em className={styles.scheduleRest}> 외 {rest.length}명</em>}
-                        </span>
-                        <span className={styles.scheduleSub}>
-                          {postings.size > 1 ? `공고 ${postings.size}개` : first.posting} · {first.stage}
-                        </span>
-                      </span>
-                    </button>
-
-                    {/* 명단 미리보기 — 버튼 바깥 형제로 둔다. 안에 넣으면 목록을
-                        스크롤하다 눌려서 화면이 넘어간다. */}
-                    {rest.length > 0 && (
-                      <div className={styles.slotPop} role="tooltip">
-                        <div className={styles.slotPopHead}>
-                          {slot.label.slice(0, 2)}시 면접 {slot.items.length}건
-                        </div>
-                        {slot.items.map((iv) => (
-                          <div key={iv.time + iv.name} className={styles.slotPopItem}>
-                            <span className={styles.slotPopTime}>{iv.time}</span>
-                            <span className={styles.slotPopName}>{iv.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-              {slots.length > SLOT_LIMIT && (
-                <button className={styles.scheduleMore} onClick={() => navigate('/interviews')}>
-                  외 {slots.length - SLOT_LIMIT}건 더 →
-                </button>
-              )}
+        <div className={styles.card}>
+          <div className={styles.pipeHead}>
+            <div className={styles.vtoggle} role="group" aria-label="보기 방식">
+              <button
+                type="button"
+                className={view === 'list' ? styles.vOn : undefined}
+                aria-pressed={view === 'list'}
+                onClick={() => setView('list')}
+              >
+                리스트
+              </button>
+              <button
+                type="button"
+                className={view === 'kanban' ? styles.vOn : undefined}
+                aria-pressed={view === 'kanban'}
+                onClick={() => setView('kanban')}
+              >
+                칸반
+              </button>
             </div>
+            <Link to="/applicants" className={styles.go}>전체 지원자 →</Link>
           </div>
 
-          <div className={styles.card}>
-            <div className={styles.cardTitle}>전형 현황</div>
-            {data === null && error === null && <p className={styles.state}>불러오는 중…</p>}
-            {data !== null && (
-              <div className={styles.funnelList}>
-                {data.funnel.map((row) => (
-                  <div key={row.label} className={styles.funnelRow}>
-                    <span className={styles.funnelLabel}>{row.label}</span>
-                    <div className={styles.funnelTrack}>
-                      <div
-                        className={styles.funnelFill}
-                        style={{
-                          width: `${Math.round((row.count / funnelMax) * 100)}%`,
-                          background: row.pass ? 'var(--sprout)' : 'var(--neutral)',
-                        }}
-                      />
+          {data === null && error === null && <p className={styles.state}>불러오는 중…</p>}
+
+          {data !== null && (
+            <>
+              {/* 모바일(≤768px)은 칸반 금지(05-design §9) — CSS 가 칸반을 숨기고
+                  리스트를 다시 보여주므로 두 뷰를 모두 그려 둔다 */}
+              <div className={view === 'kanban' ? styles.listHiddenOnDesktop : undefined}>
+                {data.pipe.map((g) => (
+                  <div key={g.stage} className={styles.group}>
+                    <div className={styles.groupHead}>
+                      <span className={g.pass ? `${styles.dot} ${styles.dotPass}` : styles.dot} />
+                      <span className={g.pass ? `${styles.groupLabel} ${styles.groupLabelPass}` : styles.groupLabel}>
+                        {STAGE_LABEL[g.stage]}
+                      </span>
+                      <span className={styles.groupCount}>{g.total}명</span>
                     </div>
-                    <span className={styles.funnelCount}>{row.count}명</span>
+                    {g.items.map((a) => (
+                      <button key={a.id} type="button" className={styles.row} onClick={() => goPosting(a)}>
+                        <span className={styles.rowName}>{a.name}</span>
+                        <span className={styles.rowPosting}>{data.postingTitles[a.job_posting_id] ?? ''}</span>
+                        {scheduleChip(a)}
+                        <span className={styles.rowDate}>{fmtDate(a.created_at)}</span>
+                      </button>
+                    ))}
+                    {g.items.length === 0 && <p className={styles.groupEmpty}>없음</p>}
+                    {g.total > g.items.length && (
+                      <button type="button" className={styles.moreLink} onClick={() => navigate('/applicants')}>
+                        외 {g.total - g.items.length}명 →
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+
+              {view === 'kanban' && (
+                <div className={styles.board}>
+                  {data.pipe.map((g) => (
+                    <div key={g.stage} className={styles.col}>
+                      <div className={styles.groupHead}>
+                        <span className={g.pass ? `${styles.dot} ${styles.dotPass}` : styles.dot} />
+                        <span className={g.pass ? `${styles.groupLabel} ${styles.groupLabelPass}` : styles.groupLabel}>
+                          {STAGE_LABEL[g.stage]}
+                        </span>
+                        <span className={styles.groupCount}>{g.total}</span>
+                      </div>
+                      {g.items.map((a) => (
+                        <button key={a.id} type="button" className={styles.kcard} onClick={() => goPosting(a)}>
+                          <span className={styles.kcardName}>{a.name}</span>
+                          <span className={styles.kcardPosting}>{data.postingTitles[a.job_posting_id] ?? ''}</span>
+                          {scheduleChip(a)}
+                        </button>
+                      ))}
+                      {g.items.length === 0 && <p className={styles.groupEmpty}>없음</p>}
+                      {g.total > g.items.length && (
+                        <button type="button" className={styles.colMore} onClick={() => navigate('/applicants')}>
+                          외 {g.total - g.items.length}명 →
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className={styles.sectionTitle}>진행중 공고</div>
@@ -232,11 +274,11 @@ export default function Dashboard() {
         )}
         <div className={styles.postingList}>
           {data?.openPostings.map((p) => {
-            const counts = data.rails[p.id] ?? [0, 0, 0]
+            const counts = rails[p.id] ?? [0, 0, 0]
             const total = counts.reduce((a, b) => a + b, 0)
             const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
             return (
-              <button key={p.id} className={styles.postingCard} onClick={() => navigate('/postings')}>
+              <button key={p.id} className={styles.postingCard} onClick={() => navigate(`/postings/${p.id}`)}>
                 <div className={styles.postingLeft}>
                   <div className={styles.postingName}>{p.title}</div>
                   <div className={styles.postingRail}>

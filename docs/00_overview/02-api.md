@@ -72,7 +72,7 @@
 | DELETE | /applications/{id}/interviewers/{user_id} | 배정 해제 | admin만 (ADR-0013) |
 | GET | /interviewers/{user_id}/applications | 배정받은 지원자 목록 | 본인 또는 recruiter+ |
 
-## 면접 일정 (S — 신규, 구현 중)
+## 면접 일정 (S)
 
 > [ADR-0016](../03_decision/0016-면접-일정-자동화.md) · ERD v1.2. **구현 완료 (2026-08-31)** — 배포 서버에서 E2E(가용 시간→배정→제안→공개 조회→확정→메일 렌더) 통과.
 
@@ -82,6 +82,7 @@
 | GET | /interviewers/{user_id}/availability | 가용 시간 목록 | 본인 또는 recruiter+ |
 | DELETE | /availability/{id} | 가용 시간 삭제 | 본인 또는 admin. 이미 나간 제안의 슬롯은 스냅샷이라 영향 없음 |
 | POST | /applications/{id}/schedule-proposals | 일정 제안 생성 | recruiter+. 배정 면접관(E3) 가용 시간에서 후보 슬롯 생성 + 제안 메일 큐 발행 |
+| GET | /applications/{id}/schedule-proposals | 최신 제안 상태 | A3 조회 규칙(배정 면접관도 가능). 대시보드·상세 패널 칩 용도. 제안 없으면 404 |
 | GET | /public/schedule/{token} | 지원자용 일정·전형 현황 조회 | **공개**. 만료된 제안은 조회 시점에 `expired` 판정(B4 방식). 없는 토큰 404 |
 | POST | /public/schedule/{token}/confirm | 슬롯 선택 → 확정 | **공개**. 본문 `{slot_id}`. 이미 확정·만료·취소면 409. 확정 시 통보 메일 큐 발행 |
 

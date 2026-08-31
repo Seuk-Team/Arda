@@ -6,6 +6,7 @@ import type {
   BulkStageOut,
   Note,
   Posting,
+  ScheduleStatus,
   SearchResult,
   StageChangeOut,
   Stage,
@@ -52,6 +53,12 @@ export const applications = {
     })
     return res.total ?? 0
   },
+}
+
+export const schedules = {
+  /* 최신 일정 제안 상태 — 대시보드·상세 패널 칩 용도. 제안이 없으면 404 */
+  latest: (applicationId: number, signal?: AbortSignal) =>
+    api.get<ScheduleStatus>(`/applications/${applicationId}/schedule-proposals`, { signal }),
 }
 
 export const notes = {

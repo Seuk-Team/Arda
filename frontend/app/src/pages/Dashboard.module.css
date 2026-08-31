@@ -36,40 +36,13 @@
   text-shadow: none;
 }
 
-.twoCol {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-5);
-}
-
 .card {
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
   padding: var(--sp-4);
-}
-
-.cardTitle {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: var(--sp-4);
-  white-space: nowrap;
-}
-
-/* 대시보드는 요약이라 카드 안 어디를 눌러도 그 화면 전체 목록으로 간다 */
-.cardTitle a {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  color: inherit;
-  transition: color var(--dur-fast) var(--ease);
-}
-
-.cardTitle a:hover {
-  color: var(--leaf);
+  margin-bottom: var(--sp-5);
 }
 
 .go {
@@ -79,109 +52,175 @@
   white-space: nowrap;
 }
 
-/* 면접 일정 */
-.scheduleList {
+/* ── 지원자 현황 — 리스트 ↔ 칸반 (같은 데이터) ─────────────────── */
+.pipeHead {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
 }
 
-/* 행도 면접 일정 화면으로 간다 (05-design §0.5 진입점) */
-.scheduleItem {
+/* 보기 전환 — 공고의 지원자 화면(PostingApplicants)의 vtoggle 조각 복제 */
+.vtoggle {
+  flex: none;
   display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  margin: 0 calc(-1 * var(--sp-3));
-  border-top: var(--border-w) solid var(--border-soft);
+  height: 40px;
+  border: var(--border-w) solid var(--border);
   border-radius: var(--r-ctl);
-  text-align: left;
-  width: calc(100% + var(--sp-5));
+  overflow: hidden;
+}
+
+.vtoggle button {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0 var(--sp-4);
+  border: none;
+  background: var(--bg-elev);
+  color: var(--text);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
 }
 
-.slot {
-  position: relative;
+.vtoggle button:hover { background: var(--bg-sunken); }
+.vtoggle button:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.vtoggle button + button { border-left: var(--border-w) solid var(--border); }
+
+.vOn {
+  background: var(--sprout-soft) !important;
+  color: var(--leaf) !important;
+  text-shadow: var(--ts-heading);
 }
 
-.slot:first-child .scheduleItem {
-  border-top: none;
+/* 단계 그룹 (리스트·칸반 공용 헤더) */
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0 var(--sp-2);
 }
 
-.scheduleItem:hover {
-  background: var(--bg-sunken);
+/* 색은 판단에만 (05-design §1) — 진행 중 무채, 합격만 연두 */
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--neutral);
 }
 
-.scheduleItem:active {
-  background: var(--sunken-hover);
+.dotPass { background: var(--sprout); }
+
+.groupLabel {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
 }
 
-/* "외 N명" 슬롯 명단 미리보기.
-   hover 전용 정보가 아니다(§5): 같은 명단을 행 클릭 → 슬롯 필터로도 본다.
-   그래서 hover 가 없는 폰에서도 막히지 않는다. */
-.slotPop {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 100%;
-  z-index: var(--z-dropdown);
-  min-width: 260px;
-  max-width: 100%;
-  max-height: 192px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-card);
-  box-shadow: var(--sh-overlay);
-  padding: var(--sp-2);
-}
+.groupLabelPass { color: var(--leaf); }
 
-.slot:hover .slotPop,
-.slot:focus-within .slotPop {
-  display: block;
-}
-
-.slotPopHead {
-  padding: var(--sp-2) var(--sp-3);
+.groupCount {
   font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
 }
 
-.slotPopItem {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
+.group + .group {
+  border-top: var(--border-w) solid var(--border-soft);
 }
 
-.slotPopTime {
+.groupEmpty {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  padding: var(--sp-2) 0 var(--sp-3);
+  margin: 0;
+}
+
+/* 리스트 행 — 그 공고의 지원자 화면으로 가는 진입점 */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: calc(100% + var(--sp-5));
+  margin: 0 calc(-1 * var(--sp-3));
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-ctl);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.row:hover { background: var(--bg-sunken); }
+.row:active { background: var(--sunken-hover); }
+.row:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+
+.rowName {
   flex: none;
-  width: 48px;
+  min-width: 96px;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.rowPosting {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowDate {
+  flex: none;
   font-size: var(--font-num);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
 }
 
-.slotPopName {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-sm);
-  color: var(--text);
-  word-break: keep-all;
+/* 면접 일정 칩 — 확정(사람의 결정)만 연두, 나머지는 무채 */
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.scheduleMore {
+.chipConfirmed {
+  background: var(--sprout-soft);
+  color: var(--leaf);
+  border: var(--border-w) solid var(--sprout);
+}
+
+.chipNeutral {
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  border: var(--border-w) solid var(--border);
+}
+
+.moreLink {
   display: block;
-  padding: var(--sp-3);
-  margin: 0 calc(-1 * var(--sp-3));
   width: calc(100% + var(--sp-5));
-  border-top: var(--border-w) solid var(--border-soft);
+  margin: 0 calc(-1 * var(--sp-3));
+  padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r-ctl);
   text-align: right;
-  font-size: var(--font-sm);
+  font-size: var(--font-caption);
   font-weight: 600;
   color: var(--leaf);
   white-space: nowrap;
@@ -189,98 +228,84 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.scheduleMore:hover {
+.moreLink:hover { background: var(--bg-sunken); }
+
+/* 칸반 — 보기 전용. 드래그는 공고의 지원자 화면에서만 (실수 드래그가 메일을 보낸다) */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.col {
   background: var(--bg-sunken);
-}
-
-.scheduleTime {
-  font-size: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  white-space: nowrap;
-  min-width: 44px;
-  flex-shrink: 0;
-}
-
-.scheduleInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
+  border-radius: var(--r-card);
+  padding: var(--sp-2) var(--sp-3);
   min-width: 0;
 }
 
-.scheduleName {
-  display: block;
+.kcard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.kcard:hover { border-color: var(--sprout); }
+.kcard:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+
+.kcardName {
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* 대표 이름 = 그 슬롯에서 제일 먼저 보는 사람. 나머지 인원수는 보조 위계로 */
-.scheduleRest {
-  font-style: normal;
-  font-weight: 400;
-  color: var(--text-sub);
-}
-
-.scheduleSub {
-  display: block;
+.kcardPosting {
   font-size: var(--font-caption);
   color: var(--text-sub);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-/* 전형 현황 */
-.funnelList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
+.kcard .chip { margin-top: var(--sp-1); }
 
-.funnelRow {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.funnelLabel {
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  white-space: nowrap;
-  width: 72px;
-  flex-shrink: 0;
-}
-
-.funnelTrack {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-sunken);
-  border-radius: var(--r-pill);
-  overflow: hidden;
-}
-
-/* 색은 판단에만 (05-design §1) — 채움 색은 단계별로 인라인 지정 */
-.funnelFill {
-  height: 100%;
-  border-radius: var(--r-pill);
-  transition: width var(--dur-base) var(--ease);
-}
-
-.funnelCount {
-  font-size: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  white-space: nowrap;
-  width: 48px;
+.colMore {
+  display: block;
+  width: 100%;
+  padding: var(--sp-1) 0;
   text-align: right;
-  flex-shrink: 0;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--leaf);
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-/* 진행중 공고 */
+/* 모바일은 칸반 금지 (05-design §9) — 칸반을 숨기고 리스트를 되살린다 */
+.listHiddenOnDesktop { display: none; }
+
+@media (max-width: 768px) {
+  .board { display: none; }
+  .vtoggle { display: none; }
+  .listHiddenOnDesktop { display: block; }
+}
+
+/* ── 진행중 공고 ──────────────────────────────────────────────── */
 .sectionTitle {
   font-size: var(--font-sm);
   font-weight: 600;
@@ -328,14 +353,6 @@
   text-overflow: ellipsis;
 }
 
-.postingTeam {
-  font-size: var(--font-caption);
-  color: var(--text-sub);
-  margin-top: 2px;
-  margin-bottom: var(--sp-2);
-  white-space: nowrap;
-}
-
 .postingRail {
   display: flex;
   height: 4px;
@@ -343,6 +360,7 @@
   overflow: hidden;
   gap: 2px;
   max-width: 480px;
+  margin-top: var(--sp-2);
 }
 
 .railSeg {

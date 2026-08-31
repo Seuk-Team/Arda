@@ -109,3 +109,19 @@ export interface BulkStageOut {
   skipped: number[]
   mail_queued: number
 }
+
+/* ── 면접 일정 (ADR-0016) ─────────────────────────────────────── */
+
+export interface ScheduleSlotPublic {
+  id: number
+  start_at: string
+  end_at: string
+}
+
+/* GET /applications/{id}/schedule-proposals — 최신 제안 상태. 제안이 없으면 404 */
+export interface ScheduleStatus {
+  status: 'proposed' | 'confirmed' | 'expired' | 'canceled'
+  confirmed_slot: ScheduleSlotPublic | null
+  expires_at: string | null
+  created_at: string
+}

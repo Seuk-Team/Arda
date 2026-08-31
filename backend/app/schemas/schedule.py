@@ -62,6 +62,15 @@ class ConfirmRequest(BaseModel):
     slot_id: int
 
 
+class ProposalStatusOut(BaseModel):
+    """담당자 화면용 최신 제안 상태 — 대시보드·상세 패널이 칩 하나를 그리는 용도."""
+
+    status: str  # proposed / confirmed / expired / canceled
+    confirmed_slot: PublicSlotOut | None
+    expires_at: datetime | None
+    created_at: datetime
+
+
 class ProposalOut(BaseModel):
     """일정 제안 응답."""
 
