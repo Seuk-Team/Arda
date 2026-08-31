@@ -28,6 +28,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    Vector = None
+
 # ── 고정값 (코드 상수) ────────────────────────────────────────────────
 STAGES = ("applied", "screening", "interview", "accepted", "rejected")
 ROLES = ("admin", "member")
@@ -433,3 +438,26 @@ class ScheduleSlot(Base):
             "proposal_id", "interviewer_id", "start_at", name="uq_schedule_slots"
         ),
     )
+
+
+# ── application_embeddings — 시맨틱 검색용 벡터 (ADR-0017) ─────────
+EMBEDDING_DIM = 768
+
+if Vector is not None:
+    class ApplicationEmbedding(Base):
+        """지원자 self_intro + skills 를 임베딩한 벡터.
+
+        지원서 제출 시 1회 생성한다. 모델이나 텍스트가 바뀌면 재생성한다.
+        """
+
+        __tablename__ = "application_embeddings"
+
+        id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+        application_id: Mapped[int] = mapped_column(
+            BigInteger, ForeignKey("applications.id"), unique=True, nullable=False
+        )
+        embedding = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+        model_name: Mapped[str] = mapped_column(String(100), nullable=False)
+        created_at: Mapped[datetime] = mapped_column(
+            DateTime(timezone=True), nullable=False, server_default=func.now()
+        )

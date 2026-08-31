@@ -1,10 +1,8 @@
-"""지원자 AI 요약 생성 (M2).
+"""지원자 AI 요약 생성 (M2, ADR-0022 프롬프트 체이닝).
 
+3단계 파이프라인: 요약 → 평가 → 추천.
 접수 시 1회 자동 생성, 재생성은 명시적 버튼만.
 더미 10만 건에는 절대 호출하지 않는다 (ADR-0011 비용 가드).
-
-프롬프트: prompts/summarize.v1.md — JSON(gist·fit·concerns) 출력.
-ai_summary 컬럼에 JSON 문자열로 저장, 프론트가 파싱해서 표시.
 """
 
 import json
@@ -25,7 +23,7 @@ _EMPTY = "제출된 내용 없음"
 
 
 def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
-    """summarize 프롬프트에 필요한 변수를 만든다."""
+    """프롬프트에 필요한 공통 변수를 만든다."""
     posting = db.get(JobPosting, app.job_posting_id)
     posting_title = posting.title if posting else "공고 정보 없음"
     posting_requirements = (posting.description or "요건 정보 없음") if posting else "요건 정보 없음"
@@ -33,8 +31,6 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
     resume_text = _EMPTY
     cover_letter_text = app.self_intro or _EMPTY
 
-    # 폼 데이터로 이력서 텍스트를 구성한다.
-    # 첨부 파일(S3) 추출은 S3 배포 후 추가 예정.
     profile_parts: list[str] = []
     if app.name:
         profile_parts.append(f"이름: {app.name}")
@@ -55,8 +51,28 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
     }
 
 
+def _call_llm(client, prompt_text: str) -> tuple[str, int, int]:
+    """LLM 1회 호출. (응답 텍스트, input_tokens, output_tokens) 반환."""
+    response = client.messages.create(
+        model=SUMMARY_MODEL,
+        max_tokens=SUMMARY_MAX_TOKENS,
+        messages=[{"role": "user", "content": prompt_text}],
+    )
+    raw = response.content[0].text.strip()
+    return raw, response.usage.input_tokens, response.usage.output_tokens
+
+
+def _parse_json(raw: str, step: str, application_id: int) -> dict | None:
+    """JSON 파싱. 실패하면 None."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("JSON 파싱 실패 (step=%s): application_id=%d", step, application_id)
+        return None
+
+
 def generate_summary(db: Session, application_id: int) -> str | None:
-    """AI 요약을 생성하고 DB에 저장한다. 성공하면 JSON 문자열, 실패하면 None."""
+    """3단계 파이프라인으로 AI 요약을 생성하고 DB에 저장한다."""
     app = db.get(Application, application_id)
     if app is None:
         logger.warning("요약 대상 없음: application_id=%d", application_id)
@@ -65,8 +81,6 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     prompt_vars = _build_prompt_vars(db, app)
 
     from app.agent.prompts import render
-
-    prompt_text, prompt_tag = render("summarize", **prompt_vars)
 
     try:
         import anthropic
@@ -79,45 +93,112 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         logger.error("ANTHROPIC_API_KEY 미설정")
         return None
 
+    client = anthropic.Anthropic(api_key=api_key)
+    total_input = 0
+    total_output = 0
+    prompt_tags: list[str] = []
+
+    # ── Step 1: 요약 ──
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model=SUMMARY_MODEL,
-            max_tokens=SUMMARY_MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt_text}],
+        step1_text, step1_tag = render(
+            "chain_summarize",
+            resume_text=prompt_vars["resume_text"],
+            cover_letter_text=prompt_vars["cover_letter_text"],
         )
-        raw = response.content[0].text.strip()
+        prompt_tags.append(step1_tag)
+        raw1, in1, out1 = _call_llm(client, step1_text)
+        total_input += in1
+        total_output += out1
     except Exception:
-        logger.exception("Claude API 호출 실패: application_id=%d", application_id)
+        logger.exception("Step1 실패: application_id=%d", application_id)
         return None
 
-    # JSON 파싱 검증 — 프롬프트가 JSON을 요구하지만 모델이 깨뜨릴 수 있다
-    try:
-        parsed = json.loads(raw)
-        summary_json = json.dumps(parsed, ensure_ascii=False)
-    except json.JSONDecodeError:
-        logger.warning("JSON 파싱 실패, 원본 저장: application_id=%d", application_id)
-        summary_json = raw
+    step1 = _parse_json(raw1, "step1", application_id)
+    if step1 is None or step1.get("insufficient"):
+        summary_json = json.dumps(
+            {"insufficient": True, "gist": "", "fit": [], "concerns": []},
+            ensure_ascii=False,
+        )
+        app.ai_summary = summary_json
+        app.ai_summary_at = datetime.now(UTC)
+        app.ai_summary_model = f"{SUMMARY_MODEL}/{'+'.join(prompt_tags)}"
+        db.commit()
+        return summary_json
 
-    input_tokens = response.usage.input_tokens
-    output_tokens = response.usage.output_tokens
+    # ── Step 2: 평가 ──
+    try:
+        step2_text, step2_tag = render(
+            "chain_evaluate",
+            posting_title=prompt_vars["posting_title"],
+            posting_requirements=prompt_vars["posting_requirements"],
+            profile_summary=json.dumps(step1, ensure_ascii=False),
+        )
+        prompt_tags.append(step2_tag)
+        raw2, in2, out2 = _call_llm(client, step2_text)
+        total_input += in2
+        total_output += out2
+    except Exception:
+        logger.exception("Step2 실패: application_id=%d", application_id)
+        return None
+
+    step2 = _parse_json(raw2, "step2", application_id)
+    if step2 is None:
+        step2 = {"fit_score": None, "fit": [], "concerns": []}
+
+    # ── Step 3: 추천 ──
+    try:
+        step3_text, step3_tag = render(
+            "chain_recommend",
+            posting_title=prompt_vars["posting_title"],
+            evaluation_result=json.dumps(step2, ensure_ascii=False),
+        )
+        prompt_tags.append(step3_tag)
+        raw3, in3, out3 = _call_llm(client, step3_text)
+        total_input += in3
+        total_output += out3
+    except Exception:
+        logger.exception("Step3 실패: application_id=%d", application_id)
+        return None
+
+    step3 = _parse_json(raw3, "step3", application_id)
+    if step3 is None:
+        step3 = {"action": None, "reasons": [], "check_points": []}
+
+    # ── 결과 합산 저장 ──
+    combined = {
+        "insufficient": False,
+        "gist": step1.get("gist", ""),
+        "key_skills": step1.get("key_skills", []),
+        "key_experiences": step1.get("key_experiences", []),
+        "fit_score": step2.get("fit_score"),
+        "fit": step2.get("fit", []),
+        "concerns": step2.get("concerns", []),
+        "recommendation": {
+            "action": step3.get("action"),
+            "reasons": step3.get("reasons", []),
+            "check_points": step3.get("check_points", []),
+        },
+    }
+    summary_json = json.dumps(combined, ensure_ascii=False)
 
     from app.agent.runtime import _estimate_cost
-    cost = _estimate_cost(SUMMARY_MODEL, input_tokens, output_tokens)
+
+    cost = _estimate_cost(SUMMARY_MODEL, total_input, total_output)
 
     app.ai_summary = summary_json
     app.ai_summary_at = datetime.now(UTC)
-    app.ai_summary_model = f"{SUMMARY_MODEL}/{prompt_tag}"
+    app.ai_summary_model = f"{SUMMARY_MODEL}/{'+'.join(prompt_tags)}"
     db.commit()
 
     logger.info(
         "summary_generated",
         extra={
             "application_id": application_id,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
+            "input_tokens": total_input,
+            "output_tokens": total_output,
             "model": app.ai_summary_model,
             "cost_usd": round(cost, 6),
+            "pipeline": "chain_v1",
         },
     )
     return summary_json
@@ -130,7 +211,19 @@ def generate_summary_bg(application_id: int) -> None:
     db = SessionLocal()
     try:
         generate_summary(db, application_id)
+        _generate_embedding(db, application_id)
     except Exception:
         logger.exception("백그라운드 요약 실패: application_id=%d", application_id)
     finally:
         db.close()
+
+
+def _generate_embedding(db: Session, application_id: int) -> None:
+    """임베딩 생성 (ADR-0021). 실패해도 요약에 영향 없음."""
+    try:
+        from app.agent.embedder import embed_application
+
+        embed_application(db, application_id)
+        logger.info("embedding_generated", extra={"application_id": application_id})
+    except Exception:
+        logger.warning("임베딩 생성 실패 (무시): application_id=%d", application_id)

@@ -101,7 +101,7 @@ def chat(
     user: User = Depends(get_current_user),
 ):
     """에이전트 채팅 (M3). 읽기 도구로 지원자 검색·조회를 돕는다."""
-    system_prompt, _ = render("agent")
+    system_prompt, _ = render("agent", user_name=user.name)
     message = resolve_entities(body.message)
 
     result = run_agent(

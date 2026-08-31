@@ -24,6 +24,34 @@ def search_applications(
     db: Session, user: User, params: dict
 ) -> list[dict]:
     """지원자 통합 검색. 에이전트의 핵심 도구 — 16개 시나리오 중 14개에서 호출."""
+    limit = min(int(params.get("limit", 50)), 200)
+
+    # ── 시맨틱 검색: semantic 파라미터가 있으면 벡터 유사도 검색 ──
+    semantic = params.get("semantic")
+    if semantic:
+        from app.agent.embedder import search_similar
+
+        similar_ids = search_similar(db, semantic, limit=limit)
+        if not similar_ids:
+            return []
+        stmt = (
+            select(Application)
+            .where(Application.id.in_(similar_ids))
+        )
+        stage = params.get("stage")
+        if stage:
+            if isinstance(stage, str):
+                stage = [stage]
+            stmt = stmt.where(Application.current_stage.in_(stage))
+        posting_id = params.get("posting_id")
+        if posting_id:
+            stmt = stmt.where(Application.job_posting_id == int(posting_id))
+        apps = db.scalars(stmt).all()
+        id_order = {aid: i for i, aid in enumerate(similar_ids)}
+        apps.sort(key=lambda a: id_order.get(a.id, len(similar_ids)))
+        return [_app_to_dict(a) | {"search_type": "semantic"} for a in apps]
+
+    # ── 기존 ILIKE 검색 ──
     stmt = select(Application)
 
     q = params.get("q")
@@ -45,7 +73,6 @@ def search_applications(
 
     sort = params.get("sort", "created_at")
     order = params.get("order", "desc")
-    limit = min(int(params.get("limit", 50)), 200)
 
     if sort == "score":
         avg_score = func.avg(Evaluation.score).label("avg_score")
@@ -54,7 +81,6 @@ def search_applications(
             .outerjoin(Evaluation, Evaluation.application_id == Application.id)
             .group_by(Application.id)
         )
-        # 필터 재적용 (select를 다시 만들었으므로)
         if q:
             like = f"%{q}%"
             stmt = stmt.where(
@@ -65,8 +91,6 @@ def search_applications(
         if posting_id:
             stmt = stmt.where(Application.job_posting_id == int(posting_id))
 
-        # 평가 없는 지원자(avg NULL)는 항상 뒤로 — Postgres DESC 기본이 NULLS FIRST 라
-        # 그대로 두면 "점수 높은 순"에서 미평가자가 맨 위에 온다
         avg_expr = func.avg(Evaluation.score)
         order_expr = avg_expr.desc() if order == "desc" else avg_expr.asc()
         stmt = stmt.order_by(order_expr.nullslast(), Application.id.desc())

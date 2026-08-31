@@ -1,9 +1,9 @@
-"""요약 생성 테스트 — Claude API mock 기반."""
+"""요약 생성 테스트 — Claude API mock 기반 (ADR-0018 3단계 체이닝)."""
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -94,7 +94,7 @@ class TestBuildPromptVars:
         assert result["posting_requirements"] == "요건 정보 없음"
 
 
-# ── generate_summary ──
+# ── generate_summary (3단계 체이닝) ──
 
 
 @dataclass
@@ -121,43 +121,122 @@ class FakeResponse:
             self.usage = FakeUsage()
 
 
+STEP1_JSON = json.dumps({
+    "insufficient": False,
+    "gist": "Python 백엔드 개발 경험이 풍부한 지원자다.",
+    "key_skills": ["Python", "FastAPI"],
+    "key_experiences": ["3년간 백엔드 개발"],
+}, ensure_ascii=False)
+
+STEP2_JSON = json.dumps({
+    "fit_score": 4,
+    "fit": ["Python 3년 요건 충족"],
+    "concerns": ["AWS 경험 미확인"],
+}, ensure_ascii=False)
+
+STEP3_JSON = json.dumps({
+    "action": "면접 권유",
+    "reasons": ["기술 요건 충족도 높음"],
+    "check_points": ["AWS 운영 경험 구체적으로 확인"],
+}, ensure_ascii=False)
+
+
+def _make_chain_responses():
+    """3단계 응답 목록을 만든다."""
+    return [
+        FakeResponse(content=[FakeContent(text=STEP1_JSON)]),
+        FakeResponse(content=[FakeContent(text=STEP2_JSON)]),
+        FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+    ]
+
+
 class TestGenerateSummary:
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
     def test_success(self, mock_cls, fake_db):
-        mock_cls.return_value.messages.create.return_value = FakeResponse()
+        mock_cls.return_value.messages.create.side_effect = _make_chain_responses()
 
         db, app = fake_db
         result = generate_summary(db, app.id)
 
         assert result is not None
         parsed = json.loads(result)
-        assert "gist" in parsed
+        assert parsed["gist"] == "Python 백엔드 개발 경험이 풍부한 지원자다."
+        assert parsed["fit_score"] == 4
+        assert parsed["recommendation"]["action"] == "면접 권유"
         assert app.ai_summary == result
         assert app.ai_summary_model is not None
         db.commit.assert_called_once()
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
-    def test_invalid_json_stores_raw(self, mock_cls, fake_db):
-        resp = FakeResponse(content=[FakeContent(text="이건 JSON이 아닙니다")])
-        mock_cls.return_value.messages.create.return_value = resp
+    def test_step1_insufficient_skips_rest(self, mock_cls, fake_db):
+        insufficient = json.dumps({
+            "insufficient": True, "gist": "", "key_skills": [], "key_experiences": [],
+        })
+        mock_cls.return_value.messages.create.return_value = FakeResponse(
+            content=[FakeContent(text=insufficient)],
+        )
 
         db, app = fake_db
         result = generate_summary(db, app.id)
 
-        assert result == "이건 JSON이 아닙니다"
+        parsed = json.loads(result)
+        assert parsed["insufficient"] is True
+        assert mock_cls.return_value.messages.create.call_count == 1
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
-    def test_cost_logged(self, mock_cls, fake_db):
-        mock_cls.return_value.messages.create.return_value = FakeResponse()
+    def test_step1_invalid_json_returns_insufficient(self, mock_cls, fake_db):
+        mock_cls.return_value.messages.create.return_value = FakeResponse(
+            content=[FakeContent(text="이건 JSON이 아닙니다")],
+        )
+
+        db, app = fake_db
+        result = generate_summary(db, app.id)
+
+        parsed = json.loads(result)
+        assert parsed["insufficient"] is True
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_step2_invalid_json_continues(self, mock_cls, fake_db):
+        responses = [
+            FakeResponse(content=[FakeContent(text=STEP1_JSON)]),
+            FakeResponse(content=[FakeContent(text="평가 실패")]),
+            FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+        ]
+        mock_cls.return_value.messages.create.side_effect = responses
+
+        db, app = fake_db
+        result = generate_summary(db, app.id)
+
+        parsed = json.loads(result)
+        assert parsed["gist"] != ""
+        assert parsed["fit_score"] is None
+        assert parsed["fit"] == []
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_cost_logged_with_chain_tags(self, mock_cls, fake_db):
+        mock_cls.return_value.messages.create.side_effect = _make_chain_responses()
 
         db, app = fake_db
         generate_summary(db, app.id)
 
-        assert app.ai_summary_model is not None
-        assert "summarize.v" in app.ai_summary_model
+        assert "chain_summarize.v" in app.ai_summary_model
+        assert "chain_evaluate.v" in app.ai_summary_model
+        assert "chain_recommend.v" in app.ai_summary_model
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_three_api_calls(self, mock_cls, fake_db):
+        mock_cls.return_value.messages.create.side_effect = _make_chain_responses()
+
+        db, app = fake_db
+        generate_summary(db, app.id)
+
+        assert mock_cls.return_value.messages.create.call_count == 3
 
     def test_missing_application(self):
         db = MagicMock()

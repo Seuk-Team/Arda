@@ -33,9 +33,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "name": "search_applications",
         "description": (
-            "지원자를 검색합니다. 이름·이메일 키워드, 단계(stage), 공고 ID, "
-            "정렬(sort: created_at|score), 순서(order: asc|desc), "
-            "결과 수(limit, 최대 200)를 조합할 수 있습니다."
+            "지원자를 검색합니다. 이름·이메일 키워드(q), 의미 기반 검색(semantic), "
+            "단계(stage), 공고 ID, 정렬(sort: created_at|score), 순서(order: asc|desc), "
+            "결과 수(limit, 최대 200)를 조합할 수 있습니다. "
+            "'Python 경험자', '클라우드 인프라' 같은 역량 기반 검색은 semantic을 씁니다."
         ),
         "input_schema": {
             "type": "object",
@@ -43,6 +44,10 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "q": {
                     "type": "string",
                     "description": "이름 또는 이메일 검색어 (부분 일치)",
+                },
+                "semantic": {
+                    "type": "string",
+                    "description": "의미 기반 검색어 (스킬·경력·자기소개서 내용으로 유사도 검색)",
                 },
                 "stage": {
                     "oneOf": [

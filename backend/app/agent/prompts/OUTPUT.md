@@ -5,54 +5,84 @@
 
 LLM이 무엇을 어떤 모양으로 돌려줘야 하는지 정한다. 프롬프트 파일(`*.v*.md`)은 이 규약을 참조만 하고, 규약이 바뀌면 프롬프트 버전을 올린다.
 
-## 1. 이력서 요약 (`summarize`)
+## 1. 이력서 요약 — 3단계 프롬프트 체이닝 (ADR-0022)
 
-### 출력 형식
+기존 단일 프롬프트(`summarize.v1`)를 3단계 파이프라인으로 교체했다.
 
-모델은 **JSON 하나만** 출력한다. 코드펜스·설명 문장·머리말을 붙이지 않는다.
+### 파이프라인
+
+| 단계 | 프롬프트 | 입력 | 출력 |
+|------|----------|------|------|
+| Step 1 요약 | `chain_summarize.v1` | 이력서 + 자기소개서 | 프로필 요약 (gist, key_skills, key_experiences) |
+| Step 2 평가 | `chain_evaluate.v1` | Step 1 결과 + 공고 요건 | 적합도 (fit_score, fit, concerns) |
+| Step 3 추천 | `chain_recommend.v1` | Step 2 결과 + 공고 제목 | 다음 액션 (action, reasons, check_points) |
+
+각 단계는 이전 단계의 **검증된 JSON 출력**만 입력으로 받는다.
+Step 1에서 `insufficient: true`이면 Step 2·3을 건너뛴다.
+
+### 통합 출력 형식
+
+3단계 결과를 합산한 JSON을 `ai_summary`에 저장한다.
 
 ```json
 {
   "insufficient": false,
-  "gist": "자소서 요지 3~5문장.",
-  "fit": ["공고 요건 대비 적합한 지점", "..."],
-  "concerns": ["확인이 필요한 지점", "..."]
+  "gist": "자소서 요지 3~5문장",
+  "key_skills": ["핵심 역량 (최대 5개)"],
+  "key_experiences": ["주요 경력·프로젝트 (최대 3개)"],
+  "fit_score": 3,
+  "fit": ["공고 요건 대비 적합 지점 (최대 3개)"],
+  "concerns": ["확인 필요 지점 (최대 3개)"],
+  "recommendation": {
+    "action": "면접 권유 | 추가 확인 | 보류",
+    "reasons": ["제안 근거 (최대 3개)"],
+    "check_points": ["면접 시 확인 포인트 (최대 3개)"]
+  }
 }
 ```
 
-| 필드 | 타입 | 규칙 |
-|---|---|---|
-| `insufficient` | bool | 판단할 근거가 부족하면 `true`. 이때 나머지 필드는 빈 값 |
-| `gist` | string | 자기소개서 요지. **3~5문장**, 평서체 한국어 |
-| `fit` | string[] | 공고 요건 대비 적합 지점. **최대 3개**, 각 1문장 |
-| `concerns` | string[] | 우려·확인 필요 지점. **최대 3개**, 각 1문장 |
+| 필드 | 타입 | 출처 | 규칙 |
+|---|---|---|---|
+| `insufficient` | bool | Step 1 | 근거 부족 시 `true`, 나머지 필드 빈 값 |
+| `gist` | string | Step 1 | 자기소개서 요지. **3~5문장**, 평서체 |
+| `key_skills` | string[] | Step 1 | 제출물에서 확인된 핵심 역량. **최대 5개** |
+| `key_experiences` | string[] | Step 1 | 주요 경력·프로젝트. **최대 3개** |
+| `fit_score` | int(1~5) | Step 2 | 공고 요건 대비 적합도 점수 |
+| `fit` | string[] | Step 2 | 적합 지점. **최대 3개**, 각 1문장 |
+| `concerns` | string[] | Step 2 | 우려 지점. **최대 3개**, 각 1문장 |
+| `recommendation.action` | string | Step 3 | "면접 권유" / "추가 확인" / "보류" |
+| `recommendation.reasons` | string[] | Step 3 | 제안 근거. **최대 3개** |
+| `recommendation.check_points` | string[] | Step 3 | 면접·추가 확인 시 질문 포인트. **최대 3개** |
+
+### 하위 호환
+
+`gist`, `fit`, `concerns` 필드는 기존과 동일한 위치에 유지된다.
+기존 프론트엔드 코드가 이 3개 필드만 쓰고 있다면 변경 없이 동작한다.
 
 ### 저장 방식
 
-`applications.ai_summary`는 **text 컬럼**이다([01-erd.md](../../../../docs/00_overview/01-erd.md)). JSON을 그대로 넣지 않고, 백엔드가 아래 고정 서식으로 렌더링한 문자열을 저장한다.
+- `ai_summary`: 통합 JSON 문자열
+- `ai_summary_at`: 생성 시각
+- `ai_summary_model`: `{모델명}/{step1_tag+step2_tag+step3_tag}` (예: `claude-haiku-4-5-20251001/chain_summarize.v1+chain_evaluate.v1+chain_recommend.v1`)
+- `insufficient: true`이면 Step 1 결과만 저장하고 나머지는 빈 값
 
-```
-{gist}
+### 비용
 
-적합: {fit[0]} / {fit[1]}
-확인 필요: {concerns[0]}
-```
-
-- `insufficient: true` 이거나 `gist`가 비면 **저장하지 않고 `ai_summary`를 NULL로 둔다.** 화면에는 "요약 없음"으로 보인다.
-- 같은 트랜잭션에서 `ai_summary_at`(생성 시각)과 `ai_summary_model`(모델명)을 함께 채운다.
-- JSON 원본은 저장하지 않는다. ERD는 공용 파일이라 컬럼 추가는 팀장 승인이 필요하고, 지금 화면 요구사항([05-design.md](../../../../docs/00_overview/05-design.md))은 텍스트 한 덩어리로 충족된다. 구조가 필요해지면 그때 ADR로 올린다.
+Haiku 3회 호출. 각 단계 max_tokens=500. 건당 총 비용은 기존 1회 호출 대비 약 2~3배이나, Haiku 단가가 낮아 건당 수 원 수준.
 
 ### 내용 금지 사항
 
-1. **지원 정보 필드와 겹치는 나열 금지.** 학력·경력 연차·기술 스택은 상세 패널에 이미 필드로 보인다. 요약이 이걸 반복하면 자리만 차지한다. 요건과 **대조하는 문장**은 허용된다 — "Python 2년 요건에 6개월 모자란다"는 대조지만, "Python, FastAPI, AWS 보유"는 나열이다.
-2. **합불 판정 금지.** "합격 추천", "부적합" 같은 결론을 쓰지 않는다. 판단은 사람이 한다(ADR-0003). 쓸 수 있는 것은 적합 지점과 우려 지점까지다.
-3. **원문에 없는 내용 금지.** 추론으로 경력·회사·성과를 만들어내지 않는다. 근거가 약하면 `concerns`에 "자소서에 근거 없음"으로 적는다.
-4. **민감정보 금지.** 주민등록번호·주소·연락처·생년월일·가족사항을 요약에 옮기지 않는다.
-5. **차별 소지 항목 금지.** 성별·나이·출신 지역·혼인 여부를 적합/우려 근거로 쓰지 않는다.
+1. **지원 정보 필드와 겹치는 나열 금지.** 요건과 **대조하는 문장**은 허용.
+2. **합불 판정 금지.** recommendation.action은 **제안**이다. "합격시켜라"가 아니다 (ADR-0003).
+3. **원문에 없는 내용 금지.** 추론으로 경력·성과를 만들지 않는다.
+4. **민감정보 금지.** 주민번호·주소·연락처·생년월일·가족사항.
+5. **차별 소지 항목 금지.** 성별·나이·출신 지역·혼인 여부.
 
-### 검증 (구현 시)
+### 검증
 
-파싱 실패, 필드 누락, 개수 초과는 **재시도 1회 후 실패 처리**하고 `ai_summary`를 NULL로 둔다. 요약 실패가 지원 접수를 막지 않는다(ADR-0011 §5).
+단계별 JSON 파싱 실패 시 해당 단계를 빈 값으로 채우고 다음 단계를 계속 진행한다.
+Step 1 파싱 실패 시에만 전체를 `insufficient: true`로 처리한다.
+요약 실패가 지원 접수를 막지 않는다 (ADR-0011 §5).
 
 ## 2. 도구 호출 (`tool_agent`)
 

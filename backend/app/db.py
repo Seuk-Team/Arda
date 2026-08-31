@@ -6,7 +6,7 @@
 
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DATABASE_URL = os.getenv(
@@ -15,6 +15,13 @@ DATABASE_URL = os.getenv(
 
 engine = create_engine(DATABASE_URL, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+@event.listens_for(engine, "connect")
+def _enable_pgvector(dbapi_connection, connection_record):
+    with dbapi_connection.cursor() as cur:
+        cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    dbapi_connection.commit()
 
 
 class Base(DeclarativeBase):
