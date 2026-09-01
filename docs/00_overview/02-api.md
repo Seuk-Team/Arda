@@ -126,7 +126,7 @@
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
 | POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2. 기존 요약을 덮어쓴다 |
-| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환. 응답에 사용량(`input_tokens`·`output_tokens`·`cache_write_tokens`·`cache_read_tokens`·`cost_usd`) 포함 — `cache_read_tokens` 가 계속 0이면 프롬프트 캐시가 안 걸린 것이다 ([ADR-0011](../03_decision/0011-에이전트-모델-비용.md)) |
+| POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환. 응답에 사용량(`input_tokens`·`output_tokens`·`cache_write_tokens`·`cache_read_tokens`·`cost_usd`) 포함 ([ADR-0011](../03_decision/0011-에이전트-모델-비용.md)). **2026-09-01 변경**: `model` 이 모델명이 아니라 **`backend:model` 태그**다 (`anthropic:claude-haiku-4-5-20251001` · `ollama:qwen3:4b`) — 토크나이저가 달라 백엔드 간 토큰 수 비교가 불가능하므로 어느 엔진이 낸 값인지 함께 남긴다. **`backend` 필드가 추가**됐다(`anthropic` · `ollama`). 로컬 백엔드는 프롬프트 캐싱 개념이 없어 캐시 토큰이 **항상 0**이다 — `backend` 를 봐야 '캐시 미적중'과 '캐시 개념 없음'이 구분된다. 백엔드 선택은 `AGENT_CHAT_BACKEND`(기본 `anthropic`, [ADR-0024](../03_decision/0024-sLLM-로컬-모델-전략.md)) |
 | POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출. **메일 발송(`send_email`)도 이 경로를 탄다** — 되돌릴 수 없는 조작이라 승인 없이는 실행되지 않는다 (G4) |
 
 ## 메일 (G4)
