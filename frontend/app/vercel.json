@@ -1,6 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://api.arda.seuk.cloud/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
