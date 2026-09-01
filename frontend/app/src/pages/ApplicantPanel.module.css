@@ -11,7 +11,7 @@
   align-items: baseline;
   gap: var(--sp-3);
   padding: var(--sp-5) var(--sp-5) var(--sp-4);
-  padding-right: 72px;
+  padding-right: calc(var(--sp-8) + var(--sp-5));
 }
 
 .name {
@@ -109,7 +109,7 @@
   border-color: var(--danger);
 }
 
-.btnReject:hover:not(:disabled) { background: #F7EFED; }
+.btnReject:hover:not(:disabled) { background: var(--danger-soft); }
 
 .btnStage:disabled,
 .btnReject:disabled {

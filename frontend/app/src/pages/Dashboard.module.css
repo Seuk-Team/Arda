@@ -507,7 +507,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: var(--sp-1);
   width: 100%;
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
@@ -614,7 +614,7 @@
   height: 8px;
   border-radius: var(--r-pill);
   overflow: hidden;
-  column-gap: 2px;
+  column-gap: var(--sp-1);
 }
 
 .railSeg {
@@ -645,7 +645,7 @@
   height: 8px;
   border-radius: var(--r-pill);
   flex: none;
-  margin-right: 2px;
+  margin-right: var(--sp-1);
 }
 
 .countItem b {

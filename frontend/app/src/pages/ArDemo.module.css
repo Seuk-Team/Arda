@@ -39,7 +39,7 @@
 .btn:hover { background: var(--sprout-soft); }
 .btn.on {
   background: var(--leaf);
-  color: #fff;
+  color: var(--bg-elev);
   border-color: var(--leaf);
   text-shadow: var(--ts-onfill);
 }

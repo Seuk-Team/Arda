@@ -186,23 +186,15 @@
   color: var(--text);
 }
 
+/* 규격은 global.css 가 잡는다. 여기는 줄 맞춤만 — 두 줄짜리 문구의 첫 줄에 건다 */
 .agree input[type='checkbox'] {
   flex: none;
-  width: 18px;
-  height: 18px;
-  margin-top: 2px;
-  accent-color: var(--leaf);
-  cursor: pointer;
-}
-
-.agree input[type='checkbox']:focus-visible {
-  outline: 2px solid var(--leaf);
-  outline-offset: 2px;
+  margin-top: var(--sp-1);
 }
 
 .req {
   display: block;
-  margin-top: 2px;
+  margin-top: var(--sp-1);
   font-size: var(--font-caption);
   color: var(--text-sub);
 }

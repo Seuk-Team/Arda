@@ -15,7 +15,7 @@
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-card);
   border: var(--border-w) solid transparent;
-  box-shadow: 0 8px 28px rgba(27, 33, 23, 0.14), 0 2px 6px rgba(27, 33, 23, 0.06);
+  box-shadow: var(--sh-overlay);
   font-size: var(--font-sm);
   line-height: 1.55;
   word-break: keep-all;
@@ -23,13 +23,13 @@
 
 /* 성공은 연두 워시, 실패는 적갈 — §1 이 정한 판단 색 그대로다 */
 .ok {
-  background: #EFF7E2;
-  border-color: #8CC63F;
+  background: var(--sprout-soft);
+  border-color: var(--sprout);
   color: var(--text);
 }
 
 .fail {
-  background: #F7EFED;
+  background: var(--danger-soft);
   border-color: var(--danger);
   color: var(--danger);
   font-weight: 600;

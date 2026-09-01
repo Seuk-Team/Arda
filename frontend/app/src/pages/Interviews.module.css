@@ -135,7 +135,7 @@
 .ddBtn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   height: 36px;
   padding: 0 var(--sp-3);
   border: var(--border-w) solid var(--border);
@@ -173,13 +173,13 @@
   max-height: 280px;
   overflow-y: auto;
   margin: 0;
-  padding: 4px;
+  padding: var(--sp-1);
   list-style: none;
   z-index: var(--z-dropdown, 20);
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-ctl);
-  box-shadow: 0 8px 28px rgba(27, 33, 23, 0.14), 0 2px 6px rgba(27, 33, 23, 0.06);
+  box-shadow: var(--sh-overlay);
   opacity: 0;
   transform: translateY(-6px);
   pointer-events: none;
@@ -197,7 +197,7 @@
   align-items: center;
   gap: var(--sp-2);
   padding: 10px var(--sp-3);
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   cursor: pointer;
   white-space: nowrap;
   font-size: var(--font-sm);
@@ -249,12 +249,6 @@
   cursor: pointer;
 }
 
-.mine input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--leaf);
-  cursor: pointer;
-}
 
 /* ── 월 그리드 ────────────────────────────────────
    05-design §0.5 (2026-08-31 팀장 결정). 넘치는 하루는 셀에서 3건까지만 보이고
@@ -434,7 +428,7 @@
   align-items: baseline;
   gap: var(--sp-2);
   padding: var(--sp-5) var(--sp-5) var(--sp-3);
-  padding-right: 72px;
+  padding-right: calc(var(--sp-8) + var(--sp-5));
   border-bottom: var(--border-w) solid var(--border-soft);
 }
 

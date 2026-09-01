@@ -38,6 +38,16 @@ input, textarea, select {
   color: inherit;
 }
 
+/* 체크박스는 시안(1-right-panel.html .trow input[type=checkbox]) 규격 하나로 —
+   화면마다 따로 적어 두면 갈린다(캘린더 "내 면접만" 만 16px 이었다). */
+input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--leaf);
+  cursor: pointer;
+}
+
 a { color: inherit; text-decoration: none; }
 
 h1, h2, h3 { text-wrap: balance; }
@@ -45,7 +55,7 @@ h1, h2, h3 { text-wrap: balance; }
 :focus-visible {
   outline: 2px solid var(--leaf);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: var(--r-ctl);
 }
 
 /* ── 화면 본문 ──────────────────────────────────────
@@ -73,7 +83,7 @@ h1, h2, h3 { text-wrap: balance; }
 .btn:active { transform: translateY(1px); }
 .btn-primary {
   background: var(--leaf);
-  color: #fff;
+  color: var(--bg-elev);
   text-shadow: var(--ts-onfill);
 }
 .btn-primary:hover { background: var(--leaf-strong); }

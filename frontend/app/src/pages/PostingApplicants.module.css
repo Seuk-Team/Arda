@@ -73,7 +73,7 @@
 /* ── 단계 퍼널 = 단계 필터 ───────────────────────────── */
 .funnel {
   display: grid;
-  column-gap: 2px;
+  column-gap: var(--sp-1);
   margin-top: var(--sp-4);
 }
 
@@ -197,7 +197,7 @@
 .ddBtn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   border: none;
   background: none;
   cursor: pointer;
@@ -234,13 +234,13 @@
   left: calc(-1 * var(--sp-3));
   min-width: 132px;
   margin: 0;
-  padding: 4px;
+  padding: var(--sp-1);
   list-style: none;
   z-index: var(--z-dropdown, 20);
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-ctl);
-  box-shadow: var(--sh-overlay, 0 8px 28px rgba(27, 33, 23, 0.14));
+  box-shadow: var(--sh-overlay);
   opacity: 0;
   transform: translateY(-6px);
   pointer-events: none;
@@ -255,7 +255,7 @@
 
 .ddMenu li {
   padding: 10px var(--sp-3);
-  border-radius: 4px;
+  border-radius: var(--r-ctl);
   cursor: pointer;
   white-space: nowrap;
   font-size: var(--font-sm);
@@ -263,7 +263,7 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.ddMenu li:hover { background: #EFF7E2; }
+.ddMenu li:hover { background: var(--sprout-soft); }
 .ddSel { color: var(--leaf); font-weight: 700; }
 
 /* 고른 단계를 알려 주고 해제까지 겸한다 (면접 일정 화면의 슬롯 칩과 같은 방식) */
@@ -274,7 +274,7 @@
   height: 32px;
   padding: 0 var(--sp-3);
   flex: none;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: var(--border-w) solid var(--border);
   background: var(--bg-sunken);
   font-size: var(--font-sm);
@@ -321,7 +321,7 @@
 }
 
 .vOn {
-  background: #EFF7E2 !important;
+  background: var(--sprout-soft) !important;
   color: var(--leaf) !important;
   text-shadow: var(--ts-heading);
 }
@@ -366,7 +366,7 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.item:hover { background: #F6F9F2; }
+.item:hover { background: var(--bg); }
 .item:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
 
 .name {
@@ -438,10 +438,10 @@
 }
 
 .pageCur {
-  background: #EFF7E2;
+  background: var(--sprout-soft);
   color: var(--leaf);
   font-weight: 700;
-  border-color: #8CC63F;
+  border-color: var(--sprout);
 }
 
 /* 상세 패널이 열리면 옆에 나란히 (오버레이 아님, §9) */
@@ -462,8 +462,8 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--content-x);
-  background: #EFF7E2;
-  border-bottom: var(--border-w) solid #8CC63F;
+  background: var(--sprout-soft);
+  border-bottom: var(--border-w) solid var(--sprout);
   font-size: var(--font-sm);
   color: var(--text);
 }
@@ -510,16 +510,8 @@
   grid-template-columns: 32px minmax(120px, 1.2fr) 96px 72px minmax(160px, 1.4fr) 72px 108px;
 }
 
-.row input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--leaf);
-  cursor: pointer;
-  margin: 0;
-}
-
 /* 패널에 물려 있는 행 — .vtoggle button.on 과 같은 연두 워시다. 새 색이 아니다 */
-.cur, .cur:hover { background: #EFF7E2; }
+.cur, .cur:hover { background: var(--sprout-soft); }
 
 /* 일괄 변경 버튼 — 상세 패널의 단계 버튼과 같은 규격 */
 .btnStage,
@@ -543,7 +535,7 @@
 
 /* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
 .btnReject { color: var(--danger); border-color: var(--danger); }
-.btnReject:hover:not(:disabled) { background: #F7EFED; }
+.btnReject:hover:not(:disabled) { background: var(--danger-soft); }
 
 .btnStage:disabled,
 .btnReject:disabled {

@@ -186,7 +186,7 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-1);
 }
 
 .stageNav button {

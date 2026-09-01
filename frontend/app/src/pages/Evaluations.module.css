@@ -268,7 +268,7 @@
 .rate button[aria-pressed='true'] {
   background: var(--leaf);
   border-color: var(--leaf);
-  color: #fff;
+  color: var(--bg-elev);
   text-shadow: var(--ts-onfill);
 }
 
