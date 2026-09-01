@@ -92,7 +92,7 @@ erDiagram
 | self_intro | text | | 자기소개서 |
 | ai_summary | text | | 담당자용 AI 요약 — 자소서 요지 + 공고 요건 대비 적합/우려. NULL = 미생성 |
 | ai_summary_at | timestamptz | | 생성 시각. 공고 요건 변경 시 재생성 판단 기준 |
-| ai_summary_model | varchar(50) | | 생성 모델명 — 발표 때 근거 제시용 |
+| ai_summary_model | varchar(200) | | 생성 모델명 + 프롬프트 태그 — 발표 때 근거 제시용. 값 예: `claude-haiku-4-5-20251001/chain_summarize.v1+chain_evaluate.v1+chain_recommend.v1` (81자). **50 이던 것을 2026-09-01 에 200 으로 고쳤다** — models.py 는 이미 String(200) 인데 이 표만 50 으로 남아 낡아 있었고, 50 인 DB 에서는 요약이 생성된 뒤 저장에서 StringDataRightTruncation 으로 죽는다 |
 | current_stage | varchar(20) | NOT NULL, default `applied` | 위 stage enum |
 | privacy_agreed_at | timestamptz | NOT NULL | 개인정보 동의 시각 (C3) |
 | source | varchar(20) | NOT NULL, default `form` | `form`(외부 지원) / `manual`(담당자 등록, D6) |
