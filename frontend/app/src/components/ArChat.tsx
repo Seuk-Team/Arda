@@ -16,11 +16,18 @@ export type ArMotion = 'idle' | 'listen' | 'think' | 'ask' | 'confirm' | 'fail'
 
 /* 실행 로그에 쓰는 도구 이름. TOOLS.md 의 도구 목록과 같은 순서 */
 const TOOL_LABELS: Record<string, string> = {
+  /* 읽기 */
   search_applications: '지원자 검색',
   get_application: '지원자 상세 조회',
   list_postings: '공고 목록 조회',
+  search_users: '내부 사용자 검색',
+  list_availability: '가용 시간 조회',
+  get_schedule_status: '일정 상태 조회',
+  list_interviews: '면접 일정 조회',
+  /* 쓰기 — 확인 카드를 거친다 */
   change_stage: '단계 변경',
   assign_interviewer: '면접관 배정',
+  create_schedule_proposal: '면접 일정 제안',
   draft_email: '메일 초안',
 }
 
