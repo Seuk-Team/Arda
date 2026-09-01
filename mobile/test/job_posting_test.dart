@@ -5,13 +5,12 @@ import 'package:arda/models/job_posting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  JobPosting withDeadline(DateTime? d) =>
-      JobPosting(
-        id: 1,
-        title: '백엔드 개발자 (신입)',
-        status: PostingStatus.open,
-        deadline: d,
-      );
+  JobPosting withDeadline(DateTime? d) => JobPosting(
+    id: 1,
+    title: '백엔드 개발자 (신입)',
+    status: PostingStatus.open,
+    deadline: d,
+  );
 
   test('마감 12일 전이면 D-12', () {
     final p = withDeadline(DateTime(2026, 9, 9));

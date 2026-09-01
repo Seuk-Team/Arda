@@ -46,9 +46,11 @@ class JobPosting {
     final d = deadline;
     if (d == null) return null;
 
-    final days = DateTime(d.year, d.month, d.day)
-        .difference(DateTime(today.year, today.month, today.day))
-        .inDays;
+    final days = DateTime(
+      d.year,
+      d.month,
+      d.day,
+    ).difference(DateTime(today.year, today.month, today.day)).inDays;
 
     if (days < 0) return '마감';
     if (days == 0) return '마감 D-day';

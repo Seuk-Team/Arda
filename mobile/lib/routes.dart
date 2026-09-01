@@ -10,8 +10,11 @@
 library;
 
 abstract final class Routes {
-  /// 채용 공고 목록 — 앱의 첫 화면 (시안 5번)
-  static const postings = '/';
+  /// 탭 셸 — 앱의 첫 화면. 열면 **홈(대시보드)** 탭이 선다.
+  ///
+  /// 공고는 이 셸의 한 탭이라 별도 경로가 없다. 예전에는 이 경로가 곧
+  /// 공고 목록이라 `postings` 였다.
+  static const home = '/';
 
   /// 로그인 — 아직 첫 화면이 아니다
   static const login = '/login';
@@ -24,6 +27,12 @@ abstract final class Routes {
 
   /// 평가 목록. 인자로 Applicant 를 받는다 (시안 3번)
   static const evaluations = '/applicants/evaluations';
+
+  /// 평가 대기 큐 — 더보기 → 평가 현황. 인자 없음
+  static const evaluationQueue = '/evaluations';
+
+  /// 설정 — 더보기 → 설정. 인자 없음
+  static const settings = '/settings';
 
   /// 지원자 상세. 인자로 Applicant 를 받는다
   static const applicantDetail = '/applicants/detail';

@@ -10,6 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('첫 화면은 채용 공고 목록이다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
+    // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+    await tester.tap(find.text('공고'));
+    await tester.pumpAndSettle();
 
     expect(find.text('채용 공고'), findsOneWidget);
     expect(find.byType(PostingCard), findsNWidgets(3));
@@ -17,6 +20,9 @@ void main() {
 
   testWidgets('공고 → 지원자 → 상세 로 들어가고 되돌아온다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
+    // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+    await tester.tap(find.text('공고'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('백엔드 개발자 (신입)'));
     await tester.pumpAndSettle();
@@ -38,6 +44,9 @@ void main() {
 
   testWidgets('테마가 05-design 토큰을 쓴다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
+    // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+    await tester.tap(find.text('공고'));
+    await tester.pumpAndSettle();
 
     final theme = Theme.of(tester.element(find.byType(Scaffold)));
     expect(theme.scaffoldBackgroundColor, const Color(0xFFF4F7F0)); // --bg

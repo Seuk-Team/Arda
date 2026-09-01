@@ -85,6 +85,9 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
   const { pathname } = useLocation()
   const navRef = useRef<HTMLElement>(null)
   const [pill, setPill] = useState<{ y: number; h: number } | null>(null)
+  /* 아르 칸에 커서·포커스가 올라와 있는 동안만 아르가 커서를 따라본다.
+     onArHover 는 모션(listen)용이라 Layout 이 갖고 있고, 이건 뷰어에만 필요해 여기 둔다. */
+  const [arHover, setArHover] = useState(false)
 
   useLayoutEffect(() => {
     const on = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
@@ -123,10 +126,10 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
         type="button"
         className={styles.arSlot}
         onClick={onToggleAr}
-        onMouseEnter={() => onArHover(true)}
-        onMouseLeave={() => onArHover(false)}
-        onFocus={() => onArHover(true)}
-        onBlur={() => onArHover(false)}
+        onMouseEnter={() => { onArHover(true); setArHover(true) }}
+        onMouseLeave={() => { onArHover(false); setArHover(false) }}
+        onFocus={() => { onArHover(true); setArHover(true) }}
+        onBlur={() => { onArHover(false); setArHover(false) }}
         aria-label={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
         title={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
         aria-expanded={arOpen}
@@ -134,7 +137,7 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
       >
         {/* 폴백은 같은 크기의 빈 칸 — 청크가 늦게 와도 정사각형이 흔들리지 않는다 */}
         <Suspense fallback={<span className={styles.arView} />}>
-          <ArViewer className={styles.arView} motion={arMotion} />
+          <ArViewer className={styles.arView} motion={arMotion} track={arHover} />
         </Suspense>
       </button>
 

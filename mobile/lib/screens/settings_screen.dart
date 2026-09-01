@@ -1,0 +1,505 @@
+/// 설정 — 앱 UI 초안(2026-09-01). 더보기에서 들어온다.
+///
+/// 05-design 설정 절: "내 계정 · 면접 가능 시간(전원) / 사용자·권한 ·
+/// 메일 템플릿(admin 전용)". 배포판 웹이 이 넷을 상단 탭으로 두고 있어 앱도 같다.
+///
+/// **역할별 화면 분기를 만들지 않는다**(app.md W4 · ADR-0017) — 네 탭을 다 두고,
+/// 막는 것은 서버가 한다. 지금은 어차피 전부 조회 전용이다.
+///
+/// **아직 서버에 붙지 않았다.** 배포판도 "내 정보 수정 API가 아직 없어 저장할 수
+/// 없습니다"로 잠겨 있고, 앱은 목데이터라 더 그렇다 — 입력칸을 살아 있는 것처럼
+/// 두지 않는다. 실제 연동은 큐 8이다.
+library;
+
+import 'package:flutter/material.dart';
+
+import '../data/mock_data.dart';
+import '../models/app_user.dart';
+import '../theme/tokens.dart';
+import '../widgets/app_top_bar.dart';
+
+/// 배포판 웹과 같은 탭 구성·순서.
+enum SettingsTab {
+  account('내 계정'),
+  users('사용자·권한'),
+  mail('메일 템플릿'),
+  availability('면접 가능 시간');
+
+  const SettingsTab(this.label);
+
+  final String label;
+}
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key, this.user});
+
+  final AppUser? user;
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  SettingsTab _tab = SettingsTab.account;
+
+  @override
+  Widget build(BuildContext context) {
+    final me = widget.user ?? mockUser;
+
+    return Scaffold(
+      appBar: const AppTopBar(title: '설정', showBack: true),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Tabs(current: _tab, onSelected: (t) => setState(() => _tab = t)),
+          Expanded(
+            child: switch (_tab) {
+              SettingsTab.account => _Account(user: me),
+              SettingsTab.users => const _Users(),
+              SettingsTab.mail => const _Mail(),
+              SettingsTab.availability => const _Availability(),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 탭 줄 — 375px 에 넷이 다 안 들어가 가로로 스크롤한다.
+///
+/// §9 의 "가로 스크롤로 밀어 넣지 않는다"는 칸반·월 그리드를 두고 한 말이고,
+/// 탭 줄은 원래 스크롤하는 요소다(Material `TabBar(isScrollable: true)`).
+class _Tabs extends StatelessWidget {
+  const _Tabs({required this.current, required this.onSelected});
+
+  final SettingsTab current;
+  final ValueChanged<SettingsTab> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.bgElev,
+        border: Border(
+          bottom: BorderSide(color: AppColors.border, width: AppShape.borderW),
+        ),
+      ),
+      child: SizedBox(
+        height: AppLayout.minTouchTarget + AppSpace.s1,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.s2),
+          children: [
+            for (final tab in SettingsTab.values)
+              _Tab(
+                tab: tab,
+                selected: tab == current,
+                onTap: () => onSelected(tab),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Tab extends StatelessWidget {
+  const _Tab({required this.tab, required this.selected, required this.onTap});
+
+  final SettingsTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          highlightColor: AppColors.bgSunken,
+          splashColor: AppColors.bgSunken,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s3),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              // 선택 표시는 밑줄 — 사이드바가 배경으로 하는 것과 달리
+              // 탭 줄은 밑줄이 관습이다(Material TabBar indicator)
+              border: Border(
+                bottom: BorderSide(
+                  color: selected ? AppColors.leaf : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+            ),
+            child: Text(
+              tab.label,
+              softWrap: false,
+              style: TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.sm,
+                fontWeight: selected ? AppType.wSemiBold : AppType.wRegular,
+                color: selected ? AppColors.leaf : AppColors.textSub,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 내 계정 — 배포판처럼 전부 잠겨 있다.
+class _Account extends StatelessWidget {
+  const _Account({required this.user});
+
+  final AppUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpace.s4),
+      children: [
+        _LockedField(label: '이름', value: user.name),
+        _LockedField(label: '이메일', value: user.email),
+        _LockedField(label: '역할', value: user.role.label),
+        const _Note('내 정보 수정 API가 아직 없어 저장할 수 없습니다.'),
+        const SizedBox(height: AppSpace.s4),
+        const Align(alignment: Alignment.centerRight, child: _LockedButton('저장')),
+      ],
+    );
+  }
+}
+
+/// 사용자·권한 — 웹은 표, 앱은 카드(§9 "테이블은 카드형").
+class _Users extends StatelessWidget {
+  const _Users();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpace.s4),
+      children: [
+        const Align(
+          alignment: Alignment.centerRight,
+          child: _LockedButton('사용자 추가'),
+        ),
+        const SizedBox(height: AppSpace.s3),
+        for (final u in mockTeam) _UserCard(user: u),
+        const _Note('계정 생성·권한 변경은 admin 전용이고, 아직 앱에서 호출하지 않는다.'),
+      ],
+    );
+  }
+}
+
+class _UserCard extends StatelessWidget {
+  const _UserCard({required this.user});
+
+  final TeamMember user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpace.s3),
+      padding: const EdgeInsets.all(AppSpace.s4),
+      decoration: BoxDecoration(
+        color: AppColors.bgElev,
+        borderRadius: AppShape.card,
+        border: Border.all(color: AppColors.border, width: AppShape.borderW),
+        boxShadow: AppShadow.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  user.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.body,
+                    fontWeight: AppType.wSemiBold,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpace.s2),
+              Text(
+                user.role.label,
+                softWrap: false,
+                style: TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.caption,
+                  fontWeight: AppType.wSemiBold,
+                  // §1: 강조는 잎초록. 멤버는 보조색
+                  color: user.role == UserRole.admin
+                      ? AppColors.leaf
+                      : AppColors.textSub,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.s1),
+          Text(
+            user.email,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              color: AppColors.textSub,
+            ),
+          ),
+          const SizedBox(height: AppSpace.s2),
+          Text(
+            user.active ? '활성' : '비활성',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              // §1: 색은 판단에만. 비활성은 종료 신호가 아니라 상태라 무채로 둔다
+              color: user.active ? AppColors.leaf : AppColors.textSub,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 메일 템플릿 — 단계 고르기 + 제목·본문. 배포판처럼 문구는 아직 비어 있다.
+class _Mail extends StatefulWidget {
+  const _Mail();
+
+  @override
+  State<_Mail> createState() => _MailState();
+}
+
+class _MailState extends State<_Mail> {
+  int _picked = 0;
+
+  /// 메일이 나가는 단계 — `StageTransitions.notifyStages` 와 같은 구성이다
+  static const _stages = ['서류 검토', '면접', '최종 합격', '불합격'];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpace.s4),
+      children: [
+        SizedBox(
+          height: AppLayout.minTouchTarget,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _stages.length,
+            separatorBuilder: (_, _) => const SizedBox(width: AppSpace.s2),
+            itemBuilder: (_, i) => _StagePill(
+              label: _stages[i],
+              selected: i == _picked,
+              onTap: () => setState(() => _picked = i),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpace.s4),
+        const _LockedField(label: '제목', value: '(문구 작성 중)'),
+        const _LockedField(label: '본문', value: '(문구 작성 중)', lines: 6),
+        _Note('${_stages[_picked]} 단계 메일 문구는 아직 확정 전입니다.'),
+        const SizedBox(height: AppSpace.s4),
+        const Align(alignment: Alignment.centerRight, child: _LockedButton('저장')),
+      ],
+    );
+  }
+}
+
+class _StagePill extends StatelessWidget {
+  const _StagePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? AppColors.sproutSoft : AppColors.bgSunken,
+        borderRadius: AppShape.pill,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          highlightColor: AppColors.sunkenHover,
+          splashColor: AppColors.sunkenHover,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: AppShape.pill,
+              border: Border.all(
+                color: selected ? AppColors.sprout : AppColors.border,
+                width: AppShape.borderW,
+              ),
+            ),
+            child: Text(
+              label,
+              softWrap: false,
+              style: TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.sm,
+                fontWeight: selected ? AppType.wSemiBold : AppType.wRegular,
+                color: selected ? AppColors.leaf : AppColors.textSub,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 면접 가능 시간 — 등록한 시간대에서 담당자가 후보 시간을 만든다.
+class _Availability extends StatelessWidget {
+  const _Availability();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppSpace.s4),
+      children: [
+        const _Note(
+          '등록한 시간대에서 담당자가 면접 후보 시간을 만들어 지원자에게 보냅니다. '
+          '비워 두면 제안을 만들 수 없습니다.',
+        ),
+        const SizedBox(height: AppSpace.s4),
+        const _LockedField(label: '시작', value: '연도-월-일 --:--'),
+        const _LockedField(label: '종료', value: '연도-월-일 --:--'),
+        const Align(alignment: Alignment.centerRight, child: _LockedButton('추가')),
+        const SizedBox(height: AppSpace.s5),
+        const Center(
+          child: Text(
+            // 배포판과 같은 문구
+            '등록된 가능 시간이 없습니다.',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              color: AppColors.textSub,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 잠긴 입력칸 — 05-design §4 인풋은 sunken. 값은 보조색으로 둬서
+/// 지금 고칠 수 없다는 것이 눌러 보기 전에 읽힌다.
+class _LockedField extends StatelessWidget {
+  const _LockedField({required this.label, required this.value, this.lines = 1});
+
+  final String label;
+  final String value;
+  final int lines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              fontWeight: AppType.wSemiBold,
+              color: AppColors.text,
+            ),
+          ),
+          const SizedBox(height: AppSpace.s2),
+          Container(
+            width: double.infinity,
+            constraints: BoxConstraints(
+              minHeight: lines == 1
+                  ? AppLayout.minTouchTarget
+                  : AppLayout.minTouchTarget * lines / 2,
+            ),
+            padding: const EdgeInsets.all(AppSpace.s3),
+            decoration: BoxDecoration(
+              color: AppColors.bgSunken,
+              borderRadius: AppShape.ctl,
+              border: Border.all(color: AppColors.border, width: AppShape.borderW),
+            ),
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.body,
+                color: AppColors.textSub,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 잠긴 버튼 — 테마의 `disabledBackgroundColor` 와 같은 단계로 둔다.
+class _LockedButton extends StatelessWidget {
+  const _LockedButton(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: AppLayout.minTouchTarget,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.s5),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.bgSunken,
+        borderRadius: AppShape.ctl,
+        border: Border.all(color: AppColors.border, width: AppShape.borderW),
+      ),
+      child: Text(
+        label,
+        softWrap: false,
+        style: const TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.sm,
+          fontWeight: AppType.wSemiBold,
+          color: AppColors.textSub,
+        ),
+      ),
+    );
+  }
+}
+
+class _Note extends StatelessWidget {
+  const _Note(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontFamily: AppType.fontFamily,
+        fontSize: AppType.caption,
+        height: 1.5,
+        color: AppColors.textSub,
+      ),
+    );
+  }
+}

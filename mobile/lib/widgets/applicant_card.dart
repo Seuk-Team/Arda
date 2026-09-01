@@ -12,10 +12,19 @@ import '../theme/tokens.dart';
 import '../utils/format.dart';
 
 class ApplicantCard extends StatelessWidget {
-  const ApplicantCard({super.key, required this.applicant, this.onTap});
+  const ApplicantCard({
+    super.key,
+    required this.applicant,
+    this.onTap,
+    this.postingTitle,
+  });
 
   final Applicant applicant;
   final VoidCallback? onTap;
+
+  /// 어느 공고인지. **전 공고 통합 검색에서만 준다** — 한 공고의 지원자 화면은
+  /// 공고가 이미 상단 바에 있어 카드마다 되풀이할 이유가 없다.
+  final String? postingTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +71,21 @@ class ApplicantCard extends StatelessWidget {
                 ],
               ),
 
+              if (postingTitle != null) ...[
+                const SizedBox(height: AppSpace.s2),
+                Text(
+                  postingTitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: const TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.sm,
+                    color: AppColors.text,
+                  ),
+                ),
+              ],
+
               const SizedBox(height: AppSpace.s2),
               Text(
                 applicant.summaryLine,
@@ -93,4 +117,3 @@ class ApplicantCard extends StatelessWidget {
     );
   }
 }
-

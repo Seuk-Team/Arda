@@ -320,8 +320,11 @@ export default function Interviews() {
 
   return (
     <>
+      {/* 패널이 열리면 제목까지 같이 밀린다 — 화면 전체를 한 열로 묶고 패널을
+          그 열의 형제로 둔다 (2026-09-01, 공고의 지원자 화면과 같은 구성) */}
+      <div className={styles.split}>
+      <div className={styles.col}>
       <PageHead title="캘린더" />
-      <div className={styles.body}>
       <main className="page-content">
       <div className={styles.daybar}>
         <button
@@ -434,6 +437,7 @@ export default function Interviews() {
       )}
 
       </main>
+      </div>
 
       {/* ── 그날 일정 패널 (2026-09-01) — 지원자 상세와 같은 껍데기 ────────── */}
       {dayOpen && (

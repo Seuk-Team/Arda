@@ -50,11 +50,7 @@ class StageHistoryScreen extends StatelessWidget {
           const SizedBox(height: AppSpace.s5),
 
           for (final (i, e) in entries.indexed)
-            _Entry(
-              entry: e,
-              isFirst: i == 0,
-              isLast: i == entries.length - 1,
-            ),
+            _Entry(entry: e, isFirst: i == 0, isLast: i == entries.length - 1),
         ],
       ),
     );
@@ -97,9 +93,7 @@ class _Entry extends StatelessWidget {
                 // 첫 항목 위로는 선을 긋지 않는다
                 SizedBox(
                   height: 4,
-                  child: isFirst
-                      ? null
-                      : const Center(child: _Rail()),
+                  child: isFirst ? null : const Center(child: _Rail()),
                 ),
                 Container(
                   width: _dotSize,
@@ -111,7 +105,9 @@ class _Entry extends StatelessWidget {
                 ),
                 // 마지막 항목 아래로도 긋지 않는다
                 Expanded(
-                  child: isLast ? const SizedBox() : const Center(child: _Rail()),
+                  child: isLast
+                      ? const SizedBox()
+                      : const Center(child: _Rail()),
                 ),
               ],
             ),

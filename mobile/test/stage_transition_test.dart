@@ -62,10 +62,7 @@ void main() {
     });
 
     test('되돌리기 + 메일 없음', () {
-      expect(
-        Stage.screening.describeMoveTo(Stage.applied),
-        '되돌리기 · 메일 없음',
-      );
+      expect(Stage.screening.describeMoveTo(Stage.applied), '되돌리기 · 메일 없음');
     });
 
     test('불합격은 사유 필요', () {

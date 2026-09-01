@@ -27,13 +27,24 @@ interface Props {
   expression?: Expression
   /* 드래그 회전·휠 줌 (OrbitControls) */
   interactive?: boolean
+  /* 커서를 눈으로 따라간다. 켜져 있는 동안만 듣고, 꺼지면 정면으로 되돌아온다.
+     모바일은 hover 가 없어(§5) 아무 일도 일어나지 않는다 — 정보는 여기 담지 않는다. */
+  track?: boolean
   /* 원샷 모션이 끝나 idle 로 복귀할 때 */
   onMotionEnd?: (motion: Motion) => void
   className?: string
 }
 
-export default function ArViewer({ motion = 'idle', speed, expression, interactive = false, onMotionEnd, className }: Props) {
+export default function ArViewer({ motion = 'idle', speed, expression, interactive = false, track = false, onMotionEnd, className }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
+  /* 커서 추적. 목표 각도(rad)와 현재 각도를 따로 두고 매 프레임 좁힌다 —
+     포인터 이벤트가 띄엄띄엄 와도 움직임이 끊기지 않는다. */
+  const trackRef = useRef(false)
+  trackRef.current = track
+  const aimRef = useRef({ yaw: 0, pitch: 0 })
+  const nowRef = useRef({ yaw: 0, pitch: 0 })
+  const rootRef = useRef<THREE.Object3D | null>(null)
+  const restRef = useRef({ yaw: 0, pitch: 0 })
   const mixerRef = useRef<THREE.AnimationMixer | null>(null)
   const actionsRef = useRef<Partial<Record<Motion, THREE.AnimationAction>>>({})
   const exBonesRef = useRef<Partial<Record<Expression, THREE.Object3D>>>({})
@@ -79,6 +90,10 @@ export default function ArViewer({ motion = 'idle', speed, expression, interacti
     new GLTFLoader().load(`${import.meta.env.BASE_URL}ar.glb`, (g) => {
       if (disposed) return
       scene.add(g.scene)
+      /* 커서 추적은 모델 전체를 조금 돌려서 낸다 — 목 본 이름에 기대지 않으므로
+         glb 가 바뀌어도 안 깨진다. 원래 각도를 기억해 두고 그 위에 더한다. */
+      rootRef.current = g.scene
+      restRef.current = { yaw: g.scene.rotation.y, pitch: g.scene.rotation.x }
       EXPRESSIONS.forEach((e) => {
         const bone = g.scene.getObjectByName(EX_BONES[e])
         if (bone) exBonesRef.current[e] = bone
@@ -113,15 +128,46 @@ export default function ArViewer({ motion = 'idle', speed, expression, interacti
       play(currentRef.current, true)
     })
 
+    /* 커서 위치 → 목표 각도. 칸 중심을 원점으로 -1..1 로 정규화한 뒤 최대 각도를 곱한다.
+       화면 어디서 움직이든 듣되(칸을 살짝 벗어나도 눈이 따라간다) 값은 칸 기준이다. */
+    const MAX_YAW = 0.42   // rad, 약 24°
+    const MAX_PITCH = 0.22 // rad, 약 13° — 위아래는 덜 돌린다(턱이 들려 보인다)
+    const onPointer = (e: PointerEvent) => {
+      if (!trackRef.current) return
+      const r = host.getBoundingClientRect()
+      if (!r.width || !r.height) return
+      const nx = ((e.clientX - (r.left + r.width / 2)) / (r.width / 2))
+      const ny = ((e.clientY - (r.top + r.height / 2)) / (r.height / 2))
+      const clamp = (v: number) => Math.max(-1.5, Math.min(1.5, v))
+      aimRef.current.yaw = clamp(nx) * MAX_YAW
+      aimRef.current.pitch = clamp(ny) * MAX_PITCH
+    }
+    window.addEventListener('pointermove', onPointer)
+
     const clock = new THREE.Clock()
     let raf = 0
     const tick = () => {
       raf = requestAnimationFrame(tick)
-      mixerRef.current?.update(clock.getDelta() * speedRef.current)
+      const dt = clock.getDelta()
+      mixerRef.current?.update(dt * speedRef.current)
       /* 강제 표정: 애니메이션이 매 프레임 Ex 본을 키하므로 update 뒤에 덮어쓴다 */
       const forced = exprRef.current
       if (forced) {
         EXPRESSIONS.forEach((e) => exBonesRef.current[e]?.scale.setScalar(e === forced ? 1 : 0.001))
+      }
+      /* 커서 추적 — 목표로 매 프레임 조금씩 좁힌다. 벗어나면 목표가 0 이라 정면으로
+         돌아온다. 모션 애니메이션은 본을 돌리고 이건 루트를 돌려서 서로 안 부딪힌다.
+         reduced-motion 이면 speed 가 0 이라 모션은 멈추지만 추적은 남긴다 — 회전 자체가
+         커서를 따라오는 반응이지 등장 애니메이션이 아니다(§5). */
+      const root = rootRef.current
+      if (root && !interactive) {
+        if (!trackRef.current) { aimRef.current.yaw = 0; aimRef.current.pitch = 0 }
+        /* 프레임 독립 보간 — 초당 약 92% 를 좁힌다 */
+        const k = 1 - Math.pow(0.08, dt)
+        nowRef.current.yaw += (aimRef.current.yaw - nowRef.current.yaw) * k
+        nowRef.current.pitch += (aimRef.current.pitch - nowRef.current.pitch) * k
+        root.rotation.y = restRef.current.yaw + nowRef.current.yaw
+        root.rotation.x = restRef.current.pitch + nowRef.current.pitch
       }
       controls?.update()
       renderer.render(scene, cam)
@@ -131,8 +177,10 @@ export default function ArViewer({ motion = 'idle', speed, expression, interacti
     return () => {
       disposed = true
       cancelAnimationFrame(raf)
+      window.removeEventListener('pointermove', onPointer)
       ro.disconnect()
       controls?.dispose()
+      rootRef.current = null
       mixerRef.current = null
       actionsRef.current = {}
       exBonesRef.current = {}

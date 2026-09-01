@@ -35,10 +35,7 @@ class PostingHeader extends StatelessWidget {
     final total = counts.values.fold(0, (a, b) => a + b);
 
     // 마감일이 없으면(상시 접수) 그 조각을 빼고 총원만 적는다 — ERD 비고
-    final meta = [
-      ?deadline,
-      '총 ${formatCount(total)}',
-    ].join(' · ');
+    final meta = [?deadline, '총 ${formatCount(total)}'].join(' · ');
 
     return Container(
       padding: const EdgeInsets.all(AppSpace.s4),

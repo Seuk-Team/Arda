@@ -51,35 +51,39 @@ ThemeData buildAppTheme() {
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.leaf,
-        foregroundColor: AppColors.bgElev,
-        // §9: 터치 타깃 최소 44×44 (HIG)
-        minimumSize: const Size(AppLayout.minTouchTarget, AppLayout.minTouchTarget),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.s5,
-          vertical: AppSpace.s3,
-        ),
-        shape: const RoundedRectangleBorder(borderRadius: AppShape.ctl),
-        // §6: disabled 도 정의해야 완성이다. Material 기본 회색 대신 토큰을 쓴다
-        disabledBackgroundColor: AppColors.bgSunken,
-        disabledForegroundColor: AppColors.neutral,
-        textStyle: const TextStyle(
-          fontFamily: AppType.fontFamily,
-          fontSize: AppType.body,
-          fontWeight: AppType.wSemiBold,
-        ),
-      ).copyWith(
-        // §2: 색 채움 배경 위 밝은 글자에는 --ts-onfill 을 거의 항상
-        textStyle: const WidgetStatePropertyAll(
-          TextStyle(
-            fontFamily: AppType.fontFamily,
-            fontSize: AppType.body,
-            fontWeight: AppType.wSemiBold,
-            shadows: AppTextShadow.onFill,
+      style:
+          FilledButton.styleFrom(
+            backgroundColor: AppColors.leaf,
+            foregroundColor: AppColors.bgElev,
+            // §9: 터치 타깃 최소 44×44 (HIG)
+            minimumSize: const Size(
+              AppLayout.minTouchTarget,
+              AppLayout.minTouchTarget,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.s5,
+              vertical: AppSpace.s3,
+            ),
+            shape: const RoundedRectangleBorder(borderRadius: AppShape.ctl),
+            // §6: disabled 도 정의해야 완성이다. Material 기본 회색 대신 토큰을 쓴다
+            disabledBackgroundColor: AppColors.bgSunken,
+            disabledForegroundColor: AppColors.neutral,
+            textStyle: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.body,
+              fontWeight: AppType.wSemiBold,
+            ),
+          ).copyWith(
+            // §2: 색 채움 배경 위 밝은 글자에는 --ts-onfill 을 거의 항상
+            textStyle: const WidgetStatePropertyAll(
+              TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.body,
+                fontWeight: AppType.wSemiBold,
+                shadows: AppTextShadow.onFill,
+              ),
+            ),
           ),
-        ),
-      ),
     ),
     listTileTheme: const ListTileThemeData(
       minTileHeight: AppType.menuItemHeight,

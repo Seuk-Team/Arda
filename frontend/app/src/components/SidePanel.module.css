@@ -181,11 +181,14 @@
 }
 
 /* ── 콘텐츠 위에 떠 있는 닫기 버튼 (title 이 없는 경우) ── */
+/* 안쪽 내용이 sticky 머리를 두는 경우(지원자 상세 .head)가 있어 --z-sticky 로는
+   같은 층이 되고 DOM 순서상 머리가 위로 올라와 버튼이 가려졌다 — 한 단계 올린다.
+   §8 스케일 안에서만 고른다: 스티키보다 위, 모달보다 아래. */
 .closeFloat {
   position: absolute;
   top: var(--sp-4);
   right: var(--sp-4);
-  z-index: var(--z-sticky);
+  z-index: var(--z-dropdown);
   width: 36px;
   height: 36px;
   display: flex;

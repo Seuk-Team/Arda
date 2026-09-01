@@ -46,8 +46,7 @@ class StageHistory {
 
   /// 시안: 단계 이름만 나열하면 되돌린 건지 전진한 건지 구분되지 않는다.
   /// `from_stage` 를 주로 붙여 "면접에서 → 최종 합격"이 한 줄에 읽히게 한다.
-  String? get fromLabel =>
-      fromStage == null ? null : '${fromStage!.label}에서';
+  String? get fromLabel => fromStage == null ? null : '${fromStage!.label}에서';
 
   /// 누가 바꿨는지. 시스템이면 지원자가 직접 낸 것이다
   String get actorLabel => changedByName ?? '지원자 제출';

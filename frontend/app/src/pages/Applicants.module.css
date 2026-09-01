@@ -170,16 +170,19 @@
 }
 
 /* ── 목록 ────────────────────────────────────────── */
-/* 본문과 상세 패널이 나란히 서는 자리 — 공고의 지원자 화면과 같은 구성 */
-.body {
+/* 화면 전체(제목·툴바·본문) 한 열 + 오른쪽 패널이 나란히 선다.
+   패널이 열리면 머리까지 같이 밀린다 (2026-09-01). */
+.split {
   flex: 1;
   min-height: 0;
   display: flex;
 }
 
-.body > main {
+.col {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel {

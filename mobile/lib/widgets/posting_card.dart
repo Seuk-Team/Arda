@@ -17,8 +17,20 @@ import '../models/stage.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import 'funnel_bar.dart';
+import 'funnel_legend.dart';
 
 class PostingCard extends StatelessWidget {
+  /// 레일에 그릴 단계 — **불합격까지 전 단계.**
+  ///
+  /// 초안은 대시보드처럼 4단으로 그렸지만 되돌렸다: 카드 위에 적히는
+  /// "지원자 수"는 불합격까지 센 수라, 레일이 4단이면 **총원과 범례 합이
+  /// 어긋난다**(6명인데 범례는 5). 퍼널이 사람을 조용히 빠뜨리는 쪽이
+  /// 숫자가 안 맞는 것보다 나쁘다.
+  ///
+  /// 대시보드 레일은 §0.5 가 4단으로 못 박은 자리라 거기는 그대로 둔다 —
+  /// 그쪽은 총원 표기도 같은 4단 합이라 어긋나지 않는다.
+  static const railStages = Stage.values;
+
   const PostingCard({
     super.key,
     required this.posting,
@@ -107,7 +119,15 @@ class PostingCard extends StatelessWidget {
               ),
 
               const SizedBox(height: AppSpace.s3),
-              FunnelBar(counts: counts),
+              // 초안이 더한 범례. 레일 단계는 railStages 주석 참고
+              FunnelBar(
+                counts: counts,
+                stages: railStages,
+                // §0.5: 0건 구간도 6px 남긴다 — 몇 단짜리인지가 늘 읽혀야 한다
+                keepEmptySegments: true,
+              ),
+              const SizedBox(height: AppSpace.s3),
+              FunnelLegend(counts: counts, stages: railStages),
             ],
           ),
         ),

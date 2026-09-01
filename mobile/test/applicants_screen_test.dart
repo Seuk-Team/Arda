@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 Future<void> openFirstPosting(WidgetTester tester) async {
   await tester.pumpWidget(const ArdaApp());
+  // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+  await tester.tap(find.text('공고'));
+  await tester.pumpAndSettle();
   await tester.tap(find.text('백엔드 개발자 (신입)'));
   await tester.pumpAndSettle();
 }

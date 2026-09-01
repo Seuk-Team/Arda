@@ -132,9 +132,12 @@
   outline-offset: 2px;
 }
 
-/* 패널이 열려 있는 동안 눌린 상태 */
+/* 패널이 열려 있는 동안 눌린 상태.
+   2026-09-01 — --leaf 는 연두 사이드바 위에서 1px 짙은 잎초록이라 검은 선으로 읽혔고,
+   그렇다고 바탕을 --sprout-soft 로 깔면 3D 캔버스가 투명이라 아르가 뜬 것처럼 흐려진다.
+   바탕은 흰색 그대로 두고 테두리만 한 단계 밝은 --sprout 으로 굵힌다. */
 .arSlot[aria-expanded='true'] {
-  border-color: var(--leaf);
+  border-color: var(--sprout);
   box-shadow: var(--sh-card);
 }
 
