@@ -85,6 +85,8 @@
   cursor: not-allowed;
 }
 
+/* 문구가 편집 가능해지면서 읽기 전용 표시를 걷었다 (G4) —
+   not-allowed 커서와 흐린 글자색은 "못 고치는 칸"이라는 뜻이었다. */
 .textarea {
   width: 100%;
   min-height: 200px;
@@ -92,9 +94,25 @@
   padding: var(--sp-3);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-ctl);
-  background: var(--bg-sunken);
+  background: var(--bg-elev);
   font-size: var(--font-sm);
   line-height: 1.55;
+  color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.textarea:hover:not(:disabled) {
+  border-color: var(--sunken-hover);
+}
+
+.textarea:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+  border-color: var(--leaf);
+}
+
+.textarea:disabled {
+  background: var(--bg-sunken);
   color: var(--text-sub);
   cursor: not-allowed;
 }
@@ -102,6 +120,7 @@
 .formActions {
   display: flex;
   justify-content: flex-end;
+  gap: var(--sp-2);
   margin-top: var(--sp-3);
 }
 
@@ -309,7 +328,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--sp-4);
-  background: rgba(27, 33, 23, 0.32);
+  background: var(--scrim);
 }
 
 .modal {
@@ -327,7 +346,7 @@
 
 .modalTitle {
   margin: 0 0 var(--sp-2);
-  font-size: var(--font-h3, var(--font-body));
+  font-size: var(--font-h2);
   font-weight: 700;
   color: var(--text);
 }
@@ -365,10 +384,7 @@
 }
 
 .badgeOn {
-  background: var(--leaf-soft, var(--bg-sunken));
+  background: var(--sprout-soft);
   color: var(--leaf);
 }
 
-.formActions {
-  gap: var(--sp-2);
-}

@@ -243,7 +243,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--sp-4);
-  background: rgba(27, 33, 23, 0.32);
+  background: var(--scrim);
 }
 
 .mailModal {
@@ -262,7 +262,7 @@
 .mailWarn {
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--warn, var(--text-sub));
+  color: var(--danger);
 }
 
 .mailSubject {
