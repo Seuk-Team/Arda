@@ -116,6 +116,7 @@ class OllamaBackend:
         host: str | None = None,
         num_ctx: int | None = None,
         timeout: float | None = None,
+        think: bool | None = None,
     ):
         self.model = model
         self.host = (host or os.getenv("OLLAMA_HOST", DEFAULT_HOST)).rstrip("/")
@@ -123,6 +124,12 @@ class OllamaBackend:
         self.timeout = timeout if timeout is not None else _env_float(
             "OLLAMA_TIMEOUT_SEC", DEFAULT_TIMEOUT_SEC
         )
+        # Qwen3 는 사고 모드가 기본으로 켜져 있다. `<think>` 를 지우기만 하면
+        # **생성은 다 하고 버리는** 것이라 시간과 토큰 예산을 그대로 쓴다.
+        # 실측(qwen3:4b, "면접 단계 지원자 보여줘"): 켜짐 출력 3444토큰·83초
+        # → 꺼짐 쪽이 비교 대상이다. 도구 인자를 채우는 일에 사고 과정은 필요 없다.
+        # 되살리려면 OLLAMA_THINK=1.
+        self.think = think if think is not None else os.getenv("OLLAMA_THINK", "0") == "1"
 
     def model_tag(self) -> str:
         return f"{self.name}:{self.model}"
@@ -156,6 +163,8 @@ class OllamaBackend:
             "stream": False,
             # num_ctx 를 명시하지 않으면 기본값이 작아 프롬프트가 조용히 잘린다.
             "options": {"num_ctx": self.num_ctx},
+            # 사고 모드. 끄면 Ollama 가 <think> 자체를 만들지 않는다 (지우는 것과 다르다)
+            "think": self.think,
         }
         if tools:
             payload["tools"] = tools
