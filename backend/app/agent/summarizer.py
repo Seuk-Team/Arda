@@ -7,7 +7,6 @@
 
 import json
 import logging
-import os
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -16,10 +15,45 @@ from app.models import Application, JobPosting
 
 logger = logging.getLogger(__name__)
 
-SUMMARY_MODEL = os.getenv("AGENT_SUMMARY_MODEL", "claude-haiku-4-5-20251001")
+# 모델·백엔드 선택은 app.agent.backends 가 한다 (AGENT_SUMMARY_BACKEND /
+# AGENT_SUMMARY_MODEL / OLLAMA_SUMMARY_MODEL). 여기서 또 읽으면 둘이 갈라진다.
 SUMMARY_MAX_TOKENS = 500
 
 _EMPTY = "제출된 내용 없음"
+
+# 3단 체인의 출력 스키마. 문법 제약 디코딩을 지원하는 백엔드(로컬 Ollama `format`)
+# 에서만 쓴다. 지원하지 않는 백엔드는 프롬프트로만 JSON 을 요청하고
+# _strip_fences + _parse_json 폴백에 기댄다 — 최소 공통 분모로 깎지 않는다.
+_STEP_SCHEMAS: dict[str, dict] = {
+    "chain_summarize": {
+        "type": "object",
+        "properties": {
+            "insufficient": {"type": "boolean"},
+            "gist": {"type": "string"},
+            "key_skills": {"type": "array", "items": {"type": "string"}},
+            "key_experiences": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["insufficient", "gist", "key_skills", "key_experiences"],
+    },
+    "chain_evaluate": {
+        "type": "object",
+        "properties": {
+            "fit_score": {"type": "integer", "minimum": 1, "maximum": 5},
+            "fit": {"type": "array", "items": {"type": "string"}},
+            "concerns": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["fit_score", "fit", "concerns"],
+    },
+    "chain_recommend": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string"},
+            "reasons": {"type": "array", "items": {"type": "string"}},
+            "check_points": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["action", "reasons", "check_points"],
+    },
+}
 
 
 def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
@@ -51,15 +85,19 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
     }
 
 
-def _call_llm(client, prompt_text: str) -> tuple[str, int, int]:
-    """LLM 1회 호출. (응답 텍스트, input_tokens, output_tokens) 반환."""
-    response = client.messages.create(
-        model=SUMMARY_MODEL,
+def _call_llm(backend, prompt_text: str, step_name: str) -> tuple[str, int, int, float]:
+    """LLM 1회 호출. (응답 텍스트, input_tokens, output_tokens, cost_usd) 반환.
+
+    문법 제약 디코딩을 지원하는 백엔드면 스키마를 강제하고, 아니면 스키마 없이
+    부른 뒤 기존 파싱 폴백을 그대로 쓴다.
+    """
+    schema = _STEP_SCHEMAS.get(step_name) if backend.supports_structured_output else None
+    result = backend.complete(
+        prompt=prompt_text,
         max_tokens=SUMMARY_MAX_TOKENS,
-        messages=[{"role": "user", "content": prompt_text}],
+        json_schema=schema,
     )
-    raw = response.content[0].text.strip()
-    return raw, response.usage.input_tokens, response.usage.output_tokens
+    return result.text.strip(), result.input_tokens, result.output_tokens, result.cost_usd
 
 
 def _strip_fences(raw: str) -> str:
@@ -97,20 +135,18 @@ def generate_summary(db: Session, application_id: int) -> str | None:
 
     from app.agent.prompts import render
 
-    try:
-        import anthropic
-    except ImportError:
-        logger.error("anthropic 패키지 미설치 — uv add anthropic 필요")
+    from app.agent.backends import get_summary_backend
+
+    backend = get_summary_backend()
+    reason = backend.unavailable_reason()
+    if reason:
+        logger.error(reason)
         return None
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.error("ANTHROPIC_API_KEY 미설정")
-        return None
-
-    client = anthropic.Anthropic(api_key=api_key)
+    model_tag = backend.model_tag()
     total_input = 0
     total_output = 0
+    total_cost = 0.0
     prompt_tags: list[str] = []
 
     # ── Step 1: 요약 ──
@@ -121,9 +157,10 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             cover_letter_text=prompt_vars["cover_letter_text"],
         )
         prompt_tags.append(step1_tag)
-        raw1, in1, out1 = _call_llm(client, step1_text)
+        raw1, in1, out1, cost1 = _call_llm(backend, step1_text, "chain_summarize")
         total_input += in1
         total_output += out1
+        total_cost += cost1
     except Exception:
         logger.exception("Step1 실패: application_id=%d", application_id)
         return None
@@ -136,7 +173,7 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         )
         app.ai_summary = summary_json
         app.ai_summary_at = datetime.now(UTC)
-        app.ai_summary_model = f"{SUMMARY_MODEL}/{'+'.join(prompt_tags)}"
+        app.ai_summary_model = f"{model_tag}/{'+'.join(prompt_tags)}"
         db.commit()
         return summary_json
 
@@ -149,9 +186,10 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             profile_summary=json.dumps(step1, ensure_ascii=False),
         )
         prompt_tags.append(step2_tag)
-        raw2, in2, out2 = _call_llm(client, step2_text)
+        raw2, in2, out2, cost2 = _call_llm(backend, step2_text, "chain_evaluate")
         total_input += in2
         total_output += out2
+        total_cost += cost2
     except Exception:
         logger.exception("Step2 실패: application_id=%d", application_id)
         return None
@@ -168,9 +206,10 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             evaluation_result=json.dumps(step2, ensure_ascii=False),
         )
         prompt_tags.append(step3_tag)
-        raw3, in3, out3 = _call_llm(client, step3_text)
+        raw3, in3, out3, cost3 = _call_llm(backend, step3_text, "chain_recommend")
         total_input += in3
         total_output += out3
+        total_cost += cost3
     except Exception:
         logger.exception("Step3 실패: application_id=%d", application_id)
         return None
@@ -196,13 +235,13 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     }
     summary_json = json.dumps(combined, ensure_ascii=False)
 
-    from app.agent.runtime import _estimate_cost
-
-    cost = _estimate_cost(SUMMARY_MODEL, total_input, total_output)
+    # 비용은 각 호출에서 백엔드가 계산해 온 것을 합산한다. 여기서 PRICING 표를
+    # 다시 조회하면 로컬 모델명이 haiku 단가로 폴백해 없는 요금이 찍힌다.
+    cost = total_cost
 
     app.ai_summary = summary_json
     app.ai_summary_at = datetime.now(UTC)
-    app.ai_summary_model = f"{SUMMARY_MODEL}/{'+'.join(prompt_tags)}"
+    app.ai_summary_model = f"{model_tag}/{'+'.join(prompt_tags)}"
     db.commit()
 
     logger.info(
