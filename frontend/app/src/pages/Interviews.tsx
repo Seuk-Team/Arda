@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import SidePanel from '../components/SidePanel'
+import { useRightPanel } from '../components/RightPanel'
 import { ApiError } from '../api/client'
 import { schedules } from '../api/endpoints'
 import type { Interview } from '../api/types'
@@ -99,8 +100,10 @@ export default function Interviews() {
   const [sel, setSel] = useState(startOfToday)
   const [view, setView] = useState(() => startOfMonth(startOfToday()))
   /* 그날 일정 패널. 칸을 눌러야 열린다 — 화면에 들어오자마자 열려 있으면
-     한 달을 훑어보러 온 사람에게 그리드가 좁아진 채로 시작한다 */
-  const [dayOpen, setDayOpen] = useState(false)
+     한 달을 훑어보러 온 사람에게 그리드가 좁아진 채로 시작한다.
+     아르 패널과 오른쪽 한 자리를 나눠 쓴다 — 열면 아르가 닫힌다 (RightPanel) */
+  const rightPanel = useRightPanel()
+  const dayOpen = rightPanel.active === 'day'
 
   const [list, setList] = useState<Interview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -336,9 +339,10 @@ export default function Interviews() {
                 aria-label={`${fmt(d)} ${DOW[d.getDay()]}요일, ${items.length ? `면접 ${items.length}건` : '면접 없음'}`}
                 onClick={() => {
                   /* 같은 날을 다시 누르면 닫는다 — 다른 날이면 그 날로 바꿔 열어 둔다 */
-                  const same = key === selKey
+                  const same = key === selKey && dayOpen
                   jump(d)
-                  setDayOpen((v) => (same ? !v : true))
+                  if (same) rightPanel.close('day')
+                  else rightPanel.open('day')
                 }}
               >
                 <span className={styles.date}>{d.getDate()}</span>
@@ -377,7 +381,7 @@ export default function Interviews() {
       {dayOpen && (
       <SidePanel
         variant="content"
-        onClose={() => setDayOpen(false)}
+        onClose={() => rightPanel.close('day')}
         label="그날 면접 일정"
         closeLabel="일정 패널 닫기"
       >

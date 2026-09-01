@@ -2,7 +2,16 @@
    시안(1-right-panel.html)의 #panel-slot — 상세 패널과 아르 패널이 같은 규격으로 들어가던
    자리를 코드로 옮긴 것. 흰 바탕·테두리·스크롤·좁은 화면 오버레이만 여기서 책임진다. */
 
+/* 오른쪽에 서는 패널은 아르·그날 일정·지원자 상세가 한 자리를 나눠 쓰고 한 번에
+   하나만 열린다 (RightPanel.tsx). 같은 위계·같은 자리이므로 폭도 하나다 (§3 동종
+   요소 동일 규격, 2026-09-01 — 아르 360 / 상세 420 으로 갈려 있던 것을 합쳤다).
+
+   360 인 이유: 사이드바 216 + 420 = 636 이면 §9 PC 최소 1280 에서 본문 좌우
+   여백(--content-x 48×2)을 빼고 548px 밖에 안 남아 메인인 테이블이 눌린다.
+   360 이면 608px 이 남는다. */
 .panel {
+  --right-panel-w: 360px;
+
   flex: none;
   background: var(--bg-elev);
   overflow: hidden;
@@ -24,15 +33,13 @@
   overscroll-behavior: contain;
 }
 
-/* ── rail: 사이드바 오른쪽에 붙는 두 번째 사이드바 (ADR-0009 2026-08-31 개정) ──
+/* ── rail: 화면 오른쪽 끝에 붙는 아르 패널 (ADR-0009 2026-08-31 개정,
+   2026-09-01 왼쪽 → 오른쪽으로 이동) ──
    폭 0 → --panel-w 로 늘어난다. flex 형제라 본문(main)은 겹치지 않고 좁아진다 (§3 깨짐 금지).
    폭 애니메이션은 레이아웃을 건드리지만, "본문을 밀어낸다"가 요구사항이라 대체 수단이 없다.
    대신 전환 대상은 폭 하나뿐이고, 내용은 opacity 로만 따라온다. */
 .rail {
-  /* 시안(1-right-panel.html)의 420px 를 360px 로 줄였다 —
-     사이드바 216 + 420 = 636 이면 1280 화면에서 본문 좌우 여백(--content-x 48×2)을 빼고
-     548px 밖에 안 남아 메인인 테이블이 눌린다. 360 이면 608px 이 남는다. */
-  --panel-w: 360px;
+  --panel-w: var(--right-panel-w);
 
   width: 0;
   transition: width var(--dur-base) var(--ease);
@@ -44,7 +51,7 @@
 
 .rail .inner {
   padding: var(--sp-4);
-  border-right: var(--border-w) solid var(--border);
+  border-left: var(--border-w) solid var(--border);
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease);
 }
@@ -60,10 +67,10 @@
 /* 모바일에서는 본문을 좁히는 대신 덮는다 — 216 + 360 이면 남는 폭이 없다 (§9) */
 @media (max-width: 768px) {
   .rail {
-    --panel-w: min(360px, 92vw);
+    --panel-w: min(var(--right-panel-w), 92vw);
 
     position: fixed;
-    left: 0;
+    right: 0;
     top: 0;
     bottom: 0;
     z-index: var(--z-modal);
@@ -73,14 +80,27 @@
 
 /* ── content: 본문 오른쪽에 붙는 상세 패널 (mockup.html 의 .dpanel 규격, §12-1 시안 복제) ──
    flex 자식이라 열리면 콘텐츠가 밀린다 — 오버레이가 아니다.
-   폭 전환이 없는 것은 부모가 조건부 렌더로 열고 닫기 때문. */
+   목업의 420 을 아르와 같은 360 으로 맞췄다 (2026-09-01, 위 .panel 주석). */
 .content {
-  --panel-w: 420px;
+  --panel-w: var(--right-panel-w);
 
   width: var(--panel-w);
   border-left: var(--border-w) solid var(--border);
   /* 떠 있는 닫기 버튼(.closeFloat)의 기준 */
   position: relative;
+  /* 아르와 같이 오른쪽에서 밀려 나온다 (2026-09-01). 부모가 조건부 렌더로 열어
+     transition 을 걸 자리가 없어 마운트 애니메이션으로 같은 그림을 만든다.
+     .inner 가 고정 폭이고 .panel 이 overflow:hidden 이라 내용은 안 찌그러진다. */
+  animation: panelOpen var(--dur-base) var(--ease);
+}
+
+@keyframes panelOpen {
+  from { width: 0; }
+  to { width: var(--panel-w); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content { animation: none; }
 }
 
 /* 1100px 이하에서만 화면을 덮는다 (§9) */

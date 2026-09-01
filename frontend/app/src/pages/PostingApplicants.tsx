@@ -5,6 +5,7 @@ import { applications, postings as postingsApi, stages as stagesApi } from '../a
 import type { ApplicationListItem, Posting, Stage } from '../api/types'
 import { STAGE_LABEL, careerText, fmtDate, stageTone, withRo } from '../lib/stage'
 import ApplicantPanel from './ApplicantPanel'
+import { useRightPanel } from '../components/RightPanel'
 import Kanban from './Kanban'
 import styles from './PostingApplicants.module.css'
 
@@ -52,8 +53,21 @@ export default function PostingApplicants() {
   const [page, setPage] = useState(0)
   const [view, setView] = useState<'list' | 'kanban'>('list')
 
-  /* 상세 패널에 열려 있는 지원자 */
+  /* 상세 패널에 열려 있는 지원자. 아르 패널과 오른쪽 한 자리를 나눠 쓴다 —
+     아르를 열면 이쪽이 닫힌다 (RightPanel) */
+  const rightPanel = useRightPanel()
   const [openId, setOpenId] = useState<number | null>(null)
+  const detailOpen = openId !== null && rightPanel.active === 'applicant'
+
+  function openDetail(id: number) {
+    setOpenId(id)
+    rightPanel.open('applicant')
+  }
+
+  function closeDetail() {
+    setOpenId(null)
+    rightPanel.close('applicant')
+  }
 
   /* 일괄 단계 변경 (D9) — 고른 사람들 */
   const [picked, setPicked] = useState<Set<number>>(new Set())
@@ -387,7 +401,7 @@ export default function PostingApplicants() {
               className={`${styles.row} ${styles.rowSel} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
               tabIndex={0}
               aria-current={a.id === openId ? 'true' : undefined}
-              onClick={() => setOpenId(a.id)}
+              onClick={() => openDetail(a.id)}
             >
               {/* 체크는 행 열기와 다른 동작이다 — 여기서 멈춘다 */}
               <input
@@ -443,10 +457,10 @@ export default function PostingApplicants() {
         )}
       </main>
 
-      {openId !== null && (
+      {detailOpen && openId !== null && (
         <ApplicantPanel
           applicationId={openId}
-          onClose={() => setOpenId(null)}
+          onClose={closeDetail}
           onChanged={() => setTick((n) => n + 1)}
         />
       )}

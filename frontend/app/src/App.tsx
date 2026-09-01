@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import { AuthProvider } from './auth/AuthContext'
 import { ToastProvider } from './components/Toast'
+import { RightPanelProvider } from './components/RightPanel'
 import RequireAuth from './auth/RequireAuth'
 import Login from './pages/Login'
 import Apply from './pages/Apply'
@@ -28,6 +29,8 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+      {/* 오른쪽 패널은 한 번에 하나 — 아르와 그날 일정이 같은 자리를 쓴다 */}
+      <RightPanelProvider>
       <Routes>
         {/* 루트는 대시보드로. 비로그인은 RequireAuth 가 /login 으로 보낸다 */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -60,6 +63,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </RightPanelProvider>
       </ToastProvider>
     </AuthProvider>
   )

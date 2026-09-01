@@ -3,11 +3,14 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ArPanel, { type ArMotion } from './ArPanel'
 import MorphNav from './MorphNav'
+import { useRightPanel } from './RightPanel'
 import type { Motion } from './ArViewer'
 import styles from './Layout.module.css'
 
 export default function Layout() {
-  const [arOpen, setArOpen] = useState(false)
+  /* 열림 상태는 오른쪽 패널 한 자리를 나눠 쓰는 쪽들이 같이 본다 (RightPanel) */
+  const { active, toggle, close } = useRightPanel()
+  const arOpen = active === 'ar'
   /* 마운트 직후 enter 를 1회 재생하고 ArViewer 가 알아서 idle 로 돌아온다.
      이후 값은 ArChat 이 onMotion 으로 밀어 넣는다. */
   const [motion, setMotion] = useState<Motion>('enter')
@@ -17,8 +20,8 @@ export default function Layout() {
   /* hover 반응은 쉬고 있을 때만 — 채팅이 돌고 있으면 그 모션을 덮지 않는다 */
   const shownMotion: Motion = motion === 'idle' && arHovered ? 'listen' : motion
 
-  const toggleAr = useCallback(() => setArOpen((v) => !v), [])
-  const closeAr = useCallback(() => setArOpen(false), [])
+  const toggleAr = useCallback(() => toggle('ar'), [toggle])
+  const closeAr = useCallback(() => close('ar'), [close])
   const onMotion = useCallback((m: ArMotion) => setMotion(m), [])
 
   /* 전역 Ctrl+K (맥 ⌘K) — ADR-0009 가 확정한 진입점.
@@ -29,11 +32,11 @@ export default function Layout() {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return
       if (e.key.toLowerCase() !== 'k') return
       e.preventDefault()
-      setArOpen((v) => !v)
+      toggle('ar')
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [toggle])
 
   return (
     /* 화면 전환(대시보드 축소판 → 캘린더)은 라우트 밖에서 살아 있어야 한다 —
@@ -47,11 +50,12 @@ export default function Layout() {
           onArHover={setArHovered}
           arButtonRef={arButtonRef}
         />
-        <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
         {/* 전환이 페이드아웃·페이드인 대상으로 잡는 본문 껍데기 */}
         <main className={styles.main} data-morph-shell="">
           <Outlet />
         </main>
+        {/* 2026-09-01 — 사이드바 옆(왼쪽)에서 화면 오른쪽 끝으로 옮겼다 */}
+        <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
       </div>
     </MorphNav>
   )
