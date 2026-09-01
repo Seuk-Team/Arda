@@ -84,16 +84,51 @@ class AgentResult:
     model: str = ""
 
 
-def _describe_action(name: str, args: dict) -> str:
+_STAGE_KR = {
+    "applied": "접수",
+    "screening": "서류심사",
+    "interview": "면접",
+    "accepted": "합격",
+    "rejected": "불합격",
+}
+
+_PURPOSE_KR = {
+    "interview": "면접 안내",
+    "accepted": "합격 안내",
+    "rejected": "불합격 안내",
+    "general": "일반 안내",
+}
+
+
+def _applicant_label(db: Session, application_id: int | None) -> str:
+    """지원자 ID → '김도현(서울대 컴공)' 형태. 못 찾으면 '#ID'."""
+    if application_id is None:
+        return "지원자"
+    from app.models import Application
+    app = db.get(Application, int(application_id))
+    if app is None:
+        return f"지원자 #{application_id}"
+    parts = [app.name]
+    if app.education:
+        parts.append(f"({app.education})")
+    return " ".join(parts)
+
+
+def _describe_action(name: str, args: dict, db: Session) -> str:
     """사용자에게 보여줄 확인 메시지를 만든다."""
+    label = _applicant_label(db, args.get("application_id"))
     if name == "change_stage":
-        return f"지원자 #{args.get('application_id')}의 단계를 '{args.get('to_stage')}'(으)로 변경합니다"
+        to = _STAGE_KR.get(args.get("to_stage", ""), args.get("to_stage", ""))
+        return f"{label}을(를) {to} 단계로 변경합니다"
     if name == "assign_interviewer":
         ids = args.get("interviewer_ids", [])
-        return f"지원자 #{args.get('application_id')}에 면접관 {ids}을(를) 배정합니다"
+        return f"{label}에 면접관 {len(ids)}명을 배정합니다"
+    if name == "create_schedule_proposal":
+        max_slots = args.get("max_slots", 5)
+        return f"{label}에게 면접 일정 후보 {max_slots}개를 제안합니다"
     if name == "draft_email":
-        purpose = args.get("purpose", "general")
-        return f"지원자 #{args.get('application_id')}에게 '{purpose}' 이메일 초안을 생성합니다"
+        purpose = _PURPOSE_KR.get(args.get("purpose", "general"), "안내")
+        return f"{label}에게 {purpose} 이메일 초안을 생성합니다"
     return f"{name} 실행"
 
 
@@ -185,7 +220,7 @@ def run_agent(
             result.pending_action = PendingAction(
                 tool_name=write_tool.name,
                 arguments=write_tool.input,
-                description=_describe_action(write_tool.name, write_tool.input),
+                description=_describe_action(write_tool.name, write_tool.input, db),
             )
             break
 

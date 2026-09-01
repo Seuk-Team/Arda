@@ -129,7 +129,9 @@ export default function ArChat({
 }): ReactElement {
   const { show } = useToast()
 
-  const [items, setItems] = useState<Item[]>([])
+  const [items, setItems] = useState<Item[]>([
+    { id: 0, kind: 'ar', text: '안녕하세요! 저는 **아르**예요.\n지원자 검색, 단계 변경, 면접 일정 같은 채용 업무를 도와드려요.' },
+  ])
   /* 서버로 보내는 대화 이력. Anthropic 규칙상 user/assistant 가 번갈아야 하고 빈 내용은
      안 되므로, 성공한 왕복만 한 쌍씩 쌓는다 (실패한 요청은 넣지 않는다). */
   const [history, setHistory] = useState<AgentHistoryMessage[]>([])
@@ -256,8 +258,6 @@ export default function ArChat({
   return (
     <div className={styles.root}>
       <div className={styles.stream} ref={streamRef} aria-live="polite" aria-busy={locked}>
-        {items.length === 0 && !busy && <p className={styles.empty}>무엇이든 시키세요…</p>}
-
         {items.map((item) => {
           if (item.kind === 'user') return <p key={item.id} className={styles.user}>{item.text}</p>
           /* 아르 말은 아이콘 + 앰버 점선 말풍선 가로 배치 (시안 #agSurface) */
