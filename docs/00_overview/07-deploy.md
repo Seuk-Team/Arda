@@ -198,3 +198,28 @@ uv run python scripts/prefetch_models.py --stt
 실측(2026-09-01, RTX 3050): 임베딩 `ko-sroberta` 11초 · STT `large-v3` 70초. 받은 뒤 `HF_HUB_OFFLINE=1` 상태에서 임베딩 로드와 한국어 전사가 모두 정상 동작하는 것을 확인했다.
 
 **캐시 경로가 빌드와 런타임에서 같아야 의미가 있다.** 볼륨으로 덮어쓰면 구운 것이 가려진다 — `HF_HOME` 을 볼륨 밖에 두거나, 볼륨 쪽에 다시 받아라.
+
+## 2026-09-01 재배포 (팀장)
+
+`ba78a9d` 기준. `git archive main` → scp → 서버에서 tar 해제 → `up -d --build`.
+
+| 단계 | 결과 |
+|---|---|
+| `docker builder prune -f` | 1.76GB 회수 (빌드 전 9.6G → 11G 여유) |
+| 빌드 | **약 6분**, OOM 없음. 이미지 382MB → **791MB**(임베딩 모델을 구운 몫) |
+| `up -d` | api·worker 재생성, 16초 뒤 정상 |
+| `/health` | 200 |
+| 신규 경로 401 | `/postings`·`/users`·`/email-templates` — 라우트 살아 있고 인증 걸림 |
+| CORS preflight | 허용 출처 200 + `Access-Control-Allow-Origin`, 모르는 출처 400에 헤더 없음 |
+
+**t3.micro(RAM 1GiB)에서 임베딩 모델 프리페치가 OOM 날 것을 걱정했으나 통과했다**(스왑 2G 여유 있었고 `dmesg` 에 OOM 기록 없음). 다만 이미지가 두 배가 됐으니 디스크 여유를 계속 봐야 한다.
+
+**빌드와 `up` 을 나눠 돌렸다** — `docker compose build` 로 먼저 만들고 성공을 확인한 뒤 `up -d` 했다. 빌드가 실패해도 돌던 컨테이너가 안 죽는다. G4 때 디스크 고갈로 api·worker 를 내려야 했던 것과 대비되는 지점이다.
+
+### 재배포 뒤에 한 것
+
+1. **AI 요약 재생성.** 배포 전 21건 중 15건이 `{"insufficient": true, "gist": "", ...}` 빈 껍데기였다 — `SUMMARY_MAX_TOKENS=500` 에서 step1 이 잘려 JSON 이 깨진 것(`96204f9` 가 1500 으로 수정). **관문 확인**: 내용 있는 지원서 1건을 먼저 재생성해 태그가 **91자**(`anthropic:...chain_summarize.v1+chain_evaluate.v1+chain_recommend.v1`)로 저장되고 `insufficient: false` 가 나오는 것을 확인한 뒤 나머지를 돌렸다. **폭 50 이었으면 여기서 죽었다** — ALTER 가 재배포보다 먼저여야 했던 이유다.
+2. **`insufficient: true` 가 남는 것이 정상인 건도 있다.** id 7·8 은 **자소서 0자·첨부 0개인 테스트 계정**(`음머(테스트)`·`김데모`)이라 그 판정이 정답이다. 버그로 오해하기 쉬우니 적어 둔다.
+3. **Vercel rewrite 제거 머지.** CORS 가 운영에 살아 있는 것을 실측으로 확인한 뒤 머지했다. 이로써 **지원자 자소서를 포함한 모든 API 요청이 제3자(Vercel) 서버를 통과하던 경로가 없어졌다.** 프론트는 `VITE_API_BASE` 로 API 를 직접 부른다.
+
+**백업**: `~/docker-compose.prod.yml.bak-0901deploy` · `~/backend.env.bak-0901deploy`.
