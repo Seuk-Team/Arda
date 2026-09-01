@@ -56,6 +56,91 @@ _BREVITY_SUFFIX = """
 - **이메일·ID·날짜·표는 쓰지 않는다.** 담당자가 명시적으로 물을 때만 쓴다.
 - 전체 답변은 **8줄 이내**. 길어질 것 같으면 먼저 요약하고 더 볼지 되묻는다."""
 
+# ── 문법 제약 채팅 (2026-09-01 실측 기반) ──────────────────────────
+#
+# qwen2.5:3b 는 긴 시스템 프롬프트 + tools 조합에서 **첫 토큰으로 EOS 를 뱉는다**
+# (원문: content="" · eval_count=1 · done_reason=stop, temperature 0 에서 결정적).
+# 짧은 시스템 프롬프트에서는 도구를 제대로 부르므로 능력 부재가 아니라 형식 붕괴다.
+# `format` 에 결정 스키마를 실으면 빈 출력이 문법상 불가능해져 붕괴가 사라진다.
+#
+# 구성: 라운드마다 아래 둘 중 하나를 JSON 하나로 강제한다.
+#   {"action":"tool","tool":<이름>,"arguments":<그 도구의 input_schema>}  (도구별 oneOf 분기)
+#   {"action":"reply","reply":<한국어 답변>}
+# 사람이 읽는 답변은 reply 필드에서 어댑터가 꺼내므로 JSON 이 사용자에게 새지 않는다.
+# 2단 구성(도구만 강제, 답변은 자유)을 쓰지 않은 이유: 라운드마다 호출이 두 배가 되고,
+# 답변 라운드도 같은 EOS 붕괴에 노출된다.
+#
+# `format` 은 네이티브 tools 파라미터와 함께 못 쓴다 — qwen2.5 의 도구 호출은
+# `<tool_call>` 태그 형식인데 문법이 그 형식을 금지한다. 그래서 도구 목록은
+# 시스템 프롬프트 텍스트(카탈로그)로 넣고, 호출은 스키마가 받는다.
+# 켜는 스위치: OLLAMA_CHAT_STRUCTURED=1 (기본 꺼짐 — 기존 경로 그대로).
+_STRUCTURED_ENV = "OLLAMA_CHAT_STRUCTURED"
+
+# 문법이 형식을 잡아도 내용은 확률적으로 튄다(실측: 같은 질의 3회에서 가짜 이름
+# 필터·도구 없이 지어낸 답변 각 1회). temperature 0 으로 결정화한다.
+_STRUCTURED_TEMPERATURE = 0
+
+_STRUCTURED_SUFFIX_HEADER = """
+
+## 사용 가능한 도구
+"""
+
+_STRUCTURED_SUFFIX_FOOTER = """
+## 응답 형식 (반드시 JSON 하나)
+도구가 필요하면 {"action":"tool","tool":"<이름>","arguments":{...}} 로,
+사용자에게 답할 준비가 되면 {"action":"reply","reply":"<한국어 답변>"} 로 응답한다.
+
+규칙 (반드시 지킨다):
+- 지원자·일정·공고 데이터에 대한 질문은 **반드시 도구를 먼저 호출**한다.
+  이 대화에 도구 결과가 아직 없으면 reply 를 쓰지 마라 — 이름·수치를 지어내게 된다.
+- 단계 변경·면접관 배정·일정 제안·이메일 초안 요청은 반드시 해당 도구
+  (change_stage / assign_interviewer / create_schedule_proposal / draft_email)를 호출한다.
+- reply 에는 직전 도구 결과에 실제로 있는 이름·숫자만 쓴다.
+  인원수는 세지 말고 도구 결과의 count 값을 그대로 옮겨 쓴다.
+
+예시 (첫 턴):
+- "서류심사 단계 지원자 보여줘" → {"action":"tool","tool":"search_applications","arguments":{"stage":["screening"]}}
+- "지원자 7번을 면접 단계로 바꿔줘" → {"action":"tool","tool":"change_stage","arguments":{"application_id":7,"to_stage":"interview"}}
+- 도구 결과를 받은 다음 턴 → {"action":"reply","reply":"..."}"""
+
+
+def build_decision_schema(definitions: list[dict]) -> dict:
+    """도구별 분기 + reply 분기의 oneOf 결정 스키마.
+
+    arguments 에 각 도구의 `input_schema` 를 그대로 실어 인자 수준까지 문법으로 닫는다.
+    """
+    branches: list[dict] = []
+    for d in definitions:
+        branches.append({
+            "type": "object",
+            "properties": {
+                "action": {"const": "tool"},
+                "tool": {"const": d["name"]},
+                "arguments": d.get("input_schema") or {"type": "object", "properties": {}},
+            },
+            "required": ["action", "tool", "arguments"],
+        })
+    branches.append({
+        "type": "object",
+        "properties": {"action": {"const": "reply"}, "reply": {"type": "string"}},
+        "required": ["action", "reply"],
+    })
+    return {"oneOf": branches}
+
+
+def build_tool_catalog(definitions: list[dict]) -> str:
+    """tools 파라미터 대신 시스템 프롬프트에 덧붙일 도구 카탈로그 텍스트."""
+    lines = [_STRUCTURED_SUFFIX_HEADER]
+    for d in definitions:
+        schema = d.get("input_schema") or {}
+        lines.append(
+            f"- {d['name']}: {d.get('description', '')}\n  parameters: "
+            + json.dumps(schema, ensure_ascii=False)
+        )
+    lines.append(_STRUCTURED_SUFFIX_FOOTER)
+    return "\n".join(lines)
+
+
 # 로컬 추론 직렬화 락. 모듈 수준이어야 스레드풀의 모든 요청이 같은 락을 본다.
 _INFERENCE_LOCK = threading.Lock()
 
@@ -174,6 +259,8 @@ class OllamaBackend:
             num_predict if num_predict is not None
             else _env_int("OLLAMA_NUM_PREDICT", DEFAULT_NUM_PREDICT)
         )
+        # 문법 제약 채팅. 기본 꺼짐 — 켜지 않으면 run_chat 은 기존 경로 그대로다.
+        self.structured_chat = os.getenv(_STRUCTURED_ENV) == "1"
 
     def model_tag(self) -> str:
         return f"{self.name}:{self.model}"
@@ -269,6 +356,13 @@ class OllamaBackend:
         tools: ToolRunner,
         request_id: str | None = None,
     ) -> AgentResult:
+        if self.structured_chat:
+            return self._run_chat_structured(
+                message=message,
+                history=history,
+                system_prompt=system_prompt,
+                tools=tools,
+            )
         messages: list[dict] = [{"role": "system", "content": system_prompt + _BREVITY_SUFFIX}]
         messages.extend(trim_history(history))
         messages.append({"role": "user", "content": message})
@@ -344,6 +438,115 @@ class OllamaBackend:
             result.reply = "도구 호출 횟수 제한에 도달했습니다. 질문을 더 구체적으로 해주세요."
 
         # 로컬 추론은 과금이 없다 — 0.0 을 명시한다.
+        result.cost_usd = 0.0
+        return result
+
+    # ── 문법 제약 대화 (OLLAMA_CHAT_STRUCTURED=1) ──────────────────
+
+    def _chat_structured_once(self, messages: list[dict], schema: dict) -> dict:
+        """결정 스키마를 `format` 에 실은 1회 호출.
+
+        `_chat_once` 를 재사용하지 않는 이유: 구조화 모드는 temperature 0 이
+        필요한데(내용 환각 결정화), 공용 경로의 옵션을 건드리면 기존 측정과
+        섞인다. tools 파라미터는 싣지 않는다 — 문법이 네이티브 `<tool_call>`
+        형식을 금지하므로 함께 쓰면 모순이다.
+        """
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "format": schema,
+            "options": _drop_none({
+                "num_ctx": self.num_ctx,
+                "num_predict": self.num_predict if self.num_predict > 0 else None,
+                "temperature": _STRUCTURED_TEMPERATURE,
+            }),
+        }
+        if self.think is not None:
+            payload["think"] = self.think
+
+        data = self._post_chat(payload)
+        self._warn_if_truncated(messages, data)
+        return data
+
+    def _run_chat_structured(
+        self,
+        *,
+        message: str,
+        history: list[dict],
+        system_prompt: str,
+        tools: ToolRunner,
+    ) -> AgentResult:
+        """도구 루프 전체를 결정 스키마(JSON 문법)로 강제하는 대화 경로.
+
+        사람이 읽는 답변은 reply 필드에서 꺼내 반환하므로 JSON 이 새지 않는다.
+        """
+        system = system_prompt + _BREVITY_SUFFIX + build_tool_catalog(tools.definitions)
+        schema = build_decision_schema(tools.definitions)
+
+        messages: list[dict] = [{"role": "system", "content": system}]
+        messages.extend(trim_history(history))
+        messages.append({"role": "user", "content": message})
+
+        result = AgentResult(reply="", model=self.model_tag(), backend=self.name)
+
+        for _ in range(MAX_ROUNDS):
+            result.rounds += 1
+            data = self._chat_structured_once(messages, schema)
+
+            result.input_tokens += data.get("prompt_eval_count", 0) or 0
+            result.output_tokens += data.get("eval_count", 0) or 0
+
+            msg = data.get("message") or {}
+            raw = strip_think(msg.get("content") or "")
+
+            try:
+                decision = json.loads(raw)
+            except json.JSONDecodeError:
+                decision = None
+            if not isinstance(decision, dict):
+                # num_predict 에 잘렸거나 문법 밖 출력. 있는 그대로를 답으로 쓰지
+                # 않는다 — 깨진 JSON 조각이 사용자에게 보이면 안 된다.
+                logger.warning(
+                    "ollama_structured_parse_failed",
+                    extra={"model": self.model_tag(), "done_reason": data.get("done_reason")},
+                )
+                result.reply = "응답을 생성할 수 없습니다."
+                break
+
+            if decision.get("action") != "tool":
+                result.reply = str(decision.get("reply") or "").strip() or "응답을 생성할 수 없습니다."
+                break
+
+            name = str(decision.get("tool") or "")
+            args = decision.get("arguments")
+            args = args if isinstance(args, dict) else {}
+
+            if tools.is_deferred(name):
+                logger.info(
+                    "pending_write_tool",
+                    extra={"tool": name, "tool_args": sorted(args)},
+                )
+                result.tool_calls.append({"name": name, "input": args})
+                result.reply = ""
+                result.pending_action = PendingAction(
+                    tool_name=name,
+                    arguments=args,
+                    description=tools.describe(name, args),
+                )
+                break
+
+            logger.info("tool_call", extra={"tool": name, "tool_args": sorted(args)})
+            result.tool_calls.append({"name": name, "input": args})
+            output = tools.execute(name, args)
+
+            # 결정 JSON 을 assistant 턴으로 그대로 쌓는다 — 다음 라운드가
+            # 자기가 무엇을 불렀는지 본다. 도구 결과는 tool 턴으로 잇는다.
+            messages.append({"role": "assistant", "content": raw})
+            messages.append({"role": "tool", "tool_name": name, "content": output})
+        else:
+            result.reply = "도구 호출 횟수 제한에 도달했습니다. 질문을 더 구체적으로 해주세요."
+
         result.cost_usd = 0.0
         return result
 
