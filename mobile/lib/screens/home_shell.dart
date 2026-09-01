@@ -90,8 +90,8 @@ class _HomeShellState extends State<HomeShell> {
 /// 아르 진입점 — 탭바 위 오른쪽에 뜨는 동그란 버튼.
 ///
 /// Material 의 [FloatingActionButton] 을 쓰지 않는다: 기본 색·그림자·모양이
-/// Material 3 토큰을 따라가서 05-design 값과 어긋난다. 여기서는 사이드바 색
-/// (아르가 사는 자리)과 §4 오버레이 그림자를 그대로 쓴다.
+/// Material 3 토큰을 따라가서 05-design 값과 어긋난다. 여기서는 §4 오버레이
+/// 그림자와 아르 얼굴을 그대로 쓴다.
 class _ArButton extends StatelessWidget {
   const _ArButton({required this.onPressed});
 
@@ -108,13 +108,10 @@ class _ArButton extends StatelessWidget {
           boxShadow: AppShadow.overlay,
         ),
         child: Material(
-          color: AppColors.sidebarBg,
-          shape: const CircleBorder(
-            side: BorderSide(
-              color: AppColors.sidebarLine,
-              width: AppShape.borderW,
-            ),
-          ),
+          // ar.png 배경과 같은 흰색 (ar_screen.dart ArAvatar 주석 참고)
+          color: AppColors.bgElev,
+          // 테두리 없음 — §4 오버레이 그림자가 이미 떠 보이게 한다
+          shape: const CircleBorder(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onPressed,

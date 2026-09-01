@@ -7,11 +7,13 @@ import '../theme/tokens.dart';
 ///
 /// 그 목업은 폭 360px 카드라 폰 화면에 그대로 맞는다. 모바일 전용 시안은 따로 없다.
 ///
-/// **아직 진짜 로그인이 아니다.** 비밀번호를 검사하지 않고 바로 목록으로 넘어간다.
-/// JWT 연동과 secure storage 는 큐 7번이고, 이 화면을 앱의 첫 화면으로 거는 것도
-/// 그때다(지금은 검사 없는 통과라 첫 화면으로 두면 오히려 헷갈린다).
+/// **앱의 첫 화면이다**(2026-09-01). 통과하면 탭 셸(홈)로 간다.
 ///
-/// 확인은 `flutter run --route=/login` 으로 한다.
+/// **아직 진짜 로그인은 아니다** — 비밀번호를 검사하지 않고 아무 값이나 통과한다.
+/// JWT 연동과 secure storage 는 큐 7번이고, 그때 [_submit] 이 POST /auth/login
+/// 이 되며 실패 문구 자리도 여기 생긴다.
+///
+/// 개발 중 로그인을 건너뛰려면 `flutter run --route=/` 로 띄운다.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -131,7 +133,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// 목업 `.logo` — 첫 글자 `A` 만 잎초록.
 /// 아르 마크 — 앱 UI 초안(2026-09-01)이 로고 위에 더한 것.
 ///
 /// 런처 아이콘이 아르라서 첫 화면에서 한 번은 마주치는 게 맞다. 사이드바 하단
@@ -146,12 +147,10 @@ class _ArMark extends StatelessWidget {
       width: 72,
       height: 72,
       clipBehavior: Clip.antiAlias,
+      // ar.png 배경과 같은 흰색 (ar_screen.dart ArAvatar 주석 참고)
       decoration: const BoxDecoration(
-        color: AppColors.sidebarBg,
+        color: AppColors.bgElev,
         shape: BoxShape.circle,
-        border: Border.fromBorderSide(
-          BorderSide(color: AppColors.sidebarLine, width: AppShape.borderW),
-        ),
       ),
       child: Image.asset(
         'assets/images/ar.png',
@@ -163,6 +162,7 @@ class _ArMark extends StatelessWidget {
   }
 }
 
+/// 목업 `.logo` — 첫 글자 `A` 만 잎초록.
 class _Logo extends StatelessWidget {
   const _Logo();
 
