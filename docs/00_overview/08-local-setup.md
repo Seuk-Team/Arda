@@ -24,13 +24,22 @@ select character_maximum_length from information_schema.columns
  where table_name='applications' and column_name='ai_summary_model';
 ```
 
-> **일반 규칙**: `create_all` 은 **없는 테이블을 만들 뿐** 기존 테이블에 컬럼을 붙이거나 타입을 바꾸지 않는다. alembic 도입 전까지는 스키마를 바꾼 사람이 이 목록에 SQL 을 남긴다.
+> **일반 규칙**: `create_all` 은 **없는 테이블을 만들 뿐** 기존 테이블에 컬럼을 붙이거나 타입을 바꾸지 않는다.
+>
+> **2026-09-01 부터 alembic 이 들어왔다** ([backend/alembic/README.md](../../backend/alembic/README.md)). 위 SQL 은 이제 **손으로 돌릴 필요가 없다** — 아래 한 줄이 새 DB 든 오래된 DB 든 알아서 맞춘다.
+>
+> ```bash
+> cd backend && uv run --with alembic alembic upgrade head
+> ```
+>
+> `alembic check` 로 모델과 어긋난 곳이 있는지도 볼 수 있다. **스키마를 바꾸는 사람은 이제 SQL 대신 리비전을 남긴다.**
 
 ## 2. 평소 셋업
 
 ```bash
 git pull
 cd backend && uv sync
+uv run --with alembic alembic upgrade head   # 스키마 최신화 (새 DB 든 옛 DB 든 동일)
 docker compose up -d --build      # --build 는 아래 이유로 필요할 때가 있다
 ```
 

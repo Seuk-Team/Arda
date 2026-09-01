@@ -32,6 +32,8 @@ class FakeApp:
     ai_summary: str | None = None
     ai_summary_at: object = None
     ai_summary_model: str | None = None
+    # 이력서 파일 텍스트 추출(extractor.py) 이후 _build_prompt_vars 가 읽는다
+    files: list = field(default_factory=list)
 
     def __post_init__(self):
         if self.skills is None:

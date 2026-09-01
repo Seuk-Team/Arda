@@ -20,6 +20,7 @@ dependencies = [
     # torch 는 sentence-transformers 의 전이 의존이지만, [tool.uv.sources] 는
     # 프로젝트가 직접 선언한 의존에만 적용되므로 여기 명시한다.
     "torch>=2.0",
+    "pypdf>=6.16.2",
 ]
 
 # 로컬 STT. 기본 설치에서 뺀 이유: 운영 API 는 t3.micro(RAM 1GiB)라 ctranslate2 까지
