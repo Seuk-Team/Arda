@@ -6,6 +6,7 @@
 
 - **자기 도메인의 로드맵**(`docs/01_role/<도메인>.md`)을 먼저 읽는다. 도메인·오너 표는 [docs/00_overview/04-team.md](docs/00_overview/04-team.md). 작업에 **지시서**(`docs/02_tasks/`)가 링크돼 있으면 그것도 읽고 그대로 따른다 — 자기 도메인 지시서는 오너가 직접 쓴다.
 - [docs/00_overview/01-erd.md](docs/00_overview/01-erd.md)(테이블 정의서)와 [docs/00_overview/02-api.md](docs/00_overview/02-api.md)를 읽고 시작한다.
+- **로컬에서 뭔가 안 돌면 [docs/00_overview/08-local-setup.md](docs/00_overview/08-local-setup.md)를 먼저 본다.** 코드가 아니라 내 환경이 원인인 것들(DB 이행 SQL·포트 충돌·백엔드 스위치)이 거기 모여 있다. **스키마를 바꿔 남의 로컬 DB에 손이 필요해지면 그 문서 이행 목록에 SQL을 남긴다** — pull 로는 DB가 안 따라온다.
 - **프론트/UI 작업은 [docs/00_overview/05-design.md](docs/00_overview/05-design.md)를 먼저 읽는다.** 값 미확정("(시안에서 확정)") 토큰은 임의로 채우지 않는다.
 
 ## 범위
