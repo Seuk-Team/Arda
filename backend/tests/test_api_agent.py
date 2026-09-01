@@ -121,6 +121,10 @@ class FakeAgentResult:
     pending_action: object = None
     input_tokens: int = 100
     output_tokens: int = 50
+    # 프롬프트 캐시 사용량. 실제 AgentResult 에 있는데 이 더블에만 없어서
+    # /agent/chat 이 result.cache_write_tokens 를 읽다 500 이 났다.
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
     model: str = "claude-haiku-4-5-20251001"
 
     def __post_init__(self):
