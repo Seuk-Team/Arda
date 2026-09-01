@@ -4,9 +4,11 @@ import '../models/applicant.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
+import 'ar_screen.dart';
 import '../widgets/detail_section.dart';
 import '../widgets/stage_change_sheet.dart';
 import '../widgets/stage_label.dart';
+import '../widgets/stage_rail.dart';
 
 /// 지원자 상세 — `mockup-mobile.html` 의 `.dpanel` 을 옮긴 것.
 ///
@@ -42,6 +44,13 @@ class ApplicantDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // 앱 UI 초안(2026-09-01): 지원 정보보다 먼저 "지금 어디까지
+                  // 왔는지". 불합격이면 레일이 나오지 않는다 — stage_rail.dart 참고
+                  if (StageRail.showsFor(applicant.currentStage)) ...[
+                    StageRail(current: applicant.currentStage),
+                    const SizedBox(height: AppSpace.s5),
+                  ],
+
                   DetailFieldList(
                     fields: {
                       '학력': applicant.education ?? '—',
@@ -59,7 +68,7 @@ class ApplicantDetailScreen extends StatelessWidget {
                     onTap: () => Navigator.pushNamed(
                       context,
                       Routes.stageHistory,
-                          arguments: (applicant, postingTitle),
+                      arguments: (applicant, postingTitle),
                     ),
                   ),
                   const SizedBox(height: AppSpace.s3),
@@ -134,6 +143,30 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(width: AppSpace.s3),
               StageLabel(stage: applicant.currentStage),
+
+              // 05-design §0.5 아르는 전 화면 공통 진입점이다. 이 화면은 하단이
+              // [단계 변경] 자리라 FAB 를 놓을 곳이 없어 상단 바가 그 자리를 받는다
+              const SizedBox(width: AppSpace.s2),
+              Semantics(
+                button: true,
+                label: '아르에게 물어보기',
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => showArSheet(context),
+                    highlightColor: AppColors.bgSunken,
+                    splashColor: AppColors.bgSunken,
+                    child: const SizedBox(
+                      // §9 터치 타깃 44 — 아바타는 그 안에 32 로 앉힌다
+                      width: AppLayout.minTouchTarget,
+                      height: AppLayout.minTouchTarget,
+                      child: Center(child: ArAvatar(size: 32)),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -172,6 +205,7 @@ class _BackButton extends StatelessWidget {
     );
   }
 }
+
 /// 목업 `.dfoot` — 화면 아래에 붙는 단계 변경 줄.
 ///
 /// 05-design §10: 드래그가 없는 환경의 **유일한 단계 이동 수단**이다.
@@ -263,7 +297,9 @@ class _LinkRow extends StatelessWidget {
         splashColor: AppColors.bgSunken,
         child: Container(
           // §9 터치 타깃
-          constraints: const BoxConstraints(minHeight: AppLayout.minTouchTarget),
+          constraints: const BoxConstraints(
+            minHeight: AppLayout.minTouchTarget,
+          ),
           padding: const EdgeInsets.all(AppSpace.s4),
           child: Row(
             children: [

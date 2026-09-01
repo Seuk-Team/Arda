@@ -17,8 +17,17 @@ import '../models/stage.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import 'funnel_bar.dart';
+import 'funnel_legend.dart';
 
 class PostingCard extends StatelessWidget {
+  /// 레일에 그릴 단계 — 접수~합격 4단. 대시보드 전형 현황과 같은 구성이다
+  static const railStages = [
+    Stage.applied,
+    Stage.screening,
+    Stage.interview,
+    Stage.accepted,
+  ];
+
   const PostingCard({
     super.key,
     required this.posting,
@@ -107,7 +116,20 @@ class PostingCard extends StatelessWidget {
               ),
 
               const SizedBox(height: AppSpace.s3),
-              FunnelBar(counts: counts),
+              // 앱 UI 초안(2026-09-01)대로 접수~합격 4단 + 범례.
+              //
+              // 05-design 은 4단을 **대시보드 미니 퍼널**에만 못 박았고 공고 카드는
+              // 규정이 없다. 초안을 따라 여기도 4단으로 맞추면 이 카드에서
+              // **불합격 인원이 안 보이게 된다** — 아는 채로 초안을 택했다
+              // (앱 오너 판단, 2026-09-01. 나중에 뒤집힐 수 있다).
+              FunnelBar(
+                counts: counts,
+                stages: railStages,
+                // §0.5: 0건 구간도 6px 남긴다 — 몇 단짜리인지가 늘 읽혀야 한다
+                keepEmptySegments: true,
+              ),
+              const SizedBox(height: AppSpace.s3),
+              FunnelLegend(counts: counts, stages: railStages),
             ],
           ),
         ),

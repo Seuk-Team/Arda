@@ -7,8 +7,9 @@ import 'models/job_posting.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
+import 'screens/evaluation_queue_screen.dart';
 import 'screens/evaluations_screen.dart';
-import 'screens/postings_screen.dart';
+import 'screens/home_shell.dart';
 import 'screens/stage_history_screen.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
@@ -42,8 +43,9 @@ class ArdaApp extends StatelessWidget {
       themeMode: ThemeMode.light,
       initialRoute: Routes.postings,
       routes: {
-        Routes.postings: (_) => const PostingsScreen(),
+        Routes.postings: (_) => const HomeShell(),
         Routes.login: (_) => const LoginScreen(),
+        Routes.evaluationQueue: (_) => const EvaluationQueueScreen(),
       },
       // 지원자·상세는 "어느 공고/누구"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
       onGenerateRoute: (settings) {

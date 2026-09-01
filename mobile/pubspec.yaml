@@ -75,6 +75,10 @@ flutter:
   # main.dart 에서 LicenseRegistry 에 등록해 앱 안에서 볼 수 있게 한다.
   assets:
     - assets/fonts/OFL.txt
+    # 아르 캐릭터 — 로그인 화면 로고 위에 쓴다.
+    # assets/icon/app_icon.png(런처 아이콘 원본, 766px·478KB)은 개발용이라
+    # 앱에 들어가지 않는다. 화면에 쓰는 것은 256px 로 줄인 이 사본이다.
+    - assets/images/ar.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

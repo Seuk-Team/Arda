@@ -76,6 +76,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const Center(child: _ArMark()),
+                    const SizedBox(height: AppSpace.s3),
                     const _Logo(),
                     const SizedBox(height: AppSpace.s6),
 
@@ -117,6 +119,37 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 /// 목업 `.logo` — 첫 글자 `A` 만 잎초록.
+/// 아르 마크 — 앱 UI 초안(2026-09-01)이 로고 위에 더한 것.
+///
+/// 런처 아이콘이 아르라서 첫 화면에서 한 번은 마주치는 게 맞다. 사이드바 하단
+/// 상주 슬롯(05-design §0.5)은 로그인 뒤의 이야기라 여기서는 브랜드 표시일 뿐이고,
+/// **누를 수 없다.**
+class _ArMark extends StatelessWidget {
+  const _ArMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 72,
+      height: 72,
+      clipBehavior: Clip.antiAlias,
+      decoration: const BoxDecoration(
+        color: AppColors.sidebarBg,
+        shape: BoxShape.circle,
+        border: Border.fromBorderSide(
+          BorderSide(color: AppColors.sidebarLine, width: AppShape.borderW),
+        ),
+      ),
+      child: Image.asset(
+        'assets/images/ar.png',
+        fit: BoxFit.cover,
+        // 화면 낭독기에는 장식이라고 알린다 — 로고 글자가 바로 아래에 있다
+        excludeFromSemantics: true,
+      ),
+    );
+  }
+}
+
 class _Logo extends StatelessWidget {
   const _Logo();
 
