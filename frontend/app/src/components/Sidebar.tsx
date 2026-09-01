@@ -137,6 +137,7 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
       >
         {/* 폴백은 같은 크기의 빈 칸 — 청크가 늦게 와도 정사각형이 흔들리지 않는다 */}
         <Suspense fallback={<span className={styles.arView} />}>
+          {/* 커서가 이 칸 위에 있을 때만 따라본다. 벗어나면 정면으로 돌아온다 */}
           <ArViewer className={styles.arView} motion={arMotion} track={arHover} />
         </Suspense>
       </button>

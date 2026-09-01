@@ -128,17 +128,18 @@ export default function ArViewer({ motion = 'idle', speed, expression, interacti
       play(currentRef.current, true)
     })
 
-    /* 커서 위치 → 목표 각도. 칸 중심을 원점으로 -1..1 로 정규화한 뒤 최대 각도를 곱한다.
-       화면 어디서 움직이든 듣되(칸을 살짝 벗어나도 눈이 따라간다) 값은 칸 기준이다. */
+    /* 커서 위치 → 목표 각도. 칸 중심을 원점으로 칸 크기로 정규화한다 — 커서가 칸 안에
+       있을 때만 켜지므로(track) 기준도 칸이다. 칸을 살짝 벗어나는 순간까지는 이어지게
+       clamp 를 1 보다 조금 넉넉히 둔다. */
     const MAX_YAW = 0.42   // rad, 약 24°
     const MAX_PITCH = 0.22 // rad, 약 13° — 위아래는 덜 돌린다(턱이 들려 보인다)
+    const clamp = (v: number) => Math.max(-1.2, Math.min(1.2, v))
     const onPointer = (e: PointerEvent) => {
       if (!trackRef.current) return
       const r = host.getBoundingClientRect()
       if (!r.width || !r.height) return
-      const nx = ((e.clientX - (r.left + r.width / 2)) / (r.width / 2))
-      const ny = ((e.clientY - (r.top + r.height / 2)) / (r.height / 2))
-      const clamp = (v: number) => Math.max(-1.5, Math.min(1.5, v))
+      const nx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2)
+      const ny = (e.clientY - (r.top + r.height / 2)) / (r.height / 2)
       aimRef.current.yaw = clamp(nx) * MAX_YAW
       aimRef.current.pitch = clamp(ny) * MAX_PITCH
     }

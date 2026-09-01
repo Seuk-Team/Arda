@@ -65,20 +65,11 @@ export default function PostingApplicants() {
   const [openId, setOpenId] = useState<number | null>(applicantFromUrl)
   const detailOpen = openId !== null && rightPanel.active === 'applicant'
 
-  useEffect(() => {
-    /* ?applicant= 로 들어왔을 때만 열고, 그냥 들어오면 닫은 채로 시작한다.
-       열림 상태가 화면 밖(RightPanel)에 있어서 안 닫으면 지난번에 열어 둔 지원자가
-       다른 공고 화면에까지 따라온다. */
-    if (applicantFromUrl !== null) {
-      setOpenId(applicantFromUrl)
-      rightPanel.open('applicant')
-    } else {
-      setOpenId(null)
-      rightPanel.close('applicant')
-    }
-    // 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicantFromUrl, postingId])
+  const postingKey = String(postingId)
+  /* 직전 active. "지금 applicant 가 아니다" 로 지우면 안 된다 — 마운트 직후에는 아직
+     이전 화면의 값('day' 등)이라 URL 로 막 연 것까지 지워 버린다(캘린더에서 사람을
+     눌러 와도 패널이 안 열렸다). 실제로 applicant 였다가 넘어간 순간에만 지운다. */
+  const prevActive = useRef(rightPanel.active)
 
   function openDetail(id: number) {
     setOpenId(id)
@@ -90,10 +81,27 @@ export default function PostingApplicants() {
     rightPanel.close('applicant')
   }
 
-  /* 오른쪽 자리를 다른 패널에 뺏기면 고른 것도 버린다 — 행 강조가 남아 밑에
-     깔아 둔 것처럼 되지 않게 */
+  /* 들어오거나 공고가 바뀐 순간: ?applicant= 가 있으면 그 사람을 열고, 없으면 닫은
+     채로 시작한다. 열림 상태가 화면 밖(RightPanel)에 있어서 안 닫으면 지난번에 열어
+     둔 지원자가 다른 공고 화면에까지 따라온다. 같은 값을 다시 넣는 것뿐이라 여러 번
+     돌아도 결과가 같다. */
   useEffect(() => {
-    if (rightPanel.active !== 'applicant') setOpenId(null)
+    if (applicantFromUrl !== null) {
+      setOpenId(applicantFromUrl)
+      rightPanel.open('applicant')
+    } else {
+      setOpenId(null)
+      rightPanel.close('applicant')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postingKey, applicantFromUrl])
+
+  /* 오른쪽 자리를 다른 패널에 뺏기면 고른 것도 버린다 — 행 강조가 남아 밑에 깔아 둔
+     것처럼 되지 않게. applicant 였다가 넘어간 전이에서만 지운다. */
+  useEffect(() => {
+    const was = prevActive.current
+    prevActive.current = rightPanel.active
+    if (was === 'applicant' && rightPanel.active !== 'applicant') setOpenId(null)
   }, [rightPanel.active])
 
   /* 일괄 단계 변경 (D9) — 고른 사람들 */
