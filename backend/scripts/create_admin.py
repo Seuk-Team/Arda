@@ -16,7 +16,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.db import Base, SessionLocal, engine  # noqa: E402
+from app.db import Base, SessionLocal, engine, pgvector_ready  # noqa: E402
 from app.models import User  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
@@ -32,7 +32,16 @@ def main() -> int:
         print("비밀번호는 8자 이상이어야 합니다")
         return 1
 
-    Base.metadata.create_all(engine)
+    # pgvector 확장이 없는 DB 에서는 vector 컬럼 테이블을 만들 수 없다. 그대로 두면
+    # CREATE 가 통째로 실패해 **users 테이블조차 안 만들어지고**, 최초 admin 을 못 만든다.
+    # 이 스크립트는 "배포 직후 부트스트랩"이라 그 자리에서 막히면 우회로가 없다.
+    # main.py lifespan · tests/conftest.py 와 같은 판단이다.
+    tables = list(Base.metadata.sorted_tables)
+    if not pgvector_ready():
+        tables = [t for t in tables if t.name != "application_embeddings"]
+        print("pgvector 확장이 없어 임베딩 테이블은 건너뛴다 (시맨틱 검색만 꺼진다)")
+    Base.metadata.create_all(engine, tables=tables)
+
     db = SessionLocal()
     try:
         if db.query(User).filter(User.email == email).first():
