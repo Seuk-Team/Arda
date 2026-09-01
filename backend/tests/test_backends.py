@@ -391,7 +391,10 @@ class TestOllamaToolLoop:
                 message="안녕", history=[], system_prompt="시스템 프롬프트", tools=FakeToolRunner(),
             )
         messages = mock.call_args.args[0]["messages"]
-        assert messages[0] == {"role": "system", "content": "시스템 프롬프트"}
+        # 로컬 전용 출력 규율이 뒤에 붙는다 — 공용 프롬프트는 앞부분 그대로다
+        assert messages[0]["role"] == "system"
+        assert messages[0]["content"].startswith("시스템 프롬프트")
+        assert "출력 길이" in messages[0]["content"]
         assert messages[-1] == {"role": "user", "content": "안녕"}
 
     def test_이력_계약은_role_content_평문_그대로다(self):

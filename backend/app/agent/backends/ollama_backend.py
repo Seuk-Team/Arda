@@ -40,6 +40,21 @@ DEFAULT_CHAT_MODEL = "qwen3:8b"
 DEFAULT_SUMMARY_MODEL = "qwen3:8b"
 DEFAULT_NUM_CTX = 16384
 DEFAULT_TIMEOUT_SEC = 600.0
+# 출력 토큰 상한. **속도의 지배 요인이 출력 길이다** — 2026-09-01 실측에서
+# qwen3:4b 는 같은 질의에 3,248 토큰을 썼고(haiku 1,450) 45 tok/s 라 그 자체로 70초였다.
+# 프리픽스가 아니라 여기가 병목이다. 0 이면 무제한.
+DEFAULT_NUM_PREDICT = 700
+
+# 로컬 모델 전용 출력 규율. 공용 프롬프트(agent.v1.md)는 Claude 기준으로 쓰여 있어
+# 길이 제약이 없다 — 그것을 고치면 Anthropic 경로까지 바뀌므로 여기서만 덧붙인다.
+_BREVITY_SUFFIX = """
+
+## 출력 길이 (이 실행에만 적용 — 반드시 지킨다)
+
+- 도구 결과를 그대로 옮겨 적지 마라. 요약해서 말한다.
+- 목록은 **최대 5줄**, 한 줄에 `이름 (경력) — 기술 2개까지`. 넘으면 "외 n명"으로 닫는다.
+- **이메일·ID·날짜·표는 쓰지 않는다.** 담당자가 명시적으로 물을 때만 쓴다.
+- 전체 답변은 **8줄 이내**. 길어질 것 같으면 먼저 요약하고 더 볼지 되묻는다."""
 
 # 로컬 추론 직렬화 락. 모듈 수준이어야 스레드풀의 모든 요청이 같은 락을 본다.
 _INFERENCE_LOCK = threading.Lock()
@@ -52,6 +67,19 @@ _TRUNCATION_RATIO = 0.5   # 추정치 대비 이 비율보다 적게 먹었으�
 _THINK_BLOCK = re.compile(r"<think\b[^>]*>.*?</think\s*>", re.DOTALL | re.IGNORECASE)
 _THINK_OPEN = re.compile(r"<think\b[^>]*>.*\Z", re.DOTALL | re.IGNORECASE)
 _THINK_CLOSE = re.compile(r"\A.*?</think\s*>", re.DOTALL | re.IGNORECASE)
+
+
+# 사고 모드를 가진 모델 계열. 여기 없으면 think 키를 보내지 않는다
+_THINKING_MODEL_PREFIXES = ("qwen3", "deepseek-r1", "magistral")
+
+
+def _is_thinking_model(model: str) -> bool:
+    name = model.lower()
+    return any(name.startswith(p) for p in _THINKING_MODEL_PREFIXES)
+
+
+def _drop_none(d: dict) -> dict:
+    return {k: v for k, v in d.items() if v is not None}
 
 
 def strip_think(text: str) -> str:
@@ -117,6 +145,7 @@ class OllamaBackend:
         num_ctx: int | None = None,
         timeout: float | None = None,
         think: bool | None = None,
+        num_predict: int | None = None,
     ):
         self.model = model
         self.host = (host or os.getenv("OLLAMA_HOST", DEFAULT_HOST)).rstrip("/")
@@ -129,7 +158,22 @@ class OllamaBackend:
         # 실측(qwen3:4b, "면접 단계 지원자 보여줘"): 켜짐 출력 3444토큰·83초
         # → 꺼짐 쪽이 비교 대상이다. 도구 인자를 채우는 일에 사고 과정은 필요 없다.
         # 되살리려면 OLLAMA_THINK=1.
-        self.think = think if think is not None else os.getenv("OLLAMA_THINK", "0") == "1"
+        # 3-상태다: True/False 는 payload 에 싣고, None 이면 키를 아예 안 보낸다.
+        # **사고 모드가 없는 모델(qwen2.5 등)에 think 키를 보내면 Ollama 가 400 을 낸다.**
+        # 그리고 think=False 는 사고를 없애는 게 아니라 <think> 태그만 떼는 것이라
+        # 사고 과정이 본문으로 샌다(2026-09-01 실측, qwen3:4b 가 영어로 냈다) —
+        # strip_think 가 태그 없는 것은 못 잡는다. 그래서 사고 모델은 켜 두고 지운다.
+        env_think = os.getenv("OLLAMA_THINK")
+        if think is not None:
+            self.think = think
+        elif env_think is not None:
+            self.think = env_think == "1"
+        else:
+            self.think = True if _is_thinking_model(model) else None
+        self.num_predict = (
+            num_predict if num_predict is not None
+            else _env_int("OLLAMA_NUM_PREDICT", DEFAULT_NUM_PREDICT)
+        )
 
     def model_tag(self) -> str:
         return f"{self.name}:{self.model}"
@@ -162,10 +206,15 @@ class OllamaBackend:
             "messages": messages,
             "stream": False,
             # num_ctx 를 명시하지 않으면 기본값이 작아 프롬프트가 조용히 잘린다.
-            "options": {"num_ctx": self.num_ctx},
-            # 사고 모드. 끄면 Ollama 가 <think> 자체를 만들지 않는다 (지우는 것과 다르다)
-            "think": self.think,
+            "options": _drop_none({
+                "num_ctx": self.num_ctx,
+                # 0 이하는 상한 없음 — Ollama 에 키를 아예 넣지 않는다
+                "num_predict": self.num_predict if self.num_predict > 0 else None,
+            }),
         }
+        # 사고 모드. None 이면 키를 안 보낸다 — 지원하지 않는 모델이 400 을 낸다
+        if self.think is not None:
+            payload["think"] = self.think
         if tools:
             payload["tools"] = tools
         if json_schema is not None:
@@ -220,7 +269,7 @@ class OllamaBackend:
         tools: ToolRunner,
         request_id: str | None = None,
     ) -> AgentResult:
-        messages: list[dict] = [{"role": "system", "content": system_prompt}]
+        messages: list[dict] = [{"role": "system", "content": system_prompt + _BREVITY_SUFFIX}]
         messages.extend(trim_history(history))
         messages.append({"role": "user", "content": message})
 
