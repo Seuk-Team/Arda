@@ -49,7 +49,6 @@ function AiSummaryBody({ raw }: { raw: string }) {
   if (parsed.insufficient) {
     return <p className={styles.aibody}>자기소개 등 자료가 부족해 요약을 만들지 못했습니다.</p>
   }
-  const rec = parsed.recommendation
   return (
     <div className={styles.aiparsed}>
       {parsed.gist && <p className={styles.aibody}>{parsed.gist}</p>}
@@ -69,14 +68,10 @@ function AiSummaryBody({ raw }: { raw: string }) {
           </ul>
         </div>
       )}
-      {(rec?.check_points?.length ?? 0) > 0 && (
-        <div>
-          <p className={styles.ailabel}>면접 확인 포인트</p>
-          <ul className={styles.ailist}>
-            {rec!.check_points!.map((t, i) => <li key={i}>{t}</li>)}
-          </ul>
-        </div>
-      )}
+      {/* 면접 확인 포인트(check_points)는 만들되 여기 그리지 않는다.
+          05-design §0.5 가 이 자리의 내용을 "자소서 요지 + 공고 요건 대비 적합·우려 지점"
+          으로 한정한다. 요약이 길어지면 담당자가 안 읽는다 — 짧아야 요약이다.
+          값은 ai_summary 에 그대로 저장돼 있어 나중에 쓸 수 있다. */}
     </div>
   )
 }
