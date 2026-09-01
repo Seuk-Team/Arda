@@ -41,11 +41,23 @@ docker compose up -d --build      # --build 는 아래 이유로 필요할 때�
 
 에이전트의 AI 호출은 백엔드를 고를 수 있다. **아래를 아무것도 설정하지 않으면 지금까지와 완전히 동일하게 돈다.** 로컬 모델을 쓰고 싶은 사람만 값을 넣는다.
 
-| 환경변수 | 기본 | 로컬로 돌리려면 |
-|---|---|---|
-| `AGENT_CHAT_BACKEND` | `anthropic` | `ollama` |
-| `AGENT_SUMMARY_BACKEND` | `anthropic` | `ollama` |
-| `STT_BACKEND` | `openai` | `faster_whisper` (`uv sync --extra local` 필요) |
+| 환경변수 | 기본 | 로컬로 돌리려면 | main 반영 |
+|---|---|---|---|
+| `STT_BACKEND` | `openai` | `faster_whisper` (`uv sync --extra local` 필요) | ✅ |
+| `AGENT_CHAT_BACKEND` | `anthropic` | `ollama` | ⏳ 브랜치 대기 |
+| `AGENT_SUMMARY_BACKEND` | `anthropic` | `ollama` | ⏳ 브랜치 대기 |
+
+**채팅·요약 어댑터는 아직 main 에 없다.** 프로토타입 브랜치에서 검증 중이고(2026-09-01 기준 387 passed) 머지 여부는 팀장 결정 대기다. 그때까지 이 두 변수는 넣어도 아무 일도 일어나지 않는다 — **채팅·요약은 여전히 Anthropic 으로만 간다.**
+
+**GPU 없이 로컬 모델을 검증해야 한다면** 각자 Ollama 를 깔 필요가 없다. 어댑터가 `OLLAMA_HOST` 를 보므로 **GPU 장비 한 대에만 띄우고 나머지는 그쪽을 가리키면 된다.** 포트를 열지 말고 SSH 터널을 권한다:
+
+```bash
+ssh -L 11434:localhost:11434 <gpu-host>
+# 다른 창에서
+OLLAMA_HOST=http://localhost:11434 AGENT_CHAT_BACKEND=ollama uv run ...
+```
+
+어댑터의 유닛 테스트는 **mock 기반이라 Ollama 없이 돈다.** 회귀 확인은 `uv run pytest` 로 충분하고, 실제 추론이 필요한 사람은 에이전트 오너뿐이다.
 
 모르는 값을 넣으면 **조용히 폴백하지 않고 즉시 예외**로 죽는다. 오타 하나로 개인정보가 외부로 나가면 안 되기 때문이다. 설계 근거는 [ADR-0024](../03_decision/0024-sLLM-로컬-모델-전략.md).
 
