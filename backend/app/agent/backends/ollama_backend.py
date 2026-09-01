@@ -29,6 +29,7 @@ from .base import (
     AgentResult,
     CompletionResult,
     PendingAction,
+    TextChunkHandler,
     ToolRunner,
     trim_history,
 )
@@ -99,23 +100,78 @@ def strip_think(text: str) -> str:
     return out.strip()
 
 
+# 로컬 모델용 짧은 도구 설명. 공용 `TOOL_DEFINITIONS` 의 설명은 Claude 기준이라
+# 사용 힌트·폴백 해석법까지 들어 있는데(search_applications 는 300자가 넘는다),
+# 4B 는 그걸 다 읽지 못하고 오히려 지시를 그대로 되뇌며 출력을 태운다.
+# **여기서만 갈아끼운다** — 원본을 줄이면 Anthropic 경로의 동작까지 바뀐다.
+_LOCAL_TOOL_DESCRIPTIONS = {
+    "search_applications": (
+        "지원자 검색. q=이름/이메일, semantic=역량·경력 의미 검색, "
+        "stage=단계, posting_id=공고, limit=결과 수(기본 10). "
+        "반환에 note 가 있으면 그 내용을 담당자에게 그대로 전한다."
+    ),
+}
+
+
 def to_ollama_tools(definitions: list[dict]) -> list[dict]:
     """Anthropic 도구 정의(`input_schema`) → Ollama function 형식(`parameters`).
 
     원본 `TOOL_DEFINITIONS` 는 건드리지 않는다 — 여기서만 변환한다.
+    설명도 로컬용 축약본이 있으면 여기서 갈아끼운다.
     """
     converted: list[dict] = []
     for d in definitions:
         schema = d.get("input_schema") or {"type": "object", "properties": {}}
+        name = d["name"]
         converted.append({
             "type": "function",
             "function": {
-                "name": d["name"],
-                "description": d.get("description", ""),
+                "name": name,
+                "description": _LOCAL_TOOL_DESCRIPTIONS.get(
+                    name, d.get("description", "")
+                ),
                 "parameters": schema,
             },
         })
     return converted
+
+
+def streamable_prefix(raw: str) -> str:
+    """누적 버퍼에서 **지금 내보내도 안전한** 본문 앞부분만 돌려준다.
+
+    청크 단위로 `strip_think` 를 부르면 안 된다 — `<think>` 는 청크 경계를
+    가로지르므로 태그가 쪼개져 사고 과정이 그대로 샌다. 그래서 누적 버퍼에서
+    판단하고, 아직 확정되지 않은 꼬리는 붙들어 둔다.
+
+    붙들어 두는 것은 둘이다.
+    1. **닫히지 않은 여는 태그부터 끝까지** — 아직 사고 블록 안이다.
+    2. **끝에 걸친 미완성 태그** (`<`, `<thi`, `</thin` …) — 다음 청크에서
+       `<think>` 가 될 수 있다. 그대로 내보내면 태그 앞부분이 본문에 섞인다.
+
+    반환값은 버퍼가 자랄수록 단조 증가한다(붙들어 둔 지점 뒤로만 늘어난다).
+    그래서 호출자는 '이미 내보낸 길이' 만 기억하면 델타를 뽑을 수 있다.
+    """
+    if not raw:
+        return ""
+    visible = _THINK_BLOCK.sub("", raw)
+    lower = visible.lower()
+
+    # 1. 완결되지 않은 여는 태그 — 여기부터는 사고 블록일 수 있다.
+    #    완결된 블록은 위에서 이미 빠졌으므로 남은 것은 전부 열린 채다.
+    #    첫 번째 것부터 붙들어야 한다 (`<think>a<think>b` 같은 중첩 대비).
+    open_at = lower.find("<think")
+    if open_at != -1:
+        return visible[:open_at]
+
+    # 2. 꼬리에 걸친 미완성 태그
+    lt = visible.rfind("<")
+    if lt != -1:
+        tail = lower[lt:]
+        if ">" not in tail and any(
+            p.startswith(tail) or tail.startswith(p) for p in ("<think", "</think")
+        ):
+            return visible[:lt]
+    return visible
 
 
 def _coerce_arguments(raw: Any) -> dict:
@@ -137,6 +193,9 @@ class OllamaBackend:
     name = "ollama"
     # 문법 제약 디코딩(`format` 에 JSON 스키마) 지원. 요약 체인이 이걸 쓴다.
     supports_structured_output = True
+    # 도구 결과를 축소해서 넣는다. 병목은 출력 길이인데, 작은 모델은 도구 결과에
+    # 있는 필드를 그대로 옮겨 적는다 — 넣지 않은 것은 옮겨 적을 수 없다.
+    compact_tool_results = True
 
     def __init__(
         self,
@@ -224,6 +283,106 @@ class OllamaBackend:
         self._warn_if_truncated(messages, data)
         return data
 
+    def _stream_payload(self, messages: list[dict], tools: list[dict] | None) -> dict:
+        """스트리밍용 payload.
+
+        `_chat_once` 의 payload 구성과 겹치지만 일부러 합치지 않았다 — 그 함수는
+        지금 다른 작업에서도 손대는 중이라, 공용 헬퍼로 끌어내면 머지 충돌이
+        커진다. 합치는 것은 두 갈래가 다 자리 잡은 뒤에 한다.
+        """
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "options": _drop_none({
+                "num_ctx": self.num_ctx,
+                "num_predict": self.num_predict if self.num_predict > 0 else None,
+            }),
+        }
+        if self.think is not None:
+            payload["think"] = self.think
+        if tools:
+            payload["tools"] = tools
+        return payload
+
+    def _chat_stream(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        on_text: TextChunkHandler | None = None,
+    ) -> dict:
+        """NDJSON 스트리밍 호출. 반환 형태는 `_chat_once` 와 같은 집계 dict 다.
+
+        그래서 도구 루프 본문은 스트리밍 여부를 몰라도 된다 — 루프는 완성된
+        `message.content` / `message.tool_calls` 만 본다.
+
+        `on_text` 는 **도구 호출이 없는 동안에만** 불린다. 도구 호출 청크를 본
+        순간부터 그 라운드는 흘려보내기를 멈춘다: 도구 라운드의 본문은 최종
+        답이 아니라 다음 라운드의 재료라서, 담당자에게 보이면 안 된다.
+        """
+        import httpx
+
+        url = f"{self.host}/api/chat"
+        payload = self._stream_payload(messages, tools)
+
+        content_parts: list[str] = []
+        tool_calls: list[dict] = []
+        final: dict = {}
+        emitted = 0
+        lead: int | None = None   # 앞쪽 공백 길이 (첫 emit 때 확정)
+        suppressed = False        # 도구 호출을 본 뒤로는 흘리지 않는다
+
+        # 락은 스트림 전 구간을 감싼다. 청크가 도는 동안 GPU 는 계속 물려 있으므로
+        # 여기서 놓으면 다른 요청이 같은 GPU 에 겹쳐 들어온다.
+        with _INFERENCE_LOCK:
+            with httpx.stream(
+                "POST", url, json=payload, timeout=self.timeout
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        # 조각난 줄 하나로 대화 전체를 버리지 않는다
+                        logger.warning("ollama_stream_bad_chunk")
+                        continue
+
+                    msg = chunk.get("message") or {}
+                    calls = msg.get("tool_calls") or []
+                    if calls:
+                        tool_calls.extend(calls)
+                        suppressed = True
+
+                    piece = msg.get("content") or ""
+                    if piece:
+                        content_parts.append(piece)
+
+                    if on_text is not None and not suppressed and piece:
+                        visible = streamable_prefix("".join(content_parts))
+                        if lead is None:
+                            if not visible.strip():
+                                # 아직 공백뿐 — 앞 공백 길이를 확정할 수 없다
+                                continue
+                            lead = len(visible) - len(visible.lstrip())
+                        delta = visible[lead + emitted:]
+                        if delta:
+                            on_text(delta)
+                            emitted += len(delta)
+
+                    if chunk.get("done"):
+                        final = chunk
+
+        data = dict(final)
+        data["message"] = {
+            "content": "".join(content_parts),
+            "tool_calls": tool_calls,
+        }
+        self._warn_if_truncated(messages, data)
+        return data
+
     def _warn_if_truncated(self, messages: list[dict], data: dict) -> None:
         """프롬프트가 조용히 잘렸는지 의심되면 경고를 남긴다.
 
@@ -269,6 +428,51 @@ class OllamaBackend:
         tools: ToolRunner,
         request_id: str | None = None,
     ) -> AgentResult:
+        """기존 계약 그대로. 스트리밍을 쓰지 않는 호출자는 여기로 온다."""
+        return self._run_chat(
+            message=message,
+            history=history,
+            system_prompt=system_prompt,
+            tools=tools,
+            request_id=request_id,
+            on_text=None,
+        )
+
+    def run_chat_streaming(
+        self,
+        *,
+        message: str,
+        history: list[dict],
+        system_prompt: str,
+        tools: ToolRunner,
+        on_text: TextChunkHandler,
+        request_id: str | None = None,
+    ) -> AgentResult:
+        """`run_chat` 과 같은 일을 하되 마지막 라운드 본문을 조각으로 흘린다.
+
+        반환값은 `run_chat` 과 동일한 `AgentResult` 이고 `reply` 가 정본이다 —
+        `reply` 는 스트림과 무관하게 누적 버퍼에 `strip_think` 를 한 번 걸어
+        만든다. 그래서 스트리밍을 켜도 최종 결과는 비스트리밍과 같다.
+        """
+        return self._run_chat(
+            message=message,
+            history=history,
+            system_prompt=system_prompt,
+            tools=tools,
+            request_id=request_id,
+            on_text=on_text,
+        )
+
+    def _run_chat(
+        self,
+        *,
+        message: str,
+        history: list[dict],
+        system_prompt: str,
+        tools: ToolRunner,
+        request_id: str | None = None,
+        on_text: TextChunkHandler | None = None,
+    ) -> AgentResult:
         messages: list[dict] = [{"role": "system", "content": system_prompt + _BREVITY_SUFFIX}]
         messages.extend(trim_history(history))
         messages.append({"role": "user", "content": message})
@@ -279,7 +483,12 @@ class OllamaBackend:
 
         for _ in range(MAX_ROUNDS):
             result.rounds += 1
-            data = self._chat_once(messages, tools=ollama_tools)
+            if on_text is None:
+                data = self._chat_once(messages, tools=ollama_tools)
+            else:
+                data = self._chat_stream(
+                    messages, tools=ollama_tools, on_text=on_text
+                )
 
             # 로컬에는 프롬프트 캐싱 개념이 없다. cache_* 는 0 으로 남고,
             # "미적중"과 "개념 없음"의 구분은 backend 태그가 한다.

@@ -68,6 +68,9 @@ class AnthropicBackend:
     # Anthropic 에는 문법 제약 디코딩이 없다 — JSON 은 프롬프트로 요청하고
     # 파싱 폴백(_strip_fences + _parse_json)에 기댄다.
     supports_structured_output = False
+    # 도구 결과를 줄이지 않는다 — 기존 응답 품질이 이 형태 기준이다.
+    # (미설정 시 Anthropic 경로가 지금과 완전히 같아야 한다.)
+    compact_tool_results = False
 
     def __init__(self, model: str):
         self.model = model

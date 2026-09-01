@@ -24,6 +24,8 @@ from .base import (
     ChatBackend,
     CompletionResult,
     PendingAction,
+    StreamingChatBackend,
+    TextChunkHandler,
     ToolRunner,
     trim_history,
 )
@@ -90,6 +92,8 @@ __all__ = [
     "CompletionResult",
     "OllamaBackend",
     "PendingAction",
+    "StreamingChatBackend",
+    "TextChunkHandler",
     "ToolRunner",
     "build_backend",
     "get_chat_backend",

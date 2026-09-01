@@ -106,9 +106,12 @@ class _DbToolRunner:
 
     definitions = TOOL_DEFINITIONS
 
-    def __init__(self, db: Session, user: User):
+    def __init__(self, db: Session, user: User, compact: bool = False):
         self._db = db
         self._user = user
+        # 백엔드 프로필에 따라 도구 결과를 줄일지. 어댑터가 결과 형태를 알 필요는
+        # 없으므로 축소는 여기(앱 쪽)에서 하고, 어댑터는 플래그만 알린다.
+        self._compact = compact
 
     def is_deferred(self, name: str) -> bool:
         return name in WRITE_TOOL_NAMES
@@ -117,7 +120,9 @@ class _DbToolRunner:
         return _describe_action(name, arguments, self._db)
 
     def execute(self, name: str, arguments: dict) -> str:
-        return execute_tool(name, arguments, self._db, self._user)
+        return execute_tool(
+            name, arguments, self._db, self._user, compact=self._compact
+        )
 
 
 def run_agent(
@@ -135,7 +140,7 @@ def run_agent(
         message=message,
         history=history,
         system_prompt=system_prompt,
-        tools=_DbToolRunner(db, user),
+        tools=_DbToolRunner(db, user, compact=backend.compact_tool_results),
         request_id=request_id,
     )
 

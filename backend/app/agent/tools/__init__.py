@@ -331,12 +331,62 @@ _DISPATCH = {
 }
 
 
+# ── 로컬(sLLM) 경로용 결과 축소 ────────────────────────────────────
+#
+# 도구는 로컬·API 양쪽이 같이 쓴다. 필드를 원본에서 지우면 Anthropic 경로의 응답도
+# 바뀌므로 지우지 않고, 호출자가 `compact=True` 를 줄 때만 줄인다.
+#
+# 목록 단계에서 담당자가 실제로 보는 것은 이름·경력·기술·단계다. `email` 과
+# `created_at` 은 목록에서 거의 쓰이지 않고 상세는 `get_application` 이 따로 준다.
+# `id` 는 후속 도구(get_application·change_stage)의 인자라 남긴다.
+_COMPACT_LIST_KEYS = ("id", "name", "current_stage", "career_years", "skills", "avg_score")
+
+# 기술은 앞 3개까지. 로컬 출력 규율이 "한 줄에 기술 2개까지"라 그 이상은
+# 모델이 옮겨 적지도 않으면서 입력만 차지한다.
+_COMPACT_SKILL_LIMIT = 3
+
+_COMPACTABLE = {"search_applications"}
+
+
+def compact_result(name: str, result: Any) -> Any:
+    """목록형 도구 결과에서 목록 단계에 안 쓰는 필드를 덜어낸다.
+
+    `results` 안의 행만 줄이고 `count`·`search_mode`·`note` 는 그대로 둔다 —
+    note 는 keyword_fallback 같은 '결과를 어떻게 읽어야 하는지'를 담고 있어서
+    줄이면 아르가 "지원자가 없다"고 단정해 버린다.
+    """
+    if name not in _COMPACTABLE or not isinstance(result, dict):
+        return result
+    rows = result.get("results")
+    if not isinstance(rows, list):
+        return result
+
+    slim: list[Any] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            slim.append(row)
+            continue
+        kept = {k: row[k] for k in _COMPACT_LIST_KEYS if k in row}
+        skills = kept.get("skills")
+        if isinstance(skills, list) and len(skills) > _COMPACT_SKILL_LIMIT:
+            kept["skills"] = skills[:_COMPACT_SKILL_LIMIT]
+        slim.append(kept)
+
+    return result | {"results": slim}
+
+
 def execute_tool(
-    name: str, arguments: dict, db: Session, user: User
+    name: str, arguments: dict, db: Session, user: User, compact: bool = False
 ) -> str:
-    """도구를 실행하고 결과를 JSON 문자열로 반환한다."""
+    """도구를 실행하고 결과를 JSON 문자열로 반환한다.
+
+    `compact` 는 기본 False 다 — 인자를 주지 않는 기존 호출자(Anthropic 경로)는
+    지금과 완전히 같은 JSON 을 받는다.
+    """
     fn = _DISPATCH.get(name)
     if fn is None:
         return json.dumps({"error": f"알 수 없는 도구: {name}"}, ensure_ascii=False)
     result = fn(db, user, arguments)
+    if compact:
+        result = compact_result(name, result)
     return json.dumps(result, ensure_ascii=False, default=str)

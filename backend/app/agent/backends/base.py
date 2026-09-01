@@ -11,8 +11,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
+
+# 스트리밍 중 확정된 본문 조각을 받는 콜백. 조각은 이어 붙이면 되는 평문이며
+# `<think>` 는 이미 걷힌 상태다. 예외를 던지지 않아야 한다 — 추론 루프가 멈춘다.
+TextChunkHandler = Callable[[str], None]
 
 MAX_ROUNDS = 10
 
@@ -91,6 +96,10 @@ class ChatBackend(Protocol):
     # 문법 제약 디코딩(JSON 스키마 강제) 지원 여부. 로컬(Ollama `format`)에만 있다.
     # 최소 공통 분모로 깎지 않고, 있는 쪽은 쓰고 없는 쪽은 파싱 폴백을 쓴다.
     supports_structured_output: bool
+    # 도구 결과를 축소해서 넣을지. 능력이 아니라 **프로필**이다 — 작은 로컬 모델은
+    # 목록을 통째로 옮겨 적느라 출력 토큰을 태우므로, 애초에 옮겨 적을 것을 줄인다.
+    # 도구는 로컬·API 양쪽이 같이 쓰므로 축소는 전역이 아니라 이 플래그로 가른다.
+    compact_tool_results: bool
 
     def model_tag(self) -> str:
         """`backend:model`. 로그·저장 태그는 전부 이 값을 쓴다."""
@@ -120,6 +129,35 @@ class ChatBackend(Protocol):
         json_schema: dict | None = None,
     ) -> CompletionResult:
         """도구 없는 단발 생성. `json_schema` 는 능력 플래그가 참일 때만 쓰인다."""
+        ...
+
+
+@runtime_checkable
+class StreamingChatBackend(Protocol):
+    """본문을 조각으로 흘려보낼 수 있는 백엔드.
+
+    `ChatBackend` 를 넓히지 않고 **별도 프로토콜**로 둔다. 그래야 스트리밍이 없는
+    어댑터(Anthropic)는 아무것도 구현하지 않아도 되고, 호출자는
+    `isinstance(backend, StreamingChatBackend)` 로만 갈라진다 — 메서드만 있는
+    프로토콜이라 런타임 검사가 성립한다.
+
+    계약:
+    - 반환은 `run_chat` 과 똑같은 `AgentResult` 다. `reply` 가 **정본**이고
+      `on_text` 로 흘린 조각은 미리보기다. 둘이 어긋나면 `reply` 가 맞다.
+    - 도구 호출이 있는 라운드는 흘리지 않는다. 그 라운드의 본문은 최종 답이 아니다.
+    - 쓰기 도구는 여전히 실행하지 않고 `pending_action` 으로 돌려보낸다(ADR-0003).
+    """
+
+    def run_chat_streaming(
+        self,
+        *,
+        message: str,
+        history: list[dict],
+        system_prompt: str,
+        tools: ToolRunner,
+        on_text: TextChunkHandler,
+        request_id: str | None = None,
+    ) -> AgentResult:
         ...
 
 
