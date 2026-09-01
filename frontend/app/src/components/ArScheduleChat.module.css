@@ -85,7 +85,8 @@
     justify-content: center;
     align-items: stretch;
     gap: var(--sp-7);
-    padding: var(--sp-6) var(--sp-6) var(--sp-1);
+    /* 입력줄이 화면 바닥에 붙지 않고 한 칸 위로 뜨도록 (아래 여백 ≈ 입력줄 높이) */
+    padding: var(--sp-6) var(--sp-6) var(--sp-8);
   }
 
   .side {
@@ -174,6 +175,14 @@
   scrollbar-color: transparent transparent;
 }
 
+/* 메시지가 적을 때 아래에 붙어 보이도록 (카톡·클로드 방식).
+   justify-content:flex-end 는 오버플로 시 위쪽 컨텐츠가 잘려 스크롤이 안 되는
+   크롬 버그가 있어, 첫 자식의 margin-top:auto 트릭을 쓴다 — 같은 시각 효과에
+   스크롤은 정상 동작 */
+.msgs > *:first-child {
+  margin-top: auto;
+}
+
 .msgsScrolling {
   scrollbar-color: var(--border) transparent;
 }
@@ -191,6 +200,17 @@
   flex: none;
 }
 
+/* 답변 대기 중인 아르 말풍선 — 텍스트 살짝 흐림 + 부드러운 맥동 */
+.msgPending {
+  color: var(--text-sub);
+  animation: msgPulse 1.2s var(--ease) infinite alternate;
+}
+
+@keyframes msgPulse {
+  from { opacity: 1; }
+  to { opacity: 0.55; }
+}
+
 .msgAr,
 .msgMe {
   max-width: 80%;
@@ -206,6 +226,23 @@
   align-self: flex-start;
   background: var(--bg-sunken);
   color: var(--text);
+}
+
+/* mdBlocks 가 만드는 내부 요소들 — 말풍선의 padding 은 바깥에 있으므로
+   내부 p/ul 은 마진을 없애고 문단 사이만 간격을 준다 */
+.msgAr p,
+.msgAr ul {
+  margin: 0;
+}
+
+.msgAr p + p,
+.msgAr p + ul,
+.msgAr ul + p {
+  margin-top: var(--sp-2);
+}
+
+.msgAr ul {
+  padding-left: var(--sp-4);
 }
 
 .msgMe {

@@ -105,3 +105,17 @@ class InterviewListOut(BaseModel):
 
     items: list[InterviewOut]
     count: int
+
+
+class FaqRequest(BaseModel):
+    """지원자의 채용 문의. 공개 라우트로 들어온다."""
+
+    # 500자 상한은 프롬프트 주입·긴 입력 폭탄을 막는 첫 관문이다 (faq.py 참고).
+    # 실제 문의는 100자 안팎이라 여유가 충분하다.
+    question: str = Field(..., min_length=1, max_length=500)
+
+
+class FaqResponse(BaseModel):
+    """아르의 답변. 이력은 서버가 관리하지 않는다 (stateless — 한 번의 왕복)."""
+
+    answer: str

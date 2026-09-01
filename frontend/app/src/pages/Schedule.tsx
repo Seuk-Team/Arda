@@ -73,6 +73,14 @@ export default function Schedule() {
     }
   }
 
+  async function ask(question: string): Promise<string> {
+    /* 공고 기반 FAQ 응답. 실패는 예외로 던지고 UI 가 폴백 문구를 낸다 */
+    const res = await api.post<{ answer: string }>(
+      `/public/schedule/${token}/faq`, { question }, { auth: false },
+    )
+    return res.answer
+  }
+
   if (state.kind === 'ready') {
     const d = state.data
     return (
@@ -86,6 +94,7 @@ export default function Schedule() {
         pending={pending}
         notice={notice}
         onConfirm={confirm}
+        onAsk={ask}
       />
     )
   }

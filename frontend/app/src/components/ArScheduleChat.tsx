@@ -1,9 +1,10 @@
-/* 지원자용 일정 페이지의 "채팅 중심" 레이아웃 (비교 시제품, ?ar=chat).
+/* 지원자용 일정 페이지의 "채팅 중심" 레이아웃.
    클로드 채팅처럼 화면 전체가 아르와의 대화이고, 면접 시간 선택은 대화 속
-   카드로 들어간다. 채택되면 Schedule.tsx 의 카드 레이아웃을 대체하고
-   fmt·타입 중복은 공용 lib 로 뺀다. FAQ 응답은 아직 스텁이다. */
+   카드로 들어간다. FAQ 응답은 부모(Schedule.tsx)가 넘겨준 onAsk 로 위임한다 —
+   이 컴포넌트는 UI 만, 네트워크는 부모가. */
 import { useEffect, useRef, useState } from 'react'
 import ArViewer from './ArViewer'
+import { mdBlocks } from '../lib/markdown'
 import styles from './ArScheduleChat.module.css'
 
 interface PublicSlot {
@@ -22,15 +23,20 @@ interface Props {
   pending: boolean
   notice: string | null
   onConfirm: (slotId: number) => void
+  /* FAQ 질문 → 답변. 부모가 토큰 알고 API 호출. 실패 시 예외를 던진다 */
+  onAsk: (question: string) => Promise<string>
 }
 
 interface Msg {
   id: number
   who: 'ar' | 'me'
   text: string
+  /* 아르 답변이 오는 동안 표시할 자리 홀더. 자기가 아직 응답 대기 중임을 표시 */
+  pending?: boolean
 }
 
-const STUB_REPLY = '(준비 중) 곧 공고 내용을 바탕으로 답변드릴 수 있어요!'
+const THINKING = '생각 중이에요…'
+const FALLBACK_ERROR = '지금 답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.'
 
 /* Schedule.tsx 와 같은 표기 규칙 (05-design §2) — 한국 시간 고정 */
 const dayFmt = new Intl.DateTimeFormat('ko-KR', {
@@ -52,7 +58,7 @@ function fmtTime(iso: string): string {
 
 export default function ArScheduleChat({
   status, applicantName, postingTitle, expiresAt, slots, confirmedSlot,
-  pending, notice, onConfirm,
+  pending, notice, onConfirm, onAsk,
 }: Props) {
   const [picked, setPicked] = useState<number | null>(null)
   const [items, setItems] = useState<Msg[]>([])
@@ -102,15 +108,32 @@ export default function ArScheduleChat({
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [items])
 
-  function send() {
+  const [asking, setAsking] = useState(false)
+
+  async function send() {
     const text = draft.trim()
-    if (!text) return
+    if (!text || asking) return
     setDraft('')
+    const myId = seq.current++
+    const arId = seq.current++
     setItems((prev) => [
       ...prev,
-      { id: seq.current++, who: 'me', text },
-      { id: seq.current++, who: 'ar', text: STUB_REPLY },
+      { id: myId, who: 'me', text },
+      { id: arId, who: 'ar', text: THINKING, pending: true },
     ])
+    setAsking(true)
+    try {
+      const answer = await onAsk(text)
+      setItems((prev) => prev.map((m) =>
+        m.id === arId ? { ...m, text: answer, pending: false } : m,
+      ))
+    } catch {
+      setItems((prev) => prev.map((m) =>
+        m.id === arId ? { ...m, text: FALLBACK_ERROR, pending: false } : m,
+      ))
+    } finally {
+      setAsking(false)
+    }
   }
 
   /* 어느 공고인지가 첫 문장에 들어간다 — 상단 헤더 대신 대화로 안내 */
@@ -241,13 +264,20 @@ export default function ArScheduleChat({
             이미지(ar-face.png)라 메시지가 많아져도 WebGL 부담이 없다 */}
         <div className={styles.arRow}>
           <img className={styles.avatar} src={`${import.meta.env.BASE_URL}ar-face.png`} alt="" />
-          <p className={styles.msgAr}>{greeting}</p>
+          <div className={styles.msgAr}>{mdBlocks(greeting)}</div>
         </div>
         {items.map((m) => (
           m.who === 'ar' ? (
             <div key={m.id} className={styles.arRow}>
               <img className={styles.avatar} src={`${import.meta.env.BASE_URL}ar-face.png`} alt="" />
-              <p className={styles.msgAr}>{m.text}</p>
+              {/* 대기 중은 원문(생각 중이에요…) 그대로. 응답이 오면 최소 마크다운
+                  (굵게·불릿)을 그린다. div 인 이유는 ul 이 들어갈 수 있어서 */}
+              <div
+                className={m.pending ? `${styles.msgAr} ${styles.msgPending}` : styles.msgAr}
+                aria-live={m.pending ? 'polite' : undefined}
+              >
+                {m.pending ? m.text : mdBlocks(m.text)}
+              </div>
             </div>
           ) : (
             <p key={m.id} className={styles.msgMe}>{m.text}</p>
@@ -261,11 +291,13 @@ export default function ArScheduleChat({
           className={styles.input}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="궁금한 점을 입력하세요"
+          placeholder={asking ? '답변을 기다리는 중…' : '궁금한 점을 입력하세요'}
           aria-label="질문 입력"
+          maxLength={500}
+          disabled={asking}
         />
-        <button type="submit" className="btn btn-primary" disabled={!draft.trim()}>
-          보내기
+        <button type="submit" className="btn btn-primary" disabled={!draft.trim() || asking}>
+          {asking ? '전송 중' : '보내기'}
         </button>
       </form>
       </div>

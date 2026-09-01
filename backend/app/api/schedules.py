@@ -29,6 +29,8 @@ from app.models import (
 )
 from app.schemas.schedule import (
     ConfirmRequest,
+    FaqRequest,
+    FaqResponse,
     InterviewListOut,
     InterviewOut,
     ProposalCreate,
@@ -465,3 +467,78 @@ def confirm_schedule(token: str, body: ConfirmRequest, db: Session = Depends(get
         ],
         confirmed_slot=PublicSlotOut.model_validate(slot),
     )
+
+
+@router.post("/public/schedule/{token}/faq", response_model=FaqResponse)
+def public_faq(token: str, body: FaqRequest, db: Session = Depends(get_db)):
+    """지원자용 아르 채팅 — 공고 내용 기반 FAQ 응답 (공개, 토큰 인증).
+
+    담당자용 아르(POST /agent/chat)와는 완전히 별개다:
+    - 도구 없음, 대화 이력 없음, stateless — 한 번의 질문 → 한 번의 답변
+    - 답변 범위·차단 주제는 프롬프트(faq_answer.v1.md)가 정한다
+      (연봉·평가·다른 지원자·회사 내부 프로세스는 답하지 않는다)
+
+    invalid/replaced 링크는 여기서도 막는다 — 만료된 링크로 챗봇만 계속 쓰지
+    못하게. expired 는 통과시킨다 (지원자가 상태 확인을 위해 페이지에 남아 있고,
+    아직 공고 자체에는 지원자다).
+    """
+    from app.agent.faq import answer_question
+
+    proposal = _get_proposal_by_token(db, token)
+    application = db.get(Application, proposal.application_id)
+    posting = db.get(JobPosting, application.job_posting_id) if application else None
+    if posting is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "공고를 찾을 수 없습니다")
+
+    try:
+        answer, _cost, _model = answer_question(
+            posting,
+            body.question,
+            applicant_context=_build_applicant_context(db, application, proposal),
+        )
+    except Exception:
+        # 백엔드 미설정·모델 오류 등. 지원자에게 원문 노출은 하지 않고 안내로 감싼다.
+        logger.exception("FAQ 응답 생성 실패 posting_id=%s", posting.id)
+        raise HTTPException(
+            HTTPStatus.SERVICE_UNAVAILABLE,
+            "지금 답변을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        )
+
+    return FaqResponse(answer=answer)
+
+
+_STAGE_KR = {
+    "applied": "지원 접수", "screening": "서류 검토", "interview": "면접",
+    "accepted": "최종 합격", "rejected": "불합격",
+}
+
+
+def _kst(dt: datetime) -> str:
+    """UTC 저장값을 지원자가 보는 한국 시각 표기로 (YYYY.MM.DD (요일) HH:MM)."""
+    kst = dt.astimezone(timezone(timedelta(hours=9)))
+    day_kr = "월화수목금토일"[kst.weekday()]
+    return f"{kst.strftime('%Y.%m.%d')} ({day_kr}) {kst.strftime('%H:%M')}"
+
+
+def _build_applicant_context(
+    db: Session, application: Application, proposal: ScheduleProposal
+) -> str:
+    """지원자 본인의 상태를 자연어 요약으로 — 아르가 개인 문의에 답할 근거.
+
+    화면(SchedulePublicOut)에 뜨는 것과 같은 사실만 담는다. 담당자만 아는 것
+    (평가·메모·다른 지원자)은 절대 포함하지 않는다.
+    """
+    lines = [f"- 현재 전형 단계: {_STAGE_KR.get(application.current_stage, application.current_stage)}"]
+
+    if proposal.status == "confirmed" and proposal.confirmed_slot_id is not None:
+        slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
+        if slot is not None:
+            lines.append(f"- 다음 일정: 면접 확정 — {_kst(slot.start_at)} ~ {_kst(slot.end_at)[-5:]}")
+    elif proposal.status == "proposed":
+        lines.append("- 다음 일정: 면접 시간 선택 대기 중 (지원자가 이 페이지에서 슬롯을 선택하면 확정)")
+        if proposal.expires_at is not None:
+            lines.append(f"- 선택 기한: {_kst(proposal.expires_at)} 까지")
+    elif proposal.status == "expired":
+        lines.append("- 다음 일정: 면접 선택 기한 지남 — 담당자에게 문의해야 재제안 가능")
+
+    return "\n".join(lines)
