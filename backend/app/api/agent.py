@@ -59,8 +59,14 @@ class ChatResponse(BaseModel):
     # 캐시로 처리된 몫. cache_read_tokens 가 계속 0이면 캐시가 안 걸린 것이다
     cache_write_tokens: int
     cache_read_tokens: int
+    # 모델명이 아니라 `backend:model` 태그다 (예: anthropic:claude-haiku-4-5-20251001,
+    # ollama:qwen3:8b). 토크나이저가 달라 백엔드 간 토큰 수를 비교할 수 없으므로
+    # 어느 백엔드가 낸 숫자인지 함께 남긴다.
     model: str
     cost_usd: float
+    # 백엔드 식별자. 로컬은 프롬프트 캐싱 개념 자체가 없어서 cache_* 가 0 인데,
+    # 이 필드가 "캐시 미적중"과 "캐시 개념 없음"을 구분해 준다.
+    backend: str = ""
 
 
 class ConfirmRequest(BaseModel):
@@ -125,14 +131,9 @@ def chat(
             description=result.pending_action.description,
         )
 
-    from app.agent.runtime import _estimate_cost, AGENT_MODEL
-    cost = _estimate_cost(
-        AGENT_MODEL,
-        result.input_tokens,
-        result.output_tokens,
-        result.cache_write_tokens,
-        result.cache_read_tokens,
-    )
+    # 비용은 백엔드가 계산해서 실어 보낸다. 여기서 PRICING 표를 다시 조회하면
+    # 로컬 모델명이 haiku 단가로 폴백해 있지도 않은 요금이 찍힌다.
+    cost = result.cost_usd
 
     return ChatResponse(
         reply=result.reply,
@@ -144,6 +145,7 @@ def chat(
         cache_read_tokens=result.cache_read_tokens,
         model=result.model,
         cost_usd=round(cost, 6),
+        backend=result.backend,
     )
 
 

@@ -125,7 +125,11 @@ class FakeAgentResult:
     # /agent/chat 이 result.cache_write_tokens 를 읽다 500 이 났다.
     cache_write_tokens: int = 0
     cache_read_tokens: int = 0
-    model: str = "claude-haiku-4-5-20251001"
+    # model 은 backend:model 태그다. 비용은 백엔드가 계산해서 실어 보내므로
+    # 더블에도 cost_usd 가 있어야 한다 (없으면 /agent/chat 이 500 난다).
+    model: str = "anthropic:claude-haiku-4-5-20251001"
+    backend: str = "anthropic"
+    cost_usd: float = 0.00035
 
     def __post_init__(self):
         if self.tool_calls is None:
