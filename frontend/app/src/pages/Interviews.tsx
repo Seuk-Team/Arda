@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHead from '../components/PageHead'
+import SidePanel from '../components/SidePanel'
 import { ApiError } from '../api/client'
 import { schedules } from '../api/endpoints'
 import type { Interview } from '../api/types'
@@ -11,8 +12,12 @@ import styles from './Interviews.module.css'
    않는다 — 채용 흐름에서 확정된 것이 GET /schedules 로 들어올 뿐이다.
    회차 컬럼은 여전히 없다: 면접 라운드 개념이 스키마에 없어 지어낼 수 없다.
 
-   셀 넘침(하루 15건)은 "셀에 3건 + +N건, 날짜 클릭 = 그날 목록"으로 푼다.
-   그날 목록은 기존 면접 일정 테이블을 그대로 쓴다 — 시각·지원자·공고·면접관. */
+   셀 넘침(하루 15건)은 "셀에 3건 + +N건, 날짜 클릭 = 우측 패널"로 푼다.
+   2026-09-01 — 그리드 아래에 있던 그날 목록을 우측 패널(SidePanel variant="content")로
+   옮겼다. 목록이 접혀 있던 자리가 1280×800 에서도 화면 밖(top 914px)이라 칸을 눌러도
+   아무 일이 없는 것처럼 보였기 때문이다. 420px 에 4열 표는 안 들어가므로 행 형태로
+   바꿨다 — 왼쪽 시각, 오른쪽 지원자 + 공고·면접관. 1100px 아래에서는 SidePanel 이
+   알아서 오버레이가 된다(지원자 상세와 같은 규격). */
 
 function startOfToday() {
   const d = new Date()
@@ -93,6 +98,9 @@ export default function Interviews() {
      달을 넘겨도 어느 날을 보고 있었는지가 유지된다 */
   const [sel, setSel] = useState(startOfToday)
   const [view, setView] = useState(() => startOfMonth(startOfToday()))
+  /* 그날 일정 패널. 칸을 눌러야 열린다 — 화면에 들어오자마자 열려 있으면
+     한 달을 훑어보러 온 사람에게 그리드가 좁아진 채로 시작한다 */
+  const [dayOpen, setDayOpen] = useState(false)
 
   const [list, setList] = useState<Interview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -255,6 +263,7 @@ export default function Interviews() {
   return (
     <>
       <PageHead title="캘린더" />
+      <div className={styles.body}>
       <main className="page-content">
       <div className={styles.daybar}>
         <button
@@ -325,7 +334,12 @@ export default function Interviews() {
                 aria-pressed={key === selKey}
                 aria-current={key === todayKey ? 'date' : undefined}
                 aria-label={`${fmt(d)} ${DOW[d.getDay()]}요일, ${items.length ? `면접 ${items.length}건` : '면접 없음'}`}
-                onClick={() => jump(d)}
+                onClick={() => {
+                  /* 같은 날을 다시 누르면 닫는다 — 다른 날이면 그 날로 바꿔 열어 둔다 */
+                  const same = key === selKey
+                  jump(d)
+                  setDayOpen((v) => (same ? !v : true))
+                }}
               >
                 <span className={styles.date}>{d.getDate()}</span>
 
@@ -357,10 +371,27 @@ export default function Interviews() {
         </p>
       )}
 
+      </main>
+
+      {/* ── 그날 일정 패널 (2026-09-01) — 지원자 상세와 같은 껍데기 ────────── */}
+      {dayOpen && (
+      <SidePanel
+        variant="content"
+        onClose={() => setDayOpen(false)}
+        label="그날 면접 일정"
+        closeLabel="일정 패널 닫기"
+      >
+      {/* 머리는 지원자 상세 패널과 같이 직접 그린다 — 떠 있는 닫기 버튼을 피해 오른쪽을 비운다 */}
       <div className={styles.dayHead}>
         <span className={styles.dayTitle}>{fmt(sel)} ({DOW[sel.getDay()]})</span>
-        <span className={styles.dayCount}>{shown.length}건</span>
+        <span className={styles.dayCount}>
+          {loading ? '불러오는 중…' : `면접 ${shown.length}건`}
+        </span>
+      </div>
 
+      {/* 고를 시간대가 없으면 필터를 내놓지 않는다 — 빈 날에 쓸 수 없는 컨트롤만 남는다 */}
+      {hours.length > 0 && (
+      <div className={styles.dayTools}>
         <div className={`${styles.dd} ${ddOpen ? styles.ddOpen : ''}`}>
           <button
             type="button"
@@ -406,39 +437,27 @@ export default function Interviews() {
           </button>
         )}
       </div>
+      )}
 
-      <div className={styles.panel}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>시각</th>
-              <th>지원자</th>
-              <th>공고</th>
-              <th>면접관</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading
-              ? [0, 1, 2].map((i) => (
-                <tr key={i}>
-                  {[0, 1, 2, 3].map((c) => (
-                    <td key={c}><span className={styles.skelRow} /></td>
-                  ))}
-                </tr>
-              ))
-              : shown.map((iv) => (
-                /* 행 클릭 = 그 지원자가 있는 공고 화면 (05-design §0.5 진입점) */
-                <tr key={iv.proposal_id} onClick={() => navigate(`/applicants?q=${encodeURIComponent(iv.applicant_name)}`)}>
-                  <td className={styles.num}>{hhmm(iv.start_at)}</td>
-                  <td className={styles.name}>{iv.applicant_name}</td>
-                  <td className={styles.posting}>{iv.posting_title}</td>
-                  <td className={styles.sub}>{iv.interviewer_name}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      {/* 420px 에 4열 표는 안 들어간다 — 시각을 왼쪽에 세우고 나머지를 오른쪽에 쌓는다 */}
+      <div className={styles.ivList}>
+        {loading && [0, 1, 2].map((i) => <span key={i} className={styles.skelRow} />)}
 
-        {!loading && shown.length === 0 ? (
+        {!loading && shown.map((iv) => (
+          /* 행 클릭 = 그 지원자가 있는 공고 화면 (05-design §0.5 진입점) */
+          <button
+            key={iv.proposal_id}
+            type="button"
+            className={styles.iv}
+            onClick={() => navigate(`/applicants?q=${encodeURIComponent(iv.applicant_name)}`)}
+          >
+            <span className={styles.ivTime}>{hhmm(iv.start_at)}</span>
+            <span className={styles.ivName}>{iv.applicant_name}</span>
+            <span className={styles.ivMeta}>{iv.posting_title} · {iv.interviewer_name}</span>
+          </button>
+        ))}
+
+        {!loading && shown.length === 0 && (
           <p className={styles.empty}>
             {slot
               ? '이 시간대에 잡힌 면접이 없습니다.'
@@ -446,15 +465,17 @@ export default function Interviews() {
                 ? '이 날짜에 내 면접이 없습니다.'
                 : '이 날짜에 잡힌 면접이 없습니다. 확정된 일정만 표시됩니다.'}
           </p>
-        ) : (
-          shown.length > 0 && (
-            <div className={styles.foot}>
-              <span>{shown.length}건 중 1–{shown.length}</span>
-            </div>
-          )
         )}
       </div>
-      </main>
+
+      {!loading && shown.length > 0 && (
+        <div className={styles.foot}>
+          <span>{shown.length}건 중 1–{shown.length}</span>
+        </div>
+      )}
+      </SidePanel>
+      )}
+      </div>
     </>
   )
 }

@@ -1,20 +1,5 @@
-/* 캘린더 축소판 → 전체 화면 전환(MorphNav) 중에는 축소판만 남기고 나머지가 진다.
-   움직이는 값은 opacity 뿐이다 (05-design §5 — transform·opacity 위주).
-   축소판은 .topGrid 안에 있으므로 그리드 자체는 남기고 그 형제들만 지운다 —
-   그리드를 통째로 지우면 축소판까지 같이 사라진다. */
-.page > *,
-.topGrid > * {
-  transition: opacity var(--dur-base) var(--ease);
-}
-
-.page[data-leaving] > *:not(.topGrid),
-.page[data-leaving] .topGrid > *:not(.calCard) {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .page > * { transition: none; }
-}
+/* 캘린더 축소판 → 전체 화면 확대 전환(MorphNav)은 2026-09-01 에 뺐다.
+   축소판을 누르면 그냥 캘린더로 이동한다 — 페이드아웃도 없다. */
 
 .stats {
   display: grid;
@@ -100,9 +85,10 @@
   cursor: pointer;
 }
 
+/* 제목과 연월은 한 줄로 읽히는 한 덩어리다 — 밑선을 맞춘다 (2026-09-01) */
 .calHead {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-2);
   margin-bottom: var(--sp-3);
 }
@@ -115,11 +101,15 @@
   white-space: nowrap;
 }
 
+/* 2026-09-01 — 14px 무채로는 제목 옆에서 묻혔다. 크기·굵기를 제목과 같게 올리고
+   색만 --text-sub 로 남겨 위계를 지킨다 */
 .calMonth {
   flex: 1;
-  font-size: var(--font-num);
+  font-size: var(--font-h2);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
+  text-shadow: var(--ts-heading);
   white-space: nowrap;
 }
 
@@ -140,13 +130,15 @@
   white-space: nowrap;
 }
 
-/* 그 주 7칸. 날짜 + 건수만 — 대시보드는 밀도를 보는 자리다 */
+/* 그 주 7칸. 날짜 + 건수만 — 대시보드는 밀도를 보는 자리다.
+   2026-09-01 — 날짜는 건수가 있든 없든 칸 정중앙에 있어야 한다. 세로로 쌓으면
+   건수가 붙는 날만 날짜가 위로 밀려 요일 줄과 어긋났다. 건수는 흐름에서 빼
+   우상단에 얹는다. */
 .stripCell {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-1);
   height: 56px;
   margin-top: var(--sp-1);
   border-radius: var(--r-ctl);
@@ -180,27 +172,27 @@
   white-space: nowrap;
 }
 
+/* 면접이 잡힌 날 표식 (2026-09-01). 판단 전 정보라 무채 (05-design §1).
+   흐름 밖에 두어 날짜가 칸 정중앙에서 밀리지 않게 한다 */
+.stripDot {
+  position: absolute;
+  bottom: var(--sp-2);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--neutral);
+}
+
+/* 오늘은 날짜 알약이 이미 연두라 점도 같은 계열로 맞춘다 */
+.stripToday .stripDot { background: var(--leaf); }
+
 .stripToday .stripDate {
   background: var(--sprout-soft);
   color: var(--leaf);
   font-weight: 700;
 }
-
-/* 건수는 판단 전 정보라 무채 (05-design §1) */
-.stripCount {
-  min-width: 20px;
-  height: 18px;
-  padding: 0 var(--sp-1);
-  border-radius: var(--r-pill);
-  background: var(--bg-sunken);
-  font-size: var(--font-caption);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  text-align: center;
-  white-space: nowrap;
-}
-
-.stripSel .stripCount { background: var(--bg-elev); }
 
 /* 고른 날의 목록. 바닥은 로딩 스켈레톤·빈 문구 한 줄이 들어갈 만큼만 —
    빈 날에 카드가 공허하게 길어지지 않게 낮췄다 (2026-08-31 절반 너비 개편) */

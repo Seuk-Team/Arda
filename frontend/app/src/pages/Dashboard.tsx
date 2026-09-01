@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
-import { useMorphNav } from '../components/MorphNav'
 import { ApiError } from '../api/client'
 import { applications, assignments, postings as postingsApi, schedules } from '../api/endpoints'
 import type { ApplicationListItem, Interview, Posting, ScheduleStatus, Stage } from '../api/types'
@@ -118,9 +117,6 @@ function fmtMonth(d: Date): string {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  /* 축소판 → 전체 캘린더 전환. leaving 동안 이 화면은 축소판만 남기고 진다 */
-  const { leaving, start: startMorph } = useMorphNav()
-  const calRef = useRef<HTMLElement>(null)
 
   const [data, setData] = useState<DashboardData | null>(null)
   const [rails, setRails] = useState<Record<number, number[]>>({})
@@ -239,14 +235,9 @@ export default function Dashboard() {
   const calItems = calByDay.get(dayKey(calSel)) ?? []
   const todayKey = dayKey(startOfToday())
 
-  /* 축소판 도형이 캘린더 화면으로 확장되며 이어진다 (MorphNav).
-     전환을 못 걸면(모션 최소화·목적지 없음) 그냥 이동한다 */
+  /* 축소판 → 캘린더 화면. 2026-09-01 확대 전환을 뺐다 — 그냥 이동한다 */
   function goCalendar() {
-    if (calRef.current === null) {
-      navigate('/calendar')
-      return
-    }
-    startMorph(calRef.current, '/calendar', 'calendar')
+    navigate('/calendar')
   }
 
   /* 카드 안 빈자리를 눌러도 캘린더로 간다. 카드 안의 조작(주 이동·날짜 선택)은 제자리 */
@@ -285,8 +276,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHead title="대시보드" />
-      {/* 전환 중에는 축소판만 남기고 나머지가 진다 (data-leaving → CSS) */}
-      <main className={`page-content ${styles.page}`} data-leaving={leaving ? '' : undefined}>
+      <main className={`page-content ${styles.page}`}>
         {error !== null && <p className={styles.state} role="alert">{error}</p>}
 
         <div className={styles.stats}>
@@ -305,7 +295,6 @@ export default function Dashboard() {
         <div className={styles.topGrid}>
         {/* ── 면접 일정 축소판 — 누르면 캘린더 화면으로 이어진다 ────────── */}
         <section
-          ref={calRef}
           className={`${styles.card} ${styles.calCard}`}
           onClick={onCalCardClick}
         >
@@ -352,7 +341,8 @@ export default function Dashboard() {
                   onClick={() => setCalSel(d)}
                 >
                   <span className={styles.stripDate}>{d.getDate()}</span>
-                  {n > 0 && <span className={styles.stripCount}>{n}</span>}
+                  {/* 면접이 잡힌 날 표식. 건수는 aria-label 과 아래 목록이 말한다 */}
+                  {n > 0 && <span className={styles.stripDot} aria-hidden="true" />}
                 </button>
               )
             })}
