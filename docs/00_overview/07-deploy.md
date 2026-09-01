@@ -125,6 +125,21 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 
 **2026-09-01 실행 기록 (G4)**: 덤프(`~/arda-db-backup-20260901-g4.sql`) → `.env` 에 `MAIL_REPLY_TO` 추가(`backend/.env.bak-g4` 백업) → SQL 실행 `COMMIT` → 재배포 순으로 진행했다. 반영 확인: `users.is_active`, `email_logs.subject/body/actor_kind/actor_id`, `ck_email_logs_stage` 에 `custom`, `email_logs_actor_id_fkey`. 배포 후 신규 7경로가 전부 401(라우트 살아 있고 인증 걸림), 워커 `restarts=0`, 실발송 2통(사람·에이전트) `sent` 확인.
 
+**2026-09-01 — 손 SQL 시대 종료 (alembic 전환)**. 이 표는 여기까지다. 이후 스키마 변경은 `backend/alembic/versions/` 에 리비전으로 쌓이고, 배포 때 `upgrade head` 한 번이면 따라온다.
+
+운영 DB 를 alembic 관리 아래로 넣은 절차 (실행 완료):
+
+1. **실측 먼저.** `stamp` 는 "이미 이 상태다"라고 선언하는 것이라 실제와 다르면 그 차이가 영구히 숨는다. 확인 결과 — `ai_summary_model` **50**(미이행) · `application_embeddings` 있음 · pgvector 있음 · `alembic_version` 없음 · role `admin 6 / member 1`
+2. **`ALTER TABLE applications ALTER COLUMN ai_summary_model TYPE varchar(200);`** — 0002 의 1단계를 손으로. 넓히기만 하므로 비파괴
+3. **`alembic_version` 생성 + `0002` 삽입** — `stamp head` 와 같은 효과. 서버에 alembic 을 설치하지 않았다(디스크가 빠듯하고, `stamp` 는 행 하나 쓰는 게 전부다)
+4. 확인: 폭 **200** · version **0002** · 행 1개
+
+> ⚠️ **`stamp head` 만 돌렸으면 안 됐다.** 인계받은 안내는 "운영은 이행을 이미 마쳤으니 stamp 만"이었는데 **실측에서 폭이 50 이었다.** 그대로 찍었으면 alembic 이 0002 를 적용했다고 기록하고 **다시는 안 고쳤다.**
+
+> **왜 지금 급했나 — 두 버그가 물려 있었다.** 운영 요약 21건 중 15건이 `{"insufficient": true, "gist": "", ...}` 빈 껍데기이고 태그가 전부 44자(`chain_summarize.v1` 한 단계뿐)다. `SUMMARY_MAX_TOKENS=500` 에서 step1 이 잘려 JSON 이 깨진 것(`96204f9` 가 1500 으로 고쳤으나 **미배포**). 폭 50 이 아직 안 문 이유가 바로 이것이다 — 태그가 44자라 들어갔다. **수정을 배포하면 태그가 81자가 되면서 그때부터 저장이 죽는다.** 그래서 ALTER 가 재배포보다 먼저여야 했다.
+
+**남은 것**: 재배포(`96204f9` 포함) → 빈 껍데기 15건 재생성. 코드를 고쳐도 이미 저장된 값은 안 바뀐다.
+
 **⚠️ 팀원 로컬 DB 도 같은 SQL 이 필요하다.** `create_all` 은 **기존 테이블에 컬럼을 못 붙인다.** pull 만 받고 로컬을 띄우면 새 코드의 ORM 이 `users.is_active` 를 SELECT 에 실어서 **전 요청이 500** 난다. 둘 중 하나를 한다:
 
 ```
