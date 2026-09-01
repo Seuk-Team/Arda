@@ -38,7 +38,10 @@ logger = setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 스키마가 굳기 전까지는 마이그레이션 없이 create_all 로 만든다 (app/db.py 참고)
+    # **새 DB 를 세우는 용도다.** 바뀐 스키마를 따라가는 것은 alembic 이 맡는다
+    # (backend/alembic/README.md) — create_all 은 기존 테이블을 고치지 않는다.
+    # 기동 시 자동 마이그레이션은 일부러 안 건다: 배포 중 스키마가 조용히 바뀌는
+    # 것보다 사람이 보고 돌리는 편이 지금 규모에 맞다.
     # 임베딩 테이블은 vector 타입을 쓰므로 확장이 없는 서버에서는 건너뛴다 —
     # 안 그러면 CREATE TABLE 이 실패해 나머지 테이블까지 못 만든다.
     tables = list(Base.metadata.sorted_tables)
