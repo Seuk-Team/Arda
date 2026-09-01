@@ -16,6 +16,16 @@ RUN uv sync --frozen --no-dev
 COPY scripts ./scripts
 COPY app ./app
 
+# 임베딩 모델을 이미지에 굽는다. 안 하면 **첫 검색 요청 때 HuggingFace 에서
+# 내려받는다** — 에어갭에서는 죽고, 프라이빗 서브넷이면 NAT 가 필요하며,
+# 그 요청만 수십 초 걸린다. 런타임에 인터넷을 안 타게 하는 것이 목적이다.
+ENV HF_HOME=/app/.hf
+RUN /app/.venv/bin/python scripts/prefetch_models.py
+
+# 굽고 난 뒤에는 잠근다. 모델이 빠졌으면 조용히 받지 말고 바로 실패해야 눈에 띈다.
+# (STT 로컬 모델은 여기서 안 받는다 — GPU 장비 전용이고 optional extra 다)
+ENV HF_HUB_OFFLINE=1
+
 EXPOSE 8000
 
 # **`uv run` 이 아니라 이미지 안 venv 를 직접 부른다.**

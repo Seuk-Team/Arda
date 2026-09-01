@@ -153,3 +153,33 @@ psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql
 - 시크릿(SSH 키·admin 비밀번호·API 키)은 이 문서에 없다 — 필요하면 팀장에게.
 - SSH 키 없는 PC에서 서버 작업이 필요하면: AWS 콘솔 → EC2 Instance Connect(브라우저 셸, 유저 `ubuntu`). 단, 보안그룹에 SSH 소스 `13.209.1.56/29`(서울 Instance Connect 대역)를 **임시 추가**하고 작업 후 제거한다 (08/28 실사용).
 - SES는 샌드박스 유지 — **해제(발송 한도 증가) 신청이 08/27 거절됨.** 실발송 테스트는 검증된 수신자(팀원 메일 등록)로만 가능하고, 데모도 이 방식으로 충분. SNS 바운스·컴플레인트 알림 연결 후 **08/28 재신청 제출 — 결과 대기.**
+
+
+## 로컬 AI 모델 — 런타임에 인터넷을 타지 않게 (2026-09-01)
+
+`sentence-transformers` 와 `faster-whisper` 는 모델이 없으면 **첫 사용 시점에 HuggingFace 에서 내려받는다.** 그래서 그냥 두면:
+
+1. 에어갭·온프레미스 환경에서 죽는다
+2. 프라이빗 서브넷이면 NAT 게이트웨이가 있어야 한다 — **"외부 호출 0건"이 아니게 된다**
+3. 첫 요청만 수십 초 걸린다. 담당자 눈에는 "가끔 멈추는 앱"이다
+
+**빌드 때 굽고 런타임엔 잠근다.** `backend/Dockerfile` 이 이미 그렇게 한다:
+
+```dockerfile
+ENV HF_HOME=/app/.hf
+RUN /app/.venv/bin/python scripts/prefetch_models.py
+ENV HF_HUB_OFFLINE=1
+```
+
+`HF_HUB_OFFLINE=1` 을 거는 이유는 속도가 아니라 **실패를 눈에 띄게** 하기 위해서다. 모델이 빠졌을 때 조용히 내려받으면 그 사실을 아무도 모른다.
+
+**GPU 장비(로컬 STT·채팅용)는 STT 모델도 받아야 한다** — 이미지에는 안 들어 있다(optional extra 라 t3.micro 에 얹지 않는다):
+
+```bash
+uv sync --extra local
+uv run python scripts/prefetch_models.py --stt
+```
+
+실측(2026-09-01, RTX 3050): 임베딩 `ko-sroberta` 11초 · STT `large-v3` 70초. 받은 뒤 `HF_HUB_OFFLINE=1` 상태에서 임베딩 로드와 한국어 전사가 모두 정상 동작하는 것을 확인했다.
+
+**캐시 경로가 빌드와 런타임에서 같아야 의미가 있다.** 볼륨으로 덮어쓰면 구운 것이 가려진다 — `HF_HOME` 을 볼륨 밖에 두거나, 볼륨 쪽에 다시 받아라.
