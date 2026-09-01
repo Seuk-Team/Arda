@@ -27,13 +27,17 @@ _EMPTY = "제출된 내용 없음"
 
 
 def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
-    """프롬프트에 필요한 공통 변수를 만든다."""
+    """프롬프트에 필요한 공통 변수를 만든다.
+
+    이력서·자기소개서 **파일**의 텍스트도 여기서 합친다 (extractor.py).
+    추출이 실패하면 기존처럼 폼 필드만으로 돈다 — 파일 하나 때문에
+    요약이 통째로 빠지는 것보다 낫다.
+    """
+    from app.agent.extractor import extract_text
+
     posting = db.get(JobPosting, app.job_posting_id)
     posting_title = posting.title if posting else "공고 정보 없음"
     posting_requirements = (posting.description or "요건 정보 없음") if posting else "요건 정보 없음"
-
-    resume_text = _EMPTY
-    cover_letter_text = app.self_intro or _EMPTY
 
     profile_parts: list[str] = []
     if app.name:
@@ -44,8 +48,22 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
         profile_parts.append(f"경력: {app.career_years}년")
     if app.skills:
         profile_parts.append(f"기술 스택: {', '.join(app.skills)}")
-    if profile_parts:
-        resume_text = "\n".join(profile_parts)
+
+    # 종류별 첫 파일만 쓴다 — 접수 흐름(C2)상 종류별 1개가 정상이다
+    resume_file_text: str | None = None
+    cover_file_text: str | None = None
+    for f in app.files:
+        if f.kind == "resume" and resume_file_text is None:
+            resume_file_text = extract_text(f)
+        elif f.kind == "cover_letter" and cover_file_text is None:
+            cover_file_text = extract_text(f)
+
+    if resume_file_text:
+        profile_parts.append(f"\n[이력서 파일 내용]\n{resume_file_text}")
+    resume_text = "\n".join(profile_parts) if profile_parts else _EMPTY
+
+    cover_parts = [p for p in (app.self_intro, cover_file_text) if p]
+    cover_letter_text = "\n\n".join(cover_parts) if cover_parts else _EMPTY
 
     return {
         "posting_title": posting_title,
