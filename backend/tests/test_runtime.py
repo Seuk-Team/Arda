@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -74,6 +75,10 @@ def _make_mock_anthropic(*responses):
 
 def _make_deps():
     db = MagicMock()
+    # #156 부터 _describe_action 이 db 에서 지원자를 읽어 확인 카드에 이름을 넣는다.
+    # 맨 MagicMock 을 두면 app.name 이 MagicMock 이라 " ".join 이 터진다 —
+    # 실제 Application 처럼 문자열 필드를 가진 것을 돌려준다.
+    db.get.return_value = SimpleNamespace(name="김도현", education="서울대 컴공")
     user = MagicMock()
     user.role = "member"
     return db, user
