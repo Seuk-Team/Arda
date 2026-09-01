@@ -150,3 +150,70 @@ class TestTranscribeKeyPresent:
             transcribe(b"audio")
 
         mock_cls.assert_called_once_with(api_key="sk-test123")
+
+
+# ── 백엔드 분기 (2026-09-01) ──────────────────────────────────────
+# STT_BACKEND 는 import 시점에 읽는 모듈 상수라 patch.dict 로는 안 바뀐다.
+# 모듈 속성을 직접 갈아 끼운다.
+
+class TestBackendDispatch:
+    """STT_BACKEND 로 openai / faster_whisper 를 가른다. 기본값은 openai."""
+
+    def test_기본값은_openai(self):
+        from app.agent import stt
+        assert stt.STT_BACKEND == "openai"
+        assert stt.backend_tag().startswith("openai:")
+
+    def test_모르는_백엔드는_조용히_폴백하지_않는다(self):
+        """오타 하나로 오디오가 외부로 나가면 안 된다 — 터뜨린다."""
+        from app.agent import stt
+        with patch.object(stt, "STT_BACKEND", "openai_typo"):
+            with pytest.raises(RuntimeError, match="알 수 없는 STT_BACKEND"):
+                stt.transcribe(b"dummy")
+
+    def test_로컬_백엔드는_openai_를_부르지_않는다(self):
+        from app.agent import stt
+
+        fake_seg = MagicMock()
+        fake_seg.text = "면접 단계 지원자 보여줘"
+        fake_info = MagicMock()
+        fake_info.duration = 4.0
+        fake_model = MagicMock()
+        fake_model.transcribe.return_value = (iter([fake_seg]), fake_info)
+
+        with (
+            patch.object(stt, "STT_BACKEND", "faster_whisper"),
+            patch.object(stt, "_get_local_model", return_value=fake_model),
+            patch("openai.OpenAI", side_effect=AssertionError("외부 API 를 불렀다")),
+        ):
+            result = stt.transcribe(b"dummy_audio")
+
+        assert result["raw"] == "면접 단계 지원자 보여줘"
+        assert result["audio_duration_sec"] == 4.0
+
+    def test_로컬_전사는_비용이_0이다(self):
+        from app.agent import stt
+
+        fake_seg = MagicMock()
+        fake_seg.text = "안녕하세요"
+        fake_info = MagicMock()
+        fake_info.duration = 600.0  # 10분 — API 였다면 $0.06 이 붙는다
+        fake_model = MagicMock()
+        fake_model.transcribe.return_value = (iter([fake_seg]), fake_info)
+
+        with (
+            patch.object(stt, "STT_BACKEND", "faster_whisper"),
+            patch.object(stt, "_get_local_model", return_value=fake_model),
+        ):
+            result = stt.transcribe(b"dummy_audio")
+
+        assert result["cost_usd"] == 0.0
+
+    def test_로컬_태그에_엔진이_박힌다(self):
+        """모델명만 남기면 어느 엔진이 만든 값인지 로그에서 알 수 없다."""
+        from app.agent import stt
+        with (
+            patch.object(stt, "STT_BACKEND", "faster_whisper"),
+            patch.object(stt, "LOCAL_MODEL", "large-v3"),
+        ):
+            assert stt.backend_tag() == "faster-whisper:large-v3"

@@ -22,6 +22,14 @@ dependencies = [
     "torch>=2.0",
 ]
 
+# 로컬 STT. 기본 설치에서 뺀 이유: 운영 API 는 t3.micro(RAM 1GiB)라 ctranslate2 까지
+# 얹으면 기동이 위태롭고, STT 를 로컬로 돌리는 것은 GPU 있는 장비에서만 하기 때문이다.
+#   uv sync --extra local
+[project.optional-dependencies]
+local = [
+    "faster-whisper>=1.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
