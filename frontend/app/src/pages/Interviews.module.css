@@ -73,9 +73,9 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.slotChip:hover {
-  background: var(--sunken-hover);
-}
+.slotChip:hover { background: var(--sunken-hover); }
+.slotChip:active { background: var(--bg-elev); }
+.slotChip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
 
 .dayToday {
   margin-left: var(--sp-3);
@@ -102,6 +102,17 @@
   color: var(--text-sub);
   padding: var(--sp-5);
   word-break: keep-all;
+}
+
+/* "없다" 가 먼저 읽히고 단서는 한 단계 아래 (§6 empty — 2026-09-01) */
+.emptyMain {
+  color: var(--text);
+}
+
+.emptySub {
+  margin-top: var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
 }
 
 .foot {
@@ -182,6 +193,9 @@
 }
 
 .ddMenu li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   padding: 10px var(--sp-3);
   border-radius: 4px;
   cursor: pointer;
@@ -191,8 +205,37 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.ddMenu li:hover { background: #EFF7E2; }
+.ddMenu li:hover { background: var(--sprout-soft); }
+.ddMenu li:active { background: var(--sunken-hover); }
 .ddSel { color: var(--leaf); font-weight: 700; }
+
+/* 고른 것을 색·굵기로만 알리지 않는다 (§10). 빈 칸도 자리를 지켜 글자가 안 흔들린다 */
+.ddMark {
+  flex: none;
+  width: var(--sp-3);
+  text-align: center;
+  color: var(--leaf);
+}
+
+/* 여러 개 골랐을 때만 나오는 한 번에 지우기 */
+.slotClear {
+  height: 28px;
+  padding: 0 var(--sp-2);
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--leaf);
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.slotClear:hover { background: var(--bg-sunken); }
+.slotClear:active { background: var(--sunken-hover); }
+.slotClear:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
 
 /* 내 면접만 — 자기 면접을 추려 볼 때. 목록 자체는 전원에게 전부 보인다 */
 .mine {
@@ -403,9 +446,11 @@
   white-space: nowrap;
 }
 
+/* 시간대를 여러 개 고르면 칩이 늘어난다 — 360px 를 넘기면 다음 줄로 (§3 깨짐 금지) */
 .dayTools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-5);
   border-bottom: var(--border-w) solid var(--border-soft);
@@ -416,7 +461,7 @@
   flex-direction: column;
 }
 
-/* 420px 에 4열 표는 안 들어간다. 시각을 왼쪽 열로 세우고 지원자·공고를 오른쪽에 쌓는다 */
+/* 360px 에 4열 표는 안 들어간다. 시각을 왼쪽 열로 세우고 지원자·공고를 오른쪽에 쌓는다 */
 .iv {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -433,7 +478,14 @@
 }
 
 .iv:hover { background: var(--bg-sunken); }
+.iv:active { background: var(--sunken-hover); }
 .iv:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+
+/* 누르면 공고를 알아내는 동안 잠긴다 — 멈춘 게 아니라 가는 중임을 커서로 말한다 */
+.iv:disabled {
+  cursor: progress;
+  background: var(--bg-sunken);
+}
 
 .ivTime {
   grid-row: 1 / 3;
@@ -442,19 +494,29 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+  white-space: nowrap;
 }
 
+/* 긴 이름은 한 줄에서 자른다 (§7) — 시각 옆 한 줄 자리다 */
 .ivName {
   font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* 공고·면접관은 판단 전 정보다 — 색 없이 라벨로만 (05-design §1) */
+/* 공고·면접관은 판단 전 정보다 — 색 없이 라벨로만 (05-design §1).
+   긴 공고명은 두 줄까지 (§7) */
 .ivMeta {
   font-size: var(--font-caption);
   color: var(--text-sub);
   word-break: keep-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* 스켈레톤 (§6 — loading 은 스켈레톤 우선) */

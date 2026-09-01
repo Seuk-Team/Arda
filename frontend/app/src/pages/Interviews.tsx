@@ -122,8 +122,12 @@ export default function Interviews() {
 
   const openDayFromUrl = fromUrl !== null
   useEffect(() => {
+    /* ?date= 로 들어왔을 때만 열고, 그냥 들어오면 닫은 채로 시작한다.
+       열림 상태는 화면 밖(RightPanel)에 있어서 안 닫으면 지난번에 열어 둔 것이
+       메뉴로 다시 들어왔을 때 그대로 붙어 있다. */
     if (openDayFromUrl) rightPanel.open('day')
-    // 처음 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
+    else rightPanel.close('day')
+    // 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDayFromUrl])
 
@@ -183,10 +187,18 @@ export default function Interviews() {
     return map
   }, [list])
 
-  /* 대시보드에서 한 시간대를 눌러 넘어오면 그 슬롯만 남긴다.
-     URL 의 ?slot= 은 초기값이고, 이후에는 화면 안에서 고른다 */
-  const [slot, setSlot] = useState<string | null>(() => params.get('slot'))
+  /* 시간대는 여러 개를 겹쳐 고른다 (2026-09-01) — 10시와 14시를 같이 보려면
+     하나만 고르게 해서는 안 된다. 빈 배열이 "전체"다. 값은 시(hour) 두 자리.
+     URL 의 ?slot=10:00 은 초기값이고(옛 /interviews 링크), 이후에는 화면에서 고른다 */
+  const [slots, setSlots] = useState<string[]>(() => {
+    const raw = params.get('slot')
+    return raw === null ? [] : [raw.slice(0, 2)]
+  })
   const [ddOpen, setDdOpen] = useState(false)
+
+  function toggleSlot(h: string) {
+    setSlots((cur) => (cur.includes(h) ? cur.filter((x) => x !== h) : [...cur, h].sort()))
+  }
 
   useEffect(() => {
     if (!ddOpen) return
@@ -196,7 +208,9 @@ export default function Interviews() {
   }, [ddOpen])
 
   const ofDay = byDay.get(dayKey(sel)) ?? []
-  const shown = slot ? ofDay.filter((iv) => hhmm(iv.start_at).slice(0, 2) === slot.slice(0, 2)) : ofDay
+  const shown = slots.length === 0
+    ? ofDay
+    : ofDay.filter((iv) => slots.includes(hhmm(iv.start_at).slice(0, 2)))
 
   /* 고를 수 있는 시간대는 그 날 실제로 면접이 있는 시(hour)뿐이다.
      없는 시간을 목록에 두면 눌러 놓고 빈 화면만 본다. */
@@ -382,6 +396,9 @@ export default function Interviews() {
                   /* 같은 날을 다시 누르면 닫는다 — 다른 날이면 그 날로 바꿔 열어 둔다 */
                   const same = key === selKey && dayOpen
                   jump(d)
+                  /* 42칸에는 앞뒤 달이 물려 있다. 그 칸을 누르면 그 달로 넘어간다 —
+                     jump 는 그리드 안에 있는 날이면 달을 그대로 두기 때문이다 */
+                  if (outside) setView(startOfMonth(d))
                   if (same) rightPanel.close('day')
                   else rightPanel.open('day')
                 }}
@@ -445,40 +462,62 @@ export default function Interviews() {
             aria-expanded={ddOpen}
             onClick={(e) => { e.stopPropagation(); setDdOpen((v) => !v) }}
           >
-            {slot ? `${slot.slice(0, 2)}시` : '시간대'}
+            {slots.length === 0
+              ? '시간대'
+              : slots.length === 1
+                ? `${slots[0]}시`
+                : `${slots[0]}시 외 ${slots.length - 1}`}
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
           </button>
-          <ul className={styles.ddMenu} role="listbox">
+
+          {/* 하나 고르면 닫는다. 겹쳐 고르려면 다시 열어 하나 더 고른다 — 고를 때마다
+              걸린 결과를 보고 다음을 정하는 흐름이다.
+              체크 표시를 같이 두는 것은 §10(색만으로 알리지 않기) */}
+          <ul className={styles.ddMenu} role="listbox" aria-multiselectable="true">
             <li
               role="option"
-              aria-selected={slot === null}
-              className={slot === null ? styles.ddSel : undefined}
-              onClick={() => { setSlot(null); setDdOpen(false) }}
+              aria-selected={slots.length === 0}
+              className={slots.length === 0 ? styles.ddSel : undefined}
+              onClick={(e) => { e.stopPropagation(); setSlots([]); setDdOpen(false) }}
             >
+              <span className={styles.ddMark} aria-hidden="true">{slots.length === 0 ? '✓' : ''}</span>
               전체
             </li>
             {hours.map((h) => (
               <li
                 key={h}
                 role="option"
-                aria-selected={slot?.slice(0, 2) === h}
-                className={slot?.slice(0, 2) === h ? styles.ddSel : undefined}
-                onClick={() => { setSlot(`${h}:00`); setDdOpen(false) }}
+                aria-selected={slots.includes(h)}
+                className={slots.includes(h) ? styles.ddSel : undefined}
+                onClick={(e) => { e.stopPropagation(); toggleSlot(h); setDdOpen(false) }}
               >
+                <span className={styles.ddMark} aria-hidden="true">{slots.includes(h) ? '✓' : ''}</span>
                 {h}시
               </li>
             ))}
           </ul>
         </div>
 
-        {slot && (
+        {/* 고른 시간대마다 칩 하나 — 하나씩 뺄 수 있어야 겹쳐 고른 게 의미가 있다 */}
+        {slots.map((h) => (
           <button
+            key={h}
             type="button"
             className={styles.slotChip}
-            aria-label="시간대 필터 해제 — 그 날 전체 보기"
-            onClick={() => setSlot(null)}
+            aria-label={`${h}시 필터 빼기`}
+            onClick={() => toggleSlot(h)}
           >
-            {slot} 면접만 <span aria-hidden="true">✕</span>
+            {h}시 <span aria-hidden="true">✕</span>
+          </button>
+        ))}
+
+        {slots.length > 1 && (
+          <button
+            type="button"
+            className={styles.slotClear}
+            onClick={() => setSlots([])}
+          >
+            전체 보기
           </button>
         )}
       </div>
@@ -503,14 +542,21 @@ export default function Interviews() {
           </button>
         ))}
 
+        {/* 날짜는 패널 머리가 이미 말한다 — 문구에서 "이 날짜에" 를 뺐다.
+            "확정된 일정만" 은 남긴다: GET /schedules 가 확정분만 주므로 제안 중인
+            면접이 있는 날도 비어 보이는데, 그 설명이 없으면 데이터가 빠진 줄 안다.
+            다만 본문이 아니라 캡션으로 내려 "없다" 가 먼저 읽히게 한다. */}
         {!loading && shown.length === 0 && (
-          <p className={styles.empty}>
-            {slot
-              ? '이 시간대에 잡힌 면접이 없습니다.'
-              : mine
-                ? '이 날짜에 내 면접이 없습니다.'
-                : '이 날짜에 잡힌 면접이 없습니다. 확정된 일정만 표시됩니다.'}
-          </p>
+          <div className={styles.empty}>
+            <p className={styles.emptyMain}>
+              {slots.length > 0
+                ? '고른 시간대에는 없습니다.'
+                : mine
+                  ? '내 면접이 없습니다.'
+                  : '잡힌 면접이 없습니다.'}
+            </p>
+            {slots.length === 0 && <p className={styles.emptySub}>확정된 일정만 표시됩니다</p>}
+          </div>
         )}
       </div>
 

@@ -147,6 +147,7 @@
 }
 
 .stripCell:hover { background: var(--bg-sunken); }
+.stripCell:active { background: var(--sunken-hover); }
 .stripCell:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
 
 /* 고른 날 — 아래 목록이 어느 칸의 것인지 (캘린더 화면 .selected 와 같은 표시) */
@@ -179,8 +180,8 @@
   bottom: var(--sp-2);
   left: 50%;
   transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
+  width: var(--sp-1);
+  height: var(--sp-1);
   border-radius: var(--r-pill);
   background: var(--neutral);
 }
@@ -224,7 +225,8 @@
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
-  padding: var(--sp-2) 0;
+  /* 위아래 --sp-3 이면 행 높이가 45px — §9 터치 타깃 44px 을 넘긴다 */
+  padding: var(--sp-3) 0;
   border: 0;
   background: none;
   font-family: inherit;
@@ -234,6 +236,7 @@
 }
 
 .calRow:hover { background: var(--bg-sunken); }
+.calRow:active { background: var(--sunken-hover); }
 .calRow:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
 
 .calRow + .calRow { border-top: var(--border-w) solid var(--border-soft); }

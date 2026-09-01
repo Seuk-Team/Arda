@@ -66,10 +66,19 @@ export default function PostingApplicants() {
   const detailOpen = openId !== null && rightPanel.active === 'applicant'
 
   useEffect(() => {
-    if (applicantFromUrl !== null) rightPanel.open('applicant')
-    // 처음 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
+    /* ?applicant= 로 들어왔을 때만 열고, 그냥 들어오면 닫은 채로 시작한다.
+       열림 상태가 화면 밖(RightPanel)에 있어서 안 닫으면 지난번에 열어 둔 지원자가
+       다른 공고 화면에까지 따라온다. */
+    if (applicantFromUrl !== null) {
+      setOpenId(applicantFromUrl)
+      rightPanel.open('applicant')
+    } else {
+      setOpenId(null)
+      rightPanel.close('applicant')
+    }
+    // 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicantFromUrl])
+  }, [applicantFromUrl, postingId])
 
   function openDetail(id: number) {
     setOpenId(id)
