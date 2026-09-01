@@ -1,0 +1,348 @@
+/* 채팅 중심 일정 페이지 (비교 시제품) — 토큰은 전부 tokens.css, 임의 값 없음.
+   아르의 말·FAQ 응답은 AI(점선·연한 배경), 일정 확정은 사람의 결정(잎초록 실선). */
+
+.page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg);
+  /* 아래는 입력줄이 이미 여유를 갖고 있어 얇게 */
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  gap: var(--sp-3);
+}
+
+/* 채팅 본문(모바일에선 페이지 전체) — 떠 있는 아르의 기준 좌표 */
+.main {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 데스크톱 전용 왼쪽 패널 — 기본은 숨김 */
+.side {
+  display: none;
+}
+
+/* 모바일 자리의 일정 블록 — 상단 고정. 채팅이 길어져도 스크롤되지 않고,
+   카드가 너무 길면 카드 안에서만 스크롤한다 (데스크톱에선 숨김) */
+.mobileSchedule {
+  flex: none;
+  max-height: 48vh;
+  overflow-y: auto;
+  border-radius: var(--r-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  scrollbar-width: none;
+}
+
+.mobileSchedule::-webkit-scrollbar {
+  display: none;
+}
+
+/* 접기/펴기 바 — 접힌 상태에서도 무엇이 숨어 있는지 알 수 있게 요약을 담는다 */
+.foldBar {
+  min-height: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--sans);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* 접기 화살표 — 눈에 잘 띄게 본문보다 크게 */
+.chev {
+  font-size: var(--font-h2);
+  line-height: 1;
+  color: var(--leaf);
+}
+
+.head {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+/* 데스크톱: 왼쪽 아르·정보 패널 + 오른쪽 채팅 2단 */
+@media (min-width: 900px) {
+  .page {
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--sp-7);
+    padding: var(--sp-6) var(--sp-6) var(--sp-1);
+  }
+
+  .side {
+    width: 280px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .sideAr {
+    width: 280px;
+    height: 280px;
+    align-self: center;
+  }
+
+  /* 모바일용 헤더·떠 있는 아르·대화 속 일정 카드는 왼쪽 패널이 대신한다 */
+  .head {
+    display: none;
+  }
+
+  .mobileSchedule {
+    display: none;
+  }
+}
+
+.sideMeta {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.sideRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.sideRow dt {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.sideRow dd {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  text-align: right;
+  word-break: keep-all;
+}
+
+.logo {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.seed {
+  color: var(--leaf);
+}
+
+.msgs {
+  width: 100%;
+  max-width: 640px;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  /* 스크롤바는 스크롤 중에만 보인다 (msgsScrolling) — 평소엔 투명한 얇은 바 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.msgsScrolling {
+  scrollbar-color: var(--border) transparent;
+}
+
+/* 아르 메시지 한 줄 — 얼굴 + 말풍선. 얼굴은 모든 화면 크기에서 보인다 */
+.arRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+
+.msgAr,
+.msgMe {
+  max-width: 80%;
+  font-size: var(--font-body);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-ctl);
+  word-break: keep-all;
+  white-space: pre-wrap;
+}
+
+.msgAr {
+  align-self: flex-start;
+  background: var(--bg-sunken);
+  color: var(--text);
+}
+
+.msgMe {
+  align-self: flex-end;
+  background: var(--sprout-soft);
+  color: var(--text);
+}
+
+/* ── 대화 속 일정 카드 ─────────────────────────────── */
+
+.scheduleCard,
+.confirmedCard {
+  align-self: stretch;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.confirmedCard {
+  border-color: var(--leaf);
+}
+
+.confirmedTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--leaf);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+}
+
+.confirmedWhen {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.day {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-sub);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.slot {
+  min-height: 48px;
+  padding: 0 var(--sp-4);
+  text-align: left;
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--sans);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.slot:hover {
+  border-color: var(--sprout);
+}
+
+.slot:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+}
+
+.slot:disabled {
+  cursor: not-allowed;
+  color: var(--text-sub);
+}
+
+.slotPicked {
+  border-color: var(--leaf);
+  background: var(--sprout-soft);
+  font-weight: 700;
+}
+
+.num {
+  font-size: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.notice {
+  font-size: var(--font-sm);
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-2) var(--sp-3);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.caption {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+}
+
+/* ── 하단 입력줄 ───────────────────────────────────── */
+
+.inputRow {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  font-family: var(--sans);
+  font-size: var(--font-body);
+  color: var(--text);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+}

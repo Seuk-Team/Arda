@@ -53,7 +53,8 @@ export default function ArViewer({ motion = 'idle', speed, expression, interacti
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    /* preserveDrawingBuffer: 캔버스 스냅숏(toDataURL)용 — 아바타 정지 이미지 추출 */
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
     host.appendChild(renderer.domElement)
     const scene = new THREE.Scene()
     const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 2000)

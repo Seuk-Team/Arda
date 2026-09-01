@@ -16,6 +16,71 @@ const TONE_CLASS = {
   rejected: styles.stageRejected,
 }
 
+/* AI 요약은 JSON 문자열로 저장된다 (summarizer.py 의 combined).
+   모델이 코드펜스를 감싼 옛 데이터도 있어 벗겨서 시도하고,
+   그래도 못 읽으면 원문을 그대로 보여준다 (숨기는 것보단 낫다). */
+interface AiSummary {
+  insufficient?: boolean
+  gist?: string
+  fit?: string[]
+  concerns?: string[]
+  recommendation?: { action?: string | null; reasons?: string[]; check_points?: string[] }
+}
+
+function parseAiSummary(raw: string): AiSummary | null {
+  let s = raw.trim()
+  if (s.startsWith('```')) {
+    s = s.replace(/^```[a-zA-Z]*\n?/, '')
+    if (s.endsWith('```')) s = s.slice(0, -3)
+    s = s.trim()
+  }
+  try {
+    const j: unknown = JSON.parse(s)
+    if (j !== null && typeof j === 'object' && !Array.isArray(j)) return j as AiSummary
+  } catch {
+    /* JSON 이 아니면 아래에서 원문 표시 */
+  }
+  return null
+}
+
+function AiSummaryBody({ raw }: { raw: string }) {
+  const parsed = parseAiSummary(raw)
+  if (parsed === null) return <p className={styles.aibody}>{raw}</p>
+  if (parsed.insufficient) {
+    return <p className={styles.aibody}>자기소개 등 자료가 부족해 요약을 만들지 못했습니다.</p>
+  }
+  const rec = parsed.recommendation
+  return (
+    <div className={styles.aiparsed}>
+      {parsed.gist && <p className={styles.aibody}>{parsed.gist}</p>}
+      {(parsed.fit?.length ?? 0) > 0 && (
+        <div>
+          <p className={styles.ailabel}>강점</p>
+          <ul className={styles.ailist}>
+            {parsed.fit!.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
+        </div>
+      )}
+      {(parsed.concerns?.length ?? 0) > 0 && (
+        <div>
+          <p className={styles.ailabel}>확인 필요</p>
+          <ul className={styles.ailist}>
+            {parsed.concerns!.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
+        </div>
+      )}
+      {(rec?.check_points?.length ?? 0) > 0 && (
+        <div>
+          <p className={styles.ailabel}>면접 확인 포인트</p>
+          <ul className={styles.ailist}>
+            {rec!.check_points!.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* 지금 단계에서 갈 수 있는 곳. 규칙은 backend/app/stages.py 와 같다 —
    전진은 한 칸씩, 불합격은 어디서든, 뒤로 되돌리기도 허용.
    단계 변경은 역할로 막지 않는다 — 로그인했으면 누구나 한다. */
@@ -132,7 +197,7 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
             <div className={styles.sec}>
               <div className={styles.aibox}>
                 <p className={styles.aicap}>AI 요약 · 확정은 담당자가 합니다</p>
-                <p className={styles.aibody}>{detail.ai_summary}</p>
+                <AiSummaryBody raw={detail.ai_summary} />
               </div>
             </div>
           )}

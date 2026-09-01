@@ -1,4 +1,5 @@
-/* 지원자용 일정 선택 (공개) — 로그인 화면처럼 셸 없는 독립 페이지.
+/* 지원자용 일정 페이지의 로딩·에러 화면 — 셸 없는 독립 페이지.
+   정상 화면(대화형)은 ArScheduleChat.module.css 가 맡는다.
    토큰은 전부 tokens.css (05-design 확정값), 임의 값 없음. */
 
 .page {
@@ -31,28 +32,6 @@
   color: var(--leaf);
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.title {
-  font-size: var(--font-display);
-  font-weight: 700;
-  color: var(--text);
-  text-shadow: var(--ts-heading);
-  margin: 0;
-  text-wrap: balance;
-}
-
-.sub {
-  font-size: var(--font-body);
-  color: var(--text-sub);
-  margin: 0;
-  word-break: keep-all;
-}
-
 .card {
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
@@ -69,114 +48,6 @@
   background: var(--danger-soft);
 }
 
-/* 확정 = 사람의 결정 → 잎초록 실선 (05-design AI 규약의 반대편) */
-.cardConfirmed {
-  border-color: var(--leaf);
-}
-
-.confirmedTitle {
-  font-size: var(--font-h2);
-  font-weight: 700;
-  color: var(--leaf);
-  text-shadow: var(--ts-heading);
-  margin: 0;
-}
-
-.confirmedWhen {
-  font-size: var(--font-h2);
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
-  word-break: keep-all;
-}
-
-.meta {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  margin: 0;
-}
-
-.metaRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.metaRow dt {
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  white-space: nowrap;
-}
-
-.metaRow dd {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-  text-align: right;
-}
-
-.day {
-  font-size: var(--font-sm);
-  font-weight: 700;
-  color: var(--text-sub);
-  margin: var(--sp-2) 0 var(--sp-2);
-  white-space: nowrap;
-}
-
-.slots {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-/* 터치 타깃 44px 이상 (05-design §9) */
-.slot {
-  min-height: 48px;
-  padding: 0 var(--sp-4);
-  text-align: left;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  font-family: var(--sans);
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-
-.slot:hover {
-  border-color: var(--sprout);
-}
-
-.slot:active {
-  transform: translateY(1px);
-}
-
-.slot:focus-visible {
-  outline: 2px solid var(--leaf);
-  outline-offset: 1px;
-}
-
-.slot:disabled {
-  cursor: not-allowed;
-  color: var(--text-sub);
-}
-
-.slotPicked {
-  border-color: var(--leaf);
-  background: var(--sprout-soft);
-  font-weight: 700;
-}
-
-/* 수치·날짜 표기 (05-design §2) */
-.num {
-  font-size: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .noticeTitle {
   font-size: var(--font-h2);
   font-weight: 700;
@@ -188,23 +59,6 @@
 
 .noticeBody {
   font-size: var(--font-body);
-  color: var(--text-sub);
-  margin: 0;
-  word-break: keep-all;
-}
-
-.notice {
-  font-size: var(--font-sm);
-  color: var(--danger);
-  background: var(--danger-soft);
-  border-radius: var(--r-ctl);
-  padding: var(--sp-2) var(--sp-3);
-  margin: 0;
-  word-break: keep-all;
-}
-
-.caption {
-  font-size: var(--font-caption);
   color: var(--text-sub);
   margin: 0;
   word-break: keep-all;
