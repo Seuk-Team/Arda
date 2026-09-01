@@ -71,7 +71,42 @@ API 전체가 안 뜬 것**이다.
 
 **배포 관련 두 가지 기억할 것**
 - 백엔드는 수동 배포라 **프론트(Vercel 자동)와 쉽게 어긋난다.** 이번에도 배포본 프롬프트가 `#151`·`#153` 이전 버전이라 에이전트가 자기 이름("아르")을 몰랐다.
-- 컨테이너 `Started` 이후 **실제 서비스까지 약 2분** 걸린다(런타임 패키지 설치 + 임포트). 배포 직후 502 는 조금 기다려 본다.
+- ~~컨테이너 `Started` 이후 실제 서비스까지 약 2분~~ → **2026-09-01(`df25669`) 이후 15초.** 그 2분은 런타임 venv 재설치 시간이었고 지금은 없다(아래 "G4 배포와 디스크 고갈"). 배포 직후 502 가 계속되면 기다릴 게 아니라 로그를 본다.
+
+## 2026-09-01 — G4 배포와 디스크 고갈
+
+**증상**: 재배포 빌드가 `torch` 내려받다 `No space left on device`. 디스크 97%(590M 남음).
+
+**원인**: **컨테이너가 뜰 때마다 venv 를 쓰기 레이어에 다시 설치하고 있었다.** 이미지는 382MB 인데 `arda-api-1` 5.62GB · `arda-worker-1` 5.18GB — 둘이 10.8GB 를 먹어 19GB 디스크에 새 이미지가 들어갈 자리가 없었다. CMD·compose `command` 가 `uv run …` 이라 기동 때 잠금 파일과 환경을 맞추고, 어긋난다고 판단하면 통째로 재설치한다. 게다가 그렇게 깔린 것이 CPU 가 아니라 **CUDA torch(`2.13.0+cu130`)** 였다 — `2193f28` 이 CPU-only 로 락을 재생성하기 전 배포본이 런타임에 직접 끌어온 것이다.
+
+**조치**: `backend/Dockerfile` 의 CMD 와 서버 `docker-compose.prod.yml` 의 `command` 를 **`/app/.venv/bin/…` 직접 호출**로 바꿨다 (`df25669`). 기동이 곧 실행이라 재설치가 일어나지 않는다.
+
+| | 전 | 후 |
+|---|---|---|
+| 컨테이너 쓰기 레이어 | api 5.62GB · worker 5.18GB | **각 4.1kB** |
+| 이미지 | 382MB (venv 없음) | 1.42GB (CPU torch 포함) |
+| 디스크 | 97% | **48%** |
+| 기동 → 서비스 | 약 2분 | **15초** |
+
+**공간이 모자랄 때의 순서** (다음에도 그대로):
+
+1. `docker builder prune -af` + `docker image prune -af` — 안전하지만 이번엔 부족했다(약 900MB)
+2. 그래도 모자라면 **`docker compose -f docker-compose.prod.yml stop api worker && rm -f api worker`** → 약 10GB 확보. **다운타임 ~6분**(빌드 + 기동). db·caddy 는 계속 뜬 상태다
+3. **`--volumes` 는 절대 붙이지 않는다** — `arda_pgdata` 가 날아간다
+
+⚠️ **`docker-compose.prod.yml` 의 `command` 두 줄은 서버에서 직접 고쳤다**(백업 `docker-compose.prod.yml.bak-g4`). 그 파일은 여전히 repo 에 없어서 **서버를 새로 만들면 `uv run` 으로 되돌아간다.** `infra/` 로 올리는 게 맞다(인프라 오너).
+
+## 메일 발송 주체와 회신 주소 (G4)
+
+발신 주소는 언제나 `SES_FROM_EMAIL`(`no-reply@arda.seuk.cloud`) 하나다. 담당자 개인 주소를 From 에 넣으면 외부 메일(gmail)에서 **DMARC 정렬이 깨져 스팸함으로 간다.** 개인을 드러내는 것은 **From 표시 이름과 Reply-To** 가 맡는다.
+
+| `email_logs.actor_kind` | From 표시 이름 = 본문 서명 | Reply-To |
+|---|---|---|
+| `human` | `Arda 채용 담당자 {이름}` | 그 사람의 `users.email` |
+| `agent` | `Arda 채용 에이전트 아르` | `MAIL_REPLY_TO` |
+| `system` | `Arda 채용팀` | `MAIL_REPLY_TO` |
+
+**서버 `.env` 에 `MAIL_REPLY_TO=seukathon@gmail.com`** (2026-09-01 설정). Reply-To 는 SES 검증 대상이 아니라 실제 수신 가능한 메일함이면 된다. **비우면 아르·시스템 발송의 회신이 증발한다** — 문구가 전부 "이 메일에 회신해 주시기 바랍니다"라고 말하기 때문이다. 합격·불합격은 주체와 무관하게 사람 이름으로 서명한다(설계 근거는 [G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md) 결정 6~8).
 
 ## 재배포 (현재는 수동 — 팀장)
 
@@ -84,9 +119,21 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 | 파일 | 언제 | 실행 | 상태 |
 |---|---|---|---|
 | `migrate_roles_to_member.sql` | 역할 2종화 배포 시 1회 ([ADR-0017](../03_decision/0017-등급-이분화.md)) | `psql "$DATABASE_URL" -f backend/scripts/migrate_roles_to_member.sql` | **2026-08-31 실행 완료** |
-| `upgrade_settings_mail.sql` | 설정 실동작·메일 발송 배포 시 1회 ([G4](../02_tasks/G4-설정-실동작-메일-발송.md)) | `psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql` | **운영 미실행** |
+| `upgrade_settings_mail.sql` | 설정 실동작·메일 발송 배포 시 1회 ([G4](../02_tasks/G4-설정-실동작-메일-발송.md)) | `psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql` | **2026-09-01 실행 완료** |
 
 **2026-08-31 실행 기록**: 새 코드를 먼저 배포(`docker compose -f docker-compose.prod.yml up -d --build` — api·worker 재생성, 컨테이너의 `ROLES` 가 `("admin", "member")` 인 것을 확인)한 뒤 컨테이너 안에서 돌렸다. `UPDATE 1`(interviewer 1명 → member), 결과 `admin 6 / member 1`, 제약이 `CHECK (role IN ('admin','member'))` 로 교체된 것까지 확인. 서버에서는 `docker compose -f docker-compose.prod.yml exec -T db psql -U postgres -d arda -v ON_ERROR_STOP=1 -f - < backend/scripts/migrate_roles_to_member.sql` 로 실행한다.
+
+**2026-09-01 실행 기록 (G4)**: 덤프(`~/arda-db-backup-20260901-g4.sql`) → `.env` 에 `MAIL_REPLY_TO` 추가(`backend/.env.bak-g4` 백업) → SQL 실행 `COMMIT` → 재배포 순으로 진행했다. 반영 확인: `users.is_active`, `email_logs.subject/body/actor_kind/actor_id`, `ck_email_logs_stage` 에 `custom`, `email_logs_actor_id_fkey`. 배포 후 신규 7경로가 전부 401(라우트 살아 있고 인증 걸림), 워커 `restarts=0`, 실발송 2통(사람·에이전트) `sent` 확인.
+
+**⚠️ 팀원 로컬 DB 도 같은 SQL 이 필요하다.** `create_all` 은 **기존 테이블에 컬럼을 못 붙인다.** pull 만 받고 로컬을 띄우면 새 코드의 ORM 이 `users.is_active` 를 SELECT 에 실어서 **전 요청이 500** 난다. 둘 중 하나를 한다:
+
+```
+# (권장) 로컬 데이터를 버리고 새로 만든다 — create_all 이 전부 만들어 준다
+docker compose down -v && docker compose up -d db
+
+# 데이터를 살리려면 이행 SQL 을 돌린다 (멱등, 재실행 무해)
+psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql
+```
 
 **`upgrade_settings_mail.sql` 은 순서가 반대다 — SQL 먼저, 재배포 나중.** 새 코드의 ORM 이 `users.is_active` 를 SELECT 에 실으므로 컬럼 없이 새 코드가 뜨면 전 요청이 죽는다(구 코드는 새 컬럼이 있어도 무해하다). `ADD COLUMN IF NOT EXISTS` 로 멱등하게 써 두어 재실행해도 안전하다. 신규 테이블 `email_templates` 는 `create_all` 이 만들므로 SQL 에 없다. 배포 전에 `MAIL_REPLY_TO`(지원자 회신을 받을 팀 공용 주소)를 서버 `.env` 에 넣어야 한다 — 비우면 회신이 증발한다.
 
