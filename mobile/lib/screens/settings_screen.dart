@@ -168,7 +168,10 @@ class _Account extends StatelessWidget {
         _LockedField(label: '역할', value: user.role.label),
         const _Note('내 정보 수정 API가 아직 없어 저장할 수 없습니다.'),
         const SizedBox(height: AppSpace.s4),
-        const Align(alignment: Alignment.centerRight, child: _LockedButton('저장')),
+        const Align(
+          alignment: Alignment.centerRight,
+          child: _LockedButton('저장'),
+        ),
       ],
     );
   }
@@ -309,7 +312,10 @@ class _MailState extends State<_Mail> {
         const _LockedField(label: '본문', value: '(문구 작성 중)', lines: 6),
         _Note('${_stages[_picked]} 단계 메일 문구는 아직 확정 전입니다.'),
         const SizedBox(height: AppSpace.s4),
-        const Align(alignment: Alignment.centerRight, child: _LockedButton('저장')),
+        const Align(
+          alignment: Alignment.centerRight,
+          child: _LockedButton('저장'),
+        ),
       ],
     );
   }
@@ -382,7 +388,10 @@ class _Availability extends StatelessWidget {
         const SizedBox(height: AppSpace.s4),
         const _LockedField(label: '시작', value: '연도-월-일 --:--'),
         const _LockedField(label: '종료', value: '연도-월-일 --:--'),
-        const Align(alignment: Alignment.centerRight, child: _LockedButton('추가')),
+        const Align(
+          alignment: Alignment.centerRight,
+          child: _LockedButton('추가'),
+        ),
         const SizedBox(height: AppSpace.s5),
         const Center(
           child: Text(
@@ -403,7 +412,11 @@ class _Availability extends StatelessWidget {
 /// 잠긴 입력칸 — 05-design §4 인풋은 sunken. 값은 보조색으로 둬서
 /// 지금 고칠 수 없다는 것이 눌러 보기 전에 읽힌다.
 class _LockedField extends StatelessWidget {
-  const _LockedField({required this.label, required this.value, this.lines = 1});
+  const _LockedField({
+    required this.label,
+    required this.value,
+    this.lines = 1,
+  });
 
   final String label;
   final String value;
@@ -437,7 +450,10 @@ class _LockedField extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.bgSunken,
               borderRadius: AppShape.ctl,
-              border: Border.all(color: AppColors.border, width: AppShape.borderW),
+              border: Border.all(
+                color: AppColors.border,
+                width: AppShape.borderW,
+              ),
             ),
             child: Text(
               value,

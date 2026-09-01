@@ -2,6 +2,7 @@
 // 둘 다 상세에서 들어가는 별도 화면이다.
 
 import 'package:arda/models/evaluation.dart' as model;
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'app_boot.dart';
@@ -21,6 +22,19 @@ Future<void> openKimDohyun(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   await tester.tap(find.text('김도현'));
+  await tester.pumpAndSettle();
+}
+
+/// 상세 아래쪽 링크까지 내려간다.
+///
+/// 아르의 요약·시스템·메모가 들어오면서 [단계 이력]·[평가] 가 화면 밖으로
+/// 밀렸다. SingleChildScrollView 라 위젯은 만들어져 있지만 탭이 닿지 않는다.
+Future<void> scrollToLinks(WidgetTester tester, String label) async {
+  await tester.dragUntilVisible(
+    find.text(label),
+    find.byType(Scrollable).first,
+    const Offset(0, -300),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -68,10 +82,24 @@ void main() {
     });
   });
 
+  testWidgets('상세의 단계 이력 미리보기가 최근 두 건을 보여 준다', (tester) async {
+    await openKimDohyun(tester);
+    await scrollToLinks(tester, '단계 이력');
+
+    // 초안: 최신 두 건만. 08.24(서류→면접)·08.27(면접→최종 합격)
+    expect(find.text('08.27'), findsOneWidget);
+    expect(find.text('면접 → 최종 합격'), findsOneWidget);
+    expect(find.text('08.24'), findsOneWidget);
+    // 세 번째(08.21)부터는 [전체 →] 뒤에 있다
+    expect(find.text('08.21'), findsNothing);
+  });
+
   testWidgets('상세에서 단계 이력으로 들어간다', (tester) async {
     await openKimDohyun(tester);
 
-    await tester.tap(find.text('단계 이력'));
+    // 초안: 제목은 더 이상 링크가 아니고 오른쪽 [전체 →] 가 문이다
+    await scrollToLinks(tester, '전체 →');
+    await tester.tap(find.text('전체 →'));
     await tester.pumpAndSettle();
 
     // 최신이 위 — 최종 합격이 첫 항목
@@ -87,6 +115,7 @@ void main() {
   testWidgets('상세에서 평가로 들어간다', (tester) async {
     await openKimDohyun(tester);
 
+    await scrollToLinks(tester, '평가');
     await tester.tap(find.text('평가'));
     await tester.pumpAndSettle();
 
@@ -99,6 +128,7 @@ void main() {
   testWidgets('두 화면 모두 뒤로가기로 상세로 돌아온다', (tester) async {
     await openKimDohyun(tester);
 
+    await scrollToLinks(tester, '평가');
     await tester.tap(find.text('평가'));
     await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('뒤로'));

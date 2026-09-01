@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock_data.dart';
 import '../models/applicant.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import 'ar_screen.dart';
+import '../widgets/detail_blocks.dart';
 import '../widgets/detail_section.dart';
 import '../widgets/stage_change_sheet.dart';
 import '../widgets/stage_label.dart';
@@ -16,7 +18,8 @@ import '../widgets/stage_rail.dart';
 /// 앱에서는 별도 화면으로 밀어 올린다. Navigator 가 같은 슬라이드 전환을 주므로
 /// 보이는 결과는 같고, 뒤로가기·상태 관리는 플랫폼이 맡는다.
 ///
-/// 시안 2·3번에 따라 단계 이력·평가는 별도 화면으로 나갔고, 여기서는 그 입구만 둔다.
+/// 시안 2·3번이 단계 이력·평가를 별도 화면으로 뺐고, 앱 UI 초안(2026-09-01)이
+/// 그중 단계 이력의 **최근 두 건만** 상세로 되살렸다. 전체는 여전히 별도 화면이다.
 class ApplicantDetailScreen extends StatelessWidget {
   const ApplicantDetailScreen({
     super.key,
@@ -28,6 +31,14 @@ class ApplicantDetailScreen extends StatelessWidget {
 
   /// 단계 이력 화면의 부제에 쓴다 — "김도현 · 백엔드 개발자 (신입)"
   final String postingTitle;
+
+  /// 초안의 `평점 4.3 / 5.0 · 3명`. 평가가 없으면 줄을 만들지 않는다 —
+  /// "0.0" 은 나쁜 평가를 받은 것처럼 읽힌다 (D1 지시서)
+  String? get _ratingLabel {
+    final avg = mockEvaluations[applicant.id]?.avgScore;
+    if (avg == null) return null;
+    return '$avg / 5.0 · ${formatCount(mockEvaluations[applicant.id]!.count)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,26 +62,51 @@ class ApplicantDetailScreen extends StatelessWidget {
                     const SizedBox(height: AppSpace.s5),
                   ],
 
+                  // 05-design §0.5: "요약문은 **상세 패널 상단**". 아래 지원 정보보다
+                  // 먼저 온다. NULL 이면(미생성) 자리를 만들지 않는다
+                  if (applicant.aiSummary != null) ...[
+                    ArSummaryBlock(applicant: applicant),
+                    const SizedBox(height: AppSpace.s3),
+                  ],
+
                   DetailFieldList(
                     fields: {
+                      if (applicant.phone != null) '연락처': applicant.phone!,
+                      '이메일': applicant.email,
                       '학력': applicant.education ?? '—',
                       '경력': applicant.careerLabel,
+                      if (applicant.skills.isNotEmpty)
+                        '기술': applicant.skills.join(' · '),
                       '지원일': formatDate(applicant.createdAt),
+                      // 초안: 평점은 지원 정보 안의 한 줄이다. 개별 평가는
+                      // 아래 [평가] 화면에 있다 (시안 3번)
+                      '평점': ?_ratingLabel,
                     },
                   ),
 
-                  // 시안 2·3번: 단계 이력과 평가는 상세 안의 섹션이 아니라
-                  // 별도 화면이다. 코멘트가 길어 여기 끼우면 지원 정보가 밀린다
                   const SizedBox(height: AppSpace.s3),
-                  _LinkRow(
-                    icon: Icons.history,
-                    label: '단계 이력',
-                    onTap: () => Navigator.pushNamed(
+                  MailBlock(applicantName: applicant.name),
+
+                  const SizedBox(height: AppSpace.s3),
+                  EmailLogBlock(applicationId: applicant.id),
+
+                  const SizedBox(height: AppSpace.s3),
+                  NotesBlock(applicationId: applicant.id),
+
+                  // 초안(2026-09-01): 최근 두 건은 여기서 바로 보이고,
+                  // 전체는 시안 2번의 별도 화면 그대로다
+                  const SizedBox(height: AppSpace.s3),
+                  StageHistoryPreview(
+                    applicationId: applicant.id,
+                    onSeeAll: () => Navigator.pushNamed(
                       context,
                       Routes.stageHistory,
                       arguments: (applicant, postingTitle),
                     ),
                   ),
+
+                  // 시안 3번: 개별 평가는 별도 화면이다. 초안에는 평점 한 줄만
+                  // 있지만 그 화면으로 들어갈 문이 여기밖에 없어 남긴다
                   const SizedBox(height: AppSpace.s3),
                   _LinkRow(
                     icon: Icons.star_outline,

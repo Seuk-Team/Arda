@@ -10,6 +10,8 @@ library;
 import '../models/app_user.dart';
 import '../models/ar_message.dart';
 import '../models/applicant.dart';
+import '../models/application_note.dart';
+import '../models/email_log.dart';
 import '../models/job_posting.dart';
 import '../models/evaluation.dart';
 import '../models/interview.dart';
@@ -54,9 +56,14 @@ final mockApplicants = <Applicant>[
     jobPostingId: 1,
     name: '김도현',
     email: 'dohyun.kim@example.com',
+    // 실존하지 않는 번호. 목데이터에 진짜 연락처를 넣지 않는다
+    phone: '010-0000-0000',
     education: 'OO대학교 컴퓨터공학과',
     careerYears: 2,
     skills: ['Python', 'FastAPI'],
+    aiSummary: _dohyunSummary,
+    aiSummaryAt: DateTime(2026, 9, 1),
+    aiSummaryModel: _summaryModel,
     currentStage: Stage.interview,
     createdAt: DateTime(2026, 3, 12),
   ),
@@ -68,9 +75,13 @@ final mockApplicants = <Applicant>[
     jobPostingId: 1,
     name: '크리스토퍼 알렉산더 요한 반 데 베르그 주니어 3세',
     email: 'christopher.vandeberg@example.com',
+    phone: '010-0000-0002',
     education: 'OO대학원 컴퓨터공학 석사',
     careerYears: 12,
     skills: ['Python', 'FastAPI', 'PostgreSQL', 'Docker', 'AWS', 'Kubernetes'],
+    aiSummary: _christopherSummary,
+    aiSummaryAt: DateTime(2026, 3, 12),
+    aiSummaryModel: _summaryModel,
     currentStage: Stage.interview,
     createdAt: DateTime(2026, 3, 12),
   ),
@@ -80,9 +91,13 @@ final mockApplicants = <Applicant>[
     jobPostingId: 1,
     name: '박지훈',
     email: 'jihoon.park@example.com',
+    phone: '010-0000-0003',
     education: 'OO대학교 컴퓨터공학과 졸업',
     careerYears: 0,
     skills: ['Python', 'FastAPI'],
+    aiSummary: _jihoonSummary,
+    aiSummaryAt: DateTime(2026, 3, 11),
+    aiSummaryModel: _summaryModel,
     currentStage: Stage.applied,
     createdAt: DateTime(2026, 3, 11),
   ),
@@ -92,9 +107,13 @@ final mockApplicants = <Applicant>[
     jobPostingId: 1,
     name: '정우진',
     email: 'woojin.jung@example.com',
+    phone: '010-0000-0004',
     education: 'OO대학교 소프트웨어학과',
     careerYears: 1,
     skills: ['Python', 'AWS', 'Docker'],
+    aiSummary: _woojinSummary,
+    aiSummaryAt: DateTime(2026, 3, 11),
+    aiSummaryModel: _summaryModel,
     currentStage: Stage.screening,
     createdAt: DateTime(2026, 3, 11),
   ),
@@ -104,9 +123,13 @@ final mockApplicants = <Applicant>[
     jobPostingId: 1,
     name: '윤하늘',
     email: 'haneul.yoon@example.com',
+    phone: '010-0000-0005',
     education: '부트캠프 수료',
     careerYears: 1,
     skills: ['FastAPI', 'PostgreSQL'],
+    aiSummary: _haneulSummary,
+    aiSummaryAt: DateTime(2026, 3, 10),
+    aiSummaryModel: _summaryModel,
     currentStage: Stage.accepted,
     createdAt: DateTime(2026, 3, 10),
   ),
@@ -116,9 +139,13 @@ final mockApplicants = <Applicant>[
     jobPostingId: 1,
     name: '강민수',
     email: 'minsu.kang@example.com',
+    phone: '010-0000-0006',
     education: 'OO대학교 전자공학과',
     careerYears: 0,
     skills: ['PHP'],
+    aiSummary: _minsuSummary,
+    aiSummaryAt: DateTime(2026, 3, 9),
+    aiSummaryModel: _summaryModel,
     currentStage: Stage.rejected,
     createdAt: DateTime(2026, 3, 9),
   ),
@@ -194,6 +221,124 @@ final mockStageHistory = <int, List<StageHistory>>{
       createdAt: DateTime(2026, 8, 20, 22, 41),
     ),
   ],
+
+  // 나머지 다섯 명은 각자의 지원일에서 시작한다. 1번(김도현)만 8월인 것은
+  // 시안 2번이 그 날짜로 예시를 잡아 뒀기 때문이고, 그건 건드리지 않는다.
+  2: [
+    StageHistory(
+      id: 13,
+      applicationId: 2,
+      fromStage: Stage.screening,
+      toStage: Stage.interview,
+      changedByName: '김채용',
+      mailQueued: true,
+      createdAt: DateTime(2026, 3, 18, 11, 30),
+    ),
+    StageHistory(
+      id: 12,
+      applicationId: 2,
+      fromStage: Stage.applied,
+      toStage: Stage.screening,
+      changedByName: mockMyName,
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 14, 9, 40),
+    ),
+    StageHistory(
+      id: 11,
+      applicationId: 2,
+      toStage: Stage.applied,
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 12, 20, 15),
+    ),
+  ],
+
+  // 갓 접수 — 이력이 한 줄뿐인 경우다
+  3: [
+    StageHistory(
+      id: 21,
+      applicationId: 3,
+      toStage: Stage.applied,
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 11, 23, 8),
+    ),
+  ],
+
+  4: [
+    StageHistory(
+      id: 32,
+      applicationId: 4,
+      fromStage: Stage.applied,
+      toStage: Stage.screening,
+      changedByName: '이서연',
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 13, 14, 2),
+    ),
+    StageHistory(
+      id: 31,
+      applicationId: 4,
+      toStage: Stage.applied,
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 11, 10, 26),
+    ),
+  ],
+
+  5: [
+    StageHistory(
+      id: 44,
+      applicationId: 5,
+      fromStage: Stage.interview,
+      toStage: Stage.accepted,
+      changedByName: '김채용',
+      mailQueued: true,
+      createdAt: DateTime(2026, 3, 24, 16, 50),
+    ),
+    StageHistory(
+      id: 43,
+      applicationId: 5,
+      fromStage: Stage.screening,
+      toStage: Stage.interview,
+      changedByName: mockMyName,
+      mailQueued: true,
+      createdAt: DateTime(2026, 3, 17, 10, 12),
+    ),
+    StageHistory(
+      id: 42,
+      applicationId: 5,
+      fromStage: Stage.applied,
+      toStage: Stage.screening,
+      changedByName: '이서연',
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 12, 9, 5),
+    ),
+    StageHistory(
+      id: 41,
+      applicationId: 5,
+      toStage: Stage.applied,
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 10, 21, 33),
+    ),
+  ],
+
+  // 불합격은 어느 단계에서든 바로 갈 수 있다(stages.py). 사유가 남는다(D8)
+  6: [
+    StageHistory(
+      id: 52,
+      applicationId: 6,
+      fromStage: Stage.applied,
+      toStage: Stage.rejected,
+      changedByName: '김채용',
+      reason: '공고 요건인 Python·FastAPI 경험이 확인되지 않음',
+      mailQueued: true,
+      createdAt: DateTime(2026, 3, 13, 15, 20),
+    ),
+    StageHistory(
+      id: 51,
+      applicationId: 6,
+      toStage: Stage.applied,
+      mailQueued: false,
+      createdAt: DateTime(2026, 3, 9, 19, 47),
+    ),
+  ],
 };
 
 /// 평가 — 시안 3번의 김도현 예시(3명, 평균 4.3)를 그대로 옮겼다.
@@ -227,6 +372,52 @@ final mockEvaluations = <int, EvaluationSummary>{
         score: 4,
         comment: '서류 기준 적합. 면접에서 아키텍처 설계 경험을 확인하면 좋겠습니다.',
         createdAt: DateTime(2026, 8, 23),
+      ),
+    ],
+  ),
+
+  // **판정이 끝난 사람만** 평가가 있다.
+  // 2·4번은 일부러 비워 둔다 — [mockReviewQueueCount] 가 "평가 기록이 없는
+  // 서류·면접 단계" 를 세므로, 여기 평가를 넣으면 대시보드의 리뷰 대기가 줄고
+  // 평가 큐 화면이 빈 목록이 된다. 상세에 평점 줄이 없는 것도 그래서 정상이다.
+  5: EvaluationSummary(
+    items: [
+      Evaluation(
+        id: 21,
+        applicationId: 5,
+        evaluatorName: '이지훈',
+        score: 5,
+        comment: '만든 서비스를 6개월 운영한 이력이 있어 답변이 구체적이었습니다.',
+        createdAt: DateTime(2026, 3, 18),
+      ),
+      Evaluation(
+        id: 22,
+        applicationId: 5,
+        evaluatorName: '한소미',
+        score: 4,
+        comment: 'FastAPI·PostgreSQL 둘 다 실제로 씁니다. 규모 경험은 아직 작습니다.',
+        createdAt: DateTime(2026, 3, 18),
+      ),
+      Evaluation(
+        id: 23,
+        applicationId: 5,
+        evaluatorName: '김채용',
+        score: 5,
+        comment: '학습 속도와 태도가 좋습니다. 신입 채용 기준에는 충분합니다.',
+        createdAt: DateTime(2026, 3, 20),
+      ),
+    ],
+  ),
+
+  6: EvaluationSummary(
+    items: [
+      Evaluation(
+        id: 31,
+        applicationId: 6,
+        evaluatorName: '김채용',
+        score: 2,
+        comment: '공고 스택과 겹치는 부분이 없습니다. 다른 공고로 안내가 필요합니다.',
+        createdAt: DateTime(2026, 3, 13),
       ),
     ],
   ),
@@ -437,9 +628,270 @@ class TeamMember {
 }
 
 const mockTeam = <TeamMember>[
-  TeamMember(name: '김채용', email: 'admin@arda.com', role: UserRole.admin, active: true),
-  TeamMember(name: '이서연', email: 'recruiter1@arda.com', role: UserRole.member, active: true),
-  TeamMember(name: '박정호', email: 'reviewer1@arda.com', role: UserRole.member, active: true),
-  TeamMember(name: '최민지', email: 'recruiter2@arda.com', role: UserRole.member, active: true),
-  TeamMember(name: '한도윤', email: 'reviewer2@arda.com', role: UserRole.member, active: false),
+  TeamMember(
+    name: '김채용',
+    email: 'admin@arda.com',
+    role: UserRole.admin,
+    active: true,
+  ),
+  TeamMember(
+    name: '이서연',
+    email: 'recruiter1@arda.com',
+    role: UserRole.member,
+    active: true,
+  ),
+  TeamMember(
+    name: '박정호',
+    email: 'reviewer1@arda.com',
+    role: UserRole.member,
+    active: true,
+  ),
+  TeamMember(
+    name: '최민지',
+    email: 'recruiter2@arda.com',
+    role: UserRole.member,
+    active: true,
+  ),
+  TeamMember(
+    name: '한도윤',
+    email: 'reviewer2@arda.com',
+    role: UserRole.member,
+    active: false,
+  ),
 ];
+
+/// 김도현(1번)에게 붙는 상세 목데이터 — AI 요약 · 메일 이력 · 메모.
+///
+/// 사람과 값은 기존 목데이터와 어긋나지 않게 맞췄다. 요약 문구는 05-design 이
+/// 정한 범위대로 **자소서 요지 + 공고 요건 대비 적합·우려**만 담는다 —
+/// 학력·경력·기술은 바로 아래 지원 정보가 이미 말한다.
+/// 아르 요약을 만든 모델 — ERD `applications.ai_summary_model`.
+/// 접수 시 1회 생성이라 여섯 명이 같은 모델·같은 프롬프트로 돌았다.
+const _summaryModel = 'claude-haiku-4-5-20251001/chain_summarize.v1';
+
+// 요약 여섯 개 — **JSON 문자열이다.** ai_summary 컬럼에 저장되는 모양 그대로다
+// (웹 `ApplicantPanel.tsx` 가 같은 규격으로 판다). 큐 8 에서 API 응답으로 바뀌어도
+// 화면 코드가 그대로 돌아야 해서 목데이터도 같은 모양으로 둔다.
+//
+// 분량은 2026-09-01 팀장 요청(6905c37): **요지 2문장 이내 · 강점 2개 · 확인 필요 2개,
+// 각 40자.** 화면 노출 약 235자. 길면 담당자가 안 읽는다.
+//
+// 05-design §1: **아르는 판정하지 않는다.** 이력서에 있는 것을 요약하고 공고 요건과
+// 어긋나거나 비어 있는 곳을 짚는다. "적합/부적합" 같은 결론은 쓰지 않는다.
+
+const _dohyunSummary = '''
+{"gist": "초당 처리량을 3배로 올린 사례에서 병목을 찾은 과정을 수치로 설명합니다. 경력 2년의 백엔드 개발자입니다.",
+ "fit": ["FastAPI·PostgreSQL 요건과 그대로 맞음", "대용량 처리 경험을 수치로 제시"],
+ "concerns": ["팀 협업 사례가 한 건뿐", "장애 대응 경험은 기재 없음"]}''';
+
+const _christopherSummary = '''
+{"gist": "경력 12년으로 결제·정산 도메인에서 설계를 맡았습니다. Kubernetes 운영 경험도 함께 적혀 있습니다.",
+ "fit": ["요건 6개 스택을 모두 사용", "정확성 중심 도메인 설계 경험"],
+ "concerns": ["최근 3년은 관리 업무 비중이 큼", "직접 구현 범위가 불분명"]}''';
+
+const _jihoonSummary = '''
+{"gist": "신입입니다. 졸업 프로젝트에서 FastAPI로 API 12개를 만들고 배포까지 맡았다고 적었습니다.",
+ "fit": ["Python·FastAPI 요건과 일치", "배포까지 혼자 진행한 경험"],
+ "concerns": ["실무 경험 기재 없음", "데이터베이스 설계 이력 없음"]}''';
+
+const _woojinSummary = '''
+{"gist": "경력 1년으로 사내 배치 작업을 AWS로 옮겼습니다. Docker 이미지 정리로 배포 시간을 줄인 사례가 있습니다.",
+ "fit": ["AWS·Docker 실무 사용", "배포 개선을 수치로 제시"],
+ "concerns": ["요건인 FastAPI 경험 없음", "인프라 쪽에 경력이 치우침"]}''';
+
+const _haneulSummary = '''
+{"gist": "부트캠프 수료 후 1년입니다. 팀 프로젝트로 만든 예약 서비스를 6개월 운영까지 이어 갔습니다.",
+ "fit": ["FastAPI·PostgreSQL 요건과 일치", "만든 서비스를 직접 운영한 경험"],
+ "concerns": ["학위 항목이 비어 있음", "다룬 트래픽 규모는 기재 없음"]}''';
+
+const _minsuSummary = '''
+{"gist": "신입이고 전공은 전자공학입니다. PHP로 학과 홈페이지를 유지보수한 경험을 적었습니다.",
+ "fit": ["웹 서비스 유지보수 경험 있음"],
+ "concerns": ["요건인 Python·FastAPI 경험 없음", "백엔드 실무 이력 없음"]}''';
+
+/// 지원자별 메일 발송 이력 — 최신이 위.
+final mockEmailLogs = <int, List<EmailLog>>{
+  1: [
+    EmailLog(
+      id: 2,
+      applicationId: 1,
+      subject: '지원 접수 자동 안내',
+      status: EmailStatus.failed,
+      actorKind: EmailActor.system,
+      createdAt: DateTime(2026, 9, 1, 9, 12),
+    ),
+    EmailLog(
+      id: 1,
+      applicationId: 1,
+      subject: '서류 검토 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.human,
+      createdAt: DateTime(2026, 8, 24, 10, 5),
+    ),
+  ],
+
+  // 접수 확인은 전원에게 자동으로 나간다(C4). 그 뒤는 메일이 나가는 단계에만 —
+  // 서류 검토는 내부 검토라 보낼 문구가 없다 (stages.py NOTIFY_STAGES)
+  2: [
+    EmailLog(
+      id: 12,
+      applicationId: 2,
+      subject: '면접 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.human,
+      createdAt: DateTime(2026, 3, 18, 11, 31),
+    ),
+    EmailLog(
+      id: 11,
+      applicationId: 2,
+      subject: '지원 접수 자동 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.system,
+      createdAt: DateTime(2026, 3, 12, 20, 16),
+    ),
+  ],
+
+  // 방금 접수된 사람 — 큐에 들어갔고 아직 안 나갔다
+  3: [
+    EmailLog(
+      id: 21,
+      applicationId: 3,
+      subject: '지원 접수 자동 안내',
+      status: EmailStatus.queued,
+      actorKind: EmailActor.system,
+      createdAt: DateTime(2026, 3, 11, 23, 9),
+    ),
+  ],
+
+  4: [
+    EmailLog(
+      id: 31,
+      applicationId: 4,
+      subject: '지원 접수 자동 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.system,
+      createdAt: DateTime(2026, 3, 11, 10, 27),
+    ),
+  ],
+
+  5: [
+    EmailLog(
+      id: 43,
+      applicationId: 5,
+      subject: '최종 합격 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.human,
+      createdAt: DateTime(2026, 3, 24, 16, 51),
+    ),
+    EmailLog(
+      id: 42,
+      applicationId: 5,
+      subject: '면접 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.agent,
+      createdAt: DateTime(2026, 3, 17, 10, 13),
+    ),
+    EmailLog(
+      id: 41,
+      applicationId: 5,
+      subject: '지원 접수 자동 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.system,
+      createdAt: DateTime(2026, 3, 10, 21, 34),
+    ),
+  ],
+
+  6: [
+    EmailLog(
+      id: 52,
+      applicationId: 6,
+      subject: '불합격 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.human,
+      createdAt: DateTime(2026, 3, 13, 15, 21),
+    ),
+    EmailLog(
+      id: 51,
+      applicationId: 6,
+      subject: '지원 접수 자동 안내',
+      status: EmailStatus.sent,
+      actorKind: EmailActor.system,
+      createdAt: DateTime(2026, 3, 9, 19, 48),
+    ),
+  ],
+};
+
+/// 담당자 메모 — 최신이 위 (ERD 인덱스가 `created_at DESC`).
+final mockNotes = <int, List<ApplicationNote>>{
+  1: [
+    ApplicationNote(
+      id: 2,
+      applicationId: 1,
+      authorName: mockMyName,
+      body: '2차에서 아키텍처 설계 경험을 더 볼 것. 1차는 문제 정의가 또렷했음.',
+      createdAt: DateTime(2026, 8, 27),
+    ),
+    ApplicationNote(
+      id: 1,
+      applicationId: 1,
+      authorName: '이서연',
+      body: '서류 기준 적합. 포트폴리오 링크 확인 완료.',
+      createdAt: DateTime(2026, 8, 21),
+    ),
+  ],
+
+  2: [
+    ApplicationNote(
+      id: 11,
+      applicationId: 2,
+      authorName: mockMyName,
+      body: '연봉 기대치가 밴드 상단입니다. 2차 전에 인사와 먼저 맞춰 볼 것.',
+      createdAt: DateTime(2026, 3, 19),
+    ),
+    ApplicationNote(
+      id: 12,
+      applicationId: 2,
+      authorName: '이서연',
+      body: '경력 기술서 6페이지. 최근 프로젝트만 발췌해서 면접관들에게 공유했음.',
+      createdAt: DateTime(2026, 3, 14),
+    ),
+  ],
+
+  // 3번(박지훈)은 접수 당일이라 아직 아무도 안 봤다 — 메모 없음이 정상이다
+  4: [
+    ApplicationNote(
+      id: 21,
+      applicationId: 4,
+      authorName: '이서연',
+      body: '인프라 경험은 좋은데 공고와 결이 다름. 플랫폼 엔지니어 공고로 돌릴지 논의 필요.',
+      createdAt: DateTime(2026, 3, 13),
+    ),
+  ],
+
+  5: [
+    ApplicationNote(
+      id: 31,
+      applicationId: 5,
+      authorName: '김채용',
+      body: '입사 희망일 4월 1일. 온보딩 일정 잡아 둘 것.',
+      createdAt: DateTime(2026, 3, 24),
+    ),
+    ApplicationNote(
+      id: 32,
+      applicationId: 5,
+      authorName: mockMyName,
+      body: '면접에서 만든 서비스 데모를 직접 보여 줬음. 운영 중 장애 대응 경험도 있음.',
+      createdAt: DateTime(2026, 3, 17),
+    ),
+  ],
+
+  6: [
+    ApplicationNote(
+      id: 41,
+      applicationId: 6,
+      authorName: '김채용',
+      body: '전자공학 전공이라 임베디드 공고가 열리면 다시 연락해 볼 것.',
+      createdAt: DateTime(2026, 3, 13),
+    ),
+  ],
+};

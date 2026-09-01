@@ -3,8 +3,8 @@
 /// **필드명은 ERD 컬럼명을 그대로 쓴다.** 목데이터 단계에서 이름을 맞춰 두면
 /// 큐 8번에서 실제 API 로 갈아끼울 때 화면 코드를 고칠 일이 없다.
 ///
-/// 지금 화면이 쓰지 않는 컬럼(`self_intro` · `ai_summary` · `phone` 등)은
-/// 아직 넣지 않았다. 화면에 필요해질 때 그 조각에서 추가한다.
+/// 아직 안 넣은 컬럼: `self_intro` · `privacy_agreed_at` · `source`.
+/// 화면에 필요해질 때 그 조각에서 추가한다.
 library;
 
 import 'stage.dart';
@@ -18,6 +18,10 @@ class Applicant {
     this.education,
     this.careerYears,
     this.skills = const [],
+    this.phone,
+    this.aiSummary,
+    this.aiSummaryAt,
+    this.aiSummaryModel,
     required this.currentStage,
     required this.createdAt,
   });
@@ -27,6 +31,22 @@ class Applicant {
 
   /// `applications.job_posting_id`
   final int jobPostingId;
+
+  /// `applications.phone` — 상세의 연락처 줄
+  final String? phone;
+
+  /// `applications.ai_summary` — 담당자용 AI 요약. **NULL = 미생성.**
+  ///
+  /// 05-design §1(2026-09-01 팀장 확정): 읽기만 하는 AI 산출물이라 앰버가
+  /// 아니라 정보 블록으로 그린다. 앰버는 사람의 확정을 기다리는 것에만 쓴다.
+  final String? aiSummary;
+
+  /// `applications.ai_summary_at` — 생성 시각
+  final DateTime? aiSummaryAt;
+
+  /// `applications.ai_summary_model` — 생성 모델 + 프롬프트 태그.
+  /// 발표 때 근거로 쓰는 값이라 화면에도 남긴다
+  final String? aiSummaryModel;
 
   /// `applications.name`
   final String name;
