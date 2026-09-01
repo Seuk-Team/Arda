@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import PageHead from '../components/PageHead'
+import { useRightPanel } from '../components/RightPanel'
 import { ApiError } from '../api/client'
 import { applications, assignments, evaluations, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationDetail, Posting } from '../api/types'
@@ -44,7 +45,11 @@ export default function Evaluations() {
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const current = queue?.find((a) => a.applicationId === openId) ?? null
+  /* 평가 패널도 오른쪽 한 자리를 나눠 쓴다 — 아르를 열면 이쪽이 닫힌다 (RightPanel) */
+  const rightPanel = useRightPanel()
+  const current = rightPanel.active === 'evaluation'
+    ? queue?.find((a) => a.applicationId === openId) ?? null
+    : null
 
   useEffect(() => {
     const ac = new AbortController()
@@ -88,12 +93,22 @@ export default function Evaluations() {
 
   function open(item: QueueItem) {
     setOpenId(item.applicationId)
+    rightPanel.open('evaluation')
     setScore(null)
     setComment('')
     setSubmitError(null)
   }
 
-  const close = useCallback(() => setOpenId(null), [])
+  const close = useCallback(() => {
+    setOpenId(null)
+    rightPanel.close('evaluation')
+  }, [rightPanel])
+
+  /* 오른쪽 자리를 다른 패널에 뺏기면 고른 것도 버린다 — 행 강조가 남아 밑에
+     깔아 둔 것처럼 되지 않게 */
+  useEffect(() => {
+    if (rightPanel.active !== 'evaluation') setOpenId(null)
+  }, [rightPanel.active])
 
   /* 등록하면 그 사람을 큐에서 빼고 다음 지원자를 바로 연다 (§0.5 연속 심사).
      서버가 받아 준 뒤에 뺀다 — 먼저 빼면 실패했을 때 되돌릴 자리가 없다. */
@@ -106,8 +121,10 @@ export default function Evaluations() {
       const i = queue.findIndex((a) => a.applicationId === current.applicationId)
       const rest = queue.filter((a) => a.applicationId !== current.applicationId)
       setQueue(rest)
+      /* 다음 지원자로 이어서 연다 (§0.5 연속 심사). 없으면 자리를 비운다 */
       const next = rest[i] ?? rest[i - 1] ?? null
       setOpenId(next ? next.applicationId : null)
+      if (next === null) rightPanel.close('evaluation')
       setScore(null)
       setComment('')
     } catch (err) {

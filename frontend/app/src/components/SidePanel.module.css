@@ -2,16 +2,10 @@
    시안(1-right-panel.html)의 #panel-slot — 상세 패널과 아르 패널이 같은 규격으로 들어가던
    자리를 코드로 옮긴 것. 흰 바탕·테두리·스크롤·좁은 화면 오버레이만 여기서 책임진다. */
 
-/* 오른쪽에 서는 패널은 아르·그날 일정·지원자 상세가 한 자리를 나눠 쓰고 한 번에
-   하나만 열린다 (RightPanel.tsx). 같은 위계·같은 자리이므로 폭도 하나다 (§3 동종
-   요소 동일 규격, 2026-09-01 — 아르 360 / 상세 420 으로 갈려 있던 것을 합쳤다).
-
-   360 인 이유: 사이드바 216 + 420 = 636 이면 §9 PC 최소 1280 에서 본문 좌우
-   여백(--content-x 48×2)을 빼고 548px 밖에 안 남아 메인인 테이블이 눌린다.
-   360 이면 608px 이 남는다. */
+/* 오른쪽에 서는 패널은 아르·그날 일정·지원자 상세·평가가 한 자리를 나눠 쓰고 한 번에
+   하나만 열린다 (RightPanel.tsx). 같은 위계·같은 자리이므로 폭도 하나다 —
+   --right-panel-w (tokens.css). §3 동종 요소 동일 규격. */
 .panel {
-  --right-panel-w: 360px;
-
   flex: none;
   background: var(--bg-elev);
   overflow: hidden;
@@ -36,13 +30,15 @@
 /* ── rail: 화면 오른쪽 끝에 붙는 아르 패널 (ADR-0009 2026-08-31 개정,
    2026-09-01 왼쪽 → 오른쪽으로 이동) ──
    폭 0 → --panel-w 로 늘어난다. flex 형제라 본문(main)은 겹치지 않고 좁아진다 (§3 깨짐 금지).
-   폭 애니메이션은 레이아웃을 건드리지만, "본문을 밀어낸다"가 요구사항이라 대체 수단이 없다.
-   대신 전환 대상은 폭 하나뿐이고, 내용은 opacity 로만 따라온다. */
+   2026-09-01 — 폭 전환을 뺐다. 폭은 레이아웃 값이라 애니메이션하면 매 프레임 본문이
+   다시 흐른다(테이블 컬럼까지 재배치된다). 200ms 도 320ms 도 "화면이 왼쪽으로 밀렸다
+   돌아오는" 느낌이 남아서, 시간을 늘리는 대신 전환 자체를 없앴다. 이제 열고 닫을 때
+   리플로우가 한 번뿐이다. §5("등장 애니메이션은 시그니처 한 곳 — 퍼널 레일")와도 맞다.
+   내용은 여전히 opacity 로 따라온다(레이아웃을 안 건드리는 값이다). */
 .rail {
   --panel-w: var(--right-panel-w);
 
   width: 0;
-  transition: width var(--dur-base) var(--ease);
 }
 
 .rail.open {
@@ -88,19 +84,7 @@
   border-left: var(--border-w) solid var(--border);
   /* 떠 있는 닫기 버튼(.closeFloat)의 기준 */
   position: relative;
-  /* 아르와 같이 오른쪽에서 밀려 나온다 (2026-09-01). 부모가 조건부 렌더로 열어
-     transition 을 걸 자리가 없어 마운트 애니메이션으로 같은 그림을 만든다.
-     .inner 가 고정 폭이고 .panel 이 overflow:hidden 이라 내용은 안 찌그러진다. */
-  animation: panelOpen var(--dur-base) var(--ease);
-}
-
-@keyframes panelOpen {
-  from { width: 0; }
-  to { width: var(--panel-w); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .content { animation: none; }
+  /* 열림 모션은 없다 — 아르와 같은 이유다 (위 .rail 주석) */
 }
 
 /* 1100px 이하에서만 화면을 덮는다 (§9) */

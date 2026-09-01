@@ -90,6 +90,12 @@ export default function PostingApplicants() {
     rightPanel.close('applicant')
   }
 
+  /* 오른쪽 자리를 다른 패널에 뺏기면 고른 것도 버린다 — 행 강조가 남아 밑에
+     깔아 둔 것처럼 되지 않게 */
+  useEffect(() => {
+    if (rightPanel.active !== 'applicant') setOpenId(null)
+  }, [rightPanel.active])
+
   /* 일괄 단계 변경 (D9) — 고른 사람들 */
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [bulkReject, setBulkReject] = useState(false)

@@ -3,6 +3,16 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; }
 
+/* 가로 스크롤은 칸반 보드 영역에만 허용한다 (05-design §3 깨짐 금지).
+   문서에 가로 스크롤바가 15px 떠 있었고, .shell 이 100vh 라 그만큼 세로로도 넘쳐
+   세로 스크롤바까지 따라 생겼다(둘 다 화면 어디에도 넘치는 요소가 없는데 생긴
+   것이라 스크롤할 곳도 없는 껍데기였다). 세로는 .page-content·패널이 각자 맡으므로
+   문서 가로만 막는다 — 공개 지원 폼처럼 문서를 세로로 굴리는 화면은 그대로다. */
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--sans);
   font-size: var(--font-body);

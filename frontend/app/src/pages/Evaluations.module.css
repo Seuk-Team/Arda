@@ -103,6 +103,10 @@
 }
 
 /* ── 평가 패널 ───────────────────────────────────── */
+/* 오른쪽 한 자리를 아르·그날 일정·지원자 상세와 나눠 쓴다 — 폭도 같은 토큰이다
+   (--right-panel-w, 2026-09-01. 420 으로 혼자 넓었다).
+   폭 전환도 뺐다: 폭은 레이아웃 값이라 애니메이션하면 매 프레임 본문이 다시
+   흐른다. SidePanel 과 같은 이유·같은 처리다. */
 .side {
   flex: none;
   width: 0;
@@ -110,16 +114,15 @@
   position: relative;
   background: var(--bg-elev);
   border-left: 0 solid var(--border);
-  transition: width var(--dur-base) var(--ease);
 }
 
 .sideOpen {
-  width: 420px;
+  width: var(--right-panel-w);
   border-left-width: var(--border-w);
 }
 
 .sideInner {
-  width: 420px;
+  width: var(--right-panel-w);
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -133,7 +136,7 @@
     right: 0;
     bottom: 0;
     z-index: var(--z-modal);
-    width: 420px;
+    width: var(--right-panel-w);
     border-left-width: var(--border-w);
     box-shadow: var(--sh-overlay);
     transform: translateX(100%);

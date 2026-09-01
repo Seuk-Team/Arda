@@ -2,14 +2,14 @@ import { createContext, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 /* 화면 오른쪽에 서는 패널은 한 번에 하나다 (2026-09-01).
-   아르 에이전트·캘린더의 그날 일정·지원자 상세가 모두 오른쪽 끝을 쓰는데, 각자 상태를
+   아르 에이전트·캘린더의 그날 일정·지원자 상세·평가 패널이 모두 오른쪽 끝을 쓰는데, 각자 상태를
    들고 있으면 동시에 열려 나란히 붙는다. 어느 것이 열려 있는지를 여기 한 곳에
    두고 나중에 연 쪽이 이기게 한다.
 
    아르는 닫아도 언마운트하지 않는다 — 대화 이력이 날아가므로 open=false 로
    폭 0 + inert 가 될 뿐이다 (SidePanel rail). */
 
-export type RightPanelId = 'ar' | 'day' | 'applicant'
+export type RightPanelId = 'ar' | 'day' | 'applicant' | 'evaluation'
 
 interface RightPanel {
   active: RightPanelId | null

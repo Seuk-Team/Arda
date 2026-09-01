@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import PageHead from '../components/PageHead'
+import { useRightPanel } from '../components/RightPanel'
+import ApplicantPanel from './ApplicantPanel'
 import { ApiError } from '../api/client'
 import { applications, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting } from '../api/types'
@@ -25,6 +27,31 @@ export default function Applicants() {
   /* 타이핑마다 서버를 때리지 않는다. 10만 건 검색은 한 번이 비싸다. */
   const [term, setTerm] = useState('')
   const [page, setPage] = useState(0)
+
+  /* 상세 패널에 열려 있는 지원자. 오른쪽 한 자리를 나눠 쓴다 —
+     아르를 열면 이쪽이 닫힌다 (RightPanel) */
+  const rightPanel = useRightPanel()
+  const [openId, setOpenId] = useState<number | null>(null)
+  const detailOpen = openId !== null && rightPanel.active === 'applicant'
+  /* 단계가 바뀌면 목록을 다시 센다 */
+  const [tick, setTick] = useState(0)
+
+  function openDetail(id: number) {
+    setOpenId(id)
+    rightPanel.open('applicant')
+  }
+
+  function closeDetail() {
+    setOpenId(null)
+    rightPanel.close('applicant')
+  }
+
+  /* 오른쪽 자리를 다른 패널(아르 등)에 뺏기면 고른 것도 버린다 —
+     안 버리면 행 강조가 남아 밑에 깔아 둔 것처럼 되고, 그 패널이 닫힐 때
+     되살아난 것처럼 보인다 */
+  useEffect(() => {
+    if (rightPanel.active !== 'applicant') setOpenId(null)
+  }, [rightPanel.active])
 
   const [rows, setRows] = useState<ApplicationListItem[] | null>(null)
   const [total, setTotal] = useState<number | null>(null)
@@ -89,7 +116,8 @@ export default function Applicants() {
         setError(err instanceof ApiError ? err.message : '지원자를 불러오지 못했습니다')
       })
     return () => ac.abort()
-  }, [term, field, postingIdFilter, page])
+    /* tick — 상세 패널에서 단계를 바꾸면 목록도 다시 받는다 */
+  }, [term, field, postingIdFilter, page, tick])
 
   const pages = total === null ? 1 : Math.max(1, Math.ceil(total / PAGE_SIZE))
   const from = page * PAGE_SIZE + 1
@@ -147,6 +175,7 @@ export default function Applicants() {
         </span>
       </div>
 
+      <div className={styles.body}>
       <main className="page-content">
         <div className={styles.panel}>
           <div className={`${styles.row} ${styles.thead}`}>
@@ -159,7 +188,20 @@ export default function Applicants() {
           </div>
 
           {rows?.map((a) => (
-            <div key={a.id} className={`${styles.row} ${styles.item}`} tabIndex={0}>
+            <div
+              key={a.id}
+              className={`${styles.row} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
+              tabIndex={0}
+              role="button"
+              aria-current={a.id === openId ? 'true' : undefined}
+              onClick={() => openDetail(a.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openDetail(a.id)
+                }
+              }}
+            >
               <span className={styles.name}>{a.name}</span>
               <span className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
               <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
@@ -203,6 +245,17 @@ export default function Applicants() {
           )}
         </div>
       </main>
+
+      {/* 상세는 페이지 이동 없이 옆에서 연다 (05-design §0.5) — 공고의 지원자 화면과
+          같은 패널이다. 오른쪽 한 자리를 나눠 쓴다 (RightPanel) */}
+      {detailOpen && openId !== null && (
+        <ApplicantPanel
+          applicationId={openId}
+          onClose={closeDetail}
+          onChanged={() => setTick((n) => n + 1)}
+        />
+      )}
+      </div>
     </>
   )
 }

@@ -170,6 +170,18 @@
 }
 
 /* ── 목록 ────────────────────────────────────────── */
+/* 본문과 상세 패널이 나란히 서는 자리 — 공고의 지원자 화면과 같은 구성 */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.body > main {
+  flex: 1;
+  min-width: 0;
+}
+
 .panel {
   background: var(--bg-elev);
   border: var(--border-w) solid var(--border);
@@ -212,6 +224,16 @@
 
 .item:hover {
   background: var(--bg);
+}
+
+.item:active {
+  background: var(--sunken-hover);
+}
+
+/* 상세 패널에 열려 있는 행 — 공고의 지원자 화면과 같은 표시 */
+.cur,
+.cur:hover {
+  background: var(--sprout-soft);
 }
 
 .item:focus-visible {
