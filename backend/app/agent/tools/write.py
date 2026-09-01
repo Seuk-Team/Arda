@@ -13,10 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app import mail
 from app.models import (
     Application,
     InterviewerAssignment,
     InterviewerAvailability,
+    JobPosting,
     ScheduleProposal,
     ScheduleSlot,
     User,
@@ -24,8 +26,12 @@ from app.models import (
 from app.stage_service import apply_stage_change, publish_all, require_reason
 from app.stages import StageTransitionError
 
+# 확인 게이트를 타는 도구. **부수효과가 있는 것만 넣는다.**
+# draft_email 은 초안 텍스트만 돌려주고 아무것도 바꾸지 않아서 뺐다 — 초안 하나
+# 보려고 확인 카드를 지나야 하면 승인 한 번의 의미가 흐려진다. 실제로 되돌릴 수
+# 없는 것은 send_email 이고, 그것이 게이트를 탄다 (G4 결정 3).
 WRITE_TOOL_NAMES = frozenset({
-    "change_stage", "assign_interviewer", "draft_email", "create_schedule_proposal",
+    "change_stage", "assign_interviewer", "send_email", "create_schedule_proposal",
 })
 
 
@@ -198,6 +204,10 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
         application_id=application_id,
         to_email=app.email,
         stage="interview",
+        # 도구를 승인한 사람이 발송 주체다 — 문구는 템플릿이라 아르가 쓴 것이
+        # 아니다. 아르가 문안을 쓰는 것은 send_email 뿐이다 (G4).
+        actor_kind="human",
+        actor_id=user.id,
     )
     db.commit()
 
@@ -231,8 +241,30 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     }
 
 
+def _posting_title(db: Session, app: Application) -> str:
+    posting = db.get(JobPosting, app.job_posting_id)
+    return posting.title if posting else ""
+
+
+# purpose 는 에이전트가 쓰는 말이고 stage 는 시스템의 말이다. 사이를 여기서 잇는다.
+_PURPOSE_STAGE = {
+    "interview": "interview",
+    "accepted": "accepted",
+    "rejected": "rejected",
+}
+
+
 def draft_email(db: Session, user: User, params: dict) -> dict:
-    """이메일 초안 생성. DB에 쓰지 않고 초안 텍스트만 반환한다."""
+    """이메일 초안 생성. **DB 에 쓰지 않고 초안 텍스트만 반환한다.**
+
+    문구를 여기서 따로 짓지 않는다 — `mail` 의 템플릿을 그대로 쓴다. 예전에는
+    이 함수가 자체 하드코딩 문구를 갖고 있었고, 그래서 **에이전트가 보여준 초안과
+    시스템이 실제로 보내는 메일의 문구가 달랐다.** 담당자가 설정 화면에서 문구를
+    고쳐도 아르만 옛 문구를 말하는 상태였다. 저장소를 하나로 합친다 (G4).
+
+    서명은 아르 이름으로 들어간다 — 이 문안을 쓴 것이 아르이기 때문이다. 단
+    합격·불합격은 `mail.build_signature` 가 사람 이름으로 되돌린다.
+    """
     application_id = int(params["application_id"])
     purpose = params.get("purpose", "general")
 
@@ -240,47 +272,78 @@ def draft_email(db: Session, user: User, params: dict) -> dict:
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
-    templates = {
-        "interview": (
-            f"{app.name}님 안녕하세요.\n\n"
-            f"서류 검토 결과, 면접에 초대드리고자 합니다.\n"
-            f"면접 일정 선택 링크를 별도로 보내드릴 예정이니 확인 부탁드립니다.\n\n"
-            f"감사합니다."
-        ),
-        "accepted": (
-            f"{app.name}님 안녕하세요.\n\n"
-            f"축하드립니다. 최종 합격을 알려드립니다.\n"
-            f"입사 관련 안내를 별도로 보내드리겠습니다.\n\n"
-            f"감사합니다."
-        ),
-        "rejected": (
-            f"{app.name}님 안녕하세요.\n\n"
-            f"검토 결과를 안내드립니다. 아쉽게도 이번에는 함께하기 어렵게 되었습니다.\n"
-            f"지원해주셔서 감사드리며, 앞으로의 활동을 응원합니다.\n\n"
-            f"감사합니다."
-        ),
-        "general": (
-            f"{app.name}님 안녕하세요.\n\n"
-            f"[여기에 내용을 작성하세요]\n\n"
-            f"감사합니다."
-        ),
+    stage = _PURPOSE_STAGE.get(purpose)
+    if stage is None:
+        # general — 대응하는 템플릿이 없다. 채울 골격만 준다.
+        signature = mail.build_signature("custom", "agent", user.name)
+        return {
+            "ok": True,
+            "to": app.email,
+            "subject": f"[{mail.COMPANY_NAME}] {app.name}님께 안내드립니다",
+            "body": (
+                f"{app.name} 님 안녕하세요.\n\n"
+                "[여기에 내용을 작성하세요]\n\n"
+                f"{signature}"
+            ),
+        }
+
+    subject, body = mail.render(
+        db,
+        stage,
+        app.name,
+        _posting_title(db, app),
+        actor_kind="agent",
+        actor_name=user.name,
+    )
+    return {"ok": True, "to": app.email, "subject": subject, "body": body}
+
+
+def send_email(db: Session, user: User, params: dict) -> dict:
+    """메일 발송 (G4). **확인 게이트를 지난 뒤에만 실행된다.**
+
+    안전장치가 겹으로 있다:
+
+    - **수신자를 인자로 받지 않는다.** `application_id` 로 DB 의 주소만 쓴다 —
+      아르가 임의 주소로 보낼 방법 자체가 없다.
+    - 확인 카드에 수신자·제목·본문 전문이 뜬다. 사람이 그것을 읽고 승인한다.
+    - 승인된 본문이 `email_logs` 에 그대로 남는다. 발송은 되돌릴 수 없으므로
+      "무엇이 나갔는가"라도 남아야 한다.
+    - 발송 자체는 하지 않는다 — 수동 발송 API 와 **같은 함수**로 큐에 올린다.
+      순서를 따로 쓰면 #148 처럼 메일이 조용히 증발한다.
+    """
+    application_id = int(params["application_id"])
+    subject = (params.get("subject") or "").strip()
+    body = (params.get("body") or "").strip()
+
+    app = db.get(Application, application_id)
+    if app is None:
+        return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
+    if not subject or not body:
+        return {"error": "제목과 본문이 모두 필요합니다"}
+
+    values = {
+        "지원자명": app.name,
+        "공고명": _posting_title(db, app),
+        "회사명": mail.COMPANY_NAME,
+        "면접일시": mail.INTERVIEW_AT_UNKNOWN,
+        "서명": mail.build_signature("custom", "agent", user.name),
     }
 
-    body = templates.get(purpose, templates["general"])
+    log = mail.create_custom_log(
+        db,
+        application_id=app.id,
+        to_email=app.email,
+        subject=mail.fill(subject, values),
+        body=mail.fill_body(body, values),
+        actor_kind="agent",
+        actor_id=user.id,  # 아르가 아니라 **승인한 사람**이다
+    )
+    db.commit()
+    publish_all([log.id])  # 커밋 뒤 발행 — 실패해도 행은 queued 로 남는다
 
     return {
         "ok": True,
-        "to": app.email,
-        "subject": _subject(purpose, app.name),
-        "body": body,
+        "email_log_id": log.id,
+        "to": log.to_email,
+        "subject": log.subject,
     }
-
-
-def _subject(purpose: str, name: str) -> str:
-    subjects = {
-        "interview": f"[Arda] {name}님, 면접 안내드립니다",
-        "accepted": f"[Arda] {name}님, 최종 합격을 축하드립니다",
-        "rejected": f"[Arda] {name}님, 지원 결과 안내",
-        "general": f"[Arda] {name}님께 안내드립니다",
-    }
-    return subjects.get(purpose, subjects["general"])

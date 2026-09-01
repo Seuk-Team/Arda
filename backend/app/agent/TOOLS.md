@@ -14,7 +14,7 @@
 | **제외** | — | 최종 합불 자동 확정 · SES 실발송 · 스키마/권한 변경 |
 
 쓰기 확인 카피 예: `김도현을 서류 검토로 옮길까요? [취소] [확인]`  
-메일은 **초안 생성까지**가 도구 범위. 발송 버튼은 사람만 (G 워커·기존 UI).
+메일은 **초안(`draft_email`) + 발송(`send_email`)** 둘 다 도구 범위다 (G4). 발송은 확인 게이트를 반드시 지나고, 수신자는 지원자 본인으로 고정된다 — 도구가 주소를 인자로 받지 않는다.
 
 ## 2. 도구 목록 ↔ API 매핑
 
@@ -78,7 +78,8 @@ JWT는 현재 요청의 것을 그대로 전달 — 에이전트가 별도 슈�
 | `change_stage` | 단계 변경 | `PATCH /api/v1/applications/{id}/stage` | 이력 기록(D5) + 메일 큐 트리거. **확인 없이 실행 금지** |
 | `assign_interviewer` | 면접관 배정 | `POST /api/v1/applications/{id}/interviewers` | 어드민만 가능 (ADR-0017). 중복 배정은 무시 |
 | `create_schedule_proposal` | 면접 일정 후보 제안 | `POST /api/v1/schedules/proposals` | 면접관 배정 + 가용 시간 등록 선행 필요 |
-| `draft_email` | 이메일 **초안** 생성 | *(HTTP 없음 — 템플릿 기반)* | 초안을 UI에 앰버로 표시. SES 호출은 사람이 발송할 때만 |
+| `draft_email` | 이메일 **초안** 생성 | `GET /api/v1/email-templates` 와 같은 문구 | **확인 불필요** — 부수효과가 없다. 설정 화면에서 편집한 문구를 그대로 쓴다 |
+| `send_email` | 이메일 **발송** | `POST /api/v1/applications/{id}/emails` | 확인 카드에 수신자·제목·본문 전문 표시 → 승인 시 `email_logs(stage=custom, actor_kind=agent)` 생성 + 큐 발행. 서명은 "채용 에이전트 아르 드림" |
 
 ### 에이전트 전용 HTTP
 
@@ -97,7 +98,8 @@ JWT는 현재 요청의 것을 그대로 전달 — 에이전트가 별도 슈�
 | 1 | `search_applications` (q≈Python,AWS · stage=applied) | 읽기 |
 | 2 | (결과 0명이면 중단·안내) | — |
 | 3 | `change_stage` → **확인 카드** → 확인 시 서류심사(`screening`) | 쓰기 |
-| 4 | `draft_email` (purpose=interview) → 초안 표시 | 쓰기(초안) |
+| 4 | `draft_email` (purpose=interview) → 초안 표시 | 읽기(초안) |
+| 5 | `send_email` (승인 후) → 발송 | 쓰기(확인 필수) |
 
 실행 로그는 UI(⌘K 콘솔, ADR-0009)에 그대로 노출 — 면접 스토리용.
 

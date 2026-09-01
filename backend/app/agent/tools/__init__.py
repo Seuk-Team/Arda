@@ -28,6 +28,7 @@ from .write import (
     change_stage,
     create_schedule_proposal,
     draft_email,
+    send_email,
 )
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -294,8 +295,9 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "name": "draft_email",
         "description": (
             "지원자에게 보낼 이메일 초안을 생성합니다. "
-            "목적(purpose)에 따라 면접 안내, 합격, 불합격 등의 템플릿을 사용합니다. "
-            "이 도구는 사용자 확인 후에만 실행됩니다."
+            "목적(purpose)에 따라 설정된 메일 문구를 채워 돌려줍니다. "
+            "**초안을 만들 뿐 발송하지 않습니다** — 실제로 보내려면 send_email 을 쓰세요. "
+            "초안을 사용자에게 보여주고 보낼지 물어본 뒤 send_email 을 호출하는 것이 기본 흐름입니다."
         ),
         "input_schema": {
             "type": "object",
@@ -313,6 +315,29 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["application_id"],
         },
     },
+    {
+        "name": "send_email",
+        "description": (
+            "지원자에게 이메일을 실제로 발송합니다. "
+            "수신자는 지원자 본인으로 고정되며 지정할 수 없습니다. "
+            "**되돌릴 수 없는 조작이라 사용자 확인 후에만 실행됩니다** — "
+            "먼저 draft_email 로 초안을 만들어 사용자에게 보여주고, "
+            "승인 의사를 확인한 뒤 그 제목·본문 그대로 이 도구를 호출하세요. "
+            "본문에는 서명을 직접 쓰지 마세요. 시스템이 붙입니다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "integer",
+                    "description": "지원자 ID (수신 주소는 이 값으로 서버가 정한다)",
+                },
+                "subject": {"type": "string", "description": "메일 제목"},
+                "body": {"type": "string", "description": "메일 본문"},
+            },
+            "required": ["application_id", "subject", "body"],
+        },
+    },
 ]
 
 
@@ -328,6 +353,7 @@ _DISPATCH = {
     "create_schedule_proposal": create_schedule_proposal,
     "assign_interviewer": assign_interviewer,
     "draft_email": draft_email,
+    "send_email": send_email,
 }
 
 

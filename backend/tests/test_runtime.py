@@ -138,21 +138,23 @@ class TestWriteToolPendingAction:
         assert result.pending_action is not None
         assert result.pending_action.tool_name == "assign_interviewer"
 
-    def test_draft_email_returns_pending(self):
+    def test_send_email_returns_pending(self):
+        """메일 발송은 되돌릴 수 없다 — 반드시 확인 카드를 지난다 (G4)."""
         response = FakeResponse(
             content=[
-                FakeToolUseBlock(name="draft_email", input={
+                FakeToolUseBlock(name="send_email", input={
                     "application_id": 1,
-                    "purpose": "interview",
+                    "subject": "면접 안내",
+                    "body": "본문",
                 }),
             ],
             stop_reason="tool_use",
         )
         mock_module = _make_mock_anthropic(response)
-        result, _, _, _ = _run_with_mock("메일 초안 써줘", mock_module)
+        result, _, _, _ = _run_with_mock("메일 보내줘", mock_module)
 
         assert result.pending_action is not None
-        assert result.pending_action.tool_name == "draft_email"
+        assert result.pending_action.tool_name == "send_email"
 
 
 class TestReadToolExecution:

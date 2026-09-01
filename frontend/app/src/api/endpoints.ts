@@ -13,12 +13,64 @@ import type {
   Stage,
   TokenResponse,
   User,
+  UserItem,
+  MailTemplate,
+  EmailLogItem,
 } from './types'
 
 export const auth = {
   login: (email: string, password: string) =>
     api.post<TokenResponse>('/auth/login', { email, password }, { auth: false }),
   me: () => api.get<User>('/auth/me'),
+
+  /* 내 정보 수정 (G4). 이름·비밀번호만 — 역할·이메일은 서버가 안 받는다.
+     비밀번호를 바꿀 때는 current_password 가 필수다(틀리면 401). */
+  updateMe: (body: { name?: string; current_password?: string; new_password?: string }) =>
+    api.patch<User>('/auth/me', body),
+
+  /* 계정 생성 (A1). 설정의 "사용자 추가"가 이것을 부른다 — 전용 경로를 새로
+     만들지 않았다. production 에서는 admin 만 통과한다 */
+  signup: (body: { email: string; password: string; name: string; role: 'admin' | 'member' }) =>
+    api.post<User>('/auth/signup', body),
+}
+
+export const users = {
+  /* 목록. 조회는 로그인 전원에게 열려 있다 (ADR-0017) */
+  list: (signal?: AbortSignal) =>
+    api.get<{ items: UserItem[]; count: number }>('/users', { signal }),
+
+  /* 역할·활성 변경. admin 전용이고, 활성 admin 이 0 명이 되는 변경은 409 다 */
+  update: (id: number, body: { role?: 'admin' | 'member'; is_active?: boolean }) =>
+    api.patch<UserItem>(`/users/${id}`, body),
+}
+
+export const mail = {
+  templates: (signal?: AbortSignal) =>
+    api.get<{ items: MailTemplate[] }>('/email-templates', { signal }),
+
+  /* 저장. 허용 외 {변수} 는 422 — 화면은 그 메시지를 그대로 보여주면 된다 */
+  saveTemplate: (stage: string, body: { subject: string; body: string }) =>
+    api.put<MailTemplate>(`/email-templates/${stage}`, body),
+
+  /* 기본 문구로 복귀. 204 가 아니라 복귀한 문구가 온다 */
+  resetTemplate: (stage: string) => api.delete<MailTemplate>(`/email-templates/${stage}`),
+
+  /* 수동 발송 프리필 — 치환은 서버가 한다. 화면이 하면 미리보기와 실제가 갈린다 */
+  preview: (applicationId: number, stage: string, signal?: AbortSignal) =>
+    api.get<{ subject: string; body: string }>(
+      `/applications/${applicationId}/emails/preview`,
+      { query: { stage }, signal },
+    ),
+
+  /* 수동 발송. **수신자를 보내지 않는다** — 서버가 지원자 주소로 정한다 */
+  send: (applicationId: number, body: { subject: string; body: string }) =>
+    api.post<EmailLogItem>(`/applications/${applicationId}/emails`, body),
+
+  history: (applicationId: number, signal?: AbortSignal) =>
+    api.get<{ items: EmailLogItem[]; count: number }>(
+      `/applications/${applicationId}/emails`,
+      { signal },
+    ),
 }
 
 export const postings = {

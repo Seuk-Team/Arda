@@ -84,8 +84,11 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 | 파일 | 언제 | 실행 | 상태 |
 |---|---|---|---|
 | `migrate_roles_to_member.sql` | 역할 2종화 배포 시 1회 ([ADR-0017](../03_decision/0017-등급-이분화.md)) | `psql "$DATABASE_URL" -f backend/scripts/migrate_roles_to_member.sql` | **2026-08-31 실행 완료** |
+| `upgrade_settings_mail.sql` | 설정 실동작·메일 발송 배포 시 1회 ([G4](../02_tasks/G4-설정-실동작-메일-발송.md)) | `psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql` | **운영 미실행** |
 
 **2026-08-31 실행 기록**: 새 코드를 먼저 배포(`docker compose -f docker-compose.prod.yml up -d --build` — api·worker 재생성, 컨테이너의 `ROLES` 가 `("admin", "member")` 인 것을 확인)한 뒤 컨테이너 안에서 돌렸다. `UPDATE 1`(interviewer 1명 → member), 결과 `admin 6 / member 1`, 제약이 `CHECK (role IN ('admin','member'))` 로 교체된 것까지 확인. 서버에서는 `docker compose -f docker-compose.prod.yml exec -T db psql -U postgres -d arda -v ON_ERROR_STOP=1 -f - < backend/scripts/migrate_roles_to_member.sql` 로 실행한다.
+
+**`upgrade_settings_mail.sql` 은 순서가 반대다 — SQL 먼저, 재배포 나중.** 새 코드의 ORM 이 `users.is_active` 를 SELECT 에 실으므로 컬럼 없이 새 코드가 뜨면 전 요청이 죽는다(구 코드는 새 컬럼이 있어도 무해하다). `ADD COLUMN IF NOT EXISTS` 로 멱등하게 써 두어 재실행해도 안전하다. 신규 테이블 `email_templates` 는 `create_all` 이 만들므로 SQL 에 없다. 배포 전에 `MAIL_REPLY_TO`(지원자 회신을 받을 팀 공용 주소)를 서버 `.env` 에 넣어야 한다 — 비우면 회신이 증발한다.
 
 역할 이행은 `recruiter`·`interviewer` → `member` 로 바꾸고 `ck_users_role` 체크 제약을 새 값으로 갈아끼운다. **새 코드(`ROLES = ("admin", "member")`)가 올라간 뒤에 돌린다.** 트랜잭션 하나로 묶여 있어 중간에 실패하면 전부 되돌아가고, 모르는 role 값이 남아 있으면 일부러 멈춘다.
 

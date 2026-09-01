@@ -84,6 +84,11 @@ def apply_stage_change(
         application_id=application.id,
         to_email=application.email,
         stage=to_stage,
+        # 단계를 옮긴 사람이 곧 발송 주체다 (G4). 에이전트의 change_stage 도
+        # 사람이 승인해야 실행되므로 그 승인자가 여기 들어온다 — actor_kind 는
+        # "문안을 누가 썼나"이지 "어느 화면에서 눌렀나"가 아니다.
+        actor_kind="human",
+        actor_id=changed_by,
     ).id
 
 

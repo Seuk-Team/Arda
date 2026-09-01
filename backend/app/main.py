@@ -190,12 +190,14 @@ from app.api.applications import router as applications_router  # noqa: E402
 from app.api.assignments import router as assignments_router  # noqa: E402
 from app.api.auth import router as auth_router  # noqa: E402
 from app.api.availability import router as availability_router  # noqa: E402
+from app.api.emails import router as emails_router  # noqa: E402
 from app.api.evaluations import router as evaluations_router  # noqa: E402
 from app.api.files import router as files_router  # noqa: E402
 from app.api.notes import router as notes_router  # noqa: E402
 from app.api.postings import router as postings_router  # noqa: E402
 from app.api.public import router as public_router  # noqa: E402
 from app.api.schedules import router as schedules_router  # noqa: E402
+from app.api.users import router as users_router  # noqa: E402
 from app.api.agent import router as agent_router  # noqa: E402
 from app.api.search import router as search_router  # noqa: E402
 
@@ -204,6 +206,7 @@ app.include_router(applications_router)
 app.include_router(assignments_router)
 app.include_router(auth_router)
 app.include_router(availability_router)
+app.include_router(emails_router)
 app.include_router(evaluations_router)
 app.include_router(files_router)
 app.include_router(notes_router)
@@ -211,3 +214,4 @@ app.include_router(postings_router)
 app.include_router(public_router)
 app.include_router(schedules_router)
 app.include_router(search_router)
+app.include_router(users_router)

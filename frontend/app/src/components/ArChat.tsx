@@ -285,6 +285,15 @@ export default function ArChat({
             <Sprout className={styles.arIcon} />
             <div className={styles.ask}>
               <p className={styles.askBody}>{pending.description}</p>
+              {/* 메일 발송만 전문을 펼친다 (G4). 다른 쓰기 도구는 한 줄 요약으로
+                  충분하지만(단계는 되돌릴 수 있다), **나간 메일은 못 되돌린다** —
+                  승인하는 사람이 실제로 나갈 제목·본문을 읽고 눌러야 한다. */}
+              {pending.tool_name === 'send_email' && (
+                <div className={styles.mailPreview}>
+                  <p className={styles.mailSubject}>{String(pending.arguments.subject ?? '')}</p>
+                  <pre className={styles.mailBody}>{String(pending.arguments.body ?? '')}</pre>
+                </div>
+              )}
               {/* 버튼은 말풍선 안에 — 시안과 같은 순서(확인 · 취소) */}
               <div className={styles.askActions}>
                 <button

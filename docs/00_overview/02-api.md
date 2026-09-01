@@ -17,6 +17,18 @@
 | POST | /auth/signup | 회원가입 | A1. **계정 생성은 admin만** (production). role 지정도 admin만 — 그 외에는 `member` 로 만들어진다. 로컬(dev)은 부트스트랩을 위해 열려 있다 |
 | POST | /auth/login | 로그인 → JWT 발급 | A1 |
 | GET | /auth/me | 내 정보·권한 조회 | A2 |
+| PATCH | /auth/me | 내 정보 수정 | G4. 본문 `{name?, current_password?, new_password?}`. 비밀번호 변경은 `current_password` 필수 — 틀리면 401. **email·role 은 못 바꾼다.** 설정 화면에서 member 도 실제로 저장할 수 있는 유일한 항목 |
+
+## 사용자 (A4)
+
+계정 **생성**은 위 `/auth/signup` 이다 — 같은 일을 하는 경로를 둘로 만들지 않는다. **삭제는 없다**: `users.id` 가 `created_by`·`evaluator_id`·`assigned_by`·`changed_by` 로 도처에 박혀 있어 물리 삭제가 이력을 부순다. 비활성화가 그 자리를 대신한다.
+
+| 메서드 | 경로 | 기능 | 비고 |
+|---|---|---|---|
+| GET | /users | 사용자 목록 | 로그인 전원 (조회 개방, ADR-0017). `{id, name, email, role, is_active, created_at}` |
+| PATCH | /users/{id} | 역할·활성 변경 | **admin만.** 본문 `{role?, is_active?}`. **활성 admin 이 0 명이 되는 변경은 409** — 강등이든 비활성화든, 자기 자신이든 남이든 같다. 없는 사용자 404, 빈 본문·모르는 역할 422 |
+
+비활성 계정은 로그인 401 이고 **이미 발급된 토큰도 401** 이다 — 로그인만 막으면 토큰 만료(12시간)까지 그대로 쓴다.
 
 ## 채용 공고 (B)
 
@@ -114,7 +126,30 @@
 |---|---|---|---|
 | POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2. 기존 요약을 덮어쓴다 |
 | POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환. 응답에 사용량(`input_tokens`·`output_tokens`·`cache_write_tokens`·`cache_read_tokens`·`cost_usd`) 포함 — `cache_read_tokens` 가 계속 0이면 프롬프트 캐시가 안 걸린 것이다 ([ADR-0011](../03_decision/0011-에이전트-모델-비용.md)) |
-| POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출 |
+| POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출. **메일 발송(`send_email`)도 이 경로를 탄다** — 되돌릴 수 없는 조작이라 승인 없이는 실행되지 않는다 (G4) |
+
+## 메일 (G4)
+
+문구는 **코드 기본값 + DB 오버라이드**다. 오버라이드가 없으면 [email-templates.md](email-templates.md) 의 기본 문구가 나간다. 발송은 어느 경로든 `email_logs` 행 생성 → 커밋 → SQS → 워커 → SES 순서를 그대로 탄다.
+
+| 메서드 | 경로 | 기능 | 비고 |
+|---|---|---|---|
+| GET | /email-templates | 문구 4종 조회 | 로그인 전원. 항목마다 `source: "default" \| "custom"` — 지금 나가는 것이 기본값인지 수정본인지 |
+| PUT | /email-templates/{stage} | 오버라이드 저장 | **admin만** (ADR-0017). 본문 `{subject, body}`. 허용 외 `{...}` 변수 **422**, 4종(`applied`·`interview`·`accepted`·`rejected`) 외 stage **404**. `{서명}` 이 없으면 본문 끝에 자동으로 붙는다 |
+| DELETE | /email-templates/{stage} | 오버라이드 삭제 = 기본값 복귀 | **admin만.** 수정본이 없으면 404. 204 가 아니라 복귀한 기본 문구를 돌려준다 |
+| GET | /applications/{id}/emails/preview | 수동 발송 프리필 | 로그인 전원. `?stage=` 문구에 이 지원자 값을 채워 돌려준다 — 치환을 화면이 하면 미리보기와 실제 발송이 갈린다 |
+| POST | /applications/{id}/emails | 수동 발송 | 로그인 전원. 본문 `{subject, body}` — **수신자를 받지 않는다.** 서버가 지원자 주소로 고정한다. `email_logs(stage=custom, actor_kind=human)` 생성 |
+| GET | /applications/{id}/emails | 발송 이력 | 로그인 전원. 자동·수동 통합, 최신순 |
+
+발송 주체(`email_logs.actor_kind`)가 **From 표시 이름 · 본문 서명 · 회신 주소** 셋을 함께 정한다. 셋이 어긋나면 지원자가 누구에게 연락할지 헷갈린다.
+
+| 주체 | From 표시 이름 / 서명 | Reply-To |
+|---|---|---|
+| `human` | `Arda 채용 담당자 {이름}` | 그 사람의 `users.email` |
+| `agent` | `Arda 채용 에이전트 아르` | `MAIL_REPLY_TO` |
+| `system` | `Arda 채용팀` | `MAIL_REPLY_TO` |
+
+**합격·불합격은 주체와 무관하게 사람 이름**이다. 발신 **주소**는 언제나 `SES_FROM_EMAIL` 하나다 — 담당자 개인 주소를 From 에 넣으면 외부 메일(gmail 등)에서 DMARC 정렬이 깨져 스팸함으로 간다. 개인 연락처 역할은 Reply-To 가 맡는다.
 
 ## 시스템 (J)
 

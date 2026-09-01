@@ -5,7 +5,13 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_current_user_optional
 from app.models import User
-from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    MeUpdate,
+    SignupRequest,
+    TokenResponse,
+    UserOut,
+)
 from app.security import APP_ENV, create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -50,10 +56,44 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(http.HTTP_401_UNAUTHORIZED, "이메일 또는 비밀번호가 올바르지 않습니다")
+    # 비활성 계정 (A4). 비밀번호 확인 뒤에 본다 — 순서를 뒤집으면 아무나
+    # "이 주소는 비활성입니다"로 계정 존재 여부를 떠볼 수 있다.
+    if not user.is_active:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "비활성화된 계정입니다")
     token = create_access_token(user.id, user.role)
     return TokenResponse(access_token=token, token_type="bearer")
 
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
+    return UserOut.model_validate(user)
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    body: MeUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """내 정보 수정 (G4). 이름과 비밀번호만 — 역할·이메일은 여기서 안 바뀐다.
+
+    설정 화면에서 **member 도 실제로 저장할 수 있는 것**이 이것이다. 나머지 두
+    탭(사용자·권한, 메일 템플릿)은 admin 전용이라, 이게 없으면 member 에게
+    설정 화면은 읽기 전용 화면이었다.
+
+    비밀번호는 현재 비밀번호를 맞혀야 바뀐다(MeUpdate 검증). 토큰만으로 바꿀 수
+    있게 두면 자리를 비운 사이 화면을 잡은 사람이 계정을 통째로 가져간다.
+    """
+    if body.new_password is not None:
+        if not verify_password(body.current_password or "", user.password_hash):
+            raise HTTPException(
+                http.HTTP_401_UNAUTHORIZED, "현재 비밀번호가 올바르지 않습니다"
+            )
+        user.password_hash = hash_password(body.new_password)
+
+    if body.name is not None:
+        user.name = body.name
+
+    db.commit()
+    db.refresh(user)
     return UserOut.model_validate(user)

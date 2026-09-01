@@ -256,3 +256,119 @@
   color: var(--danger);
   word-break: keep-all;
 }
+
+/* ── 내 계정: 비밀번호 구역 구분선 ─────────────────── */
+.divider {
+  height: var(--border-w);
+  margin: var(--sp-2) 0;
+  border: none;
+  background: var(--border-soft);
+}
+
+/* ── 사용자 표의 인라인 조작 (A4) ───────────────────
+   표 안에서 바로 바꾼다. 편집 화면을 따로 열지 않는다 — 바꿀 것이 둘뿐이라
+   화면을 하나 더 만들면 왕복만 늘어난다. */
+.rowSelect {
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.rowSelect:disabled {
+  opacity: 0.6;
+}
+
+.row button.on,
+.row button.off {
+  height: 32px;
+  padding: 0 var(--sp-2);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--r-ctl);
+  background: none;
+  font-size: var(--font-sm);
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.row button.on:hover:not(:disabled),
+.row button.off:hover:not(:disabled) {
+  background: var(--bg-sunken);
+  border-color: var(--border);
+}
+
+/* ── 사용자 추가 모달 ───────────────────────────────── */
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(27, 33, 23, 0.32);
+}
+
+.modal {
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  border-radius: var(--r-card);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-overlay);
+}
+
+.modalTitle {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--font-h3, var(--font-body));
+  font-weight: 700;
+  color: var(--text);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+/* ── 메일 템플릿: 출처 뱃지 ──────────────────────────
+   저장소가 둘(코드 기본값 + DB 오버라이드)이라, 지금 나가는 것이 어느 쪽인지
+   보이지 않으면 담당자가 자기 수정이 반영됐는지 알 수 없다. */
+.mailHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.badge,
+.badgeOn {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+
+.badge {
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+}
+
+.badgeOn {
+  background: var(--leaf-soft, var(--bg-sunken));
+  color: var(--leaf);
+}
+
+.formActions {
+  gap: var(--sp-2);
+}

@@ -257,3 +257,34 @@
   stroke-linecap: round;
 }
 
+
+/* ── 메일 발송 확인 전문 (G4) ─────────────────────────
+   되돌릴 수 없는 조작이라 한 줄 요약으로 끝내지 않는다. 승인 버튼 바로 위에
+   실제로 나갈 제목·본문을 그대로 둔다. */
+.mailPreview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+}
+
+.mailSubject {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mailBody {
+  margin: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: inherit;
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

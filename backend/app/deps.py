@@ -25,6 +25,10 @@ def get_current_user(
     user = db.get(User, int(payload["sub"]))
     if user is None:
         raise HTTPException(http.HTTP_401_UNAUTHORIZED, "유효하지 않은 토큰입니다")
+    # 비활성 계정은 **이미 발급된 토큰도** 막는다 (A4). 로그인에서만 막으면
+    # 비활성화한 사람이 토큰 만료(기본 12시간)까지 그대로 쓴다 — 차단이 아니다.
+    if not user.is_active:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "비활성화된 계정입니다")
     return user
 
 

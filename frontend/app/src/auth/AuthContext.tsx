@@ -14,6 +14,9 @@ interface AuthValue {
      (errors.py 가 403 에 대해 경고하는 것과 같은 실수다). */
   error: ApiError | null
   retry: () => void
+  /* 내 정보를 다시 읽어 컨텍스트에 반영한다. 설정에서 이름을 바꾸면 사이드바·
+     서명 등 사방에 뿌려진 이름이 같이 바뀌어야 한다 (G4). */
+  refresh: () => Promise<void>
   login: (email: string, password: string) => Promise<void>
   logout: () => void
 }
@@ -63,6 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
+  const refresh = useCallback(async () => {
+    /* 토큰이 없으면 부를 것이 없다 — 로컬 개발의 DEV_USER 상태다 */
+    if (getToken() === null) return
+    setUser(await authApi.me())
+  }, [])
+
   const login = useCallback(async (email: string, password: string) => {
     const { access_token } = await authApi.login(email, password)
     setToken(access_token)
@@ -77,8 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, loading, error, retry, login, logout }),
-    [user, loading, error, retry, login, logout],
+    () => ({ user, loading, error, retry, refresh, login, logout }),
+    [user, loading, error, retry, refresh, login, logout],
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

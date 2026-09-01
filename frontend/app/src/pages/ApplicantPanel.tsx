@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
-import { applications, notes as notesApi, stages } from '../api/endpoints'
-import type { ApplicationDetail, Note, Stage } from '../api/types'
+import { applications, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
+import type { ApplicationDetail, EmailLogItem, Note, Stage } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import styles from './ApplicantPanel.module.css'
@@ -260,6 +260,8 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
             {actionError && <p className={styles.err} role="alert">{actionError}</p>}
           </div>
 
+          <MailSection applicationId={applicationId} />
+
           <div className={styles.sec}>
             <h2>메모</h2>
             <textarea
@@ -296,5 +298,177 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
         </>
       )}
     </SidePanel>
+  )
+}
+
+/* ── 메일 (G4) ──────────────────────────────────────────────────────
+   단계 변경이 자동으로 보내는 것 말고, 담당자가 직접 한 통 보내는 자리다.
+   설정이 아니라 여기에 둔 이유: 보낼 대상이 정해진 순간이 이 화면이다.
+
+   **수신 주소를 화면이 다루지 않는다.** 서버가 지원자 주소로 보낸다 — 잘못
+   보낸 메일은 되돌릴 수 없어서, 주소를 고를 수 있게 만드는 것 자체가 위험이다. */
+
+const MAIL_PRESETS: { stage: string; label: string }[] = [
+  { stage: 'interview', label: '면접 안내' },
+  { stage: 'applied', label: '접수 확인' },
+  { stage: 'accepted', label: '최종 합격' },
+  { stage: 'rejected', label: '불합격' },
+]
+
+const MAIL_STATUS_LABEL: Record<string, string> = {
+  queued: '대기',
+  sent: '발송됨',
+  failed: '실패',
+}
+
+const ACTOR_LABEL: Record<string, string> = {
+  human: '담당자',
+  agent: '아르',
+  system: '시스템',
+}
+
+function MailSection({ applicationId }: { applicationId: number }) {
+  const [history, setHistory] = useState<EmailLogItem[] | null>(null)
+  const [open, setOpen] = useState(false)
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await mailApi.history(applicationId)
+      setHistory(res.items)
+    } catch {
+      setHistory([])
+    }
+  }, [applicationId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  /* 프리필은 서버가 만든다. 화면이 치환하면 미리보기와 실제 발송이 갈린다 —
+     서명 규칙(주체별)이 두 곳에 복제되기 때문이다. */
+  async function prefill(stage: string) {
+    setErr(null)
+    try {
+      const res = await mailApi.preview(applicationId, stage)
+      setSubject(res.subject)
+      setBody(res.body)
+      setOpen(true)
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '문구를 불러오지 못했습니다')
+    }
+  }
+
+  async function send() {
+    setBusy(true)
+    try {
+      await mailApi.send(applicationId, { subject, body })
+      setConfirming(false)
+      setOpen(false)
+      setSubject('')
+      setBody('')
+      await load()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '발송하지 못했습니다')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className={styles.sec}>
+      <h2>메일</h2>
+
+      {!open && (
+        <div className={styles.mailPresets}>
+          {MAIL_PRESETS.map((p) => (
+            <button key={p.stage} type="button" className={styles.btnStage}
+              onClick={() => prefill(p.stage)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <>
+          <input
+            className={styles.input}
+            aria-label="메일 제목"
+            value={subject}
+            disabled={busy}
+            onChange={(e) => setSubject(e.target.value)}
+          />
+          <textarea
+            className={styles.input}
+            rows={10}
+            aria-label="메일 본문"
+            value={body}
+            disabled={busy}
+            onChange={(e) => setBody(e.target.value)}
+          />
+          <div className={styles.actions}>
+            <button type="button" className="btn" disabled={busy} onClick={() => setOpen(false)}>
+              취소
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || subject.trim() === '' || body.trim() === ''}
+              onClick={() => setConfirming(true)}
+            >
+              보내기
+            </button>
+          </div>
+        </>
+      )}
+
+      {err && <p className={styles.err} role="alert">{err}</p>}
+
+      {/* 발송 전 마지막 확인 — 되돌릴 수 없으므로 나갈 전문을 그대로 다시 보여 준다 */}
+      {confirming && (
+        <div className={styles.mailScrim} role="presentation" onClick={() => setConfirming(false)}>
+          <div
+            className={styles.mailModal}
+            role="dialog"
+            aria-modal="true"
+            aria-label="메일 발송 확인"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className={styles.mailWarn}>이 내용 그대로 지원자에게 발송됩니다. 되돌릴 수 없습니다.</p>
+            <p className={styles.mailSubject}>{subject}</p>
+            <pre className={styles.mailPreview}>{body}</pre>
+            <div className={styles.actions}>
+              <button type="button" className="btn" disabled={busy} onClick={() => setConfirming(false)}>
+                취소
+              </button>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={send}>
+                {busy ? '보내는 중…' : '발송'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {history?.map((m) => (
+        <div key={m.id} className={styles.note}>
+          <div className={styles.nmeta}>
+            <span className={styles.nauthor}>
+              {ACTOR_LABEL[m.actor_kind] ?? m.actor_kind}
+              {m.actor_name ? ` · ${m.actor_name}` : ''}
+            </span>
+            <span className={styles.ndate}>
+              {MAIL_STATUS_LABEL[m.status] ?? m.status} · {fmtDate(m.sent_at ?? m.created_at)}
+            </span>
+          </div>
+          <p className={styles.nbody}>{m.subject ?? `${STAGE_LABEL[m.stage as Stage] ?? m.stage} 자동 안내`}</p>
+        </div>
+      ))}
+      {history?.length === 0 && <p className={styles.state}>아직 보낸 메일이 없습니다.</p>}
+    </div>
   )
 }

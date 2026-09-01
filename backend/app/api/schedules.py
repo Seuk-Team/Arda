@@ -187,6 +187,8 @@ def create_proposal(
         application_id=application_id,
         to_email=application.email,
         stage="interview",
+        actor_kind="human",  # 제안을 만든 담당자가 발송 주체다 (G4)
+        actor_id=user.id,
     )
     db.commit()
 
@@ -434,7 +436,9 @@ def confirm_schedule(token: str, body: ConfirmRequest, db: Session = Depends(get
     proposal.updated_at = now
 
     application = db.get(Application, proposal.application_id)
-    # 확정 통보 — 워커가 confirmed 를 보고 {면접일시}에 확정 시각(KST)을 싣는다
+    # 확정 통보 — 워커가 confirmed 를 보고 {면접일시}에 확정 시각(KST)을 싣는다.
+    # 주체는 system 이다(기본값): 이 발송을 일으킨 것은 지원자 본인의 선택이고,
+    # 담당자도 아르도 개입하지 않았다. 담당자 이름으로 서명하면 거짓이다 (G4).
     log = mail.create_log(
         db,
         application_id=application.id,

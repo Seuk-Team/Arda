@@ -129,6 +129,12 @@ def _describe_action(name: str, args: dict, db: Session) -> str:
     if name == "draft_email":
         purpose = _PURPOSE_KR.get(args.get("purpose", "general"), "안내")
         return f"{label}에게 {purpose} 이메일 초안을 생성합니다"
+    if name == "send_email":
+        # **한 줄 요약으로 끝내지 않는다.** 메일은 되돌릴 수 없어서, 승인하는
+        # 사람이 실제로 나갈 제목·본문을 그대로 읽고 눌러야 한다. 프론트 확인
+        # 카드가 arguments 의 subject·body 를 따로 렌더하고, 이 문장은 그
+        # 위에 붙는 머리말이다.
+        return f"{label}에게 아래 내용으로 메일을 발송합니다"
     return f"{name} 실행"
 
 

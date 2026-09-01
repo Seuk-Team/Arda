@@ -5,10 +5,22 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.agent.tools.write import assign_interviewer, change_stage, draft_email
-from app.models import Application, EmailLog, StageHistory, User
+from app.agent.tools.write import (
+    assign_interviewer,
+    change_stage,
+    draft_email,
+    send_email,
+)
+from app.models import (
+    Application,
+    EmailLog,
+    EmailTemplate,
+    StageHistory,
+    User,
+)
 
 
 class TestChangeStage:
@@ -153,6 +165,119 @@ class TestDraftEmail:
             "application_id": 99999,
         })
         assert "error" in result
+
+    def test_설정에서_고친_문구를_쓴다(self, db: Session, admin_user, application):
+        """예전에는 자체 하드코딩 문구라, 담당자가 문구를 고쳐도 아르만 옛 말을 했다."""
+        db.add(
+            EmailTemplate(
+                stage="interview",
+                subject="바뀐 제목",
+                body="{지원자명} 님, 바뀐 본문입니다.\n\n{서명}",
+                updated_by=admin_user.id,
+            )
+        )
+        db.flush()
+        result = draft_email(db, admin_user, {
+            "application_id": application.id,
+            "purpose": "interview",
+        })
+        assert result["subject"] == "바뀐 제목"
+        assert "바뀐 본문입니다" in result["body"]
+
+    def test_아르_이름으로_서명한다(self, db: Session, admin_user, application):
+        result = draft_email(db, admin_user, {
+            "application_id": application.id,
+            "purpose": "interview",
+        })
+        assert "채용 에이전트 아르 드림" in result["body"]
+
+    def test_불합격_초안은_사람_이름으로_서명한다(
+        self, db: Session, admin_user, application
+    ):
+        """AI 가 심사했다는 오해를 만들지 않는다 (G4 결정 6)."""
+        result = draft_email(db, admin_user, {
+            "application_id": application.id,
+            "purpose": "rejected",
+        })
+        assert f"채용 담당자 {admin_user.name} 드림" in result["body"]
+
+    def test_초안은_아무것도_보내지_않는다(
+        self, db: Session, admin_user, application
+    ):
+        before = db.scalar(
+            select(func.count(EmailLog.id)).where(
+                EmailLog.application_id == application.id
+            )
+        )
+        draft_email(db, admin_user, {
+            "application_id": application.id,
+            "purpose": "interview",
+        })
+        after = db.scalar(
+            select(func.count(EmailLog.id)).where(
+                EmailLog.application_id == application.id
+            )
+        )
+        assert before == after
+
+
+class TestSendEmail:
+    """실제 발송 도구 (G4). 확인 게이트를 지난 뒤에만 여기까지 온다."""
+
+    @pytest.fixture(autouse=True)
+    def _no_queue(self, monkeypatch):
+        self.published: list[int] = []
+        monkeypatch.setattr(
+            "app.stage_service.mail.publish", lambda i: self.published.append(i)
+        )
+
+    def test_행이_남고_큐까지_발행한다(self, db: Session, member_user, application):
+        result = send_email(db, member_user, {
+            "application_id": application.id,
+            "subject": "면접 안내드립니다",
+            "body": "내일 뵙겠습니다.",
+        })
+        assert result["ok"] is True
+        log = db.get(EmailLog, result["email_log_id"])
+        assert log.stage == "custom"
+        assert log.actor_kind == "agent"
+        assert log.actor_id == member_user.id  # 아르가 아니라 승인한 사람
+        assert self.published == [log.id]
+
+    def test_수신자는_지원자_주소로_고정된다(
+        self, db: Session, member_user, application
+    ):
+        """도구가 주소를 인자로 받지 않는다 — 오발송 반경을 여기서 자른다."""
+        result = send_email(db, member_user, {
+            "application_id": application.id,
+            "subject": "제목",
+            "body": "본문",
+            "to": "attacker@evil.example",  # 무시된다
+        })
+        log = db.get(EmailLog, result["email_log_id"])
+        assert log.to_email == application.email
+
+    def test_서명이_붙는다(self, db: Session, member_user, application):
+        result = send_email(db, member_user, {
+            "application_id": application.id,
+            "subject": "제목",
+            "body": "본문",
+        })
+        log = db.get(EmailLog, result["email_log_id"])
+        assert log.body.rstrip().endswith("채용 에이전트 아르 드림")
+
+    def test_제목이나_본문이_비면_에러(self, db: Session, member_user, application):
+        assert "error" in send_email(db, member_user, {
+            "application_id": application.id, "subject": "  ", "body": "본문",
+        })
+        assert "error" in send_email(db, member_user, {
+            "application_id": application.id, "subject": "제목", "body": "",
+        })
+
+    def test_없는_지원자는_에러(self, db: Session, member_user):
+        assert "error" in send_email(db, member_user, {
+            "application_id": 99999, "subject": "제목", "body": "본문",
+        })
 
 
 class TestStageChangeSideEffects:

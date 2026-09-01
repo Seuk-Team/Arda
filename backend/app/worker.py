@@ -19,6 +19,7 @@ import os
 import signal
 import time
 from datetime import UTC, datetime
+from email.utils import formataddr
 from functools import lru_cache
 from zoneinfo import ZoneInfo
 
@@ -35,6 +36,7 @@ from app.models import (
     JobPosting,
     ScheduleProposal,
     ScheduleSlot,
+    User,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,14 @@ SES_MIN_INTERVAL = 1.0
 # 실제로 보내지 않고 로그로만 찍는다. AWS 없이 워커 로직을 검증할 때 쓴다.
 DRY_RUN = os.getenv("MAIL_DRY_RUN", "").lower() in ("1", "true", "yes")
 
+# 회신을 받을 팀 공용 주소 (G4 결정 7). 사람이 보낸 메일은 그 사람 주소가,
+# 에이전트·시스템 발송은 이 주소가 Reply-To 로 붙는다.
+#
+# **이 값이 비면 지원자 회신이 증발한다.** 발신은 no-reply 이고 문구는 전부
+# "이 메일에 회신해 주시기 바랍니다"라고 말한다 — Reply-To 가 없으면 그 안내가
+# 거짓말이 된다. 발송을 막지는 않는다(메일이 안 나가는 것이 더 나쁘다).
+MAIL_REPLY_TO = os.getenv("MAIL_REPLY_TO", "").strip()
+
 _last_sent_at = 0.0
 _running = True
 
@@ -77,13 +87,41 @@ def _ses():
     return boto3.client("ses", region_name=REGION)
 
 
-def _send_via_ses(to_email: str, subject: str, body: str) -> None:
+def _source(from_name: str | None) -> str:
+    """From 헤더. 주소는 그대로 두고 **표시 이름만** 발신자에 맞춘다.
+
+    주소까지 담당자 개인 것으로 바꾸지 않는 이유가 둘이다: 팀원 주소가 외부
+    메일(gmail) 이라 그것을 From 에 넣으면 DMARC 정렬이 깨져 스팸함으로 가고,
+    회사 도메인으로 바꾸려면 받을 메일함부터 있어야 한다(계약 문제다).
+
+    표시 이름만으로도 받은편지함에 "누가 보냈는가"가 뜬다. 회신은 Reply-To 가
+    그 사람에게 보낸다 — 둘을 합치면 개인 발신 계정 없이도 연락처가 성립한다.
+
+    한글 이름은 헤더에 그대로 못 넣는다. formataddr 가 비ASCII 이름을
+    MIME 인코딩(=?utf-8?b?...?=)해 준다.
+    """
+    address = os.environ["SES_FROM_EMAIL"]
+    return formataddr((from_name, address)) if from_name else address
+
+
+def _send_via_ses(
+    to_email: str,
+    subject: str,
+    body: str,
+    reply_to: str | None = None,
+    from_name: str | None = None,
+) -> None:
     """SES 로 한 통 보낸다. 실패하면 예외가 그대로 올라간다."""
     global _last_sent_at
 
     if DRY_RUN:
         logger.info(
-            "[DRY_RUN] 발송 생략 to=%s subject=%s\n%s", to_email, subject, body
+            "[DRY_RUN] 발송 생략 from=%s to=%s reply_to=%s subject=%s\n%s",
+            from_name,
+            to_email,
+            reply_to,
+            subject,
+            body,
         )
         return
 
@@ -92,14 +130,18 @@ def _send_via_ses(to_email: str, subject: str, body: str) -> None:
     if wait > 0:
         time.sleep(wait)
 
-    resp = _ses().send_email(
-        Source=os.environ["SES_FROM_EMAIL"],
-        Destination={"ToAddresses": [to_email]},
-        Message={
+    kwargs = {
+        "Source": _source(from_name),
+        "Destination": {"ToAddresses": [to_email]},
+        "Message": {
             "Subject": {"Data": subject, "Charset": "UTF-8"},
             "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
         },
-    )
+    }
+    # 빈 값을 넘기면 SES 가 거절한다 — 없으면 아예 키를 빼는 쪽이 맞다
+    if reply_to:
+        kwargs["ReplyToAddresses"] = [reply_to]
+    resp = _ses().send_email(**kwargs)
     _last_sent_at = time.monotonic()
 
     # SES 가 준 MessageId 를 남긴다. 스키마에 넣을 컬럼이 없어 로그로만 갖는다 —
@@ -157,6 +199,30 @@ def _context(db: Session, log: EmailLog) -> tuple[str, str, str | None]:
     )
     return application.name, posting.title if posting else "", interview_at
 
+
+def _actor(db: Session, log: EmailLog) -> tuple[str | None, str | None]:
+    """발송 주체의 (이름, 메일). 서명과 Reply-To 가 이 값으로 갈린다 (G4).
+
+    주체가 지워진 계정이거나 system 이면 둘 다 None 이다 — 그때는 팀 서명·팀
+    회신 주소로 내려간다.
+    """
+    if log.actor_id is None:
+        return None, None
+    actor = db.get(User, log.actor_id)
+    if actor is None:
+        return None, None
+    return actor.name, actor.email
+
+
+def _reply_to(log: EmailLog, actor_email: str | None) -> str | None:
+    """회신 주소. 사람이 보낸 것이면 그 사람에게 답장이 가야 한다.
+
+    에이전트·시스템 발송은 답장을 받을 개인이 없으므로 팀 공용 주소로 보낸다.
+    """
+    if log.actor_kind == "human" and actor_email:
+        return actor_email
+    return MAIL_REPLY_TO or None
+
 def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:
     """메시지 한 건을 처리한다. 실패하면 예외를 다시 던진다(= 메시지를 안 지운다)."""
     log = db.get(EmailLog, email_log_id)
@@ -176,8 +242,27 @@ def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:
         return
 
     try:
-        subject, body = mail.render(log.stage, *_context(db, log))
-        _send_via_ses(log.to_email, subject, body)
+        actor_name, actor_email = _actor(db, log)
+        # From 표시 이름은 본문 서명과 같은 문자열을 쓴다 (mail.sender_name).
+        # 받은편지함의 이름과 본문 끝의 서명이 다르면 지원자가 누구에게 연락해야
+        # 하는지 헷갈린다.
+        from_name = mail.sender_name(log.stage, log.actor_kind, actor_name)
+        if log.body is not None:
+            # 확정 본문이 있는 행(수동·에이전트 발송)은 **다시 렌더하지 않는다.**
+            # 사람이 보고 승인한 그 문구가 그대로 나가야 한다 — 그 사이에 템플릿이
+            # 바뀌었더라도 승인된 것과 다른 메일이 나가면 안 된다.
+            subject, body = log.subject or "", log.body
+        else:
+            subject, body = mail.render(
+                db,
+                log.stage,
+                *_context(db, log),
+                actor_kind=log.actor_kind,
+                actor_name=actor_name,
+            )
+        _send_via_ses(
+            log.to_email, subject, body, _reply_to(log, actor_email), from_name
+        )
         log.status = "sent"
         log.sent_at = datetime.now(UTC)
         logger.info("발송 완료 email_log_id=%s stage=%s", email_log_id, log.stage)

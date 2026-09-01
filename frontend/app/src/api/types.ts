@@ -7,6 +7,44 @@ export interface User {
   email: string
   name: string
   role: 'admin' | 'member'
+  /* 비활성 계정은 로그인도 기존 토큰도 막힌다 (A4). 옛 응답에는 없어 선택이다 */
+  is_active?: boolean
+}
+
+/* 설정 > 사용자·권한 (A4) */
+export interface UserItem {
+  id: number
+  name: string
+  email: string
+  role: 'admin' | 'member'
+  is_active: boolean
+  created_at: string
+}
+
+/* 설정 > 메일 템플릿 (G4).
+   source 는 "지금 나가는 문구가 기본값인가 수정본인가" — 저장소가 둘이라
+   이 구분이 화면에 없으면 자기가 고친 게 반영됐는지 알 수 없다. */
+export interface MailTemplate {
+  stage: 'applied' | 'interview' | 'accepted' | 'rejected'
+  subject: string
+  body: string
+  source: 'default' | 'custom'
+  updated_at: string | null
+  updated_by_name: string | null
+}
+
+/* 발송 이력 한 줄 (G4). 자동·수동을 한 목록에서 본다 */
+export interface EmailLogItem {
+  id: number
+  to_email: string
+  stage: string
+  status: 'queued' | 'sent' | 'failed'
+  actor_kind: 'human' | 'agent' | 'system'
+  actor_name: string | null
+  subject: string | null
+  body: string | null
+  sent_at: string | null
+  created_at: string
 }
 
 export interface TokenResponse {

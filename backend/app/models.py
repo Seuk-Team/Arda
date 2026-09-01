@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -42,6 +43,19 @@ FILE_KINDS = ("resume", "cover_letter")
 EMAIL_STATUSES = ("queued", "sent", "failed")
 PROPOSAL_STATUSES = ("proposed", "confirmed", "expired", "canceled")
 
+# 메일 발송 (G4). email_logs 의 stage 는 단계 5종에 custom 이 하나 더 붙는다 —
+# 수동·에이전트 발송은 단계 이동이 아니라서 STAGES 로는 표현할 값이 없다.
+# **STAGES 자체를 늘리지 않는다.** applications.current_stage 는 그대로여야 한다.
+EMAIL_LOG_STAGES = STAGES + ("custom",)
+# 발송 주체. 서명과 회신 주소가 이 값으로 갈린다 (G4 결정 6·7)
+#   human  — 사람이 화면에서 트리거·작성 (단계 변경·수동 발송·일정 제안)
+#   agent  — 아르가 문안을 작성 (send_email 도구). actor_id 는 승인한 사람
+#   system — 지원자 본인의 행동이 트리거 (접수 확인·일정 확정 통보)
+EMAIL_ACTOR_KINDS = ("human", "agent", "system")
+# 문구가 존재하는 단계. screening 은 내부 검토라 지원자에게 보내지 않고,
+# custom 은 본문을 그때그때 쓰므로 템플릿이 없다.
+TEMPLATE_STAGES = ("applied", "interview", "accepted", "rejected")
+
 
 def _in(column: str, values: tuple[str, ...]) -> str:
     """체크 제약 문구를 만든다. 예: role IN ('admin', 'member')"""
@@ -58,6 +72,12 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 비활성 계정은 로그인도 토큰 사용도 막힌다 (A4). 삭제 대신 이것을 쓴다 —
+    # users.id 가 created_by·evaluator_id·assigned_by·changed_by 로 도처에 박혀
+    # 있어서 물리 삭제는 이력을 부순다.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -273,6 +293,21 @@ class EmailLog(Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=text("'queued'")
     )
+    # 확정 제목·본문 (G4). NULL 이면 **발송 시점 렌더**다 — 단계 자동 발송이
+    # 그렇다. 면접 안내는 발송 시점에야 라이브 일정 링크를 알 수 있어서
+    # (worker._interview_at) 미리 굳힐 수 없다.
+    # 값이 있으면 워커가 렌더를 건너뛰고 그대로 보낸다 = 보낸 그대로의 기록.
+    subject: Mapped[str | None] = mapped_column(Text)
+    body: Mapped[str | None] = mapped_column(Text)
+    # 발송 주체 (G4 결정 6). 서명·회신 주소가 이 값으로 갈린다.
+    actor_kind: Mapped[str] = mapped_column(
+        String(10), nullable=False, server_default=text("'system'")
+    )
+    # human·agent 일 때의 사람. agent 는 도구를 승인한 사람이다 (아르가 아니다 —
+    # 아르는 users 행이 없고, 책임 주체는 승인자다). system 이면 NULL.
+    actor_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id")
+    )
     retry_count: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, server_default=text("0")
     )
@@ -283,7 +318,46 @@ class EmailLog(Base):
 
     __table_args__ = (
         CheckConstraint(_in("status", EMAIL_STATUSES), name="ck_email_logs_status"),
-        CheckConstraint(_in("stage", STAGES), name="ck_email_logs_stage"),
+        CheckConstraint(_in("stage", EMAIL_LOG_STAGES), name="ck_email_logs_stage"),
+        CheckConstraint(
+            _in("actor_kind", EMAIL_ACTOR_KINDS), name="ck_email_logs_actor_kind"
+        ),
+    )
+
+
+# ── email_templates — 메일 문구 오버라이드 (G4) ──────────────────────
+class EmailTemplate(Base):
+    """담당자가 편집한 메일 문구. **행이 없으면 코드 기본값**(mail._TEMPLATES).
+
+    문구를 통째로 DB 로 옮기지 않은 이유: 시드가 선행돼야 메일이 나가게 되고,
+    시드 누락이 곧 발송 전면 실패다. 오버라이드만 두면 create_all 이 빈 테이블을
+    만드는 것으로 끝나고, 행을 지우면 기본 문구로 돌아온다.
+    """
+
+    __tablename__ = "email_templates"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # 단계당 하나. 오버라이드가 여러 개면 "지금 어느 것이 나가는가"를 알 수 없다
+    stage: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            _in("stage", TEMPLATE_STAGES), name="ck_email_templates_stage"
+        ),
     )
 
 

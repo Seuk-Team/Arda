@@ -225,3 +225,60 @@
   color: var(--text-sub);
   word-break: keep-all;
 }
+
+/* ── 메일 (G4) ────────────────────────────────────── */
+.mailPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* 발송 전 확인 — 되돌릴 수 없는 조작이라, 나갈 전문을 한 번 더 보여 주고
+   그 위에서만 [발송]을 누를 수 있게 한다. */
+.mailScrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(27, 33, 23, 0.32);
+}
+
+.mailModal {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  border-radius: var(--r-card);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-overlay);
+}
+
+.mailWarn {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--warn, var(--text-sub));
+}
+
+.mailSubject {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mailPreview {
+  margin: 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

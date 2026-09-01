@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.4 · 2026-08-31** — v1.4: 시맨틱 검색용 `application_embeddings` 를 문서에 반영 ([ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md)). 테이블은 코드에 먼저 들어가 있었고 이 문서가 비어 있었다 — 문서를 코드에 맞췄다.
+> **상태: 확정 v1.5 · 2026-09-01** — v1.5: 설정 실동작·메일 발송 ([G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md)). `users.is_active` 추가, `email_logs` 에 `subject`·`body`·`actor_kind`·`actor_id` 추가 + `stage` 에 `custom` 허용, 신규 `email_templates`. **기존 DB 는 `backend/scripts/upgrade_settings_mail.sql` 1회성 실행이 필요하다** — `create_all` 은 컬럼을 추가하지 못한다.
+> v1.4 (2026-08-31): 시맨틱 검색용 `application_embeddings` 를 문서에 반영 ([ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md)). 테이블은 코드에 먼저 들어가 있었고 이 문서가 비어 있었다 — 문서를 코드에 맞췄다.
 > v1.3 (2026-08-31): `users.role` 을 `admin`/`member` 2종으로 축소, A3(면접관 조회 제한) 폐지 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 테이블·컬럼 구조는 그대로다 — 바뀐 것은 `role` 의 허용값과 접근 규칙뿐.
 > v1.2 (2026-08-31): 면접 일정 자동화 3테이블 `interviewer_availability`·`schedule_proposals`·`schedule_slots` 추가 ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
 > v1.1 (2026-08-25): `job_postings.deadline`·`public_token`(B4·B6), `stage_history.reason`(D8) 추가 (팀장 승인)
@@ -31,6 +32,8 @@ erDiagram
     applications ||--o{ schedule_proposals : "일정 제안"
     schedule_proposals ||--o{ schedule_slots : "후보 슬롯"
     applications ||--o| application_embeddings : "임베딩"
+    users ||--o{ email_logs : "발송 주체"
+    users ||--o{ email_templates : "문구 수정"
 ```
 
 ## 단계(stage) — 고정 enum
@@ -50,6 +53,7 @@ erDiagram
 | password_hash | varchar(255) | NOT NULL | bcrypt |
 | name | varchar(50) | NOT NULL | |
 | role | varchar(20) | NOT NULL | `admin` / `member` 2종 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 위계가 아니라 조작 권한의 유무다 — 조회는 로그인한 사람 전체에게 열려 있고, `admin` 에게만 남은 것은 면접관 배정/해제·계정 생성·메일 템플릿·**남의** 가용 시간이다. `member` 의 유일한 제한은 평가 작성(배정된 건만) |
+| is_active | boolean | NOT NULL, default true | 비활성 계정은 로그인도 **기존 토큰도** 막힌다 (A4). 삭제 대신 이것을 쓴다 — `users.id` 가 `created_by`·`evaluator_id`·`assigned_by`·`changed_by` 로 도처에 박혀 있어 물리 삭제는 이력을 부순다. 활성 admin 이 0 명이 되는 변경은 API 가 409 로 막는다 |
 | created_at | timestamptz | NOT NULL, default now() | |
 
 비고: A5 로그인 이력(권장)은 `login_logs` 별도 테이블로 추가 가능 — 본 스키마 변경 없음.
@@ -166,13 +170,35 @@ erDiagram
 | id | bigint | PK | |
 | application_id | bigint | FK → applications.id, NOT NULL | |
 | to_email | varchar(255) | NOT NULL | |
-| stage | varchar(20) | NOT NULL | 어떤 단계 변경 건인지 |
+| stage | varchar(20) | NOT NULL | 어떤 단계 변경 건인지. 단계 5종 + **`custom`**(수동·에이전트 발송 — 단계 이동이 아니라서 표현할 값이 없다). `applications.current_stage` 의 허용값은 그대로 5종이다 |
 | status | varchar(20) | NOT NULL, default `queued` | `queued` / `sent` / `failed` |
+| subject | text | | 확정 제목. **NULL 이면 발송 시점 렌더**(단계 자동 발송) |
+| body | text | | 확정 본문. 값이 있으면 워커가 렌더를 건너뛰고 그대로 보낸다 = **보낸 그대로의 기록**. 면접 안내는 발송 시점에야 라이브 일정 링크를 알 수 있어 미리 굳히지 않는다 |
+| actor_kind | varchar(10) | NOT NULL, default `system` | 발송 주체 — 서명과 회신 주소가 이 값으로 갈린다 (G4). `human`(사람이 화면에서 트리거·작성) / `agent`(아르가 문안 작성) / `system`(지원자 본인의 행동이 트리거 — 접수 확인·일정 확정) |
+| actor_id | bigint | FK → users.id | `human`·`agent` 일 때의 사람. **`agent` 는 도구를 승인한 사람**이다 (아르는 users 행이 없고, 책임 주체는 승인자다). `system` 이면 NULL |
 | retry_count | smallint | NOT NULL, default 0 | |
 | sent_at | timestamptz | | |
 | created_at | timestamptz | NOT NULL | |
 
 흐름: 단계 변경 → 이 레코드 생성 + SQS 발행 → 워커가 SES 발송 → status 갱신. 실패 시 재시도(G3), 상한 초과 시 `failed`.
+
+수동 발송(`POST /applications/{id}/emails`)과 에이전트 발송(`send_email` 도구)도 같은 흐름을 탄다 — 다른 것은 `subject`·`body` 를 미리 채워 둔다는 점 하나뿐이다.
+
+## email_templates — 메일 문구 오버라이드 (G4)
+
+담당자가 설정 화면에서 편집한 문구. **행이 없으면 코드 기본값**([mail.py](../../backend/app/mail.py) `_TEMPLATES`, 문구의 기준은 [email-templates.md](email-templates.md))이 나간다.
+
+문구를 통째로 DB 로 옮기지 않은 이유: 시드가 선행돼야 메일이 나가게 되고, 시드 누락이 곧 발송 전면 실패다. 오버라이드만 두면 `create_all` 이 빈 테이블을 만드는 것으로 끝나고, 행을 지우면 기본 문구로 돌아온다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| stage | varchar(20) | UNIQUE, NOT NULL | `applied` / `interview` / `accepted` / `rejected` 4종만. `screening` 은 내부 검토라 지원자에게 보내지 않고, `custom` 은 본문을 그때그때 쓴다. 단계당 하나 — 오버라이드가 여러 개면 "지금 어느 것이 나가는가"를 알 수 없다 |
+| subject | varchar(255) | NOT NULL | 쓸 수 있는 변수: `{지원자명}` `{공고명}` `{회사명}` `{면접일시}` `{서명}`. 그 외 `{...}` 토큰은 저장 시 422 |
+| body | text | NOT NULL | 위와 동일. `{서명}` 이 없으면 저장 시 본문 끝에 자동으로 붙는다 |
+| updated_by | bigint | FK → users.id, NOT NULL | 마지막 수정자 |
+| created_at | timestamptz | NOT NULL | |
+| updated_at | timestamptz | NOT NULL | |
 
 ## interviewer_assignments — 면접관 배정 (E3)
 
