@@ -18,6 +18,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
+from app.labels import EMAIL_PURPOSE_KR, STAGE_LABEL_KR
 from app.models import User
 
 from .backends import get_chat_backend
@@ -53,22 +54,6 @@ __all__ = [
 _trim_history = trim_history
 
 
-_STAGE_KR = {
-    "applied": "접수",
-    "screening": "서류심사",
-    "interview": "면접",
-    "accepted": "합격",
-    "rejected": "불합격",
-}
-
-_PURPOSE_KR = {
-    "interview": "면접 안내",
-    "accepted": "합격 안내",
-    "rejected": "불합격 안내",
-    "general": "일반 안내",
-}
-
-
 def _applicant_label(db: Session, application_id: int | None) -> str:
     """지원자 ID → '김도현(서울대 컴공)' 형태. 못 찾으면 '#ID'."""
     if application_id is None:
@@ -87,7 +72,7 @@ def _describe_action(name: str, args: dict, db: Session) -> str:
     """사용자에게 보여줄 확인 메시지를 만든다."""
     label = _applicant_label(db, args.get("application_id"))
     if name == "change_stage":
-        to = _STAGE_KR.get(args.get("to_stage", ""), args.get("to_stage", ""))
+        to = STAGE_LABEL_KR.get(args.get("to_stage", ""), args.get("to_stage", ""))
         return f"{label}을(를) {to} 단계로 변경합니다"
     if name == "assign_interviewer":
         ids = args.get("interviewer_ids", [])
@@ -96,7 +81,7 @@ def _describe_action(name: str, args: dict, db: Session) -> str:
         max_slots = args.get("max_slots", 5)
         return f"{label}에게 면접 일정 후보 {max_slots}개를 제안합니다"
     if name == "draft_email":
-        purpose = _PURPOSE_KR.get(args.get("purpose", "general"), "안내")
+        purpose = EMAIL_PURPOSE_KR.get(args.get("purpose", "general"), "안내")
         return f"{label}에게 {purpose} 이메일 초안을 생성합니다"
     if name == "send_email":
         # **한 줄 요약으로 끝내지 않는다.** 메일은 되돌릴 수 없어서, 승인하는

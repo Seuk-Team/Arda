@@ -67,7 +67,7 @@ class TestDescribeAction:
             "to_stage": "screening",
         }, _mock_db())
         assert "홍길동" in desc
-        assert "서류심사" in desc
+        assert "서류 검토" in desc  # app/labels.py:STAGE_LABEL_KR (프론트와 일치)
         assert "변경" in desc
 
     def test_assign_interviewer(self):

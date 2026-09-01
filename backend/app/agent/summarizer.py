@@ -29,14 +29,23 @@ _EMPTY = "제출된 내용 없음"
 # 3단 체인의 출력 스키마. 문법 제약 디코딩을 지원하는 백엔드(로컬 Ollama `format`)
 # 에서만 쓴다. 지원하지 않는 백엔드는 프롬프트로만 JSON 을 요청하고
 # _strip_fences + _parse_json 폴백에 기댄다 — 최소 공통 분모로 깎지 않는다.
+#
+# `maxItems`/`maxLength` 는 팀장의 프롬프트 짧게 다듬기(6905c37) 규격과 같다.
+# 프롬프트 규칙만 있으면 로컬 sLLM 이 넘길 여지가 있어 스키마에 겹장으로 강제한다.
 _STEP_SCHEMAS: dict[str, dict] = {
     "chain_summarize": {
         "type": "object",
         "properties": {
             "insufficient": {"type": "boolean"},
-            "gist": {"type": "string"},
-            "key_skills": {"type": "array", "items": {"type": "string"}},
-            "key_experiences": {"type": "array", "items": {"type": "string"}},
+            "gist": {"type": "string", "maxLength": 160},  # 2문장 이내
+            "key_skills": {
+                "type": "array", "maxItems": 3,
+                "items": {"type": "string", "maxLength": 40},
+            },
+            "key_experiences": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "string", "maxLength": 40},
+            },
         },
         "required": ["insufficient", "gist", "key_skills", "key_experiences"],
     },
@@ -44,17 +53,29 @@ _STEP_SCHEMAS: dict[str, dict] = {
         "type": "object",
         "properties": {
             "fit_score": {"type": "integer", "minimum": 1, "maximum": 5},
-            "fit": {"type": "array", "items": {"type": "string"}},
-            "concerns": {"type": "array", "items": {"type": "string"}},
+            "fit": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "string", "maxLength": 40},
+            },
+            "concerns": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "string", "maxLength": 40},
+            },
         },
         "required": ["fit_score", "fit", "concerns"],
     },
     "chain_recommend": {
         "type": "object",
         "properties": {
-            "action": {"type": "string"},
-            "reasons": {"type": "array", "items": {"type": "string"}},
-            "check_points": {"type": "array", "items": {"type": "string"}},
+            "action": {"type": "string", "maxLength": 20},
+            "reasons": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "string", "maxLength": 40},
+            },
+            "check_points": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "string", "maxLength": 40},
+            },
         },
         "required": ["action", "reasons", "check_points"],
     },
@@ -316,15 +337,24 @@ def generate_summary(db: Session, application_id: int) -> str | None:
 
 
 def generate_summary_bg(application_id: int) -> None:
-    """FastAPI BackgroundTasks 용. 자체 DB 세션을 만들어 실행한다."""
+    """FastAPI BackgroundTasks 용. 자체 DB 세션을 만들어 실행한다.
+
+    요약과 임베딩은 **서로 독립**이다 — 요약이 실패해도 시맨틱 검색을 위한
+    임베딩은 만들어져야 하고, 반대도 같다. 두 호출을 각자 try 로 감싸서
+    한쪽 실패가 다른 쪽을 삼키지 않게 한다.
+    """
     from app.db import SessionLocal
 
     db = SessionLocal()
     try:
-        generate_summary(db, application_id)
-        _generate_embedding(db, application_id)
-    except Exception:
-        logger.exception("백그라운드 요약 실패: application_id=%d", application_id)
+        try:
+            generate_summary(db, application_id)
+        except Exception:
+            logger.exception("백그라운드 요약 실패: application_id=%d", application_id)
+        try:
+            _generate_embedding(db, application_id)
+        except Exception:
+            logger.exception("백그라운드 임베딩 실패: application_id=%d", application_id)
     finally:
         db.close()
 

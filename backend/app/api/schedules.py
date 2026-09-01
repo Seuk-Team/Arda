@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app import mail
 from app.db import get_db
 from app.deps import get_current_user
+from app.labels import STAGE_LABEL_KR
 from app.models import (
     Application,
     InterviewerAssignment,
@@ -507,12 +508,6 @@ def public_faq(token: str, body: FaqRequest, db: Session = Depends(get_db)):
     return FaqResponse(answer=answer)
 
 
-_STAGE_KR = {
-    "applied": "지원 접수", "screening": "서류 검토", "interview": "면접",
-    "accepted": "최종 합격", "rejected": "불합격",
-}
-
-
 def _kst(dt: datetime) -> str:
     """UTC 저장값을 지원자가 보는 한국 시각 표기로 (YYYY.MM.DD (요일) HH:MM)."""
     kst = dt.astimezone(timezone(timedelta(hours=9)))
@@ -528,7 +523,7 @@ def _build_applicant_context(
     화면(SchedulePublicOut)에 뜨는 것과 같은 사실만 담는다. 담당자만 아는 것
     (평가·메모·다른 지원자)은 절대 포함하지 않는다.
     """
-    lines = [f"- 현재 전형 단계: {_STAGE_KR.get(application.current_stage, application.current_stage)}"]
+    lines = [f"- 현재 전형 단계: {STAGE_LABEL_KR.get(application.current_stage, application.current_stage)}"]
 
     if proposal.status == "confirmed" and proposal.confirmed_slot_id is not None:
         slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
