@@ -217,12 +217,24 @@
   color: var(--text-sub);
 }
 
+/* 2026-09-01 — 행이 버튼이 됐다(누르면 캘린더에서 그 날이 열린다). 컬럼 머리와
+   세로줄이 어긋나지 않게 좌우 여백 없이 폭을 다 쓰고 바탕도 그대로 둔다. */
 .calRow {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  width: 100%;
   padding: var(--sp-2) 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
 }
+
+.calRow:hover { background: var(--bg-sunken); }
+.calRow:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
 
 .calRow + .calRow { border-top: var(--border-w) solid var(--border-soft); }
 

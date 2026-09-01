@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applications, postings as postingsApi, stages as stagesApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, Stage } from '../api/types'
@@ -36,7 +36,13 @@ const FUNNEL: { stage: Stage; color: string }[] = [
 
 export default function PostingApplicants() {
   const { id } = useParams<{ id: string }>()
+  const [params] = useSearchParams()
   const postingId = Number(id)
+
+  /* ?applicant=12 — 캘린더의 그날 일정에서 그 사람을 눌러 넘어온 경우.
+     상세 패널을 그 지원자로 열고 시작한다. */
+  const fromUrl = Number(params.get('applicant'))
+  const applicantFromUrl = Number.isInteger(fromUrl) && fromUrl > 0 ? fromUrl : null
   const navigate = useNavigate()
 
   const [posting, setPosting] = useState<Posting | null>(null)
@@ -56,8 +62,14 @@ export default function PostingApplicants() {
   /* 상세 패널에 열려 있는 지원자. 아르 패널과 오른쪽 한 자리를 나눠 쓴다 —
      아르를 열면 이쪽이 닫힌다 (RightPanel) */
   const rightPanel = useRightPanel()
-  const [openId, setOpenId] = useState<number | null>(null)
+  const [openId, setOpenId] = useState<number | null>(applicantFromUrl)
   const detailOpen = openId !== null && rightPanel.active === 'applicant'
+
+  useEffect(() => {
+    if (applicantFromUrl !== null) rightPanel.open('applicant')
+    // 처음 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicantFromUrl])
 
   function openDetail(id: number) {
     setOpenId(id)

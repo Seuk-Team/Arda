@@ -4,7 +4,7 @@ import PageHead from '../components/PageHead'
 import SidePanel from '../components/SidePanel'
 import { useRightPanel } from '../components/RightPanel'
 import { ApiError } from '../api/client'
-import { schedules } from '../api/endpoints'
+import { applications, schedules } from '../api/endpoints'
 import type { Interview } from '../api/types'
 import styles from './Interviews.module.css'
 
@@ -24,6 +24,16 @@ function startOfToday() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d
+}
+
+/* ?date=2026-09-01 — 대시보드 캘린더 축소판이 그 날을 펼친 채로 넘길 때 쓴다.
+   형식이 어긋나면 무시하고 오늘로 둔다 (주소창을 손으로 고치는 경우) */
+function parseDateParam(raw: string | null): Date | null {
+  if (raw === null) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw)
+  if (m === null) return null
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return Number.isNaN(d.getTime()) ? null : d
 }
 
 function startOfMonth(d: Date) {
@@ -95,15 +105,27 @@ export default function Interviews() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
+  /* 주소로 받은 날짜(대시보드 축소판에서 넘어온 경우). 없으면 오늘. */
+  const fromUrl = parseDateParam(params.get('date'))
+
   /* sel = 목록에 펼쳐 볼 날짜, view = 그리드가 그리는 달. 둘을 나눠 두면
      달을 넘겨도 어느 날을 보고 있었는지가 유지된다 */
-  const [sel, setSel] = useState(startOfToday)
-  const [view, setView] = useState(() => startOfMonth(startOfToday()))
+  const [sel, setSel] = useState(() => fromUrl ?? startOfToday())
+  const [view, setView] = useState(() => startOfMonth(fromUrl ?? startOfToday()))
   /* 그날 일정 패널. 칸을 눌러야 열린다 — 화면에 들어오자마자 열려 있으면
      한 달을 훑어보러 온 사람에게 그리드가 좁아진 채로 시작한다.
+     예외는 ?date= 로 들어온 경우다 — 대시보드에서 그 날의 일정을 누르고 온 것이라
+     같은 목록이 이어서 보여야 한다.
      아르 패널과 오른쪽 한 자리를 나눠 쓴다 — 열면 아르가 닫힌다 (RightPanel) */
   const rightPanel = useRightPanel()
   const dayOpen = rightPanel.active === 'day'
+
+  const openDayFromUrl = fromUrl !== null
+  useEffect(() => {
+    if (openDayFromUrl) rightPanel.open('day')
+    // 처음 들어올 때 한 번만 — 이후 여닫기는 사용자가 한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDayFromUrl])
 
   const [list, setList] = useState<Interview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -179,6 +201,25 @@ export default function Interviews() {
   /* 고를 수 있는 시간대는 그 날 실제로 면접이 있는 시(hour)뿐이다.
      없는 시간을 목록에 두면 눌러 놓고 빈 화면만 본다. */
   const hours = [...new Set(ofDay.map((iv) => hhmm(iv.start_at).slice(0, 2)))].sort()
+
+  /* 행 → 그 지원자의 상세 패널. 상세는 공고의 지원자 화면에만 있는데(§0.5)
+     GET /schedules 가 공고 id 를 안 줘서 상세를 한 번 받아 알아낸 뒤 넘어간다.
+     누르는 동안 그 행을 잠가 두 번 눌러 두 번 이동하지 않게 한다. */
+  const [goingTo, setGoingTo] = useState<number | null>(null)
+
+  async function goApplicant(applicationId: number) {
+    if (goingTo !== null) return
+    setGoingTo(applicationId)
+    try {
+      const detail = await applications.detail(applicationId)
+      navigate(`/postings/${detail.job_posting_id}?applicant=${applicationId}`)
+    } catch {
+      /* 공고를 알아내지 못하면 상세를 열 자리가 없다 — 통합 검색으로 보낸다 */
+      navigate('/applicants')
+    } finally {
+      setGoingTo(null)
+    }
+  }
 
   /* 방향키로 옮긴 날짜에 포커스를 따라가게 한다 (§10 — 그리드는 키보드로 이동 가능) */
   const cells = useRef(new Map<string, HTMLButtonElement>())
@@ -443,17 +484,18 @@ export default function Interviews() {
       </div>
       )}
 
-      {/* 420px 에 4열 표는 안 들어간다 — 시각을 왼쪽에 세우고 나머지를 오른쪽에 쌓는다 */}
+      {/* 360px 에 4열 표는 안 들어간다 — 시각을 왼쪽에 세우고 나머지를 오른쪽에 쌓는다 */}
       <div className={styles.ivList}>
         {loading && [0, 1, 2].map((i) => <span key={i} className={styles.skelRow} />)}
 
         {!loading && shown.map((iv) => (
-          /* 행 클릭 = 그 지원자가 있는 공고 화면 (05-design §0.5 진입점) */
+          /* 행 클릭 = 그 지원자의 상세 패널 (05-design §0.5 진입점) */
           <button
             key={iv.proposal_id}
             type="button"
             className={styles.iv}
-            onClick={() => navigate(`/applicants?q=${encodeURIComponent(iv.applicant_name)}`)}
+            disabled={goingTo === iv.application_id}
+            onClick={() => goApplicant(iv.application_id)}
           >
             <span className={styles.ivTime}>{hhmm(iv.start_at)}</span>
             <span className={styles.ivName}>{iv.applicant_name}</span>

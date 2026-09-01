@@ -235,9 +235,11 @@ export default function Dashboard() {
   const calItems = calByDay.get(dayKey(calSel)) ?? []
   const todayKey = dayKey(startOfToday())
 
-  /* 축소판 → 캘린더 화면. 2026-09-01 확대 전환을 뺐다 — 그냥 이동한다 */
-  function goCalendar() {
-    navigate('/calendar')
+  /* 축소판 → 캘린더 화면. 2026-09-01 확대 전환을 뺐다 — 그냥 이동한다.
+     보고 있던 날짜를 ?date= 로 넘기면 캘린더가 그 날을 고른 채 우측 패널을 연다 —
+     축소판에서 4건까지 보다가 넘어가는 것이라 같은 목록이 이어져야 한다. */
+  function goCalendar(withDay = false) {
+    navigate(withDay ? `/calendar?date=${dayKey(calSel)}` : '/calendar')
   }
 
   /* 카드 안 빈자리를 눌러도 캘린더로 간다. 카드 안의 조작(주 이동·날짜 선택)은 제자리 */
@@ -369,17 +371,23 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* 행을 누르면 캘린더에서 그 날 목록이 이어서 열린다 (2026-09-01) */}
             {calItems.slice(0, CAL_LIMIT).map((iv) => (
-              <div key={iv.proposal_id} className={styles.calRow}>
+              <button
+                key={iv.proposal_id}
+                type="button"
+                className={styles.calRow}
+                onClick={() => goCalendar(true)}
+              >
                 <span className={styles.calTime}>{hhmm(iv.start_at)}</span>
                 <span className={styles.calName}>{iv.applicant_name}</span>
                 <span className={styles.calPosting}>{iv.posting_title}</span>
                 <span className={styles.calWho}>{iv.interviewer_name}</span>
-              </div>
+              </button>
             ))}
 
             {calItems.length > CAL_LIMIT && (
-              <button type="button" className={styles.moreLink} onClick={goCalendar}>
+              <button type="button" className={styles.moreLink} onClick={() => goCalendar(true)}>
                 외 {calItems.length - CAL_LIMIT}건 →
               </button>
             )}
