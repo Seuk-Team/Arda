@@ -45,18 +45,14 @@
   margin-bottom: var(--sp-3);
 }
 
-/* AI 제안 = 앰버 점선 (§1 불변 규약) */
+/* 읽는 정보 블록. **앰버 점선을 쓰지 않는다** — 그 표기는 "확정을 기다리는 제안"
+   이라는 뜻이고(05-design §1), 이 요약은 담당자가 승인할 대상이 아니라 읽는 정보다.
+   한 단계 내려앉은 면으로 "여기부터 한 덩어리"만 표시한다. */
 .aibox {
-  background: var(--ai-soft);
-  border: var(--border-w) dashed var(--ai);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
   border-radius: var(--r-card);
   padding: var(--sp-4);
-}
-
-.aicap {
-  font-size: var(--font-caption);
-  color: var(--ai);
-  margin-bottom: var(--sp-2);
 }
 
 .aibody {

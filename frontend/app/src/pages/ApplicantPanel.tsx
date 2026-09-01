@@ -192,11 +192,13 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
             </span>
           </div>
 
-          {/* AI 제안은 앰버 점선 + "확정은 담당자가 합니다" — §1 불변 규약 */}
+          {/* 앰버 점선은 **확정을 기다리는 제안**의 표기다 (05-design §1). 이 요약은
+              담당자가 읽는 정보이지 승인할 대상이 아니라, 다른 섹션과 같은 정보 블록으로 둔다.
+              출처는 제목("아르의 요약")이 말한다. */}
           {detail.ai_summary && (
             <div className={styles.sec}>
+              <h2>아르의 요약</h2>
               <div className={styles.aibox}>
-                <p className={styles.aicap}>AI 요약 · 확정은 담당자가 합니다</p>
                 <AiSummaryBody raw={detail.ai_summary} />
               </div>
             </div>
