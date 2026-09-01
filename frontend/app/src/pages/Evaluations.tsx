@@ -143,13 +143,15 @@ export default function Evaluations() {
   }, [close])
 
   return (
-    <>
+    /* 패널이 열리면 제목까지 같이 밀린다 — 화면 전체를 한 열로 묶고 패널을
+       그 열의 형제로 둔다 (2026-09-01, 공고의 지원자 화면과 같은 구성) */
+    <div className={styles.split}>
+      <div className={styles.col}>
       <PageHead
         title="평가 현황"
         actions={<span className={styles.meta}>평가 대기 {queue?.length ?? 0}명</span>}
       />
 
-      <div className={styles.body}>
         <main className="page-content">
           <div className={styles.panel}>
             <div className={`${styles.row} ${styles.thead}`}>
@@ -184,6 +186,7 @@ export default function Evaluations() {
             )}
           </div>
         </main>
+      </div>
 
         <aside className={`${styles.side} ${current ? styles.sideOpen : ''}`} aria-label="평가 패널">
           {current && (
@@ -245,7 +248,6 @@ export default function Evaluations() {
             </div>
           )}
         </aside>
-      </div>
-    </>
+    </div>
   )
 }

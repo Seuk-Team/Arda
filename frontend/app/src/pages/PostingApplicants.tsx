@@ -230,7 +230,11 @@ export default function PostingApplicants() {
         : `D+${-posting.d_day}`
 
   return (
-    <>
+    /* 패널이 열리면 제목·퍼널·툴바까지 같이 밀린다 — 화면 전체를 한 열로 묶고
+       패널을 그 열의 형제로 둔다 (2026-09-01). 표만 밀리면 머리가 패널 밑으로
+       파고들어 두 폭이 어긋나 보인다. */
+    <div className={styles.split}>
+      <div className={styles.col}>
       <header className={styles.head}>
         <div className={styles.headTop}>
           <button
@@ -401,7 +405,6 @@ export default function PostingApplicants() {
         </div>
       )}
 
-      <div className={styles.body}>
       <main className="page-content">
         {view === 'kanban' ? (
           <Kanban postingId={postingId} tick={tick} onChanged={() => setTick((n) => n + 1)} />
@@ -483,6 +486,7 @@ export default function PostingApplicants() {
         </div>
         )}
       </main>
+      </div>
 
       {detailOpen && openId !== null && (
         <ApplicantPanel
@@ -491,7 +495,6 @@ export default function PostingApplicants() {
           onChanged={() => setTick((n) => n + 1)}
         />
       )}
-      </div>
-    </>
+    </div>
   )
 }

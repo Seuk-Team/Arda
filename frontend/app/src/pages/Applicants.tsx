@@ -124,7 +124,10 @@ export default function Applicants() {
   const to = page * PAGE_SIZE + (rows?.length ?? 0)
 
   return (
-    <>
+    /* 패널이 열리면 제목·툴바까지 같이 밀린다 — 화면 전체를 한 열로 묶고 패널을
+       그 열의 형제로 둔다 (2026-09-01, 공고의 지원자 화면과 같은 구성) */
+    <div className={styles.split}>
+      <div className={styles.col}>
       <PageHead title="지원자" />
 
       <div className={styles.toolbar}>
@@ -175,7 +178,6 @@ export default function Applicants() {
         </span>
       </div>
 
-      <div className={styles.body}>
       <main className="page-content">
         <div className={styles.panel}>
           <div className={`${styles.row} ${styles.thead}`}>
@@ -245,6 +247,7 @@ export default function Applicants() {
           )}
         </div>
       </main>
+      </div>
 
       {/* 상세는 페이지 이동 없이 옆에서 연다 (05-design §0.5) — 공고의 지원자 화면과
           같은 패널이다. 오른쪽 한 자리를 나눠 쓴다 (RightPanel) */}
@@ -255,7 +258,6 @@ export default function Applicants() {
           onChanged={() => setTick((n) => n + 1)}
         />
       )}
-      </div>
-    </>
+    </div>
   )
 }
