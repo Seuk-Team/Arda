@@ -359,7 +359,11 @@ const mockUser = AppUser(
 /// 단계인 사람을 그대로 집어 온다 — 화면에 뜬 이름이 다른 화면의 목록과 어긋나면
 /// 데모에서 바로 들킨다.
 final mockArThread = <ArMessage>[
-  const ArMessage(speaker: ArSpeaker.ar, text: '안녕하세요. 지원자·공고·일정에 대해 물어보세요.'),
+  // 배포판(2026-09-01)의 첫 인사 그대로. 앱이 다른 말을 하면 같은 아르로 안 읽힌다
+  const ArMessage(
+    speaker: ArSpeaker.ar,
+    text: '안녕하세요! 저는 아르예요.\n지원자 검색, 단계 변경, 면접 일정 같은 채용 업무를 도와드려요.',
+  ),
   const ArMessage(speaker: ArSpeaker.me, text: '백엔드 공고에서 면접 볼 만한 사람 골라줘'),
   ArMessage(
     speaker: ArSpeaker.ar,
@@ -385,3 +389,57 @@ final mockArThread = <ArMessage>[
 
 List<Applicant> get _screeningApplicants =>
     mockApplicants.where((a) => a.currentStage == Stage.screening).toList();
+
+/// 대시보드 지원자 현황이 쓰는 단계별 목록 — **진행중 공고의** 지원자만.
+///
+/// 05-design §0.5 는 대시보드를 진행 상황을 보는 자리로 정의한다. 마감된 공고까지
+/// 넣으면 끝난 채용이 목록을 다 먹는다. [mockOpenStageCounts] 와 같은 기준이다.
+///
+/// 목데이터에 지원자가 있는 공고는 1번뿐이라 2번 공고의 인원은 숫자만 있고
+/// 사람이 없다 — 그래서 카운트는 [mockOpenStageCounts] 를, 이름은 여기를 쓴다.
+List<Applicant> mockApplicantsIn(Stage stage) => mockApplicants
+    .where(
+      (a) =>
+          a.currentStage == stage &&
+          mockOpenPostings.any((p) => p.id == a.jobPostingId),
+    )
+    .toList();
+
+/// 그 지원자의 확정 면접 — 면접 단계 행의 시각 칩이 쓴다.
+/// 없으면 null 이고, 화면은 "일정 없음" 으로 적는다(웹과 같은 문구).
+Interview? mockInterviewFor(int applicationId, DateTime around) {
+  for (final items in mockInterviewsInWeek(around).values) {
+    for (final interview in items) {
+      if (interview.applicationId == applicationId) return interview;
+    }
+  }
+  return null;
+}
+
+/// 설정 · 사용자·권한 탭이 쓰는 팀 목록.
+///
+/// 배포판 웹의 목록(`frontend/app/src/pages/Settings.tsx`)을 그대로 옮겼다 —
+/// 앱이 다른 사람을 보여 주면 같은 시스템으로 안 읽힌다.
+class TeamMember {
+  const TeamMember({
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.active,
+  });
+
+  final String name;
+  final String email;
+  final UserRole role;
+
+  /// `users` 에 활성 플래그가 없어 화면 표시용으로만 둔다 — API 연동 때 정리한다
+  final bool active;
+}
+
+const mockTeam = <TeamMember>[
+  TeamMember(name: '김채용', email: 'admin@arda.com', role: UserRole.admin, active: true),
+  TeamMember(name: '이서연', email: 'recruiter1@arda.com', role: UserRole.member, active: true),
+  TeamMember(name: '박정호', email: 'reviewer1@arda.com', role: UserRole.member, active: true),
+  TeamMember(name: '최민지', email: 'recruiter2@arda.com', role: UserRole.member, active: true),
+  TeamMember(name: '한도윤', email: 'reviewer2@arda.com', role: UserRole.member, active: false),
+];

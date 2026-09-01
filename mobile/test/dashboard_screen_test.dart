@@ -1,6 +1,5 @@
 // 대시보드 — 조각 3~9. 05-design 이 값을 못 박은 곳은 전부 그 값으로 검사한다.
 
-
 import 'package:arda/data/mock_data.dart';
 import 'package:arda/models/stage.dart';
 import 'package:arda/screens/dashboard_screen.dart';
@@ -12,15 +11,29 @@ import 'package:flutter_test/flutter_test.dart';
 /// 2026-09-01 은 화요일 — 목데이터가 면접 2건을 두는 날
 final aDay = DateTime(2026, 9, 1);
 
-Widget host({DateTime? today}) =>
-    MaterialApp(home: Scaffold(body: DashboardScreen(today: today ?? aDay)));
+Widget host({DateTime? today}) => MaterialApp(
+  home: Scaffold(body: DashboardScreen(today: today ?? aDay)),
+);
 
 Finder get card => find
-    .descendant(of: find.byType(DashboardScreen), matching: find.byType(Container))
+    .descendant(
+      of: find.byType(DashboardScreen),
+      matching: find.byType(Container),
+    )
     .first;
 
 BoxDecoration decorationOf(WidgetTester tester) =>
     tester.widget<Container>(card).decoration! as BoxDecoration;
+
+/// 진행중 공고 카드까지 내려간다 — 지원자 현황 목록 때문에 화면 밖으로 밀렸다.
+Future<void> scrollToPostings(WidgetTester tester) async {
+  await tester.dragUntilVisible(
+    find.text('진행중 공고'),
+    find.byType(Scrollable).first,
+    const Offset(0, -300),
+  );
+  await tester.pumpAndSettle();
+}
 
 void main() {
   group('조각 3 — 카드 자리', () {
@@ -112,7 +125,10 @@ void main() {
 
       for (final interview in mockInterviewsOn(aDay)) {
         expect(
-          find.descendant(of: card, matching: find.text(interview.applicantName)),
+          find.descendant(
+            of: card,
+            matching: find.text(interview.applicantName),
+          ),
           findsOneWidget,
         );
       }
@@ -139,11 +155,17 @@ void main() {
       await tester.pumpWidget(host());
       final first = mockInterviewsOn(aDay).first;
 
-      final name = tester.widget<Text>(find.text(first.applicantName));
+      final name = tester.widget<Text>(
+        find.descendant(of: card, matching: find.text(first.applicantName)),
+      );
       expect(name.style!.fontSize, AppType.body);
       expect(name.style!.fontWeight, AppType.wSemiBold);
 
-      final posting = tester.widget<Text>(find.text(first.postingTitle).first);
+      final posting = tester.widget<Text>(
+        find
+            .descendant(of: card, matching: find.text(first.postingTitle))
+            .first,
+      );
       expect(posting.style!.fontSize, AppType.caption);
       expect(posting.style!.color, AppColors.textSub);
     });
@@ -156,12 +178,16 @@ void main() {
           .reduce((a, b) => a.length >= b.length ? a : b);
       expect(long.length, greaterThan(20), reason: '긴 이름 케이스가 목데이터에 있어야 한다');
 
-      final text = tester.widget<Text>(find.text(long));
+      final text = tester.widget<Text>(
+        find.descendant(of: card, matching: find.text(long)).first,
+      );
       expect(text.maxLines, 1);
       expect(text.overflow, TextOverflow.ellipsis);
 
       // 두 행 높이가 같아야 한다 — 긴 이름이 줄을 늘리면 어긋난다
-      final rows = tester.widgetList<Container>(find.byType(Container)).toList();
+      final rows = tester
+          .widgetList<Container>(find.byType(Container))
+          .toList();
       expect(rows.length, greaterThanOrEqualTo(3)); // 카드 + 행 2
       final h1 = tester.getSize(find.byType(Container).at(1)).height;
       final h2 = tester.getSize(find.byType(Container).at(2)).height;
@@ -176,7 +202,6 @@ void main() {
       expect(border.top.color, AppColors.borderSoft);
       expect(border.top.width, AppShape.borderW);
     });
-
   });
 
   group('조각 6 — 캘린더 링크', () {
@@ -194,7 +219,9 @@ void main() {
       await tester.pumpWidget(host());
 
       final tapArea = tester.getSize(
-        find.ancestor(of: find.text('캘린더 →'), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text('캘린더 →'), matching: find.byType(InkWell))
+            .first,
       );
       expect(tapArea.height, greaterThanOrEqualTo(AppLayout.minTouchTarget));
       expect(tapArea.width, greaterThanOrEqualTo(AppLayout.minTouchTarget));
@@ -210,11 +237,16 @@ void main() {
 
     testWidgets('누르면 콜백이 온다', (tester) async {
       var opened = false;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: DashboardScreen(today: aDay, onOpenCalendar: () => opened = true),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DashboardScreen(
+              today: aDay,
+              onOpenCalendar: () => opened = true,
+            ),
+          ),
         ),
-      ));
+      );
 
       await tester.tap(find.text('캘린더 →'));
       expect(opened, isTrue);
@@ -251,11 +283,15 @@ void main() {
       expect(unit.style!.shadows, isNull);
     });
 
-    testWidgets('버튼은 잎초록 · 흰 글자 · onFill 그림자 · 높이 44 (§1 · §2 · §9)', (tester) async {
+    testWidgets('버튼은 잎초록 · 흰 글자 · onFill 그림자 · 높이 44 (§1 · §2 · §9)', (
+      tester,
+    ) async {
       await tester.pumpWidget(host());
 
       final material = tester.widget<Material>(
-        find.ancestor(of: find.text('평가하러 가기'), matching: find.byType(Material)).first,
+        find
+            .ancestor(of: find.text('평가하러 가기'), matching: find.byType(Material))
+            .first,
       );
       expect(material.color, AppColors.leaf);
 
@@ -264,13 +300,15 @@ void main() {
       expect(label.style!.shadows, AppTextShadow.onFill);
 
       final box = tester.getSize(
-        find.ancestor(of: find.text('평가하러 가기'), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text('평가하러 가기'), matching: find.byType(InkWell))
+            .first,
       );
       expect(box.height, AppLayout.minTouchTarget);
     });
   });
 
-  group('조각 8 — 전형 현황', () {
+  group('조각 8 — 지원자 현황', () {
     testWidgets('레일은 접수~합격 4단 — 불합격은 없다 (§0.5)', (tester) async {
       await tester.pumpWidget(host());
 
@@ -305,7 +343,10 @@ void main() {
 
       final widths = tester
           .widgetList<SizedBox>(
-            find.descendant(of: find.byType(Row), matching: find.byType(SizedBox)),
+            find.descendant(
+              of: find.byType(Row),
+              matching: find.byType(SizedBox),
+            ),
           )
           .map((b) => b.width)
           .whereType<double>()
@@ -315,7 +356,10 @@ void main() {
         expect(w, greaterThanOrEqualTo(6.0));
       }
       // 구간 합이 정확히 막대 폭 — 남거나 넘치지 않는다
-      expect(widths.reduce((a, b) => a + b), moreOrLessEquals(300, epsilon: 0.5));
+      expect(
+        widths.reduce((a, b) => a + b),
+        moreOrLessEquals(300, epsilon: 0.5),
+      );
     });
 
     testWidgets('범례는 왼쪽부터 붙여 쓴다 — 균등 분산 금지 (§0.5)', (tester) async {
@@ -332,17 +376,23 @@ void main() {
   group('조각 9 — 진행중 공고', () {
     testWidgets('진행중 공고만 나온다 — 마감은 없다', (tester) async {
       await tester.pumpWidget(host());
+      // 지원자 현황 목록이 들어오면서 이 카드가 아래로 밀렸다.
+      // ListView 는 화면 밖 자식을 만들지 않으므로 내려가서 본다
+      await scrollToPostings(tester);
 
       for (final p in mockOpenPostings) {
         expect(find.text(p.title), findsWidgets);
       }
-      for (final p in mockPostings.where((p) => !mockOpenPostings.contains(p))) {
+      for (final p in mockPostings.where(
+        (p) => !mockOpenPostings.contains(p),
+      )) {
         expect(find.text(p.title), findsNothing, reason: '마감된 공고');
       }
     });
 
     testWidgets('행 오른쪽 끝은 비워 둔다 — 아르 버튼 자리', (tester) async {
       await tester.pumpWidget(host());
+      await scrollToPostings(tester);
 
       final screen = tester.getRect(find.byType(DashboardScreen));
       final meta = tester.getRect(find.textContaining('마감 D-').first);

@@ -10,8 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// 2026-09-01 은 화요일 — 목데이터가 면접 2건을 두는 날
 final tuesday = DateTime(2026, 9, 1);
 
-Widget host({DateTime? today}) =>
-    MaterialApp(home: Scaffold(body: CalendarScreen(today: today ?? tuesday)));
+Widget host({DateTime? today}) => MaterialApp(
+  home: Scaffold(body: CalendarScreen(today: today ?? tuesday)),
+);
 
 void main() {
   testWidgets('한 주 7칸이 일요일부터 나온다 — 월 그리드가 아니다', (tester) async {
@@ -128,7 +129,9 @@ void main() {
     await tester.pumpWidget(host());
 
     final pill = tester.widget<Material>(
-      find.ancestor(of: find.text('내 면접만'), matching: find.byType(Material)).first,
+      find
+          .ancestor(of: find.text('내 면접만'), matching: find.byType(Material))
+          .first,
     );
     expect(pill.color, AppColors.bgSunken, reason: '기본은 꺼진 상태');
 
@@ -136,7 +139,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final on = tester.widget<Material>(
-      find.ancestor(of: find.text('내 면접만'), matching: find.byType(Material)).first,
+      find
+          .ancestor(of: find.text('내 면접만'), matching: find.byType(Material))
+          .first,
     );
     expect(on.color, AppColors.sproutSoft, reason: '켜지면 연두 워시 (§1)');
   });
@@ -150,13 +155,20 @@ void main() {
     expect(cell.height, greaterThanOrEqualTo(AppLayout.minTouchTarget));
 
     final prev = tester.getSize(
-      find.ancestor(of: find.byIcon(Icons.chevron_left), matching: find.byType(InkWell)).first,
+      find
+          .ancestor(
+            of: find.byIcon(Icons.chevron_left),
+            matching: find.byType(InkWell),
+          )
+          .first,
     );
     expect(prev.height, greaterThanOrEqualTo(AppLayout.minTouchTarget));
     expect(prev.width, greaterThanOrEqualTo(AppLayout.minTouchTarget));
   });
 
-  testWidgets('그날 목록 행을 누르면 그 지원자 상세로 간다 (05-design 2026-09-01)', (tester) async {
+  testWidgets('그날 목록 행을 누르면 그 지원자 상세로 간다 (05-design 2026-09-01)', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(body: CalendarScreen(today: tuesday)),

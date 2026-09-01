@@ -64,21 +64,19 @@ class ArScreen extends StatelessWidget {
   }
 }
 
-/// 머리 — 사이드바 색을 그대로 쓴다. 아르가 사는 자리가 사이드바라서,
-/// 앱에서도 같은 연두 바탕이어야 "그 아르"로 읽힌다.
+/// 머리 — 아바타 · 이름 · 부제 · 닫기. 배포판과 같은 흰 패널이다.
 class _ArHeader extends StatelessWidget {
   const _ArHeader();
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      // 배포판(2026-09-01)은 머리도 흰 패널이다. 연두 바탕이던 것을 맞췄다 —
+      // 아르가 사는 자리가 사이드바라 연두로 뒀었지만, 웹이 흰색으로 갔다
       decoration: const BoxDecoration(
-        color: AppColors.sidebarBg,
+        color: AppColors.bgElev,
         border: Border(
-          bottom: BorderSide(
-            color: AppColors.sidebarLine,
-            width: AppShape.borderW,
-          ),
+          bottom: BorderSide(color: AppColors.border, width: AppShape.borderW),
         ),
       ),
       child: SafeArea(
@@ -92,32 +90,31 @@ class _ArHeader extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const ArAvatar(size: 36),
-              const SizedBox(width: AppSpace.s3),
+              const ArAvatar(size: 32),
+              const SizedBox(width: AppSpace.s2),
+              // 배포판은 이름과 부제가 한 줄이다 — "아르  에이전트"
+              const Text(
+                '아르',
+                style: TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.h2,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text,
+                  shadows: AppTextShadow.heading,
+                ),
+              ),
+              const SizedBox(width: AppSpace.s2),
               const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '아르',
-                      style: TextStyle(
-                        fontFamily: AppType.fontFamily,
-                        fontSize: AppType.h2,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.text,
-                        shadows: AppTextShadow.heading,
-                      ),
-                    ),
-                    Text(
-                      '채용 도우미',
-                      style: TextStyle(
-                        fontFamily: AppType.fontFamily,
-                        fontSize: AppType.caption,
-                        color: AppColors.leaf,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  // 배포판 문구. "채용 도우미" 였던 것을 맞췄다
+                  '에이전트',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.sm,
+                    color: AppColors.textSub,
+                  ),
                 ),
               ),
               _CloseButton(onPressed: () => Navigator.pop(context)),
@@ -197,38 +194,52 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final mine = message.speaker == ArSpeaker.me;
 
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 280),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.s3,
-          vertical: AppSpace.s3,
+    // 배포판은 아르 말풍선 왼쪽에 작은 아바타를 둔다 — 누가 한 말인지가
+    // 색·모양 말고 얼굴로도 읽힌다
+    if (!mine) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ArAvatar(size: 28),
+          const SizedBox(width: AppSpace.s2),
+          Flexible(child: _bubble(mine: false)),
+        ],
+      );
+    }
+
+    return Align(alignment: Alignment.centerRight, child: _bubble(mine: true));
+  }
+
+  Widget _bubble({required bool mine}) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.s3,
+        vertical: AppSpace.s3,
+      ),
+      decoration: BoxDecoration(
+        color: mine ? AppColors.leaf : AppColors.bgElev,
+        // 말하는 쪽 모서리만 각지게 — 누가 한 말인지 모양으로도 갈린다
+        borderRadius: BorderRadius.only(
+          topLeft: mine ? AppShape.rCard : const Radius.circular(2),
+          topRight: mine ? const Radius.circular(2) : AppShape.rCard,
+          bottomLeft: AppShape.rCard,
+          bottomRight: AppShape.rCard,
         ),
-        decoration: BoxDecoration(
-          color: mine ? AppColors.leaf : AppColors.bgElev,
-          // 말하는 쪽 모서리만 각지게 — 누가 한 말인지 모양으로도 갈린다
-          borderRadius: BorderRadius.only(
-            topLeft: mine ? AppShape.rCard : const Radius.circular(2),
-            topRight: mine ? const Radius.circular(2) : AppShape.rCard,
-            bottomLeft: AppShape.rCard,
-            bottomRight: AppShape.rCard,
-          ),
-          border: mine
-              ? null
-              : Border.all(color: AppColors.border, width: AppShape.borderW),
-          boxShadow: mine ? null : AppShadow.card,
-        ),
-        child: Text(
-          message.text,
-          style: TextStyle(
-            fontFamily: AppType.fontFamily,
-            fontSize: AppType.body,
-            height: 1.5,
-            color: mine ? AppColors.bgElev : AppColors.text,
-            // §2: 색 채움 위 밝은 글자엔 onFill
-            shadows: mine ? AppTextShadow.onFill : null,
-          ),
+        border: mine
+            ? null
+            : Border.all(color: AppColors.border, width: AppShape.borderW),
+        boxShadow: mine ? null : AppShadow.card,
+      ),
+      child: Text(
+        message.text,
+        style: TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.body,
+          height: 1.5,
+          color: mine ? AppColors.bgElev : AppColors.text,
+          // §2: 색 채움 위 밝은 글자엔 onFill
+          shadows: mine ? AppTextShadow.onFill : null,
         ),
       ),
     );

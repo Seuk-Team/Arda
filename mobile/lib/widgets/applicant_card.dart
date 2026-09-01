@@ -117,4 +117,3 @@ class ApplicantCard extends StatelessWidget {
     );
   }
 }
-

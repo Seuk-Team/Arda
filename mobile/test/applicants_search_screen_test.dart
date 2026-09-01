@@ -99,10 +99,14 @@ void main() {
   testWidgets('카드를 누르면 상세로 넘긴다', (tester) async {
     Applicant? opened;
     String? title;
-    await tester.pumpWidget(host(onOpen: (a, t) {
-      opened = a;
-      title = t;
-    }));
+    await tester.pumpWidget(
+      host(
+        onOpen: (a, t) {
+          opened = a;
+          title = t;
+        },
+      ),
+    );
 
     await tester.tap(find.byType(ApplicantCard).first);
     await tester.pumpAndSettle();

@@ -6,15 +6,16 @@
 /// 오늘 면접은 스크롤해야 나온다 — 넓은 화면은 한눈에 훑히지만 폰은 위에서부터
 /// 읽으므로 순서가 곧 우선순위다. 그래서 급한 순으로 세운다:
 ///
-///   오늘 면접 → 내 리뷰 대기 → 전형 현황 → 진행중 공고
+///   오늘 면접 → 내 리뷰 대기 → 지원자 현황 → 진행중 공고
 ///
-/// 조각 3~6: 오늘 면접 블록 · 조각 7: 내 리뷰 대기 · 조각 8: 전형 현황 ·
+/// 조각 3~6: 오늘 면접 블록 · 조각 7: 내 리뷰 대기 · 조각 8: 지원자 현황 ·
 /// 조각 9: 진행중 공고.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../models/applicant.dart';
 import '../models/interview.dart';
 import '../models/job_posting.dart';
 import '../models/stage.dart';
@@ -81,16 +82,28 @@ class DashboardScreen extends StatelessWidget {
         const SizedBox(height: AppSpace.s3),
 
         // ② 내 리뷰 대기 — 이 앱을 켜는 가장 큰 이유. 화면에서 유일하게 채운 버튼
-        _Card(child: _ReviewQueue(count: mockReviewQueueCount, onTap: onOpenReviews)),
+        _Card(
+          child: _ReviewQueue(
+            count: mockReviewQueueCount,
+            onTap: onOpenReviews,
+          ),
+        ),
         const SizedBox(height: AppSpace.s3),
 
-        // ③ 전형 현황 — 이름을 줄줄이 세우는 대신 레일 한 줄 + 범례
+        // ③ 지원자 현황 — 05-design §0.5 가 모바일에 요구하는 형태.
+        //
+        // 레일은 한눈에 보는 요약으로 위에 남기고, 그 아래에 단계별 목록을 편다:
+        // 불합격 제외 4단계 · 단계당 [_perStage]명 + "외 n명 →" ·
+        // 면접 행에는 확정 시각/제안 중 칩.
+        //
+        // **리스트/칸반 토글은 없다.** §9 "모바일은 칸반 금지 → 단계 탭 + 리스트",
+        // §0.5 "칸반은 보기 전용 — 모바일(≤768px)은 §9 원칙대로 리스트만".
         _Card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _CardHead(
-                title: '전형 현황',
+                title: '지원자 현황',
                 meta: formatCount(
                   railStages.fold(0, (sum, s) => sum + (stageTotals[s] ?? 0)),
                 ),
@@ -104,6 +117,8 @@ class DashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpace.s3),
               FunnelLegend(counts: stageTotals, stages: railStages),
+              for (final stage in railStages)
+                _StageGroup(stage: stage, today: day),
               _CardLink(label: '전체 지원자 →', onTap: onOpenApplicants),
             ],
           ),
@@ -504,6 +519,231 @@ class _PostingRow extends StatelessWidget {
           // 오른쪽 끝을 비워 둔다 — 아르 버튼 자리
           const Spacer(),
         ],
+      ),
+    );
+  }
+}
+
+/// 단계 그룹 — 05-design §0.5 지원자 현황 블록의 한 단계.
+///
+/// 색 점 + 단계 이름 + 인원, 그 아래 사람 몇 줄. 넘치면 "외 n명 →".
+class _StageGroup extends StatelessWidget {
+  const _StageGroup({required this.stage, required this.today});
+
+  final Stage stage;
+  final DateTime today;
+
+  /// 단계당 보여 줄 사람 수.
+  ///
+  /// 웹은 5명이다. 폰에서 4단계 × 5명이면 접수만 훑다가 합격까지 못 내려가서
+  /// 3명으로 줄였다 — "외 n명 →" 이 나머지를 받는다.
+  static const _perStage = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final all = mockApplicantsIn(stage);
+    final total = mockOpenStageCounts[stage] ?? 0;
+    final shown = all.take(_perStage).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpace.s4, bottom: AppSpace.s1),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  // §1: 합격만 연두, 진행 중은 무채
+                  color: stage == Stage.accepted
+                      ? AppColors.sprout
+                      : AppColors.neutral,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: AppSpace.s2),
+              Text(
+                stage.label,
+                style: const TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.sm,
+                  fontWeight: AppType.wSemiBold,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(width: AppSpace.s2),
+              Text(
+                formatCount(total),
+                style: const TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.caption,
+                  fontFeatures: AppType.tabularNums,
+                  color: AppColors.textSub,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        if (shown.isEmpty)
+          // 숫자는 있는데 사람이 없는 단계 — 목데이터에 2번 공고 지원자가 없다
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpace.s2),
+            child: Text(
+              '없음',
+              style: TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.caption,
+                color: AppColors.textSub,
+              ),
+            ),
+          )
+        else
+          for (final applicant in shown)
+            _StageRow(applicant: applicant, stage: stage, today: today),
+
+        if (total > shown.length)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.s2),
+            child: Text(
+              '외 ${total - shown.length}명 →',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.caption,
+                fontWeight: AppType.wSemiBold,
+                fontFeatures: AppType.tabularNums,
+                color: AppColors.leaf,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 단계 그룹의 한 줄 — 이름 · 공고 · (면접이면 시각 칩, 아니면 지원일).
+class _StageRow extends StatelessWidget {
+  const _StageRow({
+    required this.applicant,
+    required this.stage,
+    required this.today,
+  });
+
+  final Applicant applicant;
+  final Stage stage;
+  final DateTime today;
+
+  @override
+  Widget build(BuildContext context) {
+    final interview = stage == Stage.interview
+        ? mockInterviewFor(applicant.id, today)
+        : null;
+
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppColors.borderSoft, width: AppShape.borderW),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.s2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Flexible(
+            child: Text(
+              applicant.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.sm,
+                fontWeight: AppType.wSemiBold,
+                color: AppColors.text,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpace.s2),
+          Expanded(
+            flex: 2,
+            child: Text(
+              mockPostings
+                  .firstWhere((p) => p.id == applicant.jobPostingId)
+                  .title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.caption,
+                color: AppColors.textSub,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpace.s2),
+
+          // §0.5: 면접 행에는 확정 시각 / 제안 중 칩.
+          // 목데이터엔 "제안 중" 상태가 없어 확정 아니면 "일정 없음"(웹 문구)이다
+          if (stage == Stage.interview)
+            _Chip(
+              label: interview == null
+                  ? '일정 없음'
+                  : '${formatMonthDay(interview.startAt)} '
+                        '${formatTime(interview.startAt)}',
+              confirmed: interview != null,
+            )
+          else
+            Text(
+              formatDate(applicant.createdAt),
+              softWrap: false,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.caption,
+                fontFeatures: AppType.tabularNums,
+                color: AppColors.textSub,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 웹 `Dashboard.module.css` 의 `.chip` — 확정은 연두, 나머지는 무채.
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.confirmed});
+
+  final String label;
+  final bool confirmed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.s2),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: confirmed ? AppColors.sproutSoft : AppColors.bgSunken,
+        borderRadius: AppShape.pill,
+        border: Border.all(
+          color: confirmed ? AppColors.sprout : AppColors.border,
+          width: AppShape.borderW,
+        ),
+      ),
+      child: Text(
+        label,
+        softWrap: false,
+        style: TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.caption,
+          fontWeight: AppType.wSemiBold,
+          fontFeatures: AppType.tabularNums,
+          color: confirmed ? AppColors.leaf : AppColors.textSub,
+        ),
       ),
     );
   }

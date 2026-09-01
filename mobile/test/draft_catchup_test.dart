@@ -44,7 +44,10 @@ void main() {
 
       // 접수·서류를 지나왔으므로 체크 2개
       expect(
-        find.descendant(of: find.byType(StageRail), matching: find.byIcon(Icons.check)),
+        find.descendant(
+          of: find.byType(StageRail),
+          matching: find.byIcon(Icons.check),
+        ),
         findsNWidgets(2),
       );
       // 지금은 3번
@@ -64,7 +67,10 @@ void main() {
       expect(now.style!.fontWeight, AppType.wSemiBold);
 
       final other = tester.widget<Text>(
-        find.descendant(of: find.byType(StageRail), matching: find.text('최종 합격')),
+        find.descendant(
+          of: find.byType(StageRail),
+          matching: find.text('최종 합격'),
+        ),
       );
       expect(other.style!.color, AppColors.textSub);
     });
@@ -80,9 +86,14 @@ void main() {
   group('공고 카드 퍼널 (레일 + 범례)', () {
     testWidgets('레일과 범례가 같은 단계를 쓴다', (tester) async {
       await tester.pumpWidget(const ArdaApp());
+      // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+      await tester.tap(find.text('공고'));
+      await tester.pumpAndSettle();
 
       final bar = tester.widget<FunnelBar>(find.byType(FunnelBar).first);
-      final legend = tester.widget<FunnelLegend>(find.byType(FunnelLegend).first);
+      final legend = tester.widget<FunnelLegend>(
+        find.byType(FunnelLegend).first,
+      );
 
       expect(bar.stages, PostingCard.railStages);
       // 색과 숫자가 따로 놀지 않으려면 같은 목록이어야 한다
@@ -92,6 +103,9 @@ void main() {
 
     testWidgets('범례에 단계 이름과 건수가 함께 있다', (tester) async {
       await tester.pumpWidget(const ArdaApp());
+      // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+      await tester.tap(find.text('공고'));
+      await tester.pumpAndSettle();
 
       for (final stage in PostingCard.railStages) {
         expect(
@@ -129,19 +143,20 @@ void main() {
   group('회귀 — 버그로 드러난 것', () {
     testWidgets('공고 카드: 총원과 범례 합이 같다', (tester) async {
       await tester.pumpWidget(const ArdaApp());
+      // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+      await tester.tap(find.text('공고'));
+      await tester.pumpAndSettle();
 
-      final legend = tester.widget<FunnelLegend>(find.byType(FunnelLegend).first);
+      final legend = tester.widget<FunnelLegend>(
+        find.byType(FunnelLegend).first,
+      );
       final legendSum = legend.stages.fold(
         0,
         (sum, s) => sum + (legend.counts[s] ?? 0),
       );
       final total = legend.counts.values.fold(0, (a, b) => a + b);
 
-      expect(
-        legendSum,
-        total,
-        reason: '레일이 사람을 빠뜨리면 카드 위 "N명"과 어긋나 보인다',
-      );
+      expect(legendSum, total, reason: '레일이 사람을 빠뜨리면 카드 위 "N명"과 어긋나 보인다');
     });
 
     test('캘린더: "내 면접만" 이 실제로 거를 것이 있다', () {

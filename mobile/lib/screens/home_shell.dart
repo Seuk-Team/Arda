@@ -28,7 +28,7 @@ import 'more_screen.dart';
 import 'postings_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, this.initialTab = AppTab.postings});
+  const HomeShell({super.key, this.initialTab = AppTab.home});
 
   final AppTab initialTab;
 

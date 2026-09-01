@@ -43,10 +43,18 @@ class MoreScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpace.s4),
-        const _Group(
+        _Group(
           items: [
-            _Item(icon: Icons.settings_outlined, label: '설정'),
-            _Item(icon: Icons.notifications_none, label: '알림', trailing: '켬'),
+            _Item(
+              icon: Icons.settings_outlined,
+              label: '설정',
+              onTap: () => Navigator.pushNamed(context, Routes.settings),
+            ),
+            const _Item(
+              icon: Icons.notifications_none,
+              label: '알림',
+              trailing: '켬',
+            ),
           ],
         ),
         const SizedBox(height: AppSpace.s4),
@@ -218,7 +226,11 @@ class _Item extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
           child: Row(
             children: [
-              Icon(icon, size: 22, color: danger ? AppColors.danger : AppColors.textSub),
+              Icon(
+                icon,
+                size: 22,
+                color: danger ? AppColors.danger : AppColors.textSub,
+              ),
               const SizedBox(width: AppSpace.s3),
               Expanded(
                 child: Text(

@@ -9,7 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget host({AppUser? user, int? reviewCount}) => MaterialApp(
-  home: Scaffold(body: MoreScreen(user: user, reviewCount: reviewCount)),
+  home: Scaffold(
+    body: MoreScreen(user: user, reviewCount: reviewCount),
+  ),
 );
 
 void main() {
@@ -89,7 +91,9 @@ void main() {
 
     for (final label in ['평가 현황', '단계 이력', '설정', '알림', '로그아웃']) {
       final row = tester.getSize(
-        find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text(label), matching: find.byType(InkWell))
+            .first,
       );
       expect(
         row.height,

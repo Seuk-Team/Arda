@@ -26,7 +26,8 @@ import '../widgets/applicant_card.dart';
 class ApplicantsSearchScreen extends StatefulWidget {
   const ApplicantsSearchScreen({super.key, this.onOpenApplicant});
 
-  final void Function(Applicant applicant, String postingTitle)? onOpenApplicant;
+  final void Function(Applicant applicant, String postingTitle)?
+  onOpenApplicant;
 
   @override
   State<ApplicantsSearchScreen> createState() => _ApplicantsSearchScreenState();
@@ -120,7 +121,8 @@ class _ApplicantsSearchScreenState extends State<ApplicantsSearchScreen> {
                     AppSpace.s4,
                   ),
                   itemCount: results.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: AppSpace.s3),
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AppSpace.s3),
                   itemBuilder: (_, i) {
                     final applicant = results[i];
                     final title = _postingTitleOf(applicant);
@@ -172,7 +174,11 @@ class _SearchField extends StatelessWidget {
           fontSize: AppType.body,
           color: AppColors.textSub,
         ),
-        prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSub),
+        prefixIcon: const Icon(
+          Icons.search,
+          size: 20,
+          color: AppColors.textSub,
+        ),
         suffixIcon: controller.text.isEmpty
             ? null
             : IconButton(
@@ -187,15 +193,24 @@ class _SearchField extends StatelessWidget {
         ),
         border: const OutlineInputBorder(
           borderRadius: AppShape.ctl,
-          borderSide: BorderSide(color: AppColors.border, width: AppShape.borderW),
+          borderSide: BorderSide(
+            color: AppColors.border,
+            width: AppShape.borderW,
+          ),
         ),
         enabledBorder: const OutlineInputBorder(
           borderRadius: AppShape.ctl,
-          borderSide: BorderSide(color: AppColors.border, width: AppShape.borderW),
+          borderSide: BorderSide(
+            color: AppColors.border,
+            width: AppShape.borderW,
+          ),
         ),
         focusedBorder: const OutlineInputBorder(
           borderRadius: AppShape.ctl,
-          borderSide: BorderSide(color: AppColors.leaf, width: AppShape.borderW),
+          borderSide: BorderSide(
+            color: AppColors.leaf,
+            width: AppShape.borderW,
+          ),
         ),
       ),
     );
@@ -240,7 +255,11 @@ class _StageChips extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.selected, required this.onTap});
+  const _Chip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final bool selected;

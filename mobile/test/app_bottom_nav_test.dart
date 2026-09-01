@@ -29,7 +29,8 @@ void main() {
     await tester.pumpWidget(_host(AppTab.home));
 
     final widths = [
-      for (final tab in AppTab.values) tester.getSize(find.text(tab.label)).width,
+      for (final tab in AppTab.values)
+        tester.getSize(find.text(tab.label)).width,
     ];
     expect(widths.every((w) => w > 0), isTrue);
 
@@ -59,7 +60,9 @@ void main() {
 
     for (final tab in AppTab.values) {
       final box = tester.getSize(
-        find.ancestor(of: find.text(tab.label), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text(tab.label), matching: find.byType(InkWell))
+            .first,
       );
       expect(box.height, greaterThanOrEqualTo(AppLayout.minTouchTarget));
       expect(box.width, greaterThanOrEqualTo(AppLayout.minTouchTarget));
@@ -78,7 +81,12 @@ void main() {
     await tester.pumpWidget(_host(AppTab.home));
 
     final decorated = tester.widget<DecoratedBox>(
-      find.ancestor(of: find.byType(SafeArea), matching: find.byType(DecoratedBox)).first,
+      find
+          .ancestor(
+            of: find.byType(SafeArea),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
     );
     final deco = decorated.decoration as BoxDecoration;
     expect(deco.color, AppColors.bgElev);

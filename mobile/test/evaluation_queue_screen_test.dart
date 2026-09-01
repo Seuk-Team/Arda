@@ -58,16 +58,16 @@ void main() {
       await tester.pumpWidget(host(() async => throw Exception('boom')));
       await tester.pumpAndSettle();
 
-      final message = tester.widget<Text>(
-        find.text('평가 대기 목록을 불러오지 못했습니다'),
-      );
+      final message = tester.widget<Text>(find.text('평가 대기 목록을 불러오지 못했습니다'));
       expect(message.style!.color, AppColors.danger);
 
       final box = tester.widget<Container>(
-        find.ancestor(
-          of: find.text('평가 대기 목록을 불러오지 못했습니다'),
-          matching: find.byType(Container),
-        ).last,
+        find
+            .ancestor(
+              of: find.text('평가 대기 목록을 불러오지 못했습니다'),
+              matching: find.byType(Container),
+            )
+            .last,
       );
       expect((box.decoration! as BoxDecoration).color, AppColors.dangerSoft);
     });
@@ -97,7 +97,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final size = tester.getSize(
-        find.ancestor(of: find.text('다시 시도'), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text('다시 시도'), matching: find.byType(InkWell))
+            .first,
       );
       expect(size.height, AppLayout.minTouchTarget);
       expect(size.width, greaterThanOrEqualTo(AppLayout.minTouchTarget));

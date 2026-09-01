@@ -12,6 +12,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// "전진은 한 칸씩"과 "불합격은 어디서든"을 한 화면에서 볼 수 있는 자리다.
 Future<void> openSheet(WidgetTester tester) async {
   await tester.pumpWidget(const ArdaApp());
+  // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
+  await tester.tap(find.text('공고'));
+  await tester.pumpAndSettle();
 
   await tester.tap(find.text('백엔드 개발자 (신입)'));
   await tester.pumpAndSettle();
@@ -25,10 +28,8 @@ Future<void> openSheet(WidgetTester tester) async {
 
 /// 상세 화면의 전형 레일도 단계 이름을 그린다(앱 UI 초안 2026-09-01).
 /// 시트 안의 선택지만 보도록 범위를 좁힌다 — 안 그러면 같은 글자를 두 번 잡는다.
-Finder inSheet(String text) => find.descendant(
-  of: find.byType(BottomSheet),
-  matching: find.text(text),
-);
+Finder inSheet(String text) =>
+    find.descendant(of: find.byType(BottomSheet), matching: find.text(text));
 
 /// 레일 밖에서 찾는다 — 시트가 닫힌 뒤 상세 화면을 볼 때 쓴다
 Finder outsideRail(String text) =>
@@ -72,10 +73,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('지원자에게 안내 메일이 나갑니다'), findsOneWidget);
-    expect(
-      find.text('보낸 메일은 취소할 수 없습니다. 확인하고 변경하세요.'),
-      findsOneWidget,
-    );
+    expect(find.text('보낸 메일은 취소할 수 없습니다. 확인하고 변경하세요.'), findsOneWidget);
     // 색 하나로 알리지 않는다 — 아이콘도 함께 (05-design §10)
     expect(find.byIcon(Icons.warning_amber), findsOneWidget);
   });

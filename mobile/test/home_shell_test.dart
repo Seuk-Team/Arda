@@ -20,8 +20,17 @@ Finder title(String text) =>
     find.descendant(of: find.byType(AppTopBar), matching: find.text(text));
 
 void main() {
-  testWidgets('첫 탭은 공고 — 제목 "채용 공고" + 목록', (tester) async {
+  testWidgets('앱을 켜면 홈(대시보드)이 먼저 뜬다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
+
+    expect(title('대시보드'), findsOneWidget);
+    // 공고 목록은 아직 자리를 비우고 있다
+    expect(find.byType(PostingCard), findsNothing);
+  });
+
+  testWidgets('공고 탭을 누르면 공고 목록', (tester) async {
+    await tester.pumpWidget(const ArdaApp());
+    await tapTab(tester, '공고');
 
     expect(title('채용 공고'), findsOneWidget);
     expect(find.byType(PostingCard), findsNWidgets(3));
@@ -44,6 +53,7 @@ void main() {
 
   testWidgets('탭을 옮기면 공고 목록이 자리를 비운다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
+    await tapTab(tester, '공고');
     expect(find.byType(PostingCard), findsNWidgets(3));
 
     await tapTab(tester, '홈');
@@ -62,11 +72,7 @@ void main() {
     for (final label in ['공고', '지원자', '홈', '캘린더', '더보기']) {
       await tapTab(tester, label);
       // 상단 제목 하나 + 탭 라벨 다섯 = 여섯. 그보다 많아야 본문이 있는 것이다
-      expect(
-        find.byType(Text),
-        findsAtLeast(7),
-        reason: '$label 탭이 비어 있다',
-      );
+      expect(find.byType(Text), findsAtLeast(7), reason: '$label 탭이 비어 있다');
     }
   });
 
@@ -80,6 +86,7 @@ void main() {
 
   testWidgets('공고에서 파고든 화면에는 탭바가 없다', (tester) async {
     await tester.pumpWidget(const ArdaApp());
+    await tapTab(tester, '공고');
 
     await tester.tap(find.byType(PostingCard).first);
     await tester.pumpAndSettle();

@@ -44,8 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _email.text.trim().isNotEmpty && _password.text.trim().isNotEmpty;
 
   void _submit() {
-    // 큐 7번에서 POST /auth/login → 토큰 저장 → 실패 시 아래 오류 문구로 바뀐다
-    Navigator.pushReplacementNamed(context, Routes.postings);
+    // 큐 7번에서 POST /auth/login → 토큰 저장 → 실패 시 아래 오류 문구로 바뀐다.
+    // 착지점은 탭 셸이고, 셸은 홈(대시보드)에서 시작한다
+    Navigator.pushReplacementNamed(context, Routes.home);
   }
 
   @override
@@ -158,7 +159,10 @@ class _Logo extends StatelessWidget {
     return const Text.rich(
       TextSpan(
         children: [
-          TextSpan(text: 'A', style: TextStyle(color: AppColors.leaf)),
+          TextSpan(
+            text: 'A',
+            style: TextStyle(color: AppColors.leaf),
+          ),
           TextSpan(text: 'rda'),
         ],
         style: TextStyle(

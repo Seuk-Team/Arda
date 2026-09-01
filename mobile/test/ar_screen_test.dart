@@ -35,7 +35,7 @@ void main() {
 
       expect(find.byType(ArScreen), findsOneWidget);
       expect(find.text('아르'), findsOneWidget);
-      expect(find.text('채용 도우미'), findsOneWidget);
+      expect(find.text('에이전트'), findsOneWidget);
     });
 
     testWidgets('닫으면 원래 화면으로 돌아온다', (tester) async {
@@ -55,10 +55,12 @@ void main() {
       await tester.pumpWidget(host());
 
       final card = tester.widget<Container>(
-        find.ancestor(
-          of: find.text('아르 제안 · 확인 필요'),
-          matching: find.byType(Container),
-        ).first,
+        find
+            .ancestor(
+              of: find.text('아르 제안 · 확인 필요'),
+              matching: find.byType(Container),
+            )
+            .first,
       );
       expect((card.decoration! as ShapeDecoration).color, AppColors.aiSoft);
     });
@@ -78,7 +80,9 @@ void main() {
           .pendingAction!
           .confirmLabel;
       final material = tester.widget<Material>(
-        find.ancestor(of: find.text(confirm), matching: find.byType(Material)).first,
+        find
+            .ancestor(of: find.text(confirm), matching: find.byType(Material))
+            .first,
       );
       expect(material.color, AppColors.leaf);
     });
@@ -91,7 +95,9 @@ void main() {
           .pendingAction!
           .confirmLabel;
       final inkWell = tester.widget<InkWell>(
-        find.ancestor(of: find.text(confirm), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text(confirm), matching: find.byType(InkWell))
+            .first,
       );
       expect(inkWell.onTap, isNull, reason: '큐 8에서 /agent/confirm 에 붙는다');
     });
@@ -115,7 +121,9 @@ void main() {
 
     testWidgets('내 말풍선은 잎초록 + onFill 그림자 (§2)', (tester) async {
       await tester.pumpWidget(
-        host(messages: const [ArMessage(speaker: ArSpeaker.me, text: '내 말')]),
+        host(
+          messages: const [ArMessage(speaker: ArSpeaker.me, text: '내 말')],
+        ),
       );
 
       final text = tester.widget<Text>(find.text('내 말'));

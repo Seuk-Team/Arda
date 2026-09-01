@@ -61,7 +61,13 @@ class AppBottomNav extends StatelessWidget {
           child: Row(
             children: [
               for (final tab in AppTab.values)
-                Expanded(child: _NavItem(tab: tab, selected: tab == current, onTap: onSelected)),
+                Expanded(
+                  child: _NavItem(
+                    tab: tab,
+                    selected: tab == current,
+                    onTap: onSelected,
+                  ),
+                ),
             ],
           ),
         ),
