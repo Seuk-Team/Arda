@@ -34,12 +34,30 @@ select character_maximum_length from information_schema.columns
 >
 > `alembic check` 로 모델과 어긋난 곳이 있는지도 볼 수 있다. **스키마를 바꾸는 사람은 이제 SQL 대신 리비전을 남긴다.**
 
+### 처음 한 번 — alembic 으로 넘어가기 (2026-09-01)
+
+**쓰던 DB 에 그냥 `upgrade head` 를 돌리면 실패한다.**
+
+```
+psycopg.errors.DuplicateTable: relation "users" already exists
+```
+
+`0001` 은 09/01 시점 스키마를 **처음부터 만드는** 리비전이라, 이미 테이블이 있는 DB 와 부딪힌다. 상황에 맞게 한 번만 넘어가면 그 뒤로는 `upgrade head` 한 줄로 계속 따라온다.
+
+| 내 DB | 할 일 |
+|---|---|
+| 새로 만든다 | `alembic upgrade head` |
+| **쓰던 로컬 DB** (버려도 되는 것) | `docker compose down -v` 로 지우고 다시 만든 뒤 `upgrade head` — **대부분 여기** |
+| 이미 최신 스키마다 (손으로 이행을 마친 경우) | `alembic stamp head` — 실행하지 않고 "여기까지 왔다"고만 표시 |
+
+판단이 서지 않으면 **지우고 다시 만드는 쪽**이 안전하다. 로컬 DB 에는 더미뿐이다.
+
 ## 2. 평소 셋업
 
 ```bash
 git pull
 cd backend && uv sync
-uv run --with alembic alembic upgrade head   # 스키마 최신화 (새 DB 든 옛 DB 든 동일)
+uv run --with alembic alembic upgrade head   # 스키마 최신화 (아래 '처음 한 번' 을 마친 뒤부터)
 docker compose up -d --build      # --build 는 아래 이유로 필요할 때가 있다
 ```
 
