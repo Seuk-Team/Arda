@@ -6,6 +6,7 @@
 
 #파이썬 기본 도구
 import logging
+import os
 import threading
 import time
 import uuid
@@ -20,6 +21,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 #FastAPI
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -95,6 +97,29 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestContextMiddleware)
+
+# CORS. 지금까지 이게 없어서 브라우저가 API 를 직접 못 불렀고, 그래서 Vercel rewrite
+# (`frontend/app/vercel.json`)로 /api 를 우회시켰다. 그 우회는 **지원자 자소서를 포함한
+# 모든 요청이 제3자(Vercel) 서버를 통과**한다는 뜻이다 — 온프레미스 여부와 무관하게
+# 개인정보 경로가 하나 더 있는 것이라 여기서 없앤다.
+#
+# 순서 주의: 이 미들웨어가 **배포된 뒤에** rewrite 를 지워야 한다. 먼저 지우면
+# 브라우저 직접 호출이 preflight 에서 막혀 운영이 죽는다.
+_DEFAULT_ORIGINS = "https://arda.seuk.cloud,https://arda-nu.vercel.app,http://localhost:5173"
+CORS_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    # 토큰은 Authorization 헤더로 보낸다 — 쿠키를 안 쓰므로 credentials 를 열지 않는다.
+    # 열면 allow_origins 에 "*" 를 못 쓰게 되는 것과 별개로 CSRF 표면이 는다.
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600,
+)
 
 
 @app.get("/health", tags=["system"])
