@@ -3,54 +3,21 @@
 > **이 문서는 "내 PC 에서 왜 안 되지"의 답을 모아 둔 곳이다.** 코드가 아니라 **각자의 로컬 환경**이 원인인 것들만 적는다.
 > 스키마·환경변수가 바뀌어 **기존 로컬 환경에 손을 대야 하는 일이 생기면 아래 이행 목록에 추가한다.** 코드는 pull 로 따라오지만 DB 와 `.env` 는 안 따라온다.
 
-## 1. 이행 목록 — 오래된 로컬 환경에 필요한 조치
+## 1. 이행 목록 — 이제 alembic 이 한다
 
-새로 클론했거나 DB 볼륨을 지우고 다시 만든 사람은 **해당 없다.** 예전부터 쓰던 로컬 DB 만 대상이다.
+**2026-09-01 오후에 alembic 이 도입됐다** (`backend/alembic/README.md`). 그 전까지 이 자리에 손 SQL 을 적었지만, 지금은 **마이그레이션을 돌리는 것으로 끝난다.**
 
-### 2026-09-01 · `ai_summary_model` 폭 (필수)
-
-```sql
-ALTER TABLE applications ALTER COLUMN ai_summary_model TYPE varchar(200);
+```bash
+cd backend
+export DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/arda"   # 자기 포트로
+uv run --with alembic alembic upgrade head
 ```
 
-**안 하면 AI 요약이 안 생긴다.** 증상이 고약하다 — Claude 호출 3번을 다 끝낸 뒤 `commit()` 에서 `StringDataRightTruncation` 으로 죽는다. 즉 **돈은 쓰고 결과는 버린다.** 게다가 `generate_summary_bg` 가 `BackgroundTasks` 라 **화면에는 아무 에러도 안 뜬다.**
+`0002_catch_up_old_databases` 가 오래된 로컬 DB 를 따라잡게 해 준다 — `users.role` 체크 제약과 `applications.ai_summary_model` 폭(50 → 200) 둘 다 여기 들어 있다. **이미 맞는 DB 면 아무것도 안 한다.**
 
-원인: `models.py` 는 `String(200)` 인데 이 컬럼이 만들어질 당시에는 50 이었고, **`create_all` 은 기존 테이블의 컬럼 타입을 넓혀 주지 않는다.** ([01-erd](01-erd.md) 해당 행에 경위를 적어 뒀다.)
+> **왜 이게 필요했나**: `create_all` 은 **없는 테이블을 만들 뿐** 기존 테이블의 컬럼을 붙이거나 타입을 넓히지 않는다. `ai_summary_model` 이 50 인 DB 에서는 AI 요약이 Claude 호출 3번을 다 끝낸 뒤 저장에서 죽었다 — **돈은 쓰고 결과는 버렸고, `BackgroundTasks` 라 화면에 에러도 안 떴다.**
 
-확인:
-
-```sql
-select character_maximum_length from information_schema.columns
- where table_name='applications' and column_name='ai_summary_model';
-```
-
-> **일반 규칙**: `create_all` 은 **없는 테이블을 만들 뿐** 기존 테이블에 컬럼을 붙이거나 타입을 바꾸지 않는다.
->
-> **2026-09-01 부터 alembic 이 들어왔다** ([backend/alembic/README.md](../../backend/alembic/README.md)). 위 SQL 은 이제 **손으로 돌릴 필요가 없다** — 아래 한 줄이 새 DB 든 오래된 DB 든 알아서 맞춘다.
->
-> ```bash
-> cd backend && uv run --with alembic alembic upgrade head
-> ```
->
-> `alembic check` 로 모델과 어긋난 곳이 있는지도 볼 수 있다. **스키마를 바꾸는 사람은 이제 SQL 대신 리비전을 남긴다.**
-
-### 처음 한 번 — alembic 으로 넘어가기 (2026-09-01)
-
-**쓰던 DB 에 그냥 `upgrade head` 를 돌리면 실패한다.**
-
-```
-psycopg.errors.DuplicateTable: relation "users" already exists
-```
-
-`0001` 은 09/01 시점 스키마를 **처음부터 만드는** 리비전이라, 이미 테이블이 있는 DB 와 부딪힌다. 상황에 맞게 한 번만 넘어가면 그 뒤로는 `upgrade head` 한 줄로 계속 따라온다.
-
-| 내 DB | 할 일 |
-|---|---|
-| 새로 만든다 | `alembic upgrade head` |
-| **쓰던 로컬 DB** (버려도 되는 것) | `docker compose down -v` 로 지우고 다시 만든 뒤 `upgrade head` — **대부분 여기** |
-| 이미 최신 스키마다 (손으로 이행을 마친 경우) | `alembic stamp head` — 실행하지 않고 "여기까지 왔다"고만 표시 |
-
-판단이 서지 않으면 **지우고 다시 만드는 쪽**이 안전하다. 로컬 DB 에는 더미뿐이다.
+**스키마를 바꿨으면 마이그레이션을 같이 올린다.** 이 문서에 손 SQL 을 적는 시대는 끝났다.
 
 ## 2. 평소 셋업
 
@@ -71,10 +38,10 @@ docker compose up -d --build      # --build 는 아래 이유로 필요할 때�
 | 환경변수 | 기본 | 로컬로 돌리려면 | main 반영 |
 |---|---|---|---|
 | `STT_BACKEND` | `openai` | `faster_whisper` (`uv sync --extra local` 필요) | ✅ |
-| `AGENT_CHAT_BACKEND` | `anthropic` | `ollama` | ⏳ 브랜치 대기 |
-| `AGENT_SUMMARY_BACKEND` | `anthropic` | `ollama` | ⏳ 브랜치 대기 |
+| `AGENT_CHAT_BACKEND` | `anthropic` | `ollama` | ✅ |
+| `AGENT_SUMMARY_BACKEND` | `anthropic` | `ollama` | ✅ |
 
-**채팅·요약 어댑터는 아직 main 에 없다.** 프로토타입 브랜치에서 검증 중이고(2026-09-01 기준 387 passed) 머지 여부는 팀장 결정 대기다. 그때까지 이 두 변수는 넣어도 아무 일도 일어나지 않는다 — **채팅·요약은 여전히 Anthropic 으로만 간다.**
+셋 다 main 에 있다(2026-09-01 반영, 480 passed). 로컬로 돌리려면 Ollama 와 모델이 필요하다 — `ollama pull qwen3:4b`. 실측 속도·정확도는 [ADR-0024](../03_decision/0024-sLLM-로컬-모델-전략.md) 09-01 개정 절.
 
 **GPU 없이 로컬 모델을 검증해야 한다면** 각자 Ollama 를 깔 필요가 없다. 어댑터가 `OLLAMA_HOST` 를 보므로 **GPU 장비 한 대에만 띄우고 나머지는 그쪽을 가리키면 된다.** 포트를 열지 말고 SSH 터널을 권한다:
 

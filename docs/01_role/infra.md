@@ -59,7 +59,12 @@
 | 8 | ~~mockup.html 색 리터럴 정리~~ ✅ | |
 | 9 | ~~M2 실배포 1차~~ ✅ (08/27 — [07-deploy](../00_overview/07-deploy.md) 신설) | 잔여: SES 재신청 결과 확인(08/27 거절 → 08/28 SNS 바운스·컴플레인트 연결 후 재신청 제출) · 팀원 메일 SES 검증 · **초기 버전 게이트 판정(09/04 금)** |
 | 10 | 운영 계정 정비 ✅ (08/28) | admin 리셋 + 전 팀원 admin 발급 (07-deploy 계정 절) |
-| 11 | M3 CI/CD (J4) 착수 | W3. 재배포 자동화가 수동 절차(07-deploy) 대체 |
+| 11 | M3 CI/CD (J4) 착수 | W3. 재배포 자동화가 수동 절차(07-deploy) 대체. **[ADR-0024 §13](../03_decision/0024-sLLM-로컬-모델-전략.md) 으로 범위가 "두 타깃 빌드"(SaaS 판 + 온프레미스 판)로 늘었다** |
+| 12 | 온프레미스 판 — 프론트 서빙 | W3. Vercel 대신 FastAPI `StaticFiles` 또는 nginx. **덤: 같은 출처가 되어 CORS 가 필요 없어진다.** ~1시간 |
+| 13 | 온프레미스 판 — 메일 SMTP 전환 | W3. `mail.py` 의 boto3 SES → `smtplib`. **SES 도 SMTP 를 제공하므로 SaaS 판과 코드가 하나로 합쳐진다.** 반나절 |
+| 14 | 온프레미스 판 — 메일 큐 | W3. SQS → `EmailLog` 테이블 폴링. `create_log`/`publish` 분리(08/31)로 교체 지점이 이미 좁다. 반나절 |
+| 15 | `docker-compose.onprem.yml` + 한 번 실제로 띄우기 | W3. 12~14 뒤. **띄워 봐야 "AWS 없이 돈다"가 주장이 아니라 사실이 된다** |
+| 16 | 상시 추론 서버 셋업 (팀 공용) | GPU PC 한 대. `OLLAMA_KEEP_ALIVE=-1` · `OLLAMA_NUM_PARALLEL=1` · 포트 열지 말고 SSH 터널. 근거는 ADR-0024 §13 |
 
 ## 6. 리스크
 
