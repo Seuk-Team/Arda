@@ -17,7 +17,11 @@ from app.models import Application, JobPosting
 logger = logging.getLogger(__name__)
 
 SUMMARY_MODEL = os.getenv("AGENT_SUMMARY_MODEL", "claude-haiku-4-5-20251001")
-SUMMARY_MAX_TOKENS = 500
+# 한국어 출력은 500 으로는 모자란다 — step1(요지 3~5문장 + 핵심 역량 5 + 경험 3)이
+# **매번 정확히 500 에서 잘려** JSON 이 깨졌고, 그 파싱 실패가 "제출물이 부족하다"로
+# 저장됐다. 지원자 서류는 멀쩡한데 우리 한도가 작았던 것이다 (2026-09-01).
+# 출력 토큰은 실제 생성분만 과금되므로 한도를 넉넉히 잡는 비용은 없다.
+SUMMARY_MAX_TOKENS = 1500
 
 _EMPTY = "제출된 내용 없음"
 
@@ -51,15 +55,25 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
     }
 
 
-def _call_llm(client, prompt_text: str) -> tuple[str, int, int]:
-    """LLM 1회 호출. (응답 텍스트, input_tokens, output_tokens) 반환."""
+def _call_llm(client, prompt_text: str) -> tuple[str, int, int, str | None]:
+    """LLM 1회 호출. (응답 텍스트, input_tokens, output_tokens, stop_reason) 반환.
+
+    `stop_reason` 을 함께 돌려주는 이유: 한도에서 잘린 응답은 JSON 이 깨져 파싱에
+    실패하는데, 그것을 그냥 "파싱 실패"로만 보면 **원인이 안 보인다.** 잘림은
+    프롬프트 문제가 아니라 우리 예산 문제라 대응이 다르다.
+    """
     response = client.messages.create(
         model=SUMMARY_MODEL,
         max_tokens=SUMMARY_MAX_TOKENS,
         messages=[{"role": "user", "content": prompt_text}],
     )
     raw = response.content[0].text.strip()
-    return raw, response.usage.input_tokens, response.usage.output_tokens
+    return (
+        raw,
+        response.usage.input_tokens,
+        response.usage.output_tokens,
+        response.stop_reason,
+    )
 
 
 def _strip_fences(raw: str) -> str:
@@ -73,7 +87,9 @@ def _strip_fences(raw: str) -> str:
     return s.strip()
 
 
-def _parse_json(raw: str, step: str, application_id: int) -> dict | None:
+def _parse_json(
+    raw: str, step: str, application_id: int, stop_reason: str | None = None
+) -> dict | None:
     """JSON 파싱. 코드펜스가 있으면 벗기고 시도한다. 실패하면 None."""
     try:
         return json.loads(raw)
@@ -82,7 +98,19 @@ def _parse_json(raw: str, step: str, application_id: int) -> dict | None:
     try:
         return json.loads(_strip_fences(raw))
     except json.JSONDecodeError:
-        logger.warning("JSON 파싱 실패 (step=%s): application_id=%d", step, application_id)
+        if stop_reason == "max_tokens":
+            # 프롬프트가 아니라 한도 문제다. 둘을 같은 로그로 뭉개면 다음 사람이
+            # 프롬프트를 고치며 시간을 버린다.
+            logger.error(
+                "응답이 max_tokens 에서 잘려 JSON 이 깨졌다 (step=%s): "
+                "application_id=%d — SUMMARY_MAX_TOKENS 를 올려야 한다",
+                step,
+                application_id,
+            )
+        else:
+            logger.warning(
+                "JSON 파싱 실패 (step=%s): application_id=%d", step, application_id
+            )
         return None
 
 
@@ -121,15 +149,23 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             cover_letter_text=prompt_vars["cover_letter_text"],
         )
         prompt_tags.append(step1_tag)
-        raw1, in1, out1 = _call_llm(client, step1_text)
+        raw1, in1, out1, stop1 = _call_llm(client, step1_text)
         total_input += in1
         total_output += out1
     except Exception:
         logger.exception("Step1 실패: application_id=%d", application_id)
         return None
 
-    step1 = _parse_json(raw1, "step1", application_id)
-    if step1 is None or step1.get("insufficient"):
+    step1 = _parse_json(raw1, "step1", application_id, stop1)
+
+    # **우리가 못 읽은 것과 지원자 서류가 부족한 것은 다르다.** 파싱 실패를
+    # insufficient 로 저장하면 화면에 "제출물이 부족하다"는 **거짓 진술**이 남고,
+    # 값이 채워졌으니 재생성 대상에서도 빠진다. 실패는 미생성(NULL)으로 둔다.
+    if step1 is None:
+        logger.error("요약 1단계 파싱 실패로 저장하지 않는다: application_id=%d", application_id)
+        return None
+
+    if step1.get("insufficient"):
         summary_json = json.dumps(
             {"insufficient": True, "gist": "", "fit": [], "concerns": []},
             ensure_ascii=False,
@@ -149,14 +185,14 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             profile_summary=json.dumps(step1, ensure_ascii=False),
         )
         prompt_tags.append(step2_tag)
-        raw2, in2, out2 = _call_llm(client, step2_text)
+        raw2, in2, out2, stop2 = _call_llm(client, step2_text)
         total_input += in2
         total_output += out2
     except Exception:
         logger.exception("Step2 실패: application_id=%d", application_id)
         return None
 
-    step2 = _parse_json(raw2, "step2", application_id)
+    step2 = _parse_json(raw2, "step2", application_id, stop2)
     if step2 is None:
         step2 = {"fit_score": None, "fit": [], "concerns": []}
 
@@ -168,14 +204,14 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             evaluation_result=json.dumps(step2, ensure_ascii=False),
         )
         prompt_tags.append(step3_tag)
-        raw3, in3, out3 = _call_llm(client, step3_text)
+        raw3, in3, out3, stop3 = _call_llm(client, step3_text)
         total_input += in3
         total_output += out3
     except Exception:
         logger.exception("Step3 실패: application_id=%d", application_id)
         return None
 
-    step3 = _parse_json(raw3, "step3", application_id)
+    step3 = _parse_json(raw3, "step3", application_id, stop3)
     if step3 is None:
         step3 = {"action": None, "reasons": [], "check_points": []}
 

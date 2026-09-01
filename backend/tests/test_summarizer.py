@@ -113,6 +113,9 @@ class FakeContent:
 class FakeResponse:
     content: list = None
     usage: FakeUsage = None
+    # 실제 응답에 있는 필드. 잘림(max_tokens)을 파싱 실패와 구분하려고 읽는다 —
+    # 더블에 없으면 AttributeError 가 Step 실패로 삼켜져 원인이 안 보인다.
+    stop_reason: str | None = "end_turn"
 
     def __post_init__(self):
         if self.content is None:
@@ -187,7 +190,13 @@ class TestGenerateSummary:
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
-    def test_step1_invalid_json_returns_insufficient(self, mock_cls, fake_db):
+    def test_step1_파싱_실패는_저장하지_않는다(self, mock_cls, fake_db):
+        """**우리가 못 읽은 것과 지원자 서류가 부족한 것은 다르다** (2026-09-01 변경).
+
+        전에는 파싱 실패도 `insufficient: true` 로 저장했다. 그러면 화면에
+        "제출물이 부족하다"는 거짓 진술이 남고, 값이 채워졌으니 재생성 대상에서도
+        빠진다 — 실제로 운영 15건이 그 상태로 저장됐다. 실패는 미생성(NULL)으로 둔다.
+        """
         mock_cls.return_value.messages.create.return_value = FakeResponse(
             content=[FakeContent(text="이건 JSON이 아닙니다")],
         )
@@ -195,8 +204,22 @@ class TestGenerateSummary:
         db, app = fake_db
         result = generate_summary(db, app.id)
 
-        parsed = json.loads(result)
-        assert parsed["insufficient"] is True
+        assert result is None
+        assert app.ai_summary is None
+        db.commit.assert_not_called()
+
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_한도에서_잘려도_거짓_요약을_남기지_않는다(self, mock_cls, fake_db):
+        """운영에서 실제로 난 일 — 응답이 max_tokens 에서 잘려 JSON 이 깨졌다."""
+        mock_cls.return_value.messages.create.return_value = FakeResponse(
+            content=[FakeContent(text='{"insufficient": false, "gist": "여기서 잘림')],
+            stop_reason="max_tokens",
+        )
+
+        db, app = fake_db
+        assert generate_summary(db, app.id) is None
+        assert app.ai_summary is None
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
