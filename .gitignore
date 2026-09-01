@@ -17,6 +17,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+# 배포 빌드용 공개 설정 — API 주소 하나뿐이고 시크릿이 없다.
+# 값이 코드와 함께 버전 관리돼야 어느 커밋이 어느 API 를 보는지 추적된다.
+!frontend/app/.env.production
 
 # 에디터·OS
 .DS_Store
