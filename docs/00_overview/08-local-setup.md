@@ -13,6 +13,22 @@ export DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/arda"
 uv run --with alembic alembic upgrade head
 ```
 
+> **⚠️ 쓰던 DB 에 그냥 `upgrade head` 를 돌리면 실패한다.** `0001` 이 테이블을 **처음부터 만드는** 리비전이라 이미 있는 테이블과 부딪힌다 (재현으로 확인).
+>
+> ```
+> psycopg.errors.DuplicateTable: relation "users" already exists
+> ```
+>
+> 처음 한 번만 아래 중 하나로 넘어가면, 그 뒤로는 `upgrade head` 한 줄로 계속 따라온다.
+>
+> | 내 DB | 할 일 |
+> |---|---|
+> | 새로 만든다 | `alembic upgrade head` |
+> | **쓰던 로컬 DB** (버려도 되는 것) | `docker compose down -v` 로 지우고 다시 만든 뒤 `upgrade head` — **대부분 여기** |
+> | 이미 최신 스키마다 (손으로 이행을 마친 경우) | `alembic stamp 0001` → `upgrade head` |
+>
+> **`stamp head` 는 함부로 쓰지 않는다.** `stamp` 는 아무것도 고치지 않고 "이미 됐다"고 장부에만 적는다 — 어긋난 DB 에 찍으면 **alembic 이 다시는 고치지 않아 문제가 영구히 숨는다.** 09/01 에 실제로 그럴 뻔했다(인계 안내는 "운영은 stamp 만"이었는데 조회해 보니 `ai_summary_model` 이 아직 50 이었다). `stamp 0001` → `upgrade head` 를 쓰면 `0002` 가 실제로 고치므로 그쪽이 안전하다.
+
 `0002_catch_up_old_databases` 가 오래된 로컬 DB 를 따라잡게 해 준다 — `users.role` 체크 제약과 `applications.ai_summary_model` 폭(50 → 200) 둘 다 여기 들어 있다. **이미 맞는 DB 면 아무것도 안 한다.**
 
 > **왜 이게 필요했나**: `create_all` 은 **없는 테이블을 만들 뿐** 기존 테이블의 컬럼을 붙이거나 타입을 넓히지 않는다. `ai_summary_model` 이 50 인 DB 에서는 AI 요약이 Claude 호출 3번을 다 끝낸 뒤 저장에서 죽었다 — **돈은 쓰고 결과는 버렸고, `BackgroundTasks` 라 화면에 에러도 안 떴다.**
@@ -24,7 +40,7 @@ uv run --with alembic alembic upgrade head
 ```bash
 git pull
 cd backend && uv sync
-uv run --with alembic alembic upgrade head   # 스키마 최신화 (아래 '처음 한 번' 을 마친 뒤부터)
+uv run --with alembic alembic upgrade head   # 스키마 최신화 (1절의 '처음 한 번' 을 마친 뒤부터)
 docker compose up -d --build      # --build 는 아래 이유로 필요할 때가 있다
 ```
 

@@ -32,6 +32,21 @@ uv run --with alembic alembic current             # 지금 리비전
 | **로컬 개발 DB** (버려도 되는 것) | **지우고 다시 만든 뒤** `upgrade head`. 이게 가장 확실하다 |
 | **이미 09/01 스키마와 같다** (운영처럼 손으로 이행을 마친 경우) | `alembic stamp head` — 실행하지 않고 "여기까지 왔다"고만 표시 |
 
+> ### ⚠️ `stamp` 전에는 반드시 실제 스키마를 조회한다
+>
+> **`stamp` 는 아무것도 고치지 않는다. "이미 됐다"고 장부에만 적는 것이다.** 어긋난 DB 에 찍으면 alembic 이 **다시는 그것을 고치지 않는다** — 문제가 영구히 숨는다.
+>
+> 실제로 09/01 에 그럴 뻔했다. 인계 문서는 "운영은 이행을 마쳤으니 `stamp head` 만"이라고 안내했는데, **실측해 보니 `ai_summary_model` 이 아직 50 이었다.** 그대로 찍었으면 AI 요약은 계속 저장에서 죽고 원인은 안 보였을 것이다. (팀장이 조회로 잡아냈다.)
+>
+> ```sql
+> -- 0002 가 고치는 두 가지를 눈으로 확인한다
+> select character_maximum_length from information_schema.columns
+>  where table_name='applications' and column_name='ai_summary_model';   -- 200 이어야 stamp
+> select count(*) from users where role in ('recruiter','interviewer');  -- 0 이어야 stamp
+> ```
+>
+> **둘 중 하나라도 어긋나면 `stamp head` 가 아니라 `stamp 0001` → `upgrade head` 다.** 그러면 `0002` 가 실제로 고친다. 판단이 서지 않으면 이쪽을 고른다 — `0002` 는 이미 맞는 DB 에서 아무 일도 하지 않는다.
+
 `0002` 는 알려진 두 가지 어긋남만 잡는 **안전망**이지, 임의의 옛 DB 를 현재로 끌어올리지는 못한다. 실제로 09/01 오전에 만든 로컬 DB 조차 그날 오후 컬럼 추가를 따라가지 못해 테스트 169건이 error 였다 — 그때는 다시 만드는 것이 답이었다.
 
 **여기서부터는 다르다.** 앞으로의 변경은 전부 리비전으로 쌓이므로 `upgrade head` 하나로 따라온다.
