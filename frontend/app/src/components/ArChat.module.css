@@ -54,6 +54,7 @@
   flex: none;
   width: 26px;
   height: 26px;
+  display: block;
 }
 
 /* 아르 말풍선 공통 뼈대. 말꼬리는 왼쪽 위 모서리를 접어서 —
