@@ -20,13 +20,16 @@ import 'funnel_bar.dart';
 import 'funnel_legend.dart';
 
 class PostingCard extends StatelessWidget {
-  /// 레일에 그릴 단계 — 접수~합격 4단. 대시보드 전형 현황과 같은 구성이다
-  static const railStages = [
-    Stage.applied,
-    Stage.screening,
-    Stage.interview,
-    Stage.accepted,
-  ];
+  /// 레일에 그릴 단계 — **불합격까지 전 단계.**
+  ///
+  /// 초안은 대시보드처럼 4단으로 그렸지만 되돌렸다: 카드 위에 적히는
+  /// "지원자 수"는 불합격까지 센 수라, 레일이 4단이면 **총원과 범례 합이
+  /// 어긋난다**(6명인데 범례는 5). 퍼널이 사람을 조용히 빠뜨리는 쪽이
+  /// 숫자가 안 맞는 것보다 나쁘다.
+  ///
+  /// 대시보드 레일은 §0.5 가 4단으로 못 박은 자리라 거기는 그대로 둔다 —
+  /// 그쪽은 총원 표기도 같은 4단 합이라 어긋나지 않는다.
+  static const railStages = Stage.values;
 
   const PostingCard({
     super.key,
@@ -116,12 +119,7 @@ class PostingCard extends StatelessWidget {
               ),
 
               const SizedBox(height: AppSpace.s3),
-              // 앱 UI 초안(2026-09-01)대로 접수~합격 4단 + 범례.
-              //
-              // 05-design 은 4단을 **대시보드 미니 퍼널**에만 못 박았고 공고 카드는
-              // 규정이 없다. 초안을 따라 여기도 4단으로 맞추면 이 카드에서
-              // **불합격 인원이 안 보이게 된다** — 아는 채로 초안을 택했다
-              // (앱 오너 판단, 2026-09-01. 나중에 뒤집힐 수 있다).
+              // 초안이 더한 범례. 레일 단계는 railStages 주석 참고
               FunnelBar(
                 counts: counts,
                 stages: railStages,

@@ -240,8 +240,18 @@ final mockEvaluations = <int, EvaluationSummary>{
 ///
 /// 사람은 [mockApplicants] 중 면접 단계인 둘을 그대로 쓴다. 둘째는 긴 이름
 /// 스트레스 케이스라 한 줄 말줄임이 실제로 도는지 여기서 같이 보인다.
+/// 목데이터에서 "나". 캘린더의 "내 면접만" 필터가 이 이름으로 거른다 —
+/// API 연동(큐 8) 때 로그인한 사용자 id 기준으로 바뀐다.
+const mockMyName = '김민아';
+
 List<Interview> mockInterviewsOn(DateTime day) {
-  Interview at(int hour, int minute, Applicant who, {required int proposalId}) {
+  Interview at(
+    int hour,
+    int minute,
+    Applicant who, {
+    required int proposalId,
+    String interviewer = mockMyName,
+  }) {
     final start = DateTime(day.year, day.month, day.day, hour, minute);
     return Interview(
       proposalId: proposalId,
@@ -250,8 +260,8 @@ List<Interview> mockInterviewsOn(DateTime day) {
       postingTitle: mockPostings
           .firstWhere((p) => p.id == who.jobPostingId)
           .title,
-      interviewerId: 1,
-      interviewerName: '김민아',
+      interviewerId: interviewer == mockMyName ? 1 : 2,
+      interviewerName: interviewer,
       startAt: start,
       // 슬롯 기본 길이 60분 (ProposalCreate.slot_minutes 기본값)
       endAt: start.add(const Duration(minutes: 60)),
@@ -269,12 +279,17 @@ List<Interview> mockInterviewsOn(DateTime day) {
       at(14, 0, interviewees[0], proposalId: 1),
       at(16, 30, interviewees[1], proposalId: 2),
     ],
-    DateTime.thursday => [at(11, 0, interviewees[0], proposalId: 3)],
+    // 남의 면접 — 캘린더 "내 면접만" 이 실제로 무언가를 거르는지 화면에서
+    // 확인하려면 내 것이 아닌 건이 있어야 한다. 전부 내 것이면 토글이
+    // 아무 일도 안 해서 고장으로 보인다
+    DateTime.thursday => [
+      at(11, 0, interviewees[0], proposalId: 3, interviewer: '진수택'),
+    ],
     DateTime.friday => [
       at(10, 0, interviewees[1], proposalId: 4),
       // 같은 시각 두 건 — 05-design 캘린더 절의 "같은 시간대는 슬롯으로 묶는다"
       at(15, 0, interviewees[0], proposalId: 5),
-      at(15, 0, interviewees[1], proposalId: 6),
+      at(15, 0, interviewees[1], proposalId: 6, interviewer: '진수택'),
     ],
     _ => const [],
   };

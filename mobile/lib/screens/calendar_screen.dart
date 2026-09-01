@@ -46,7 +46,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
   /// 목데이터에는 배정이 없어 면접관 이름으로 대신한다 — API 연동 때 내 user id 로 바뀐다
-  static const _me = '김민아';
+  static const _me = mockMyName;
 
   List<Interview> _filter(List<Interview> items) =>
       _mineOnly ? items.where((i) => i.interviewerName == _me).toList() : items;

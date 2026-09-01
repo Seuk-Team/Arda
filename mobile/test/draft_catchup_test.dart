@@ -77,8 +77,8 @@ void main() {
     });
   });
 
-  group('공고 카드 퍼널 (초안 4단 + 범례)', () {
-    testWidgets('레일과 범례가 같은 4단을 쓴다', (tester) async {
+  group('공고 카드 퍼널 (레일 + 범례)', () {
+    testWidgets('레일과 범례가 같은 단계를 쓴다', (tester) async {
       await tester.pumpWidget(const ArdaApp());
 
       final bar = tester.widget<FunnelBar>(find.byType(FunnelBar).first);
@@ -123,6 +123,38 @@ void main() {
 
       final image = tester.widget<Image>(find.byType(Image));
       expect(image.excludeFromSemantics, isTrue);
+    });
+  });
+
+  group('회귀 — 버그로 드러난 것', () {
+    testWidgets('공고 카드: 총원과 범례 합이 같다', (tester) async {
+      await tester.pumpWidget(const ArdaApp());
+
+      final legend = tester.widget<FunnelLegend>(find.byType(FunnelLegend).first);
+      final legendSum = legend.stages.fold(
+        0,
+        (sum, s) => sum + (legend.counts[s] ?? 0),
+      );
+      final total = legend.counts.values.fold(0, (a, b) => a + b);
+
+      expect(
+        legendSum,
+        total,
+        reason: '레일이 사람을 빠뜨리면 카드 위 "N명"과 어긋나 보인다',
+      );
+    });
+
+    test('캘린더: "내 면접만" 이 실제로 거를 것이 있다', () {
+      // 전부 내 면접이면 토글이 아무 일도 안 해 고장으로 보인다
+      final week = mockInterviewsInWeek(DateTime(2026, 9, 1));
+      final all = week.values.expand((e) => e).toList();
+
+      expect(all.any((i) => i.interviewerName == mockMyName), isTrue);
+      expect(
+        all.any((i) => i.interviewerName != mockMyName),
+        isTrue,
+        reason: '남의 면접이 하나도 없으면 필터를 확인할 수 없다',
+      );
     });
   });
 }
