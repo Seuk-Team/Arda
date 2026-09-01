@@ -223,3 +223,45 @@ uv run python scripts/prefetch_models.py --stt
 3. **Vercel rewrite 제거 머지.** CORS 가 운영에 살아 있는 것을 실측으로 확인한 뒤 머지했다. 이로써 **지원자 자소서를 포함한 모든 API 요청이 제3자(Vercel) 서버를 통과하던 경로가 없어졌다.** 프론트는 `VITE_API_BASE` 로 API 를 직접 부른다.
 
 **백업**: `~/docker-compose.prod.yml.bak-0901deploy` · `~/backend.env.bak-0901deploy`.
+
+## 2026-09-01 저녁 재배포 (팀장)
+
+`046cee9` 기준. 같은 절차 — `git archive origin/main` → scp → 서버에서 tar 해제 → `up -d --build`.
+
+들어간 것: 요약 분량 축소(`6905c37`) · alembic 도입(`5941ae7`) · `create_admin` 부트스트랩 수정(`d96749e`). 프론트 몫(아르 요약 제목·앰버 제거, 면접 포인트 숨김)은 Vercel 자동 배포로 이미 반영돼 있었다.
+
+| 단계 | 결과 |
+|---|---|
+| 임베딩 모델 프리페치 | **66.7초** (`#15 DONE 97.0s`). HF 익명 다운로드 경고는 속도 제한 안내일 뿐 |
+| `up -d --build` | api·worker 재생성 |
+| `ps` | api·worker `Up`, db `Up 24h (healthy)`, caddy `Up 5d` |
+| COMMAND | `/app/.venv/bin/uvic…` · `/app/.venv/bin/pyth…` — `df25669` 의 직접 호출 유지 |
+| `/health` | `{"status":"ok"}` |
+
+**DB 작업은 없었다.** `5941ae7` 이 alembic 을 들여왔지만 **런타임 의존성이 아니라 컨테이너 기동 때 돌지 않는다**(`backend/alembic/README.md`). 운영은 09/01 낮에 실측 후 `0002` 로 stamp 를 마쳤으므로 이번 배포에 이행이 걸려 있지 않다.
+
+**이번에 하지 않은 것** — 다음에 참고:
+
+- **빌드 전 `df -h` 를 건너뛰었다.** G4 때 디스크 고갈로 깨진 적이 있으니 원래는 봐야 한다. 결과적으로 통과했지만 확인하고 들어간 것은 아니다
+- **빌드와 `up` 을 나누지 않았다.** 직전 재배포는 `build` 성공을 확인한 뒤 `up` 했는데, 이번엔 `up -d --build` 한 번으로 갔다. 빌드가 깨졌으면 돌던 컨테이너가 같이 내려갔을 것이다
+- **AI 요약 재생성은 안 했다.** `6905c37` 은 프롬프트만 짧게 만들 뿐, **이미 저장된 요약은 안 바뀐다.** 재생성은 에이전트 오너 몫
+
+### 같은 날 — 메일 시연용 실제 주소 반영 (운영 DB)
+
+SES 샌드박스라 검증된 주소로만 발송된다. 시연 대상 5명의 `applications.email` 을 팀원 실주소로 바꿨다.
+
+| id | 공고 | 지원자 | 주소 |
+|---|---|---|---|
+| 9 | 1 | 곽민재 | `ssuvisdev@gmail.com` |
+| 10 | 1 | 문해린 | `dnwjdwkd11@gmail.com` |
+| 12 | 1 | 서지호 | `fennec925@gmail.com` |
+| 15 | 1 | 한도윤 | `minmom7898@gmail.com` |
+| 20 | 2 | 유하람 | `hisoyeon04@gmail.com` |
+
+⚠️ **원안 SQL 은 `UNIQUE(job_posting_id, email)` 에 걸려 롤백됐다.** 테스트 행 **id 8 `김데모` 가 공고 1 에서 `ssuvisdev@gmail.com` 을 이미 쓰고 있어서** 같은 공고의 곽민재(id 9) 배정이 거부됐다. **지원자만 세고 테스트 행을 빠뜨린 것이 원인이다.** id 8 을 `demo.kim@example.com` 으로 비우고 반영했다 — **되돌리려면 id 9 를 먼저 비운 뒤 id 8 을 복구해야 한다.** 순서를 바꾸면 같은 제약에 다시 걸린다.
+
+**id 7 `음머(테스트)` 는 공고 2 에서 `fennec925@gmail.com` 을 그대로 쓴다.** 서지호(공고 1)와 제약은 겹치지 않지만 **한 메일함에 두 지원자의 발송이 섞여 들어온다.** 위 "재배포 뒤에 한 것" 2번의 id 7·8 서술은 이름 기준이라 그대로 유효하다.
+
+각 `UPDATE` 에 `AND name=` 가드를 붙였다 — id↔이름이 어긋나면 `UPDATE 0` 이 되어 **엉뚱한 지원자의 주소가 조용히 바뀌지 않는다.**
+
+**메일은 아직 안 나갔다.** `email_logs.to_email` 은 발송 시점 스냅샷이라 과거 실패 로그는 그대로다. 실발송을 보려면 단계 이동이나 `POST /applications/{id}/emails` 로 새로 트리거해야 하고, **워커가 `MAIL_DRY_RUN=0` 이라 누르는 즉시 실제로 나간다** — 한도윤(부적합)은 불합격 메일이다.
