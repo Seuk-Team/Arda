@@ -1,14 +1,15 @@
 // 단계 이력 · 평가 목록 — 시안(2026-08-28) 2·3번.
 // 둘 다 상세에서 들어가는 별도 화면이다.
 
-import 'package:arda/main.dart';
 import 'package:arda/models/evaluation.dart' as model;
 import 'package:flutter_test/flutter_test.dart';
+
+import 'app_boot.dart';
 
 /// 공고 → 지원자 → 김도현 상세까지 연다.
 /// 김도현은 단계 이력 4건·평가 3건을 가진 유일한 목데이터다.
 Future<void> openKimDohyun(WidgetTester tester) async {
-  await tester.pumpWidget(const ArdaApp());
+  await bootToShell(tester);
   // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
   await tester.tap(find.text('공고'));
   await tester.pumpAndSettle();

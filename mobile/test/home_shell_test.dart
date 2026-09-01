@@ -1,12 +1,13 @@
 // 탭 셸 — 탭을 누르면 상단 제목과 본문이 함께 바뀌는지 본다.
 // 아직 조각이 안 온 탭은 "비어 있어야 한다"는 것도 검증 대상이다(§0-5).
 
-import 'package:arda/main.dart';
 import 'package:arda/widgets/app_bottom_nav.dart';
 import 'package:arda/widgets/app_top_bar.dart';
 import 'package:arda/widgets/posting_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'app_boot.dart';
 
 Future<void> tapTab(WidgetTester tester, String label) async {
   await tester.tap(
@@ -21,7 +22,7 @@ Finder title(String text) =>
 
 void main() {
   testWidgets('앱을 켜면 홈(대시보드)이 먼저 뜬다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
 
     expect(title('대시보드'), findsOneWidget);
     // 공고 목록은 아직 자리를 비우고 있다
@@ -29,7 +30,7 @@ void main() {
   });
 
   testWidgets('공고 탭을 누르면 공고 목록', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     await tapTab(tester, '공고');
 
     expect(title('채용 공고'), findsOneWidget);
@@ -37,7 +38,7 @@ void main() {
   });
 
   testWidgets('탭마다 상단 제목이 05-design 메뉴 이름으로 바뀐다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
 
     for (final (label, screenTitle) in const [
       ('지원자', '지원자'),
@@ -52,7 +53,7 @@ void main() {
   });
 
   testWidgets('탭을 옮기면 공고 목록이 자리를 비운다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     await tapTab(tester, '공고');
     expect(find.byType(PostingCard), findsNWidgets(3));
 
@@ -67,7 +68,7 @@ void main() {
   // 들어와 전제가 사라졌다. 각 탭의 내용은 그 화면의 테스트가 본다.
 
   testWidgets('다섯 탭 모두 내용이 있다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
 
     for (final label in ['공고', '지원자', '홈', '캘린더', '더보기']) {
       await tapTab(tester, label);
@@ -77,7 +78,7 @@ void main() {
   });
 
   testWidgets('탭을 옮겨도 하단 바는 자리를 지킨다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     final before = tester.getRect(find.byType(AppBottomNav));
 
     await tapTab(tester, '캘린더');
@@ -85,7 +86,7 @@ void main() {
   });
 
   testWidgets('공고에서 파고든 화면에는 탭바가 없다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     await tapTab(tester, '공고');
 
     await tester.tap(find.byType(PostingCard).first);

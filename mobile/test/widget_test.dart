@@ -1,15 +1,16 @@
 // 화면이 뜨고 계층대로 이동되는지, 테마가 토큰을 쓰는지만 본다.
 // 공고 → 그 공고의 지원자 → 지원자 상세 (시안 2026-08-28)
 
-import 'package:arda/main.dart';
 import 'package:arda/screens/applicant_detail_screen.dart';
 import 'package:arda/widgets/posting_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'app_boot.dart';
+
 void main() {
   testWidgets('첫 화면은 채용 공고 목록이다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
     await tester.tap(find.text('공고'));
     await tester.pumpAndSettle();
@@ -19,7 +20,7 @@ void main() {
   });
 
   testWidgets('공고 → 지원자 → 상세 로 들어가고 되돌아온다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
     await tester.tap(find.text('공고'));
     await tester.pumpAndSettle();
@@ -43,7 +44,7 @@ void main() {
   });
 
   testWidgets('테마가 05-design 토큰을 쓴다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+    await bootToShell(tester);
     // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
     await tester.tap(find.text('공고'));
     await tester.pumpAndSettle();

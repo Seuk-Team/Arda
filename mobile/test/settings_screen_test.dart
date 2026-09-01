@@ -8,8 +8,7 @@ import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Widget host({AppUser? user}) =>
-    MaterialApp(home: SettingsScreen(user: user));
+Widget host({AppUser? user}) => MaterialApp(home: SettingsScreen(user: user));
 
 Future<void> openTab(WidgetTester tester, SettingsTab tab) async {
   await tester.tap(find.text(tab.label));
@@ -100,9 +99,15 @@ void main() {
 
     for (final tab in SettingsTab.values) {
       final box = tester.getSize(
-        find.ancestor(of: find.text(tab.label), matching: find.byType(InkWell)).first,
+        find
+            .ancestor(of: find.text(tab.label), matching: find.byType(InkWell))
+            .first,
       );
-      expect(box.height, greaterThanOrEqualTo(AppLayout.minTouchTarget), reason: tab.label);
+      expect(
+        box.height,
+        greaterThanOrEqualTo(AppLayout.minTouchTarget),
+        reason: tab.label,
+      );
     }
   });
 

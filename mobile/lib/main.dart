@@ -42,7 +42,12 @@ class ArdaApp extends StatelessWidget {
       theme: buildAppTheme(),
       // 05-design §0-4: 라이트 온리. 기기가 다크 모드여도 따라가지 않는다
       themeMode: ThemeMode.light,
-      initialRoute: Routes.home,
+      // 첫 화면은 로그인이다. 통과하면 탭 셸(홈)로 간다.
+      //
+      // 아직 인증이 없어 아무 값이나 넣으면 통과한다 — 큐 7(JWT)에서
+      // POST /auth/login 과 토큰 저장이 붙으면 여기가 진짜 문이 된다.
+      // 개발 중 로그인을 건너뛰려면: flutter run --route=/
+      initialRoute: Routes.login,
       routes: {
         Routes.home: (_) => const HomeShell(),
         Routes.login: (_) => const LoginScreen(),

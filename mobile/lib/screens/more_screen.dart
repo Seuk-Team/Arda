@@ -58,8 +58,21 @@ class MoreScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpace.s4),
-        const _Group(
-          items: [_Item(icon: Icons.logout, label: '로그아웃', danger: true)],
+        _Group(
+          items: [
+            _Item(
+              icon: Icons.logout,
+              label: '로그아웃',
+              danger: true,
+              // 스택을 비우고 로그인으로 — 뒤로가기로 앱 안에 다시 들어오면 안 된다.
+              // 큐 7 에서 저장한 토큰을 지우는 일이 여기 붙는다
+              onTap: () => Navigator.pushNamedAndRemoveUntil(
+                context,
+                Routes.login,
+                (route) => false,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpace.s4),
         const _Version(),

@@ -2,7 +2,6 @@
 // 범례 · 로그인 아르 마크. 새로 만든 화면은 각자의 테스트가 본다.
 
 import 'package:arda/data/mock_data.dart';
-import 'package:arda/main.dart';
 import 'package:arda/models/stage.dart';
 import 'package:arda/screens/applicant_detail_screen.dart';
 import 'package:arda/screens/login_screen.dart';
@@ -13,6 +12,8 @@ import 'package:arda/widgets/posting_card.dart';
 import 'package:arda/widgets/stage_rail.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'app_boot.dart';
 
 Widget detailOf(String name) {
   final applicant = mockApplicants.firstWhere((a) => a.name == name);
@@ -85,7 +86,7 @@ void main() {
 
   group('공고 카드 퍼널 (레일 + 범례)', () {
     testWidgets('레일과 범례가 같은 단계를 쓴다', (tester) async {
-      await tester.pumpWidget(const ArdaApp());
+      await bootToShell(tester);
       // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
       await tester.tap(find.text('공고'));
       await tester.pumpAndSettle();
@@ -102,7 +103,7 @@ void main() {
     });
 
     testWidgets('범례에 단계 이름과 건수가 함께 있다', (tester) async {
-      await tester.pumpWidget(const ArdaApp());
+      await bootToShell(tester);
       // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
       await tester.tap(find.text('공고'));
       await tester.pumpAndSettle();
@@ -142,7 +143,7 @@ void main() {
 
   group('회귀 — 버그로 드러난 것', () {
     testWidgets('공고 카드: 총원과 범례 합이 같다', (tester) async {
-      await tester.pumpWidget(const ArdaApp());
+      await bootToShell(tester);
       // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
       await tester.tap(find.text('공고'));
       await tester.pumpAndSettle();

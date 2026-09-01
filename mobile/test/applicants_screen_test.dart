@@ -1,12 +1,13 @@
 // 지원자 리스트 — 단계 탭이 실제로 목록을 거르는지 본다.
 // 첫 화면이 공고 목록이라 공고를 하나 열고 들어간다.
 
-import 'package:arda/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'app_boot.dart';
+
 Future<void> openFirstPosting(WidgetTester tester) async {
-  await tester.pumpWidget(const ArdaApp());
+  await bootToShell(tester);
   // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
   await tester.tap(find.text('공고'));
   await tester.pumpAndSettle();

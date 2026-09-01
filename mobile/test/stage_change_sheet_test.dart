@@ -1,17 +1,18 @@
 // 단계 변경 시트 — 메일이 나가는 되돌릴 수 없는 동작이라 안전장치가 핵심이다.
 // 시안(2026-08-28) 1번이 정한 네 가지를 검증한다.
 
-import 'package:arda/main.dart';
 import 'package:arda/widgets/stage_rail.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'app_boot.dart';
 
 /// 공고 → 지원자 → 상세 → 단계 변경 시트까지 연다.
 ///
 /// 박지훈은 `지원 접수` 단계라 갈 수 있는 곳이 서류 검토·불합격 둘뿐이다 —
 /// "전진은 한 칸씩"과 "불합격은 어디서든"을 한 화면에서 볼 수 있는 자리다.
 Future<void> openSheet(WidgetTester tester) async {
-  await tester.pumpWidget(const ArdaApp());
+  await bootToShell(tester);
   // 첫 화면은 홈(대시보드)이다 — 공고를 보려면 탭을 먼저 누른다
   await tester.tap(find.text('공고'));
   await tester.pumpAndSettle();

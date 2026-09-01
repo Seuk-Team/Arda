@@ -2,12 +2,13 @@
 // 실제로 지켜지는지가 핵심이다. 잘못 그리면 "AI가 이미 했다"로 읽힌다.
 
 import 'package:arda/data/mock_data.dart';
-import 'package:arda/main.dart';
 import 'package:arda/models/ar_message.dart';
 import 'package:arda/screens/ar_screen.dart';
 import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'app_boot.dart';
 
 Widget host({List<ArMessage>? messages}) =>
     MaterialApp(home: ArScreen(messages: messages));
@@ -15,7 +16,7 @@ Widget host({List<ArMessage>? messages}) =>
 void main() {
   group('진입점 — 전 화면 공통 (§0.5)', () {
     testWidgets('탭이 있는 화면에는 오른쪽 아래 아르 버튼', (tester) async {
-      await tester.pumpWidget(const ArdaApp());
+      await bootToShell(tester);
 
       final button = find.bySemanticsLabel('아르에게 물어보기');
       expect(button, findsOneWidget);
@@ -28,7 +29,7 @@ void main() {
     });
 
     testWidgets('누르면 아르 시트가 열린다', (tester) async {
-      await tester.pumpWidget(const ArdaApp());
+      await bootToShell(tester);
 
       await tester.tap(find.bySemanticsLabel('아르에게 물어보기'));
       await tester.pumpAndSettle();
@@ -39,7 +40,7 @@ void main() {
     });
 
     testWidgets('닫으면 원래 화면으로 돌아온다', (tester) async {
-      await tester.pumpWidget(const ArdaApp());
+      await bootToShell(tester);
 
       await tester.tap(find.bySemanticsLabel('아르에게 물어보기'));
       await tester.pumpAndSettle();

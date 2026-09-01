@@ -80,6 +80,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Center(child: _ArMark()),
                     const SizedBox(height: AppSpace.s3),
                     const _Logo(),
+                    const SizedBox(height: AppSpace.s1),
+                    // 초안의 부제. 로고만 있으면 무슨 서비스인지 모른다
+                    const Text(
+                      '채용 관리',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: AppType.fontFamily,
+                        fontSize: AppType.sm,
+                        color: AppColors.textSub,
+                        // §2: 작은 글씨엔 그림자 금지
+                      ),
+                    ),
                     const SizedBox(height: AppSpace.s6),
 
                     _Field(
@@ -174,6 +186,9 @@ class _Logo extends StatelessWidget {
           shadows: AppTextShadow.heading,
         ),
       ),
+      // 카드가 stretch 라 글자가 왼쪽에 붙는다. 아르 마크·부제와 같은
+      // 세로선에 서야 하므로 가운데로 맞춘다
+      textAlign: TextAlign.center,
       maxLines: 1,
       softWrap: false,
     );
