@@ -396,37 +396,54 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* 섹션 라벨은 두지 않는다 — 왼쪽 캘린더 카드와 같은 위계라 같은 자리에서 시작해야 한다.
+            공고 카드 하나하나가 캘린더 카드와 같은 규격(.card)의 흰 블록이고, 공고 제목이 "캘린더"에 대응한다 */}
         <div className={styles.postingCol}>
-          <div className={styles.sectionTitle}>진행중 공고</div>
-          {data === null && error === null && <p className={styles.state}>불러오는 중…</p>}
+          {data === null && error === null && <p className={`${styles.card} ${styles.state}`}>불러오는 중…</p>}
           {data !== null && data.openPostings.length === 0 && (
-            <p className={styles.state}>진행중인 공고가 없습니다.</p>
+            <p className={`${styles.card} ${styles.state}`}>진행중인 공고가 없습니다.</p>
           )}
           <div className={styles.postingList}>
             {data?.openPostings.map((p) => {
               const counts = rails[p.id] ?? RAIL.map(() => 0)
               const total = counts.reduce((a, b) => a + b, 0)
-              const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100))
+              /* 0 건도 6px 남긴다 — 폭이 0 이면 단계가 통째로 사라져 레일이 몇 단인지 안 보인다.
+                 fr 은 공고 규모와 무관하게 비율을 맞추므로 최소 폭은 px 로 따로 준다 */
+              const cols = counts.map((n) => `minmax(6px, ${n}fr)`).join(' ')
               return (
-                <button key={p.id} className={styles.postingCard} onClick={() => navigate(`/postings/${p.id}`)}>
+                <button
+                  key={p.id}
+                  className={`${styles.card} ${styles.postingCard}`}
+                  onClick={() => navigate(`/postings/${p.id}`)}
+                >
                   <div className={styles.postingTop}>
                     <span className={styles.postingName}>{p.title}</span>
-                    {/* 마감일이 없는 공고(상시)는 D-day 를 그리지 않는다 */}
-                    {p.d_day !== null && (
+                    {/* 레일이 아직 안 왔으면 총 인원도 쓰지 않는다 — 0 명으로 잠깐 보이면 그게 실제 값처럼 읽힌다.
+                        마감일이 없는 공고(상시)는 D-day 를 그리지 않는다 */}
+                    {(rails[p.id] !== undefined || p.d_day !== null) && (
                       <span className={styles.postingDday}>
-                        {p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`}
+                        {[
+                          rails[p.id] !== undefined ? `총 ${total}명` : null,
+                          p.d_day === null ? null : p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`,
+                        ].filter(Boolean).join(' · ')}
                       </span>
                     )}
                   </div>
-                  <div className={styles.postingRail}>
-                    {RAIL.map((r, i) => (
-                      <div key={r.stage} className={styles.railSeg} style={{ width: `${pct(counts[i])}%`, background: r.color }} />
+                  <div className={styles.postingRail} style={{ gridTemplateColumns: cols }}>
+                    {RAIL.map((r) => (
+                      <div key={r.stage} className={styles.railSeg} style={{ background: r.color }} />
                     ))}
                   </div>
+                  {/* 눈금이 아니라 범례다 — 색 점이 라벨을 자기 구간에 잇는다.
+                      한 줄 고정: 폭이 모자라면 넘치는 쪽을 자른다 (§7 ellipsis 원칙) */}
                   <div className={styles.postingCounts}>
                     {RAIL.map((r, i) => (
-                      <span key={r.stage} className={r.stage === 'accepted' ? styles.countPass : undefined}>
-                        {STAGE_LABEL[r.stage]} {counts[i]}
+                      <span
+                        key={r.stage}
+                        className={`${styles.countItem} ${r.stage === 'accepted' ? styles.countPass : ''}`}
+                      >
+                        <span className={styles.countDot} style={{ background: r.color }} />
+                        {STAGE_LABEL[r.stage]} <b>{counts[i]}</b>
                       </span>
                     ))}
                   </div>

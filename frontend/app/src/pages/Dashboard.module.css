@@ -558,28 +558,17 @@
 }
 
 /* ── 진행중 공고 ──────────────────────────────────────────────── */
-.sectionTitle {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-sub);
-  margin-bottom: var(--sp-3);
-  white-space: nowrap;
-}
-
 .postingList {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
 }
 
-/* 세로 카드 — 제목/D-day 행 + 레일 + 단계별 건수 (2026-08-31 절반 너비 개편) */
+/* 세로 카드 — 제목/총 인원·D-day 행 + 레일 + 단계별 건수.
+   껍데기는 .card 를 그대로 쓴다(캘린더 축소판 .calCard 와 같은 방식) — 같은 위계면 같은 규격이다.
+   여기서는 버튼으로 만들기 위한 것과 hover 만 얹는다 */
 .postingCard {
   display: block;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-card);
-  box-shadow: var(--sh-card);
-  padding: var(--sp-3) var(--sp-4);
   text-align: left;
   width: 100%;
   transition: background var(--dur-fast) var(--ease);
@@ -590,51 +579,75 @@
   background: var(--bg-sunken);
 }
 
+/* 캘린더 카드의 .calHead 와 같은 규격 */
 .postingTop {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-3);
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
+/* 캘린더 카드의 .calTitle 과 같은 규격 + 긴 공고명 ellipsis (§7) */
 .postingName {
   flex: 1;
   min-width: 0;
-  font-size: var(--font-sm);
-  font-weight: 600;
+  font-size: var(--font-h2);
+  font-weight: 700;
   color: var(--text);
+  text-shadow: var(--ts-heading);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 구간 폭은 인라인 grid-template-columns 로 온다 (공고의 지원자 화면 .funnel 과 같은 방식) —
+   % 로 주면 반올림 오차가 쌓이고 0 건 구간이 통째로 사라진다 */
 .postingRail {
-  display: flex;
+  display: grid;
   height: 8px;
   border-radius: var(--r-pill);
   overflow: hidden;
-  gap: 2px;
-  margin-top: var(--sp-3);
+  column-gap: 2px;
 }
 
 .railSeg {
   height: 100%;
-  border-radius: var(--r-pill);
 }
 
-/* 단계별 건수 — 판단 전은 무채 글자, 합격만 잎초록 (§1) */
+/* 단계별 건수 — 눈금이 아니라 범례다. 왼쪽부터 붙여 쓰고 색 점으로 구간에 잇는다
+   (공고의 지원자 화면 .flabels 와 같은 형태). 판단 전은 무채 글자, 합격만 잎초록 (§1) */
 .postingCounts {
   display: flex;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
+  flex-wrap: nowrap;
+  gap: var(--sp-4);
+  margin-top: var(--sp-3);
   font-size: var(--font-caption);
-  font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
+  overflow: hidden;
 }
 
-.countPass { color: var(--leaf); }
+.countItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.countDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  flex: none;
+  margin-right: 2px;
+}
+
+.countItem b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.countPass b { color: var(--leaf); }
 
 .postingDday {
   font-size: var(--font-num);
