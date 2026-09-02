@@ -89,3 +89,23 @@ class ConsentRequest(BaseModel):
     """녹음·전사·보관 동의. 지원 폼의 개인정보 동의와 별개다."""
 
     agreed: bool
+
+
+class QuestionsSet(BaseModel):
+    """담당자가 질문 목록을 넣는다.
+
+    설계 §5 의 5번(요약에서 자동 생성)이 붙기 전까지의 입구다. 자동 생성이 들어와도
+    이 경로는 남는다 — 담당자가 질문을 고쳐 넣을 수 있어야 한다.
+    """
+
+    questions: list[str] = Field(min_length=1, max_length=20)
+
+
+class AnswerRequest(BaseModel):
+    """답변 제출.
+
+    지금은 텍스트만 받는다. 음성 업로드 → STT 는 설계 §5 의 4번에서 붙이고,
+    그때 `audio_s3_key` 가 여기 더해진다.
+    """
+
+    transcript: str = Field(min_length=1)

@@ -261,3 +261,148 @@ class TestExpiry:
         db.commit()
 
         assert public.post("/api/v1/public/interview/tok-test/start").status_code == 410
+
+
+class TestQuestions:
+    def test_질문을_넣으면_순서대로_저장된다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user)
+        db.commit()
+
+        res = as_user(admin_user).put(
+            f"/api/v1/interview-sessions/{s.id}/questions",
+            json={"questions": ["자기소개", "가장 어려웠던 문제", "왜 우리 회사인가"]},
+        )
+        assert res.status_code == 200
+        turns = res.json()["turns"]
+        assert [t["seq"] for t in turns] == [1, 2, 3]
+        assert turns[1]["question"] == "가장 어려웠던 문제"
+
+    def test_시작한_뒤에는_질문을_못_바꾼다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """진행 중에 바뀌면 지원자가 본 질문과 저장된 질문이 어긋난다."""
+        s = _session(db, application, admin_user, status="in_progress")
+        _question(db, s)
+        db.commit()
+
+        res = as_user(admin_user).put(
+            f"/api/v1/interview-sessions/{s.id}/questions",
+            json={"questions": ["바꾼 질문"]},
+        )
+        assert res.status_code == 409
+
+    def test_빈_목록은_422(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user)
+        db.commit()
+        res = as_user(admin_user).put(
+            f"/api/v1/interview-sessions/{s.id}/questions", json={"questions": []}
+        )
+        assert res.status_code == 422
+
+
+class TestAnswer:
+    @pytest.fixture()
+    def running(self, db: Session, application: Application, admin_user: User):
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        for i, q in enumerate(["질문1", "질문2", "질문3"], start=1):
+            db.add(InterviewTurn(session_id=s.id, seq=i, question=q))
+        db.commit()
+        return s
+
+    def test_답하면_다음_질문으로_넘어간다(self, public, db: Session, running):
+        assert public.get("/api/v1/public/interview/tok-test").json()["question_seq"] == 1
+
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "안녕하세요"}
+        )
+        assert res.status_code == 200
+        assert res.json()["question_seq"] == 2
+        assert res.json()["current_question"] == "질문2"
+
+    def test_답_안_한_가장_앞_질문에_붙는다(self, public, db: Session, running):
+        """마지막 질문을 보면 안 된다 — 3개 중 1번만 답했을 때 3번을 내주게 된다."""
+        public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "첫 답"}
+        )
+        turns = db.scalars(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == running.id)
+            .order_by(InterviewTurn.seq)
+        ).all()
+        assert turns[0].transcript == "첫 답"
+        assert turns[1].transcript is None
+        assert turns[2].transcript is None
+
+    def test_다_답하면_현재_질문이_없다(self, public, db: Session, running):
+        for t in ["1", "2", "3"]:
+            public.post(
+                "/api/v1/public/interview/tok-test/answer", json={"transcript": t}
+            )
+        body = public.get("/api/v1/public/interview/tok-test").json()
+        assert body["current_question"] is None
+
+        # 더 답하려 하면 409 — 종료하라고 알려 준다
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "4"}
+        )
+        assert res.status_code == 409
+
+    def test_시작_전에는_답할_수_없다(
+        self, public, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user)
+        _question(db, s)
+        db.commit()
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "미리"}
+        )
+        assert res.status_code == 409
+
+
+class TestFinish:
+    def test_다_안_답해도_끝낼_수_있다(
+        self, public, db: Session, application: Application, admin_user: User
+    ):
+        """중간에 그만두는 것도 지원자의 선택이다. 막으면 in_progress 로 영영 남는다."""
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        _question(db, s)
+        db.commit()
+
+        res = public.post("/api/v1/public/interview/tok-test/finish")
+        assert res.status_code == 200
+        assert res.json()["status"] == "done"
+
+        db.refresh(s)
+        assert s.ended_at is not None
+
+    def test_두_번_눌러도_같은_결과(
+        self, public, db: Session, application: Application, admin_user: User
+    ):
+        """새로고침으로 500 을 만들지 않는다."""
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        db.commit()
+
+        assert public.post("/api/v1/public/interview/tok-test/finish").status_code == 200
+        assert public.post("/api/v1/public/interview/tok-test/finish").status_code == 200

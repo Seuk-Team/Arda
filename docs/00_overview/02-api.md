@@ -117,6 +117,9 @@
 | GET | /public/interview/{token} | 지원자용 조회 | **공개**. 만료는 조회 시점 판정(B4 방식). **담당자 이름·평가·다른 지원자를 내려주지 않는다** |
 | POST | /public/interview/{token}/consent | 녹음·전사 동의 | **공개**. 본문 `{agreed}`. **지원 폼의 개인정보 동의와 별개다** — 거절하면 422, 기록도 안 남는다 |
 | POST | /public/interview/{token}/start | 면접 시작 | **공개**. 동의 없으면 422 · 만료면 410 · 준비된 질문이 없으면 422 |
+| PUT | /interview-sessions/{id}/questions | 질문 목록 설정 | 본문 `{questions: [...]}` (1~20개). **시작 전에만** — 진행 중 변경은 409 |
+| POST | /public/interview/{token}/answer | 현재 질문에 답변 | **공개**. 본문 `{transcript}`. **답 안 한 가장 앞 질문**에 붙는다 — 순번을 지원자가 보내지 않는다. 남은 질문이 없으면 409 |
+| POST | /public/interview/{token}/finish | 면접 종료 | **공개**. **다 답하지 않아도 끝낼 수 있다.** 두 번 눌러도 200 |
 
 - **동의가 시작의 선행 조건이다.** `consented_at` 이 비어 있으면 `/start` 가 422 로 거절한다
 - `findings` 에 **점수가 없다** — `consistent` / `inconsistent` / `unverified` 셋뿐이고 판단은 사람이 한다 ([ADR-0003](../03_decision/0003-ai-추천만.md))

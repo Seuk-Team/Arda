@@ -28,8 +28,10 @@ from app.models import (
     User,
 )
 from app.schemas.interview import (
+    AnswerRequest,
     ConsentRequest,
     InterviewPublicOut,
+    QuestionsSet,
     SessionCreate,
     SessionDetailOut,
     SessionOut,
@@ -183,11 +185,18 @@ def get_interview_public(token: str, db: Session = Depends(get_db)):
     posting = db.get(JobPosting, application.job_posting_id) if application else None
 
     current = None
-    if session.status == "in_progress" and session.turns:
-        last = max(session.turns, key=lambda t: t.seq)
-        # 아직 답 안 한 질문이 현재 질문이다
-        if last.transcript is None:
-            current = last
+    if session.status == "in_progress":
+        # **아직 답 안 한 가장 앞 질문**이 현재 질문이다.
+        # 마지막 질문을 보면 안 된다 — 3개 중 1번만 답했을 때 2번이 아니라
+        # 3번을 내주게 된다. 답변 저장(submit_answer)도 같은 규칙을 쓴다.
+        current = db.scalar(
+            select(InterviewTurn)
+            .where(
+                InterviewTurn.session_id == session.id,
+                InterviewTurn.transcript.is_(None),
+            )
+            .order_by(InterviewTurn.seq)
+        )
 
     return InterviewPublicOut(
         status=session.status,
@@ -255,5 +264,103 @@ def start_interview(token: str, db: Session = Depends(get_db)):
 
     session.status = "in_progress"
     session.started_at = datetime.now(timezone.utc)
+    db.commit()
+    return get_interview_public(token, db)
+
+
+@router.put(
+    "/interview-sessions/{session_id}/questions",
+    response_model=SessionDetailOut,
+)
+def set_questions(
+    session_id: int,
+    body: QuestionsSet,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """질문 목록을 넣는다. **시작 전에만** 바꿀 수 있다.
+
+    진행 중에 질문이 바뀌면 지원자가 본 질문과 저장된 질문이 어긋난다 —
+    나중에 전사를 읽는 사람이 "이 답이 어느 질문에 대한 것인가"를 알 수 없게 된다.
+
+    설계 §5 의 5번(요약에서 자동 생성)이 붙어도 이 경로는 남는다 — 담당자가
+    고쳐 넣을 수 있어야 한다.
+    """
+    session = db.get(InterviewSession, session_id)
+    if session is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
+    if session.status != "pending":
+        raise HTTPException(
+            HTTPStatus.CONFLICT, "이미 시작한 면접의 질문은 바꿀 수 없습니다"
+        )
+
+    for turn in list(session.turns):
+        db.delete(turn)
+    db.flush()
+
+    for i, q in enumerate(body.questions, start=1):
+        db.add(InterviewTurn(session_id=session.id, seq=i, question=q))
+    db.commit()
+    db.refresh(session)
+
+    return get_session(session_id, db, user)
+
+
+@router.post("/public/interview/{token}/answer", response_model=InterviewPublicOut)
+def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)):
+    """현재 질문에 답한다. 공개.
+
+    **아직 답 안 한 가장 앞 질문**에 붙인다 — 지원자가 순번을 보내지 않는다.
+    보내게 하면 어긋난 번호로 남의 칸에 답이 들어갈 수 있다.
+
+    지금은 텍스트만 받는다. 음성 업로드 → STT 는 설계 §5 의 4번이다.
+    """
+    session = _get_by_token(db, token)
+
+    if session.status == "expired":
+        raise HTTPException(HTTPStatus.GONE, "링크 유효 기간이 지났습니다")
+    if session.status != "in_progress":
+        raise HTTPException(
+            HTTPStatus.CONFLICT, "진행 중인 면접이 아닙니다"
+        )
+
+    turn = db.scalar(
+        select(InterviewTurn)
+        .where(
+            InterviewTurn.session_id == session.id,
+            InterviewTurn.transcript.is_(None),
+        )
+        .order_by(InterviewTurn.seq)
+    )
+    if turn is None:
+        raise HTTPException(
+            HTTPStatus.CONFLICT, "답변할 질문이 없습니다 — 면접을 종료해 주세요"
+        )
+
+    turn.transcript = body.transcript
+    db.commit()
+    return get_interview_public(token, db)
+
+
+@router.post("/public/interview/{token}/finish", response_model=InterviewPublicOut)
+def finish_interview(token: str, db: Session = Depends(get_db)):
+    """면접 종료. 공개 — 지원자가 끝낸다.
+
+    **답을 다 안 해도 끝낼 수 있다.** 중간에 그만두는 것도 지원자의 선택이고,
+    막으면 창을 닫아 버려 상태가 `in_progress` 로 영영 남는다. 어디까지 답했는지는
+    `turns` 에 그대로 남으므로 담당자가 보고 판단한다.
+
+    대조(`findings`) 생성은 설계 §5 의 6번에서 여기에 붙는다.
+    """
+    session = _get_by_token(db, token)
+
+    if session.status == "done":
+        # 두 번 눌러도 같은 결과 — 새로고침으로 500 을 만들지 않는다
+        return get_interview_public(token, db)
+    if session.status != "in_progress":
+        raise HTTPException(HTTPStatus.CONFLICT, "진행 중인 면접이 아닙니다")
+
+    session.status = "done"
+    session.ended_at = datetime.now(timezone.utc)
     db.commit()
     return get_interview_public(token, db)
