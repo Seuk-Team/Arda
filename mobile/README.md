@@ -49,4 +49,4 @@ assets/fonts/        IBM Plex Sans KR + OFL.txt
 ```
 
 **색·크기·간격을 화면 코드에 직접 쓰지 않는다.** 토큰에 없는 값이 필요하면
-05-design에 토큰으로 추가한 뒤(팀장 승인) `tokens.dart`에 옮긴다.
+05-design에 토큰으로 추가한 뒤(같은 커밋에서 05-design 갱신 + 사후 공지 — 2026-09-02 부터 팀장 승인 절차 없음) `tokens.dart`에 옮긴다.
