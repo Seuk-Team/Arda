@@ -9,6 +9,7 @@ library;
 import '../api/api_client.dart';
 import '../api/endpoints.dart';
 import '../models/applicant.dart';
+import '../models/stage.dart';
 import '../models/application_note.dart';
 import '../models/applicant_file.dart';
 import '../models/evaluation.dart';
@@ -106,4 +107,19 @@ class ApplicantRepository {
       avgScore: (json['avg_score'] as num?)?.toDouble(),
     );
   }
+
+  /// 단계 변경 — `PATCH /applications/{id}/stage` (D3).
+  ///
+  /// 서버가 한 트랜잭션에서 **단계 · 이력 · 메일 큐**를 함께 처리한다. 앱이
+  /// 이력을 따로 만들 필요가 없고, 성공하면 상세를 다시 받아 늘어난 줄을 본다.
+  ///
+  /// [reason] 은 불합격일 때 **필수**다(D8). 서버가 사유 없는 불합격을 막지만
+  /// 화면에서도 먼저 막는다 — 422 를 받고 나서 알려 주면 한 번 헛걸음이다.
+  ///
+  /// 권한으로 막지 않는다(ADR-0017) — 로그인했으면 누구나 바꾸고, 누가 바꿨는지는
+  /// 이력에 남는다.
+  Future<void> changeStage(int id, Stage to, {String? reason}) => _client.patch(
+    Endpoints.applicationStage(id),
+    body: {'to_stage': to.value, 'reason': ?reason},
+  );
 }

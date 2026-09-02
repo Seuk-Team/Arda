@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/authed_client.dart';
 import '../data/applicant_repository.dart';
+import '../api/api_error.dart';
 import '../data/repositories.dart';
 import '../models/applicant.dart';
 import '../routes.dart';
@@ -101,7 +102,12 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
               builder: (context, detail) => _body(context, detail),
             ),
           ),
-          _StageChangeBar(applicant: widget.applicant),
+          _StageChangeBar(
+            applicant: widget.applicant,
+            repository: _repo,
+            // 성공하면 상세를 다시 받는다 — 단계 칩·레일·이력이 함께 맞춰진다
+            onChanged: _reload,
+          ),
         ],
       ),
     );
@@ -309,26 +315,68 @@ class _BackButton extends StatelessWidget {
 ///
 /// 누르면 확인 시트가 열린다(시안 1번). **시트에서 확정해도 아직 서버에 보내지
 /// 않는다** — 실제 호출은 큐 8번(API 연동)이다. 지금은 고른 값을 토스트로 되비춘다.
-class _StageChangeBar extends StatelessWidget {
-  const _StageChangeBar({required this.applicant});
+class _StageChangeBar extends StatefulWidget {
+  const _StageChangeBar({
+    required this.applicant,
+    required this.repository,
+    required this.onChanged,
+  });
 
   final Applicant applicant;
+  final ApplicantRepository repository;
+
+  /// 성공하면 상세를 다시 받는다 — 단계 칩·레일·이력이 한꺼번에 맞춰진다
+  final VoidCallback onChanged;
+
+  @override
+  State<_StageChangeBar> createState() => _StageChangeBarState();
+}
+
+class _StageChangeBarState extends State<_StageChangeBar> {
+  /// 보내는 중 — 버튼을 잠근다. 두 번 눌러 두 번 보내면 이력이 두 줄 남는다
+  bool _sending = false;
 
   /// 시안 1번: 고르는 순간 실행되지 않는다. 시트에서 확정해야 넘어간다.
+  ///
+  /// 웹은 버튼을 바로 누르면 실행되지만 앱은 시트를 한 번 더 거친다 — 폰은
+  /// 스크롤하다 손가락이 스치기 쉽고, **불합격은 메일이 나가 되돌릴 수 없다**.
   Future<void> _openSheet(BuildContext context) async {
-    final picked = await showStageChangeSheet(context, applicant: applicant);
-    if (picked == null || !context.mounted) return;
+    // 시트가 닫히면 그 context 는 못 쓴다. 열기 전에 잡아 둔다
+    final messenger = ScaffoldMessenger.of(context);
 
-    // 05-design §6: 단계 이동 성공·실패는 토스트로 — 조용히 지나가면 안 된다.
-    // 큐 8번에서 이 자리가 실제 API 호출 결과로 바뀐다.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${applicant.name} — ${picked.stage.label}으로 변경 '
-          '(아직 저장되지 않음)',
-        ),
-      ),
+    final picked = await showStageChangeSheet(
+      context,
+      applicant: widget.applicant,
     );
+    if (picked == null || !mounted) return;
+
+    setState(() => _sending = true);
+
+    try {
+      await widget.repository.changeStage(
+        widget.applicant.id,
+        picked.stage,
+        reason: picked.reason,
+      );
+      if (!mounted) return;
+
+      // 05-design §6: 단계 이동 성공·실패는 토스트로 — 조용히 지나가면 안 된다
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${widget.applicant.name} — ${picked.stage.label}으로 옮겼습니다',
+          ),
+        ),
+      );
+      widget.onChanged();
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      // 서버가 거절한 이유를 그대로 보여 준다 — 갈 수 없는 단계(409)나
+      // 사유 누락(422)은 사용자가 할 일이 서로 다르다
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   @override
@@ -352,8 +400,19 @@ class _StageChangeBar extends StatelessWidget {
             width: double.infinity,
             height: AppLayout.minTouchTarget,
             child: FilledButton(
-              onPressed: () => _openSheet(context),
-              child: const Text('단계 변경'),
+              onPressed: _sending ? null : () => _openSheet(context),
+              child: _sending
+                  // 글자를 지우지 않고 그 자리에 스피너를 둔다 —
+                  // 버튼 크기가 변하면 눌린 자리가 흔들린다(로그인과 같은 방식)
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.bgElev,
+                      ),
+                    )
+                  : const Text('단계 변경'),
             ),
           ),
         ),
