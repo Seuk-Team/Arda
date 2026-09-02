@@ -18,9 +18,8 @@ Future<void> openKimDohyun(WidgetTester tester) async {
   await tester.tap(find.text('백엔드 개발자 (신입)'));
   await tester.pumpAndSettle();
 
-  await tester.tap(find.text('면접'));
-  await tester.pumpAndSettle();
-
+  // 목록이 전체로 열리므로(2026-09-02) 단계 탭을 거치지 않는다.
+  // `면접` 은 이제 탭과 카드 단계 라벨 양쪽에 있어 누를 대상이 모호하다
   await tester.tap(find.text('김도현'));
   await tester.pumpAndSettle();
 }

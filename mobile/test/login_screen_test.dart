@@ -38,7 +38,10 @@ void main() {
   Widget bootedApp({FakeAuthService? auth}) => ArdaApp(
     auth: auth ?? FakeAuthService(),
     initialRoute: Routes.login,
-    repositories: Repositories(postings: FakePostingRepository()),
+    repositories: Repositories(
+      postings: FakePostingRepository(),
+      applicants: FakeApplicantRepository(),
+    ),
   );
 
   Future<void> fill(WidgetTester tester) async {

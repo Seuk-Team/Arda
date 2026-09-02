@@ -10,12 +10,14 @@ library;
 
 import 'package:flutter/widgets.dart';
 
+import 'applicant_repository.dart';
 import 'posting_repository.dart';
 
 class Repositories {
-  const Repositories({this.postings});
+  const Repositories({this.postings, this.applicants});
 
   final PostingRepository? postings;
+  final ApplicantRepository? applicants;
 }
 
 class RepositoryScope extends InheritedWidget {

@@ -17,8 +17,12 @@ class StageTabs extends StatelessWidget {
     required this.counts,
   });
 
-  final Stage selected;
-  final ValueChanged<Stage> onSelected;
+  /// **null 이면 「전체」다.** 웹은 공고를 열면 전 단계를 한 표에 보여 주고
+  /// 단계는 필터로만 쓴다 — 앱도 같게 맞췄다(2026-09-02). 지원 접수만 먼저
+  /// 보여 주면 다른 단계에 사람이 있는지 알려면 탭을 하나씩 눌러 봐야 한다
+  final Stage? selected;
+
+  final ValueChanged<Stage?> onSelected;
 
   /// 단계 → 인원. 시안: 막대는 비율만, **숫자는 탭이** 보여 준다
   final Map<Stage, int> counts;
@@ -42,6 +46,14 @@ class StageTabs extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // 전체가 맨 앞 — 웹 표의 기본 상태와 같다
+            _Tab(
+              label: '전체',
+              count: counts.values.fold(0, (a, b) => a + b),
+              isSelected: selected == null,
+              onTap: () => onSelected(null),
+            ),
+            const SizedBox(width: AppSpace.s2),
             for (final stage in Stage.values) ...[
               _Tab(
                 label: stage.label,

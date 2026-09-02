@@ -6,7 +6,9 @@
 // 데이터가 바뀌었다고 깨질 이유가 없다.
 
 import 'package:arda/data/mock_data.dart';
+import 'package:arda/data/applicant_repository.dart';
 import 'package:arda/data/posting_repository.dart';
+import 'package:arda/models/applicant.dart';
 import 'package:arda/models/job_posting.dart';
 
 class FakePostingRepository implements PostingRepository {
@@ -35,6 +37,31 @@ class FakePostingRepository implements PostingRepository {
       for (final p in items)
         PostingWithCounts(posting: p, counts: postingCounts(p.id)),
     ];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 지원자 목록 — 목데이터를 그대로 돌려준다.
+class FakeApplicantRepository implements ApplicantRepository {
+  FakeApplicantRepository({
+    this.applicants,
+    this.error,
+    this.delay = Duration.zero,
+  });
+
+  final List<Applicant>? applicants;
+  final Object? error;
+  final Duration delay;
+
+  @override
+  Future<List<Applicant>> byPosting(int postingId) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    return applicants ??
+        mockApplicants.where((a) => a.jobPostingId == postingId).toList();
   }
 
   @override

@@ -29,7 +29,10 @@ Future<void> bootToShell(WidgetTester tester, {String? tab}) async {
     ArdaApp(
       auth: FakeAuthService(),
       initialRoute: Routes.login,
-      repositories: Repositories(postings: FakePostingRepository()),
+      repositories: Repositories(
+        postings: FakePostingRepository(),
+        applicants: FakeApplicantRepository(),
+      ),
     ),
   );
 

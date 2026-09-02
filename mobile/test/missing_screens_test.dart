@@ -14,6 +14,8 @@ import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_repos.dart';
+
 final dohyun = mockApplicants.firstWhere((a) => a.name == '김도현');
 final jihoon = mockApplicants.firstWhere((a) => a.name == '박지훈');
 
@@ -36,14 +38,21 @@ void main() {
   group('공고별 지원자 — 검색', () {
     Future<void> open(WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(home: ApplicantsScreen(posting: mockPostings.first)),
+        MaterialApp(
+          home: ApplicantsScreen(
+            posting: mockPostings.first,
+            repository: FakeApplicantRepository(),
+          ),
+        ),
       );
+      // 서버에서 받아 오므로 한 번 정착시켜야 목록이 그려진다 (큐 8)
+      await tester.pumpAndSettle();
     }
 
     testWidgets('검색칸이 단계 탭보다 위에 있다', (tester) async {
       await open(tester);
 
-      final search = find.widgetWithText(TextField, '이름 검색');
+      final search = find.widgetWithText(TextField, '검색어 입력');
       expect(search, findsOneWidget);
       expect(
         tester.getRect(search).top,
