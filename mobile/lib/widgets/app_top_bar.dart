@@ -17,6 +17,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     this.showBack = false,
     this.onSearchPressed,
+    this.onAddPressed,
   });
 
   final String title;
@@ -25,6 +26,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showBack;
 
   final VoidCallback? onSearchPressed;
+
+  /// 만들기 진입점 — 공고 탭의 [+] (2026-09-02). 검색 오른쪽에 온다:
+  /// 거르는 것보다 만드는 것이 덜 잦아 손에서 먼 쪽이 맞다
+  final VoidCallback? onAddPressed;
 
   /// 터치 타깃 44 + 위아래 여백 8 = 60
   static const _height = AppLayout.minTouchTarget + AppSpace.s2 * 2;
@@ -85,6 +90,12 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                     icon: Icons.search,
                     semanticLabel: '검색',
                     onPressed: onSearchPressed,
+                  ),
+                if (onAddPressed != null)
+                  AppIconButton(
+                    icon: Icons.add,
+                    semanticLabel: '공고 등록',
+                    onPressed: onAddPressed,
                   ),
               ],
             ),

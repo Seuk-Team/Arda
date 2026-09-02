@@ -687,13 +687,16 @@ class _StageRow extends StatelessWidget {
           const SizedBox(width: AppSpace.s2),
 
           // §0.5: 면접 행에는 확정 시각 / 제안 중 칩.
-          // 목데이터엔 "제안 중" 상태가 없어 확정 아니면 "일정 없음"(웹 문구)이다
+          // 웹 Dashboard.tsx 의 scheduleChip 과 같은 네 갈래다 —
+          // 확정이면 시각, 아니면 제안 중 · 제안 만료 · 일정 없음.
+          // **확정만 연두, 나머지는 전부 무채**(§1 색은 판단에만).
           if (stage == Stage.interview)
             _Chip(
-              label: interview == null
-                  ? '일정 없음'
-                  : '${formatMonthDay(interview.startAt)} '
-                        '${formatTime(interview.startAt)}',
+              label: interview != null
+                  ? '${formatMonthDay(interview.startAt)} '
+                        '${formatTime(interview.startAt)}'
+                  : (mockScheduleStatus[applicant.id] ?? ScheduleStatus.none)
+                        .label,
               confirmed: interview != null,
             )
           else

@@ -69,11 +69,14 @@ void main() {
     expect(find.text('0'), findsNothing);
   });
 
-  testWidgets('로그아웃만 적갈 — 되돌리기 어려운 항목 (§1)', (tester) async {
+  testWidgets('로그아웃도 무채다 — 나가는 것은 판단이 아니다 (§1)', (tester) async {
     await tester.pumpWidget(host());
 
+    // 2026-09-02: 적갈이었는데 되돌렸다. 웹은 로그아웃을 평범한 버튼으로 두고,
+    // §1 은 색을 판단(합격·불합격·실패)에만 쓴다. 설정의 로그아웃과도 같아졌다
     final logout = tester.widget<Text>(find.text('로그아웃'));
-    expect(logout.style!.color, AppColors.danger);
+    expect(logout.style!.color, AppColors.text);
+    expect(logout.style!.color, isNot(AppColors.danger));
 
     final settings = tester.widget<Text>(find.text('설정'));
     expect(settings.style!.color, AppColors.text);

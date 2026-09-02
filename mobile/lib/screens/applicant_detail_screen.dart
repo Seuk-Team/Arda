@@ -84,6 +84,10 @@ class ApplicantDetailScreen extends StatelessWidget {
                     },
                   ),
 
+                  // 웹 C7(2026-09-02)과 같은 자리 — 지원 정보 바로 다음
+                  const SizedBox(height: AppSpace.s3),
+                  FilesBlock(applicationId: applicant.id),
+
                   const SizedBox(height: AppSpace.s3),
                   MailBlock(applicantName: applicant.name),
 

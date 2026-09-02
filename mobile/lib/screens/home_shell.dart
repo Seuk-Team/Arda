@@ -55,7 +55,13 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppTopBar(title: _titles[_current]!),
+      appBar: AppTopBar(
+        title: _titles[_current]!,
+        // 공고 탭에만 [+] — 다른 탭에서 만들 것이 없다 (2026-09-02)
+        onAddPressed: _current == AppTab.postings
+            ? () => Navigator.pushNamed(context, Routes.postingNew)
+            : null,
+      ),
       body: IndexedStack(
         index: AppTab.values.indexOf(_current),
         children: [

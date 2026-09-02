@@ -32,3 +32,22 @@ class Interview {
   final DateTime startAt;
   final DateTime endAt;
 }
+
+/// 일정 제안의 상태 — 웹 `SchedulePublicOut.status` 와 같은 값.
+///
+/// 담당자가 후보 시간을 보내면 `proposed`, 지원자가 고르면 `confirmed`,
+/// 기한이 지나면 `expired` 다. 아직 보내지 않았으면 서버가 null 을 준다(= [none]).
+///
+/// 화면 문구는 웹 `Dashboard.tsx` 의 `scheduleChip` 그대로다.
+/// **확정만 연두, 나머지는 전부 무채** — 05-design §1 "색은 판단에만" 이고,
+/// 제안 만료는 판단이 아니라 진행 상태다.
+enum ScheduleStatus {
+  none('일정 없음'),
+  proposed('일정 제안 중'),
+  confirmed(''), // 확정은 문구 대신 시각을 적는다
+  expired('제안 만료');
+
+  const ScheduleStatus(this.label);
+
+  final String label;
+}

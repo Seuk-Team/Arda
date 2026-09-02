@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
 import '../models/app_user.dart';
+import '../routes.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_top_bar.dart';
 
@@ -161,7 +162,14 @@ class _Account extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(AppSpace.s4),
+      // 비밀번호 변경·로그아웃이 붙으면서 목록이 화면보다 길어졌다. 아래 여백에
+      // 내비게이션 바 높이를 더하지 않으면 마지막 버튼이 그 뒤로 들어간다
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.s4,
+        AppSpace.s4,
+        AppSpace.s4,
+        AppSpace.s4 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         _LockedField(label: '이름', value: user.name),
         _LockedField(label: '이메일', value: user.email),
@@ -172,7 +180,105 @@ class _Account extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: _LockedButton('저장'),
         ),
+
+        // 비밀번호 변경 — 웹 설정에 있는데 앱엔 없었다(2026-09-02 추가).
+        // 위 이름·이메일과 같은 [저장] 으로 묶지 않는다: 바뀌는 대상이 다르고
+        // 현재 비밀번호 확인이 따로 필요하다. 웹도 별도 폼이다.
+        const _Divider(),
+        const _SectionTitle('비밀번호 변경'),
+        const _LockedField(label: '현재 비밀번호', value: '••••••••'),
+        const _LockedField(label: '새 비밀번호', value: '••••••••'),
+        const _LockedField(label: '새 비밀번호 확인', value: '••••••••'),
+        const SizedBox(height: AppSpace.s4),
+        const Align(
+          alignment: Alignment.centerRight,
+          child: _LockedButton('변경'),
+        ),
+
+        // 로그아웃 — 웹 836bc01 반영. 이 탭에서 **유일하게 실제로 도는 동작**이라
+        // 잠긴 [저장]·[변경] 과 섞이면 안 된다. 더보기에도 있다(웹의 우측 상단 자리).
+        const _Divider(),
+        Align(alignment: Alignment.centerRight, child: _LogoutButton()),
       ],
+    );
+  }
+}
+
+/// 구획 사이 실선 — 잠긴 것과 도는 것을 가른다.
+class _Divider extends StatelessWidget {
+  const _Divider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpace.s5),
+      child: Divider(
+        height: AppShape.borderW,
+        thickness: AppShape.borderW,
+        color: AppColors.border,
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.s4),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.h2,
+          fontWeight: FontWeight.w700,
+          color: AppColors.text,
+          shadows: AppTextShadow.heading,
+        ),
+      ),
+    );
+  }
+}
+
+/// 잠기지 않은 유일한 버튼. 더보기의 로그아웃과 같은 동작이다 —
+/// 로그인 화면으로 보내고 뒤로 스택을 비운다.
+class _LogoutButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.bgElev,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppShape.ctl,
+        side: BorderSide(color: AppColors.border, width: AppShape.borderW),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.pushNamedAndRemoveUntil(
+          context,
+          Routes.login,
+          (_) => false,
+        ),
+        highlightColor: AppColors.bgSunken,
+        splashColor: AppColors.bgSunken,
+        child: Container(
+          height: AppLayout.minTouchTarget,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.s5),
+          alignment: Alignment.center,
+          child: const Text(
+            '로그아웃',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              fontWeight: AppType.wSemiBold,
+              color: AppColors.text,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

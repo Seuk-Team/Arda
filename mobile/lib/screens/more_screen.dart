@@ -63,7 +63,7 @@ class MoreScreen extends StatelessWidget {
             _Item(
               icon: Icons.logout,
               label: '로그아웃',
-              danger: true,
+              exits: true,
               // 스택을 비우고 로그인으로 — 뒤로가기로 앱 안에 다시 들어오면 안 된다.
               // 큐 7 에서 저장한 토큰을 지우는 일이 여기 붙는다
               onTap: () => Navigator.pushNamedAndRemoveUntil(
@@ -203,7 +203,7 @@ class _Item extends StatelessWidget {
     required this.label,
     this.badge,
     this.trailing,
-    this.danger = false,
+    this.exits = false,
     this.onTap,
   });
 
@@ -216,8 +216,12 @@ class _Item extends StatelessWidget {
   /// 오른쪽에 붙는 현재 값 (예: 알림 "켬")
   final String? trailing;
 
-  /// 로그아웃처럼 되돌리기 어려운 항목 — 05-design §1 의 적갈
-  final bool danger;
+  /// 로그아웃처럼 **더 들어가지 않고 나가는** 항목 — 오른쪽 화살표를 두지 않는다.
+  ///
+  /// 예전에는 적갈로도 칠했는데 무채로 되돌렸다(2026-09-02): 웹은 로그아웃을
+  /// 평범한 버튼으로 두고, §1 은 색을 판단(합격·불합격·실패)에만 쓴다.
+  /// 나가는 것은 판단이 아니다.
+  final bool exits;
 
   final VoidCallback? onTap;
 
@@ -225,8 +229,6 @@ class _Item extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? AppColors.danger : AppColors.text;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -239,21 +241,17 @@ class _Item extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 22,
-                color: danger ? AppColors.danger : AppColors.textSub,
-              ),
+              Icon(icon, size: 22, color: AppColors.textSub),
               const SizedBox(width: AppSpace.s3),
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: AppType.fontFamily,
                     fontSize: AppType.body,
-                    color: color,
+                    color: AppColors.text,
                   ),
                 ),
               ),
@@ -267,7 +265,7 @@ class _Item extends StatelessWidget {
                     color: AppColors.textSub,
                   ),
                 ),
-              if (!danger) ...[
+              if (!exits) ...[
                 const SizedBox(width: AppSpace.s2),
                 const Icon(
                   Icons.chevron_right,

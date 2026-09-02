@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/ai_summary.dart';
 import '../models/applicant.dart';
+import '../models/applicant_file.dart';
 import '../models/application_note.dart';
 import '../models/email_log.dart';
 import '../models/stage_history.dart';
@@ -22,7 +23,7 @@ import '../utils/format.dart';
 /// > 두고 출처는 제목("아르의 요약")이 말한다.
 ///
 /// 액션을 요구하지 않는 것에 앰버를 쓰면 "뭘 눌러야 하나"로 읽힌다.
-/// 아르 화면의 **제안 카드는 앰버 점선 그대로**다 — 그쪽은 승인 버튼이 있다.
+/// 아르 화면의 명단 카드도 같은 이유로 정보 블록이다 — 확정 버튼이 없다.
 class ArSummaryBlock extends StatelessWidget {
   const ArSummaryBlock({super.key, required this.applicant});
 
@@ -178,6 +179,127 @@ class _SummaryList extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 첨부 파일 — 웹 `ApplicantPanel.tsx`(C7, 2026-09-02)를 옮긴 것.
+/// 웹과 같이 **지원 정보 바로 다음**이다.
+///
+/// 웹은 한 줄에 이름·종류·크기를 다 넣지만 375px 엔 안 들어간다 —
+/// 이름 위, 종류·크기 아래 두 줄로 나눈다.
+///
+/// **비어 있어도 블록을 그린다.** 담당자가 직접 등록한 사람(D6)은 파일이 없는데,
+/// 블록째 사라지면 "아직 안 붙었나" 와 "원래 없다" 가 구별되지 않는다.
+class FilesBlock extends StatelessWidget {
+  const FilesBlock({super.key, required this.applicationId});
+
+  final int applicationId;
+
+  @override
+  Widget build(BuildContext context) {
+    final files = mockFiles[applicationId] ?? const <ApplicantFile>[];
+
+    return DetailPanel(
+      title: '첨부 파일',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (files.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpace.s2),
+              child: Text(
+                // 웹과 같은 문구
+                '첨부된 파일이 없습니다.',
+                style: TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.sm,
+                  color: AppColors.textSub,
+                ),
+              ),
+            )
+          else
+            for (var i = 0; i < files.length; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpace.s2),
+              _FileRow(file: files[i]),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FileRow extends StatelessWidget {
+  const _FileRow({required this.file});
+
+  final ApplicantFile file;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.bgElev,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppShape.ctl,
+        side: BorderSide(color: AppColors.border, width: AppShape.borderW),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        // 큐 8: POST /files/{id}/presign-download → 받은 URL 을 브라우저로 넘긴다
+        onTap: () => ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('${file.filename} (아직 열 수 없음)'))),
+        // §5: 모바일은 hover 없음 전제 — press 만 정의한다
+        highlightColor: AppColors.bgSunken,
+        splashColor: AppColors.bgSunken,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.s3,
+            vertical: AppSpace.s2,
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.description_outlined,
+                size: 20,
+                color: AppColors.textSub,
+              ),
+              const SizedBox(width: AppSpace.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      // 긴 파일명은 두 줄까지 — 확장자가 잘리면 무슨 파일인지 모른다
+                      file.filename,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: AppType.fontFamily,
+                        fontSize: AppType.sm,
+                        fontWeight: AppType.wSemiBold,
+                        height: 1.4,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${file.kind.label} · ${file.sizeLabel}',
+                      style: const TextStyle(
+                        fontFamily: AppType.fontFamily,
+                        fontSize: AppType.caption,
+                        fontFeatures: AppType.tabularNums,
+                        color: AppColors.textSub,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

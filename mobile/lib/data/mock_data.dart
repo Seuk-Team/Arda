@@ -11,6 +11,7 @@ import '../models/app_user.dart';
 import '../models/ai_summary.dart';
 import '../models/ar_message.dart';
 import '../models/applicant.dart';
+import '../models/applicant_file.dart';
 import '../models/application_note.dart';
 import '../models/email_log.dart';
 import '../models/job_posting.dart';
@@ -898,4 +899,86 @@ final mockNotes = <int, List<ApplicationNote>>{
       createdAt: DateTime(2026, 3, 13),
     ),
   ],
+};
+
+/// 지원자별 첨부 파일 — 01-erd `files`. 지원자는 이력서·자기소개서 2종을 낸다.
+///
+/// 접수 경로에 따라 없을 수도 있다: 담당자가 직접 등록한 사람(D6)은 파일이
+/// 없고, 지원 폼으로 들어온 사람만 있다. 박지훈은 그래서 비어 있다 —
+/// 상세에서 "첨부된 파일이 없습니다." 가 나오는 것이 정상이다.
+final mockFiles = <int, List<ApplicantFile>>{
+  1: [
+    ApplicantFile(
+      id: 1,
+      applicationId: 1,
+      filename: '김도현_이력서.pdf',
+      kind: FileKind.resume,
+      sizeBytes: 245_760,
+      contentType: 'application/pdf',
+      createdAt: DateTime(2026, 3, 12, 20, 15),
+    ),
+    ApplicantFile(
+      id: 2,
+      applicationId: 1,
+      filename: '김도현_자기소개서.pdf',
+      kind: FileKind.coverLetter,
+      sizeBytes: 90_112,
+      contentType: 'application/pdf',
+      createdAt: DateTime(2026, 3, 12, 20, 15),
+    ),
+  ],
+  2: [
+    ApplicantFile(
+      id: 3,
+      applicationId: 2,
+      filename: 'christopher_vandeberg_cv_2026_final_v3.pdf',
+      kind: FileKind.resume,
+      sizeBytes: 1_887_437,
+      contentType: 'application/pdf',
+      createdAt: DateTime(2026, 3, 12, 20, 16),
+    ),
+  ],
+  4: [
+    ApplicantFile(
+      id: 4,
+      applicationId: 4,
+      filename: '정우진_이력서.pdf',
+      kind: FileKind.resume,
+      sizeBytes: 178_176,
+      contentType: 'application/pdf',
+      createdAt: DateTime(2026, 3, 11, 10, 27),
+    ),
+  ],
+  5: [
+    ApplicantFile(
+      id: 5,
+      applicationId: 5,
+      filename: '윤하늘_이력서.pdf',
+      kind: FileKind.resume,
+      sizeBytes: 132_096,
+      contentType: 'application/pdf',
+      createdAt: DateTime(2026, 3, 10, 21, 34),
+    ),
+    ApplicantFile(
+      id: 6,
+      applicationId: 5,
+      filename: '윤하늘_포트폴리오.pdf',
+      kind: FileKind.coverLetter,
+      sizeBytes: 3_355_443,
+      contentType: 'application/pdf',
+      createdAt: DateTime(2026, 3, 10, 21, 34),
+    ),
+  ],
+};
+
+/// 지원자별 일정 제안 상태 — 대시보드 면접 행의 칩이 쓴다.
+///
+/// 웹은 `GET /dashboard` 응답의 `schedules[지원자 id]` 로 받는다. 목데이터엔
+/// 확정된 면접만 있어서 제안 중·만료를 볼 수가 없었다 — 세 상태를 다 넣는다.
+/// 확정은 [mockInterviewFor] 가 실제 면접을 갖고 있는지로 정해지므로 여기 없다.
+final mockScheduleStatus = <int, ScheduleStatus>{
+  // 크리스토퍼 — 후보 시간을 보냈고 아직 답이 없다
+  2: ScheduleStatus.proposed,
+  // 강민수 — 기한이 지났다. 담당자가 다시 보내야 한다
+  6: ScheduleStatus.expired,
 };

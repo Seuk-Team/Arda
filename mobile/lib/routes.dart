@@ -34,6 +34,9 @@ abstract final class Routes {
   /// 설정 — 더보기 → 설정. 인자 없음
   static const settings = '/settings';
 
+  /// 공고 등록 (2026-09-02) — 공고 탭 상단 [+]
+  static const postingNew = '/postings/new';
+
   /// 지원자 상세. 인자로 Applicant 를 받는다
   static const applicantDetail = '/applicants/detail';
 }
