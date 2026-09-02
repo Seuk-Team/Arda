@@ -73,19 +73,6 @@ export default function Interview() {
     }
   }
 
-  async function finish() {
-    setPending(true)
-    setNotice(null)
-    try {
-      await api.post(`/public/interview/${token}/finish`, {}, { auth: false })
-      await load()
-    } catch (err) {
-      setNotice(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
-    } finally {
-      setPending(false)
-    }
-  }
-
   return (
     <div className={styles.page}>
       <main className={styles.column}>
@@ -185,9 +172,6 @@ export default function Interview() {
                   />
                   {notice && <p className={styles.error} role="alert">{notice}</p>}
                   <div className={styles.actions}>
-                    <button type="button" className="btn" disabled={pending} onClick={finish}>
-                      그만하기
-                    </button>
                     <button
                       type="button"
                       className="btn btn-primary"
