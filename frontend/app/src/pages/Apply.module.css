@@ -199,6 +199,22 @@
   color: var(--text-sub);
 }
 
+.prog {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progFill {
+  display: block;
+  height: 100%;
+  background: var(--leaf);
+  border-radius: 2px;
+  transition: width var(--dur-fast) linear;
+}
+
 /* 제출 실패·중복 지원 문구. --danger 는 §1 확정 토큰 */
 .error {
   margin: 0;

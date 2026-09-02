@@ -71,7 +71,23 @@ function checkFile(file: File): string | null {
   return null
 }
 
-async function upload(file: File, kind: FileKind): Promise<SubmittedFile> {
+/* fetch 는 progress 이벤트를 지원하지 않아 XHR 로 S3 PUT 을 보낸다 */
+function xhrPut(url: string, file: File, contentType: string, onProgress: (pct: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
+    xhr.setRequestHeader('Content-Type', contentType)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () =>
+      xhr.status < 300 ? resolve() : reject(new Error(`파일을 올리지 못했습니다 (${xhr.status})`))
+    xhr.onerror = () => reject(new Error('파일을 올리지 못했습니다'))
+    xhr.send(file)
+  })
+}
+
+async function upload(file: File, kind: FileKind, onProgress: (pct: number) => void): Promise<SubmittedFile> {
   const contentType = contentTypeOf(file)
   const presign = await api.post<PresignOut>(
     '/public/files/presign-upload',
@@ -81,12 +97,7 @@ async function upload(file: File, kind: FileKind): Promise<SubmittedFile> {
 
   /* S3 직행이라 여기만 api 클라이언트를 쓰지 않는다 — 우리 서버가 아니다.
      서명에 들어간 Content-Type 과 다르게 올리면 S3 가 거부한다. */
-  const put = await fetch(presign.upload_url, {
-    method: 'PUT',
-    headers: { 'Content-Type': contentType },
-    body: file,
-  })
-  if (!put.ok) throw new Error(`파일을 올리지 못했습니다 (${put.status})`)
+  await xhrPut(presign.upload_url, file, contentType, onProgress)
 
   return {
     s3_key: presign.s3_key,
@@ -114,6 +125,8 @@ export default function Apply() {
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resumePct, setResumePct] = useState<number | null>(null)
+  const [coverPct, setCoverPct] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -158,8 +171,8 @@ export default function Apply() {
     setPending(true)
     try {
       const files: SubmittedFile[] = []
-      if (resume) files.push(await upload(resume, 'resume'))
-      if (coverLetter) files.push(await upload(coverLetter, 'cover_letter'))
+      if (resume) files.push(await upload(resume, 'resume', setResumePct))
+      if (coverLetter) files.push(await upload(coverLetter, 'cover_letter', setCoverPct))
 
       await api.post(
         `/public/postings/${load.posting.id}/applications`,
@@ -251,8 +264,8 @@ export default function Apply() {
           />
         </label>
 
-        <FilePick label="이력서" file={resume} onPick={setResume} disabled={pending} />
-        <FilePick label="자기소개서 파일" file={coverLetter} onPick={setCoverLetter} disabled={pending} />
+        <FilePick label="이력서" file={resume} onPick={setResume} disabled={pending} pct={resumePct} />
+        <FilePick label="자기소개서 파일" file={coverLetter} onPick={setCoverLetter} disabled={pending} pct={coverPct} />
         <p className={styles.hint}>PDF · DOCX · HWP · 10MB 이하</p>
 
         <label className={styles.agree}>
@@ -328,11 +341,13 @@ function FilePick({
   file,
   onPick,
   disabled,
+  pct,
 }: {
   label: string
   file: File | null
   onPick: (f: File | null) => void
   disabled?: boolean
+  pct?: number | null
 }) {
   return (
     <label className={styles.label}>
@@ -349,6 +364,11 @@ function FilePick({
           disabled={disabled}
         />
       </span>
+      {pct !== null && pct !== undefined && (
+        <span className={styles.prog} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <span className={styles.progFill} style={{ width: `${pct}%` }} />
+        </span>
+      )}
     </label>
   )
 }
