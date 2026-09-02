@@ -728,7 +728,7 @@ cd frontend/mockups && for f in mockup*.html; do echo "$(sed -n '/^:root{/,/^}/p
 | 접수 확인 메일 | **`sent`** — 기존 15건이 `failed` 인 것과 달리 성공했다 |
 | 단계 이력 | `(없음) → applied` |
 
-**업로드가 실제로 됐다는 근거**: [`Apply.tsx`](../../frontend/app/src/pages/Apply.tsx) 가 `if (!put.ok) throw` 라서 S3 가 거부하면 제출 자체가 중단된다. **제출이 끝났다는 것이 곧 브라우저→S3 PUT 이 2xx 였다는 뜻이다.** 08/31 에 막혀 있던 CORS 경로가 열려 있음이 실측으로 확인됐다. `s3_key` 도 서버가 정한 UUID 경로(`applications/<uuid>/resume.pdf`)로 들어갔다 — 설계대로다.
+**업로드가 실제로 됐다는 근거**: [`Apply.tsx`](../../frontend/app/src/pages/Apply.tsx) 가 **업로드 실패 시 예외를 던져 제출 자체를 중단**시킨다. (실측 당시 코드는 `if (!put.ok) throw` 였고, 같은 날 10:11 `123cac0` 이 진행률 바를 넣으며 XHR 로 바꿨다 — `xhr.status < 300` 이 아니면 reject, `onerror` 도 reject 라 **불변조건은 그대로다.** 근거가 코드 한 줄이 아니라 이 성질이라는 뜻이다.) **제출이 끝났다는 것이 곧 브라우저→S3 PUT 이 2xx 였다는 뜻이다.** 08/31 에 막혀 있던 CORS 경로가 열려 있음이 실측으로 확인됐다. `s3_key` 도 서버가 정한 UUID 경로(`applications/<uuid>/resume.pdf`)로 들어갔다 — 설계대로다.
 
 **🔴 걸린 것 — 담당자가 첨부를 볼 화면이 없다.** `presign`·`s3_key` 가 프론트 전체에서 **`Apply.tsx` 하나에만** 있다. 지원자가 올리는 쪽만 있고 **받아보는 쪽 화면이 없다.** 파일은 S3 에 있고 `GET /files/{id}/presign-download` 도 살아 있다 — **화면만 없다.** 게이트 문구가 "담당자 쪽에서 확인까지"이므로 **이걸 통과로 볼지는 게이트 판정자(팀장) 판단이다.** 화면은 프론트 도메인(cloverky) 물량.
 
