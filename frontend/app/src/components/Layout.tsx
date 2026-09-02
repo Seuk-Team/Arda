@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ArPanel, { type ArMotion } from './ArPanel'
 import MorphNav from './MorphNav'
 import { useRightPanel } from './RightPanel'
+import { useAuth } from '../auth/AuthContext'
 import type { Motion } from './ArViewer'
 import styles from './Layout.module.css'
 
 export default function Layout() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  function handleLogout() {
+    logout()
+    navigate('/login')
+  }
+
   /* 열림 상태는 오른쪽 패널 한 자리를 나눠 쓰는 쪽들이 같이 본다 (RightPanel) */
   const { active, toggle, close } = useRightPanel()
   const arOpen = active === 'ar'
@@ -52,6 +61,9 @@ export default function Layout() {
         />
         {/* 전환이 페이드아웃·페이드인 대상으로 잡는 본문 껍데기 */}
         <main className={styles.main} data-morph-shell="">
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout}>
+            로그아웃
+          </button>
           <Outlet />
         </main>
         {/* 2026-09-01 — 사이드바 옆(왼쪽)에서 화면 오른쪽 끝으로 옮겼다 */}
