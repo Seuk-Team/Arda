@@ -622,6 +622,78 @@ class InterviewFinding(Base):
 
     session: Mapped["InterviewSession"] = relationship(back_populates="findings")
 
+# ── 인적성(사전 성향) 설문 — ADR-0027 ────────────────────────────────
+
+
+class AptitudeSession(Base):
+    """사전 성향 설문 한 건. 담당자가 발송하고 지원자가 토큰 링크로 응답한다.
+
+    접수 후·서류검토 전에 보내 응답이 서류검토 참고자료가 된다 (ADR-0027).
+    토큰 공개 접근·조회 시점 만료 판정은 interview_sessions 와 같은 패턴이고,
+    재발송도 같은 철학이다 — 새 행을 만들고 옛 행은 남긴다.
+
+    **AI 면접 테이블에 얹지 않는다** — 저쪽은 음성 전제(audio_s3_key·stt_cost)라
+    구조화 응답인 이 기능과 스키마가 다르다 (ADR-0027 결정 5).
+    """
+
+    __tablename__ = "aptitude_sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    application_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("applications.id"), nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    # pending | done | expired
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'pending'")
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # AI 관찰 요약 — 응답 사실의 재서술 한 문단. 유형 판정·점수를 만들지 않는다
+    # (ADR-0027 결정 3). 통계는 저장하지 않는다 — answers 에서 코드로 계산한다.
+    ai_summary: Mapped[str | None] = mapped_column(Text)
+    ai_summary_model: Mapped[str | None] = mapped_column(String(200))
+    created_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    answers: Mapped[list["AptitudeAnswer"]] = relationship(
+        back_populates="session", order_by="AptitudeAnswer.id"
+    )
+
+
+class AptitudeAnswer(Base):
+    """문항 하나에 대한 리커트 응답 하나.
+
+    `question_text` 를 응답 시점 그대로 박아 둔다 — 문항 상수가 나중에 바뀌어도
+    지원자가 실제로 본 문장이 남는다. interview_findings 가 원문을 인용해 두는
+    것과 같은 이유다: 지원자가 반박할 수 있어야 한다.
+    """
+
+    __tablename__ = "aptitude_answers"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("aptitude_sessions.id"), nullable=False
+    )
+    question_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # 리커트 1(전혀 그렇지 않다) ~ 5(매우 그렇다)
+    value: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    session: Mapped["AptitudeSession"] = relationship(back_populates="answers")
+
+    __table_args__ = (
+        UniqueConstraint("session_id", "question_key", name="uq_aptitude_answers_key"),
+    )
+
+
 # ── application_embeddings — 시맨틱 검색용 벡터 (ADR-0017) ─────────
 EMBEDDING_DIM = 768
 

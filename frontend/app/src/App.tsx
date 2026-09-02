@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Apply from './pages/Apply'
 import Schedule from './pages/Schedule'
 import Interview from './pages/Interview'
+import Aptitude from './pages/Aptitude'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
 import PostingApplicants from './pages/PostingApplicants'
@@ -42,6 +43,8 @@ export default function App() {
         <Route path="/schedule/:token" element={<Schedule />} />
         {/* 지원자용 AI 면접 — 메일 링크 착지점. 로그인 밖 */}
         <Route path="/interview/:token" element={<Interview />} />
+        {/* 사전 성향 설문 — 메일 링크의 토큰 접근 (ADR-0027) */}
+        <Route path="/aptitude/:token" element={<Aptitude />} />
         {/* 아르 3D 모션 검토용. 내비 미노출·데이터 접근 없음 → 로그인 게이트 밖 */}
         <Route
           path="/dev/ar"

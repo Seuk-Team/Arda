@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { applications, postings as postingsApi, stages as stagesApi } from '../api/endpoints'
+import { applications, aptitude as aptitudeApi, postings as postingsApi, stages as stagesApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, Stage } from '../api/types'
 import { STAGE_LABEL, careerText, fmtDate, stageTone, withRo } from '../lib/stage'
 import ApplicantPanel from './ApplicantPanel'
@@ -58,6 +58,9 @@ export default function PostingApplicants() {
   const [stage, setStage] = useState<Stage | null>(null)
   const [page, setPage] = useState(0)
   const [view, setView] = useState<'list' | 'kanban'>('list')
+  /* 성향 설문 일괄 발송 (ADR-0027) — 결과는 이유별 건수로 보여준다 */
+  const [aptSending, setAptSending] = useState(false)
+  const [aptMsg, setAptMsg] = useState<string | null>(null)
 
   /* 상세 패널에 열려 있는 지원자. 아르 패널과 오른쪽 한 자리를 나눠 쓴다 —
      아르를 열면 이쪽이 닫힌다 (RightPanel) */
@@ -103,6 +106,19 @@ export default function PostingApplicants() {
     prevActive.current = rightPanel.active
     if (was === 'applicant' && rightPanel.active !== 'applicant') setOpenId(null)
   }, [rightPanel.active])
+
+  async function aptBulkSend() {
+    setAptSending(true)
+    setAptMsg(null)
+    try {
+      const r = await aptitudeApi.bulkSend(postingId)
+      setAptMsg(`성향 설문 발송 ${r.sent}건 · 이미 발송 ${r.skipped_already_sent}건 · 대상 단계 아님 ${r.skipped_stage}건`)
+    } catch (e) {
+      setAptMsg(e instanceof ApiError ? e.message : '설문을 보내지 못했습니다')
+    } finally {
+      setAptSending(false)
+    }
+  }
 
   /* 일괄 단계 변경 (D9) — 고른 사람들 */
   const [picked, setPicked] = useState<Set<number>>(new Set())
@@ -345,6 +361,16 @@ export default function PostingApplicants() {
           </button>
         )}
 
+        <button
+          type="button"
+          className={styles.chip}
+          disabled={aptSending}
+          title="접수·서류검토 단계 중 아직 안 받은 전원에게 사전 성향 설문 링크를 메일로 보냅니다 (ADR-0027)"
+          onClick={() => void aptBulkSend()}
+        >
+          {aptSending ? '설문 발송 중…' : '성향 설문 일괄 발송'}
+        </button>
+
         {/* 칸반은 큐 8번(D2·D3)이라 아직 없다. 자리만 두고 잠가 둔다 */}
         <div className={styles.vtoggle} role="group" aria-label="보기 방식">
           <button
@@ -365,6 +391,8 @@ export default function PostingApplicants() {
           </button>
         </div>
       </div>
+
+      {aptMsg && <p className={styles.aptMsg} role="status">{aptMsg}</p>}
 
       {/* 고른 사람이 있을 때만 뜬다. D9 — 한 번에 200명까지 */}
       {picked.size > 0 && (

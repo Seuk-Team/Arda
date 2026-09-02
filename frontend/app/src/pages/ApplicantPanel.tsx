@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
-import { applications, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
-import type { ApplicationDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage } from '../api/types'
+import { applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
+import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import styles from './ApplicantPanel.module.css'
@@ -267,6 +267,8 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
 
           <MailSection applicationId={applicationId} />
 
+          <AptitudeSection applicationId={applicationId} />
+
           <InterviewSection applicationId={applicationId} />
 
           <div className={styles.sec}>
@@ -363,6 +365,137 @@ const IV_STATUS_LABEL: Record<string, string> = {
   in_progress: '진행 중',
   done: '완료',
   expired: '만료',
+}
+
+/* 사전 성향 설문 (ADR-0027) — 응답 통계·원문과 아르의 관찰 요약.
+   요약은 응답 사실의 재서술뿐이다(유형 판정·점수 없음) — 판단 재료는
+   통계·원문이고, 그래서 원문을 요약과 나란히 펼 수 있게 둔다.
+   미응답은 불이익이 아니다 — 문구도 그렇게 쓴다. */
+function AptitudeSection({ applicationId }: { applicationId: number }) {
+  const [detail, setDetail] = useState<AptitudeDetail | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [showAnswers, setShowAnswers] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      setDetail(await aptitudeApi.detail(applicationId))
+      setFailed(false)
+    } catch {
+      /* 구버전 서버·목 모드 — 섹션을 조용히 비운다. 패널의 다른 정보는 그대로다 */
+      setFailed(true)
+    }
+  }, [applicationId])
+
+  useEffect(() => { void load() }, [load])
+
+  async function send() {
+    setSending(true)
+    setErr(null)
+    try {
+      await aptitudeApi.sendOne(applicationId)
+      await load()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '설문을 보내지 못했습니다')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function copyUrl(url: string) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* ignore */ }
+  }
+
+  if (failed || detail === null) return null
+
+  return (
+    <div className={styles.sec}>
+      <h2>성향 설문</h2>
+
+      {detail.status === 'none' && (
+        <>
+          <p className={styles.state}>발송 이력이 없습니다. 응답은 선택 사항 — 미응답은 불이익이 되지 않습니다.</p>
+          <div className={styles.actions}>
+            <button type="button" className={styles.btnStage} disabled={sending} onClick={send}>
+              {sending ? '보내는 중…' : '설문 링크 보내기'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {detail.status === 'pending' && (
+        <>
+          <p className={styles.state}>
+            응답 대기 중{detail.expires_at ? ` · ${fmtDate(detail.expires_at)}까지` : ''} — 미응답은 불이익이 되지 않습니다.
+          </p>
+          {detail.url && (
+            <div className={styles.actions}>
+              <button type="button" className={styles.btnStage} onClick={() => void copyUrl(detail.url as string)}>
+                {copied ? '복사됨' : '링크 복사'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {detail.status === 'expired' && (
+        <>
+          <p className={styles.state}>링크가 만료되었습니다.</p>
+          <div className={styles.actions}>
+            <button type="button" className={styles.btnStage} disabled={sending} onClick={send}>
+              {sending ? '보내는 중…' : '다시 보내기'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {detail.status === 'done' && (
+        <>
+          {detail.submitted_at && (
+            <p className={styles.state}>{fmtDate(detail.submitted_at)} 제출</p>
+          )}
+
+          {detail.stats.length > 0 && (
+            <dl className={styles.list}>
+              {detail.stats.map((s) => [
+                <dt key={`${s.category}-t`}>{s.label}</dt>,
+                <dd key={`${s.category}-d`}>{s.mean.toFixed(1)} / 5 ({s.count}문항)</dd>,
+              ])}
+            </dl>
+          )}
+
+          {detail.ai_summary ? (
+            <div className={styles.aibox}>
+              <p className={styles.aibody}>{detail.ai_summary}</p>
+            </div>
+          ) : (
+            <p className={styles.state}>요약이 아직 없습니다 — 통계·응답 원문으로 확인해 주세요.</p>
+          )}
+
+          <div className={styles.actions}>
+            <button type="button" className={styles.btnStage} onClick={() => setShowAnswers((v) => !v)}>
+              {showAnswers ? '응답 원문 접기' : `응답 원문 보기 (${detail.answers.length})`}
+            </button>
+          </div>
+          {showAnswers && (
+            <ul className={styles.ailist}>
+              {detail.answers.map((a) => (
+                <li key={a.question_key}>{a.question_text} — <strong>{a.value}</strong></li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {err && <p className={styles.err} role="alert">{err}</p>}
+    </div>
+  )
 }
 
 function InterviewSection({ applicationId }: { applicationId: number }) {

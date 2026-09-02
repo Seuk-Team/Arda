@@ -276,3 +276,63 @@ export interface InterviewSessionDetail extends InterviewSession {
   turns: InterviewTurn[]
   findings: InterviewFinding[]
 }
+
+/* ── 인적성(사전 성향) 설문 (ADR-0027) ───────────────────────────── */
+
+export interface AptitudePublicQuestion {
+  key: string
+  text: string
+}
+
+export interface AptitudePublic {
+  status: 'pending' | 'done' | 'expired'
+  applicant_name: string
+  posting_title: string
+  expires_at: string | null
+  /* pending 일 때만 온다 */
+  questions: AptitudePublicQuestion[]
+  /* JSON 키는 문자열 — "1"~"5" */
+  likert_labels: Record<string, string>
+}
+
+export interface AptitudeAnswerItem {
+  question_key: string
+  question_text: string
+  value: number
+}
+
+export interface AptitudeCategoryStat {
+  category: string
+  label: string
+  mean: number
+  count: number
+}
+
+export interface AptitudeDetail {
+  status: 'none' | 'pending' | 'done' | 'expired'
+  url: string | null
+  expires_at: string | null
+  submitted_at: string | null
+  answers: AptitudeAnswerItem[]
+  stats: AptitudeCategoryStat[]
+  /* AI 관찰 요약 — 재서술 한 문단. 없으면(생성 전·실패) null — 통계만으로 화면이 선다 */
+  ai_summary: string | null
+  ai_summary_model: string | null
+}
+
+export interface AptitudeBulkSendOut {
+  sent: number
+  skipped_already_sent: number
+  skipped_stage: number
+}
+
+export interface AptitudeSessionOut {
+  id: number
+  application_id: number
+  status: string
+  token: string
+  url: string
+  expires_at: string | null
+  submitted_at: string | null
+  created_at: string
+}

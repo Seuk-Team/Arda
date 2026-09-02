@@ -195,3 +195,21 @@ export const agent = {
       { signal },
     ),
 }
+
+/* ── 인적성(사전 성향) 설문 (ADR-0027) ─────────────────────────────
+   맨 위 import 블록을 건드리지 않으려고 여기서 따로 들여온다 (agent 와 같은 이유). */
+import type { AptitudeBulkSendOut, AptitudeDetail, AptitudeSessionOut } from './types'
+
+export const aptitude = {
+  /* 공고 단위 일괄 발송 — "아직 안 받은 전원에게". 빠진 건수가 이유별로 돌아온다 */
+  bulkSend: (postingId: number) =>
+    api.post<AptitudeBulkSendOut>(`/postings/${postingId}/aptitude/send`, {}),
+
+  /* 개별 발송·재발송 — 매번 새 세션. 접수·서류검토 단계가 아니면 422 */
+  sendOne: (applicationId: number) =>
+    api.post<AptitudeSessionOut>(`/applications/${applicationId}/aptitude/send`, {}),
+
+  /* 담당자 조회 — 최신 세션의 응답·통계·AI 요약. 없으면 status:"none" */
+  detail: (applicationId: number, signal?: AbortSignal) =>
+    api.get<AptitudeDetail>(`/applications/${applicationId}/aptitude`, { signal }),
+}

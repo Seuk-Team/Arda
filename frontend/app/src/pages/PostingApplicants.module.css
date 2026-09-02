@@ -563,3 +563,12 @@
     display: none;
   }
 }
+
+/* 성향 설문 일괄 발송 결과 — 사라지는 토스트가 아니라 줄로 남긴다:
+   건수 셋(발송·이미 발송·단계 제외)을 읽고 있을 시간이 필요하다 */
+.aptMsg {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}

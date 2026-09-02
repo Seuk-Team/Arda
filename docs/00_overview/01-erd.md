@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.6 · 2026-09-02** — v1.6: AI 면접 3테이블 `interview_sessions`·`interview_turns`·`interview_findings` 추가 ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md)). **alembic `0003`** 으로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
+> **상태: 확정 v1.7 · 2026-09-02** — v1.7: 인적성(사전 성향) 설문 2테이블 `aptitude_sessions`·`aptitude_answers` 추가 ([ADR-0027](../03_decision/0027-인적성-검사.md)). **alembic `0004`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
+> v1.6 · 2026-09-02 — v1.6: AI 면접 3테이블 `interview_sessions`·`interview_turns`·`interview_findings` 추가 ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md)). **alembic `0003`** 으로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.5 · 2026-09-01 — v1.5: 설정 실동작·메일 발송 ([G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md)). `users.is_active` 추가, `email_logs` 에 `subject`·`body`·`actor_kind`·`actor_id` 추가 + `stage` 에 `custom` 허용, 신규 `email_templates`. **기존 DB 는 `backend/scripts/upgrade_settings_mail.sql` 1회성 실행이 필요하다** — `create_all` 은 컬럼을 추가하지 못한다.
 > v1.4 (2026-08-31): 시맨틱 검색용 `application_embeddings` 를 문서에 반영 ([ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md)). 테이블은 코드에 먼저 들어가 있었고 이 문서가 비어 있었다 — 문서를 코드에 맞췄다.
 > v1.3 (2026-08-31): `users.role` 을 `admin`/`member` 2종으로 축소, A3(면접관 조회 제한) 폐지 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 테이블·컬럼 구조는 그대로다 — 바뀐 것은 `role` 의 허용값과 접근 규칙뿐.
@@ -35,6 +36,9 @@ erDiagram
     applications ||--o| application_embeddings : "임베딩"
     users ||--o{ email_logs : "발송 주체"
     users ||--o{ email_templates : "문구 수정"
+    applications ||--o{ aptitude_sessions : "성향 설문"
+    aptitude_sessions ||--o{ aptitude_answers : "응답"
+    users ||--o{ aptitude_sessions : "발송"
 ```
 
 ## 단계(stage) — 고정 enum
@@ -332,3 +336,36 @@ erDiagram
 
 - **점수 컬럼이 없다. 일부러다.** 합불에 곱해지는 수치를 만들면 [ADR-0003](../03_decision/0003-ai-추천만.md)("AI 는 추천까지만")이 무너진다. 갈래는 셋뿐이고 판단은 사람이 한다
 - **양쪽 원문을 그대로 담는 이유**: 지원자가 반박할 수 있어야 한다. 목소리에서 심리 상태를 추론하지 않는 대신 근거를 인용해 보여 주는 것이 이 기능의 값이다(ADR-0026)
+## aptitude_sessions — 인적성(사전 성향) 설문 세션 (v1.7)
+
+담당자가 발송하고 지원자가 토큰 링크로 응답하는 사전 성향 설문 한 건. **접수 후·서류검토 전에 보내 응답이 서류검토 참고자료가 된다.** ([ADR-0027](../03_decision/0027-인적성-검사.md))
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| application_id | bigint | FK → applications.id, NOT NULL | 재발송은 새 행 — UNIQUE 아님 |
+| token | varchar(64) | UNIQUE, NOT NULL | 지원자 공개 접근 토큰. `interview_sessions.token` 과 같은 패턴 |
+| status | varchar(20) | NOT NULL, 기본 `pending` | `pending` / `done` / `expired` |
+| expires_at | timestamptz | NULL 허용 | 링크 만료. 스케줄러 없이 조회 시점 판정 |
+| submitted_at | timestamptz | NULL 허용 | 제출 시각 |
+| ai_summary | text | NULL 허용 | **AI 관찰 요약 — 응답 사실의 재서술 한 문단.** 유형 판정·점수 없음 (ADR-0027 결정 3) |
+| ai_summary_model | varchar(200) | NULL 허용 | `applications.ai_summary_model` 과 같은 규약 (모델 태그 + 프롬프트 태그) |
+| created_by | bigint | FK → users.id, NOT NULL | 발송한 담당자 |
+| created_at | timestamptz | NOT NULL | |
+
+- **AI 면접 테이블에 얹지 않았다** — 저쪽은 음성 전제(`audio_s3_key`·`stt_cost_usd`)라 구조화 응답인 이 기능과 스키마가 다르다 (ADR-0027 결정 5)
+- 통계(카테고리 평균)는 저장하지 않는다 — `aptitude_answers` 에서 코드로 계산한다. LLM 이 죽어도 통계는 뜬다
+- **미응답을 불이익화하는 컬럼이 없다. 일부러다** — 정렬 가중치·필터 기본값 어디에도 응답 여부를 끼워 넣지 않는다 (ADR-0027 결정 4)
+
+## aptitude_answers — 설문 문항 응답 (v1.7)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| session_id | bigint | FK → aptitude_sessions.id, NOT NULL | |
+| question_key | varchar(50) | NOT NULL | 문항 상수 key. `(session_id, question_key)` UNIQUE |
+| question_text | text | NOT NULL | **응답 시점의 문항 문구 스냅샷** — 상수가 바뀌어도 지원자가 본 문장이 남는다 (interview_findings 의 원문 인용과 같은 이유) |
+| value | smallint | NOT NULL | 리커트 1(전혀 그렇지 않다)~5(매우 그렇다) |
+| created_at | timestamptz | NOT NULL | |
+
+- 문항은 DB 가 아니라 **코드 상수**다 (`backend/app/aptitude_questions.py`, 10문항·5카테고리). 문항 편집 UI 는 만들지 않는다 (ADR-0027 결정 2)
