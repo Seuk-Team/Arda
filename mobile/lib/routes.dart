@@ -19,6 +19,9 @@ abstract final class Routes {
   /// 로그인 — 아직 첫 화면이 아니다
   static const login = '/login';
 
+  /// 앱 시작 — 저장된 토큰을 확인하고 홈이나 로그인으로 보낸다 (큐 7)
+  static const launch = '/launch';
+
   /// 한 공고의 지원자 리스트. 인자로 JobPosting 을 받는다
   static const applicants = '/applicants';
 

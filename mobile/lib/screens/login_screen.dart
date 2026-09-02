@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../api/api_error.dart';
+import '../auth/auth_service.dart';
+import '../auth/current_user.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 
@@ -9,13 +12,16 @@ import '../theme/tokens.dart';
 ///
 /// **앱의 첫 화면이다**(2026-09-01). 통과하면 탭 셸(홈)로 간다.
 ///
-/// **아직 진짜 로그인은 아니다** — 비밀번호를 검사하지 않고 아무 값이나 통과한다.
-/// JWT 연동과 secure storage 는 큐 7번이고, 그때 [_submit] 이 POST /auth/login
-/// 이 되며 실패 문구 자리도 여기 생긴다.
+/// **진짜 로그인이다**(큐 7, 2026-09-02) — `POST /auth/login` 을 부르고 받은
+/// 토큰을 Keystore 에 넣는다.
 ///
-/// 개발 중 로그인을 건너뛰려면 `flutter run --route=/` 로 띄운다.
+/// 틀린 비밀번호와 끊긴 네트워크는 **다른 문구**로 갈린다: 앞의 것은 다시
+/// 입력하면 되고, 뒤의 것은 입력해 봐야 소용이 없다.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.auth});
+
+  /// 테스트가 가짜 서비스를 넣는 자리. 평소에는 null 이라 진짜가 만들어진다
+  final AuthService? auth;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -25,6 +31,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
 
+  late final AuthService _auth = widget.auth ?? AuthService();
+
+  /// 보내는 중 — 버튼을 잠그고 스피너를 돌린다. 두 번 눌러 두 번 보내지 않는다
+  bool _sending = false;
+
+  /// 마지막 실패 문구. 다시 입력하기 시작하면 지운다 —
+  /// 고치는 중에 남아 있으면 방금 것이 또 틀린 줄 안다
+  String? _error;
+
   @override
   void initState() {
     super.initState();
@@ -33,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _password.addListener(_onChanged);
   }
 
-  void _onChanged() => setState(() {});
+  void _onChanged() => setState(() => _error = null);
 
   @override
   void dispose() {
@@ -43,12 +58,36 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   bool get _canSubmit =>
-      _email.text.trim().isNotEmpty && _password.text.trim().isNotEmpty;
+      !_sending &&
+      _email.text.trim().isNotEmpty &&
+      _password.text.trim().isNotEmpty;
 
-  void _submit() {
-    // 큐 7번에서 POST /auth/login → 토큰 저장 → 실패 시 아래 오류 문구로 바뀐다.
-    // 착지점은 탭 셸이고, 셸은 홈(대시보드)에서 시작한다
-    Navigator.pushReplacementNamed(context, Routes.home);
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+
+    try {
+      final user = await _auth.login(
+        email: _email.text.trim(),
+        // 비밀번호는 trim 하지 않는다 — 앞뒤 공백도 비밀번호의 일부다
+        password: _password.text,
+      );
+      if (!mounted) return;
+      // 더보기·설정이 여기서 읽는다 — 화면마다 /auth/me 를 다시 부르지 않는다
+      CurrentUserScope.notifierOf(context)?.value = user;
+      // 착지점은 탭 셸이고, 셸은 홈(대시보드)에서 시작한다.
+      // pushReplacement 라 뒤로가기로 로그인 화면에 돌아오지 않는다
+      Navigator.pushReplacementNamed(context, Routes.home);
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _sending = false;
+      });
+    }
   }
 
   @override
@@ -112,6 +151,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       autofillHints: const [AutofillHints.password],
                       onSubmitted: _canSubmit ? (_) => _submit() : null,
                     ),
+                    // 실패 문구는 버튼 **위**에 둔다 — 버튼을 누르고 눈이
+                    // 그 자리에 있는데 아래에 뜨면 못 본다
+                    if (_error != null) ...[
+                      const SizedBox(height: AppSpace.s4),
+                      _ErrorNote(_error!),
+                    ],
                     const SizedBox(height: AppSpace.s4),
 
                     SizedBox(
@@ -119,7 +164,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       height: AppLayout.minTouchTarget,
                       child: FilledButton(
                         onPressed: _canSubmit ? _submit : null,
-                        child: const Text('로그인'),
+                        child: _sending
+                            // 글자를 지우지 않고 그 자리에 스피너를 둔다 —
+                            // 버튼 크기가 변하면 눌린 자리가 흔들린다
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.bgElev,
+                                ),
+                              )
+                            : const Text('로그인'),
                       ),
                     ),
                   ],
@@ -283,6 +339,42 @@ class _Field extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 로그인 실패 문구 — 적갈 테두리의 낮은 상자.
+///
+/// 05-design §1: 색은 판단에만. 로그인 실패는 "이대로는 안 된다"는 판정이라
+/// 적갈이 맞다. 토스트로 띄우지 않는 이유는 사라지기 때문이다 — 다시 입력하는
+/// 동안 무엇이 틀렸는지 보이는 편이 낫다.
+class _ErrorNote extends StatelessWidget {
+  const _ErrorNote(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.s3,
+        vertical: AppSpace.s3,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.dangerSoft,
+        borderRadius: AppShape.ctl,
+        border: Border.all(color: AppColors.danger, width: AppShape.borderW),
+      ),
+      child: Text(
+        message,
+        style: const TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.sm,
+          height: 1.5,
+          color: AppColors.danger,
+        ),
+      ),
     );
   }
 }

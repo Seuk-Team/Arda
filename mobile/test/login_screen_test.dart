@@ -1,6 +1,10 @@
 // 로그인 — 목업 JS 와 같은 규칙: 둘 다 채워야 버튼이 살아난다.
-// 실제 인증은 큐 7번이라 여기서는 화면 동작만 본다.
+//
+// 큐 7(2026-09-02)로 진짜 호출이 붙었다. 여기서는 [FakeAuthService] 로 응답을
+// 정해 주고 **화면이 어떻게 반응하는지**만 본다 — 서버가 맞게 답하는지는
+// 백엔드 테스트의 몫이다.
 
+import 'package:arda/api/api_error.dart';
 import 'package:arda/main.dart';
 import 'package:arda/routes.dart';
 import 'package:arda/screens/login_screen.dart';
@@ -10,56 +14,119 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'app_boot.dart';
+import 'fake_auth.dart';
 
 void main() {
-  Widget app() => MaterialApp(
+  /// 로그인 화면만 띄운다 — 버튼 활성화 같은 화면 규칙을 볼 때.
+  Widget app({FakeAuthService? auth}) => MaterialApp(
     theme: buildAppTheme(),
     initialRoute: Routes.login,
     home: null,
     onGenerateRoute: (settings) => MaterialPageRoute(
       settings: settings,
-      builder: (_) => const LoginScreen(),
+      builder: (_) => LoginScreen(auth: auth ?? FakeAuthService()),
     ),
   );
 
-  testWidgets('빈 칸이면 로그인 버튼이 비활성이다', (tester) async {
-    await tester.pumpWidget(app());
+  /// 앱 전체를 로그인 화면부터 띄운다 — 통과 후 어디로 가는지를 볼 때.
+  Widget bootedApp({FakeAuthService? auth}) =>
+      ArdaApp(auth: auth ?? FakeAuthService(), initialRoute: Routes.login);
 
-    final button = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(button.onPressed, isNull);
-  });
-
-  testWidgets('이메일만 채우면 아직 비활성이다', (tester) async {
-    await tester.pumpWidget(app());
-
-    await tester.enterText(find.byType(TextField).first, 'a@b.com');
-    await tester.pump();
-
-    final button = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(button.onPressed, isNull);
-  });
-
-  testWidgets('둘 다 채우면 활성이 된다', (tester) async {
-    await tester.pumpWidget(app());
-
+  Future<void> fill(WidgetTester tester) async {
     await tester.enterText(find.byType(TextField).first, 'a@b.com');
     await tester.enterText(find.byType(TextField).last, 'pw');
     await tester.pump();
+  }
+
+  group('버튼 활성화', () {
+    testWidgets('빈 칸이면 로그인 버튼이 비활성이다', (tester) async {
+      await tester.pumpWidget(app());
+
+      final button = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('이메일만 채우면 아직 비활성이다', (tester) async {
+      await tester.pumpWidget(app());
+
+      await tester.enterText(find.byType(TextField).first, 'a@b.com');
+      await tester.pump();
+
+      final button = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('둘 다 채우면 활성이 된다', (tester) async {
+      await tester.pumpWidget(app());
+      await fill(tester);
+
+      final button = tester.widget<FilledButton>(find.byType(FilledButton));
+      expect(button.onPressed, isNotNull);
+    });
+  });
+
+  group('실패 문구 — 원인마다 다르다', () {
+    testWidgets('비밀번호가 틀리면 다시 입력하라고 한다', (tester) async {
+      await tester.pumpWidget(
+        app(auth: FakeAuthService(error: const LoginFailed())),
+      );
+      await fill(tester);
+
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('이메일 또는 비밀번호가 올바르지 않습니다.'), findsOneWidget);
+      // 로그인 화면에 그대로 남는다
+      expect(find.byType(LoginScreen), findsOneWidget);
+    });
+
+    testWidgets('서버에 못 닿으면 다른 문구다 — 입력해 봐야 소용없다', (tester) async {
+      await tester.pumpWidget(
+        app(auth: FakeAuthService(error: const NetworkError())),
+      );
+      await fill(tester);
+
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('네트워크를 확인'), findsOneWidget);
+    });
+
+    testWidgets('다시 입력하면 문구가 사라진다 — 방금 것이 또 틀린 줄 안다', (tester) async {
+      await tester.pumpWidget(
+        app(auth: FakeAuthService(error: const LoginFailed())),
+      );
+      await fill(tester);
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+      expect(find.text('이메일 또는 비밀번호가 올바르지 않습니다.'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).last, 'pw2');
+      await tester.pump();
+
+      expect(find.text('이메일 또는 비밀번호가 올바르지 않습니다.'), findsNothing);
+    });
+  });
+
+  testWidgets('보내는 동안 버튼이 잠긴다 — 두 번 눌러 두 번 보내지 않는다', (tester) async {
+    await tester.pumpWidget(
+      app(auth: FakeAuthService(delay: const Duration(milliseconds: 200))),
+    );
+    await fill(tester);
+
+    await tester.tap(find.text('로그인'));
+    await tester.pump(); // 보내기 시작
 
     final button = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(button.onPressed, isNotNull);
+    expect(button.onPressed, isNull);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    await tester.pumpAndSettle();
   });
 
   testWidgets('로그인하면 홈(대시보드)으로 넘어간다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
-
-    final ctx = tester.element(find.byType(Navigator).first);
-    Navigator.pushNamed(ctx, Routes.login);
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField).first, 'a@b.com');
-    await tester.enterText(find.byType(TextField).last, 'pw');
-    await tester.pump();
+    await tester.pumpWidget(bootedApp());
+    await fill(tester);
 
     await tester.tap(find.text('로그인'));
     await tester.pumpAndSettle();
@@ -68,16 +135,43 @@ void main() {
     expect(find.byType(LoginScreen), findsNothing);
   });
 
-  testWidgets('앱을 켜면 로그인이 먼저다 — 탭바는 아직 없다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
+  testWidgets('로그인한 사람 이름이 더보기에 뜬다 — 목데이터가 아니다', (tester) async {
+    await tester.pumpWidget(
+      bootedApp(auth: FakeAuthService(user: testUser.copyWithName('문해린'))),
+    );
+    await fill(tester);
+    await tester.tap(find.text('로그인'));
+    await tester.pumpAndSettle();
 
-    expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.byType(AppBottomNav), findsNothing);
+    await tester.tap(find.text('더보기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('문해린'), findsOneWidget);
   });
 
-  testWidgets('로고 아래 부제 — 무슨 서비스인지 알려 준다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
-    expect(find.text('채용 관리'), findsOneWidget);
+  group('화면 생김새', () {
+    testWidgets('앱을 켜면 로그인이 먼저다 — 탭바는 아직 없다', (tester) async {
+      await tester.pumpWidget(bootedApp());
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(AppBottomNav), findsNothing);
+    });
+
+    testWidgets('로고 아래 부제 — 무슨 서비스인지 알려 준다', (tester) async {
+      await tester.pumpWidget(bootedApp());
+      expect(find.text('채용 관리'), findsOneWidget);
+    });
+
+    testWidgets('아르 마크 · 로고 · 부제가 같은 세로선에 선다', (tester) async {
+      await tester.pumpWidget(bootedApp());
+
+      final markX = tester.getCenter(find.byType(Image)).dx;
+      final logoX = tester.getCenter(find.textContaining('rda')).dx;
+      final tagX = tester.getCenter(find.text('채용 관리')).dx;
+
+      expect(logoX, moreOrLessEquals(markX, epsilon: 1));
+      expect(tagX, moreOrLessEquals(markX, epsilon: 1));
+    });
   });
 
   testWidgets('로그아웃하면 로그인으로 돌아가고 스택이 비워진다', (tester) async {
@@ -93,16 +187,5 @@ void main() {
       find.byType(Navigator).first,
     );
     expect(navigator.canPop(), isFalse);
-  });
-
-  testWidgets('아르 마크 · 로고 · 부제가 같은 세로선에 선다', (tester) async {
-    await tester.pumpWidget(const ArdaApp());
-
-    final markX = tester.getCenter(find.byType(Image)).dx;
-    final logoX = tester.getCenter(find.textContaining('rda')).dx;
-    final tagX = tester.getCenter(find.text('채용 관리')).dx;
-
-    expect(logoX, moreOrLessEquals(markX, epsilon: 1));
-    expect(tagX, moreOrLessEquals(markX, epsilon: 1));
   });
 }

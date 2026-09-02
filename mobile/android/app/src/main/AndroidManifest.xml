@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 큐 7(2026-09-02): 서버에 붙으려면 필요하다.
+         debug·profile 빌드는 Flutter 가 자동으로 넣어 주지만 **release 는 아니다** —
+         없으면 배포한 APK 에서만 모든 요청이 조용히 실패한다. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="Arda"
         android:name="${applicationName}"

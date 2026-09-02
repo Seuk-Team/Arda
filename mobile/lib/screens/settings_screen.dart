@@ -14,8 +14,9 @@ library;
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../auth/current_user.dart';
+import '../auth/logout.dart';
 import '../models/app_user.dart';
-import '../routes.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_top_bar.dart';
 
@@ -45,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final me = widget.user ?? mockUser;
+    final me = widget.user ?? CurrentUserScope.of(context) ?? mockUser;
 
     return Scaffold(
       appBar: const AppTopBar(title: '설정', showBack: true),
@@ -257,11 +258,9 @@ class _LogoutButton extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Navigator.pushNamedAndRemoveUntil(
-          context,
-          Routes.login,
-          (_) => false,
-        ),
+        // 더보기의 로그아웃과 같은 함수다 — 한쪽만 토큰을 지우면
+        // 나간 줄 알았는데 다음에 켤 때 그대로 들어가진다
+        onTap: () => logout(context),
         highlightColor: AppColors.bgSunken,
         splashColor: AppColors.bgSunken,
         child: Container(

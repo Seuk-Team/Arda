@@ -12,6 +12,8 @@ library;
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../auth/current_user.dart';
+import '../auth/logout.dart';
 import '../models/app_user.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
@@ -24,7 +26,9 @@ class MoreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final me = user ?? mockUser;
+    // 로그인한 사람이 우선. 아직 못 받았으면(테스트·개발 중 직접 띄운 경우)
+    // 목데이터로 그린다 — 프로필 카드가 통째로 비면 화면이 깨져 보인다
+    final me = user ?? CurrentUserScope.of(context) ?? mockUser;
 
     return ListView(
       padding: const EdgeInsets.all(AppSpace.s4),
@@ -64,13 +68,7 @@ class MoreScreen extends StatelessWidget {
               icon: Icons.logout,
               label: '로그아웃',
               exits: true,
-              // 스택을 비우고 로그인으로 — 뒤로가기로 앱 안에 다시 들어오면 안 된다.
-              // 큐 7 에서 저장한 토큰을 지우는 일이 여기 붙는다
-              onTap: () => Navigator.pushNamedAndRemoveUntil(
-                context,
-                Routes.login,
-                (route) => false,
-              ),
+              onTap: () => logout(context),
             ),
           ],
         ),

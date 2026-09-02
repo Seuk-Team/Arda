@@ -41,3 +41,24 @@ class AppUser {
   String get initial =>
       name.isEmpty ? '?' : String.fromCharCode(name.runes.first).toUpperCase();
 }
+
+/// 서버 응답 → 모델. `UserOut`(backend/app/schemas/auth.py) 을 판다.
+///
+/// `is_active` 는 담지 않는다 — 비활성 계정은 서버가 로그인 자체를 막으므로
+/// 앱이 받은 사용자는 늘 활성이다. 설정의 사용자·권한 목록은 남의 계정이라
+/// 다른 모델이 받는다.
+extension AppUserJson on AppUser {
+  static AppUser fromJson(Map<String, dynamic> json) => AppUser(
+    id: json['id'] as int,
+    email: json['email'] as String,
+    name: json['name'] as String,
+    role: _role(json['role'] as String?),
+  );
+
+  /// 모르는 역할 코드가 오면 권한이 좁은 쪽으로 붙인다 — 서버가 최종 판정자라
+  /// 화면이 admin 으로 넘겨짚어 봐야 호출은 어차피 403 이다
+  static UserRole _role(String? value) => UserRole.values.firstWhere(
+    (r) => r.value == value,
+    orElse: () => UserRole.member,
+  );
+}

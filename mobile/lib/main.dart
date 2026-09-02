@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'auth/auth_service.dart';
+import 'auth/current_user.dart';
 import 'models/applicant.dart';
 import 'models/job_posting.dart';
 import 'routes.dart';
@@ -13,12 +15,13 @@ import 'screens/posting_new_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/stage_history_screen.dart';
+import 'screens/launch_screen.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
   _registerFontLicense();
-  runApp(const ArdaApp());
+  runApp(ArdaApp());
 }
 
 /// 번들한 IBM Plex Sans KR 의 라이선스를 앱에 등록한다.
@@ -33,25 +36,39 @@ void _registerFontLicense() {
 }
 
 class ArdaApp extends StatelessWidget {
-  const ArdaApp({super.key});
+  ArdaApp({super.key, this.auth, this.initialRoute});
+
+  /// 테스트가 가짜 인증을 넣는 자리. 평소에는 null 이라 진짜가 만들어진다
+  final AuthService? auth;
+
+  /// 테스트가 시작 화면(토큰 확인)을 건너뛰는 자리
+  final String? initialRoute;
+
+  /// 로그인한 사람. 시작 화면·로그인 화면이 채우고 더보기·설정이 읽는다 (큐 7)
+  final _user = CurrentUser();
 
   @override
   Widget build(BuildContext context) {
+    return CurrentUserScope(notifier: _user, auth: auth, child: _app());
+  }
+
+  Widget _app() {
     return MaterialApp(
       title: '아르다',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       // 05-design §0-4: 라이트 온리. 기기가 다크 모드여도 따라가지 않는다
       themeMode: ThemeMode.light,
-      // 첫 화면은 로그인이다. 통과하면 탭 셸(홈)로 간다.
+      // 첫 화면은 시작 화면이다 — 저장된 토큰이 아직 쓸 수 있으면 홈으로,
+      // 아니면 로그인으로 보낸다. 토큰이 12시간짜리라 켤 때마다 로그인시키면
+      // 그 12시간이 의미가 없다 (큐 7).
       //
-      // 아직 인증이 없어 아무 값이나 넣으면 통과한다 — 큐 7(JWT)에서
-      // POST /auth/login 과 토큰 저장이 붙으면 여기가 진짜 문이 된다.
       // 개발 중 로그인을 건너뛰려면: flutter run --route=/
-      initialRoute: Routes.login,
+      initialRoute: initialRoute ?? Routes.launch,
       routes: {
         Routes.home: (_) => const HomeShell(),
-        Routes.login: (_) => const LoginScreen(),
+        Routes.launch: (_) => LaunchScreen(auth: auth),
+        Routes.login: (_) => LoginScreen(auth: auth),
         Routes.evaluationQueue: (_) => const EvaluationQueueScreen(),
         Routes.settings: (_) => const SettingsScreen(),
         Routes.postingNew: (_) => const PostingNewScreen(),

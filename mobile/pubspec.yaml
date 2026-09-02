@@ -35,6 +35,16 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # 큐 7 (JWT 로그인) — 2026-09-02
+  #
+  # http: 얇은 HTTP 클라이언트. dio 는 인터셉터·재시도가 필요할 때 값을 하는데,
+  # 우리 서버는 리프레시 토큰이 없어 갱신 로직이 없고 처리할 것이 401 하나뿐이다.
+  http: ^1.2.2
+  #
+  # flutter_secure_storage: 토큰 보관. shared_preferences 는 평문이라 쓰지 않는다 —
+  # Android 는 Keystore 에 넣는다. 12시간짜리 토큰이라도 남의 계정이다.
+  flutter_secure_storage: ^9.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
