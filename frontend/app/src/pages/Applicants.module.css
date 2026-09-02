@@ -340,6 +340,9 @@
 
 /* ── 모바일 툴바 ─────────────────────────────────── */
 .mobileToolbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky, 10);
   flex: none;
   background: var(--bg-elev);
   border-bottom: var(--border-w) solid var(--border);
