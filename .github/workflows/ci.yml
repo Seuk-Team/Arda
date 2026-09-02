@@ -1,0 +1,115 @@
+# .github/workflows/ci.yml
+#
+# ⚠️ 이 파일은 **인프라 도메인**(bestcow) 이다. 백엔드 오너(woojeongalex)가 2026-09-02 에
+#    게이트(09/04) 를 앞두고 먼저 올렸다 — 사후 공지 대상. 방향 변경은 인프라 오너 판단.
+#
+# 목적: main 이 깨졌는지 사람이 우연히 발견하는 상태를 끝낸다.
+# 09/01 하루에 깨진 main 을 두 번 발견했고 둘 다 우연이었다(`d7fdd10`·`d96749e`).
+#
+# 게이트가 아니다 — 리뷰 없이 main 직접 push 하는 체계(2026-08-28 개정)를 그대로 두고,
+# 깨졌다는 사실만 즉시 보이게 한다. 브랜치 보호는 인프라 오너 판단.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 같은 브랜치에 연달아 push 하면 앞의 실행을 취소한다 — 무료 러너 분을 아낀다
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 백엔드 테스트 (pytest)
+    runs-on: ubuntu-latest
+
+    services:
+      # 순정 postgres 에는 vector 확장이 없다. 없어도 conftest 가
+      # application_embeddings 만 건너뛰고 돌지만, 그러면 임베딩 경로가
+      # CI 에서 통째로 안 돈다 — 로컬 docker-compose 와 같은 이미지를 쓴다
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: arda_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # 미설정은 production 으로 잠겨 import 단계에서 죽는다 (#122).
+      # conftest 도 setdefault 로 넣지만, 여기서도 명시해 의도를 남긴다
+      APP_ENV: dev
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/arda_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 버전을 고정하지 않는다. backend/Dockerfile 은 uv 0.5.11 을 박아 두는데
+      # 지금 uv.lock 은 `revision = 3`(최신 포맷)이라 옛 uv 가 못 읽을 수 있다.
+      # 그 불일치는 별건으로 정리한다 — 여기서 따라 박으면 CI 가 먼저 죽는다
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # Dockerfile 의 python:3.12-slim 과 맞춘다
+
+      # torch(CPU) 를 끌어오므로 **첫 실행은 몇 분** 걸린다. uv 캐시가 붙으면 짧아진다.
+      # (로컬 실측은 캐시가 이미 있는 상태였다 — CI 첫 실행 시간은 여기서 재지 못했다)
+      # --frozen: uv.lock 을 그대로 쓴다. 락이 낡았으면 여기서 실패하는 게 맞다
+      - name: 의존성 설치
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: pgvector 확장
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d arda_ci \
+            -c 'CREATE EXTENSION IF NOT EXISTS vector'
+
+      # 스키마를 alembic 으로 올려 본다 — 마이그레이션 자체의 회귀를 여기서 잡는다.
+      # (테스트는 conftest 의 create_all 로도 돌지만, 그러면 alembic 이 깨져도 초록이다)
+      # alembic 은 dev 그룹 의존이라 위 `uv sync --frozen` 으로 이미 들어와 있다(`b99a7b8`).
+      - name: alembic upgrade head
+        working-directory: backend
+        run: uv run alembic upgrade head
+
+      # 로컬 실측(2026-09-02): 486 passed / 88.6초.
+      # 로드맵 W5 완료 기준이 "30초 내" 라 지금 3배다 — 큐 22번(J8) 소관.
+      - name: pytest
+        working-directory: backend
+        run: uv run pytest -q
+
+  frontend:
+    name: 프론트 빌드·린트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"       # 로컬 실측 v22.23.1 과 맞춘다
+          cache: npm
+          cache-dependency-path: frontend/app/package-lock.json
+
+      - name: 설치
+        working-directory: frontend/app
+        run: npm ci
+
+      # 프론트에는 테스트가 없다. tsc -b 가 사실상의 회귀 그물이다
+      - name: 린트
+        working-directory: frontend/app
+        run: npm run lint
+
+      - name: 빌드 (tsc -b + vite build)
+        working-directory: frontend/app
+        run: npm run build
