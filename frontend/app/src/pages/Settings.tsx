@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
@@ -70,7 +71,8 @@ export default function Settings() {
    admin 전용이라, 이게 없으면 member 에게 설정은 읽기 전용 화면이었다. */
 
 function MyAccount() {
-  const { user, refresh } = useAuth()
+  const { user, refresh, logout } = useAuth()
+  const navigate = useNavigate()
   const { show } = useToast()
   const [name, setName] = useState(user?.name ?? '')
   const [current, setCurrent] = useState('')
@@ -166,6 +168,18 @@ function MyAccount() {
       <div className={styles.formActions}>
         <button type="button" className="btn btn-primary" disabled={!canSave} onClick={save}>
           {saving ? '저장 중…' : '저장'}
+        </button>
+      </div>
+
+      <hr className={styles.divider} />
+
+      <div className={styles.formActions}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => { logout(); navigate('/login') }}
+        >
+          로그아웃
         </button>
       </div>
     </div>
