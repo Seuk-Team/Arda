@@ -8,6 +8,7 @@
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -17,6 +18,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Numeric,
     SmallInteger,
     String,
     Text,
@@ -513,6 +515,112 @@ class ScheduleSlot(Base):
         ),
     )
 
+
+
+# ── AI 면접 (ADR-0026) ────────────────────────────────────────────
+# 지원자가 링크로 들어와 아르와 면접을 보고, 전사·근거 대조·평가 초안이 남는다.
+# 설계는 docs/02_tasks/AI면접-설계.md.
+
+
+class InterviewSession(Base):
+    """AI 면접 한 건. 지원자 1명 · 담당자가 만든다.
+
+    지원자는 로그인이 없으므로 ScheduleProposal 과 같은 토큰 공개 접근 패턴을 쓴다(B6).
+    만료는 스케줄러 없이 조회 시점 판정 — B4 마감·일정 제안과 같은 방식이다.
+
+    **영상을 저장하지 않는다** (ADR-0026). 음성만 S3 에 두고 전사한다 — 저장하는 순간
+    민감정보 보관 의무가 붙는데 대리 응시 확인은 실시간 표시로 충분하다.
+    """
+
+    __tablename__ = "interview_sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    application_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("applications.id"), nullable=False
+    )
+    # 지원자 공개 접근 토큰. 메일 링크에 실린다
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    # pending | in_progress | done | expired
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'pending'")
+    )
+    # 녹음·전사·보관 동의 시각. **지원 폼의 개인정보 동의와 별개다** —
+    # 값이 없으면 면접을 시작하지 않는다.
+    consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    turns: Mapped[list["InterviewTurn"]] = relationship(
+        back_populates="session", order_by="InterviewTurn.seq"
+    )
+    findings: Mapped[list["InterviewFinding"]] = relationship(back_populates="session")
+
+
+class InterviewTurn(Base):
+    """질문 하나와 그에 대한 답변 하나.
+
+    답변 음성은 지원 서류와 같은 경로로 올라간다(F1 presigned) — 서버를 안 거친다.
+    `audio_duration_sec`·`stt_cost_usd` 는 기존 원가 관측 규약을 그대로 따른다
+    (SttResponse 와 같은 필드명).
+    """
+
+    __tablename__ = "interview_turns"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("interview_sessions.id"), nullable=False
+    )
+    seq: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    audio_s3_key: Mapped[str | None] = mapped_column(Text)
+    transcript: Mapped[str | None] = mapped_column(Text)
+    audio_duration_sec: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    stt_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    session: Mapped["InterviewSession"] = relationship(back_populates="turns")
+
+    __table_args__ = (
+        UniqueConstraint("session_id", "seq", name="uq_interview_turns_seq"),
+    )
+
+
+class InterviewFinding(Base):
+    """서류의 주장과 면접 발언을 맞춰 본 결과 한 건.
+
+    **점수를 두지 않는다** (ADR-0026 · ADR-0003). 합불에 곱해지는 수치를 만들면
+    "AI 는 추천까지만" 이 무너진다. 갈래는 셋뿐이고 판단은 사람이 한다.
+
+    양쪽 원문을 그대로 담는 이유: **지원자가 반박할 수 있어야 한다.** 목소리에서
+    심리 상태를 추론하지 않는 대신, 근거를 인용해 보여 주는 것이 이 기능의 값이다.
+    """
+
+    __tablename__ = "interview_findings"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("interview_sessions.id"), nullable=False
+    )
+    # 어느 서류의 주장인가 — resume | self_intro
+    claim_source: Mapped[str] = mapped_column(String(20), nullable=False)
+    claim_text: Mapped[str] = mapped_column(Text, nullable=False)  # 원문 인용
+    answer_text: Mapped[str] = mapped_column(Text, nullable=False)  # 원문 인용
+    # consistent | inconsistent | unverified
+    verdict: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    session: Mapped["InterviewSession"] = relationship(back_populates="findings")
 
 # ── application_embeddings — 시맨틱 검색용 벡터 (ADR-0017) ─────────
 EMBEDDING_DIM = 768

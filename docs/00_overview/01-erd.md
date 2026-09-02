@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.5 · 2026-09-01** — v1.5: 설정 실동작·메일 발송 ([G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md)). `users.is_active` 추가, `email_logs` 에 `subject`·`body`·`actor_kind`·`actor_id` 추가 + `stage` 에 `custom` 허용, 신규 `email_templates`. **기존 DB 는 `backend/scripts/upgrade_settings_mail.sql` 1회성 실행이 필요하다** — `create_all` 은 컬럼을 추가하지 못한다.
+> **상태: 확정 v1.6 · 2026-09-02** — v1.6: AI 면접 3테이블 `interview_sessions`·`interview_turns`·`interview_findings` 추가 ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md)). **alembic `0003`** 으로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
+> v1.5 · 2026-09-01 — v1.5: 설정 실동작·메일 발송 ([G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md)). `users.is_active` 추가, `email_logs` 에 `subject`·`body`·`actor_kind`·`actor_id` 추가 + `stage` 에 `custom` 허용, 신규 `email_templates`. **기존 DB 는 `backend/scripts/upgrade_settings_mail.sql` 1회성 실행이 필요하다** — `create_all` 은 컬럼을 추가하지 못한다.
 > v1.4 (2026-08-31): 시맨틱 검색용 `application_embeddings` 를 문서에 반영 ([ADR-0021](../03_decision/0021-RAG-시맨틱-검색.md)). 테이블은 코드에 먼저 들어가 있었고 이 문서가 비어 있었다 — 문서를 코드에 맞췄다.
 > v1.3 (2026-08-31): `users.role` 을 `admin`/`member` 2종으로 축소, A3(면접관 조회 제한) 폐지 ([ADR-0017](../03_decision/0017-등급-이분화.md)). 테이블·컬럼 구조는 그대로다 — 바뀐 것은 `role` 의 허용값과 접근 규칙뿐.
 > v1.2 (2026-08-31): 면접 일정 자동화 3테이블 `interviewer_availability`·`schedule_proposals`·`schedule_slots` 추가 ([ADR-0016](../03_decision/0016-면접-일정-자동화.md))
@@ -282,3 +283,52 @@ erDiagram
 - **pgvector 확장이 필요하다.** 확장이 없는 서버에서는 이 테이블을 만들지 않고 시맨틱 검색만 꺼진 채 API 가 뜬다 ([07-deploy](07-deploy.md) 2026-08-31 절 — 이걸 안 해서 API 가 재시작 루프에 빠진 적이 있다)
 - 생성 시점: 지원서 접수 백그라운드 작업 + 백필 CLI `python -m app.agent.embedder`. 서버 기동 시 자동 생성하지 않는다 (ADR-0011 비용 가드)
 - 이 테이블은 **파생 데이터**다 — 지우고 백필로 다시 만들 수 있다
+
+## interview_sessions — AI 면접 세션 (AI 면접 · v1.6)
+
+지원자가 링크로 들어와 아르와 보는 면접 한 건. 담당자가 만들고 토큰 링크를 메일로 보낸다. ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md) · [설계](../02_tasks/AI면접-설계.md))
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| application_id | bigint | FK → applications.id, NOT NULL | |
+| token | varchar(64) | UNIQUE, NOT NULL | 지원자 공개 접근 토큰. `schedule_proposals.token` 과 같은 패턴(B6) |
+| status | varchar(20) | NOT NULL, 기본 `pending` | `pending` / `in_progress` / `done` / `expired` |
+| consented_at | timestamptz | NULL 허용 | **녹음·전사·보관 동의 시각. 지원 폼의 개인정보 동의와 별개다** — 없으면 면접을 시작하지 않는다 |
+| expires_at | timestamptz | NULL 허용 | 링크 만료. 스케줄러 없이 조회 시점 판정 |
+| started_at · ended_at | timestamptz | NULL 허용 | |
+| created_by | bigint | FK → users.id, NOT NULL | 만든 담당자 |
+| created_at | timestamptz | NOT NULL | |
+
+- **영상을 저장하지 않는다.** 음성만 S3 에 둔다 — 저장하면 민감정보 보관 의무가 붙는데 대리 응시 확인은 실시간 표시로 충분하다(ADR-0026)
+
+## interview_turns — 질문·답변 한 쌍 (AI 면접 · v1.6)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| session_id | bigint | FK → interview_sessions.id, NOT NULL | |
+| seq | smallint | NOT NULL | 순서. `(session_id, seq)` UNIQUE |
+| question | text | NOT NULL | 아르가 낸 질문 |
+| audio_s3_key | text | NULL 허용 | 답변 녹음. F1 presigned 로 브라우저가 직접 올린다 |
+| transcript | text | NULL 허용 | STT 결과 |
+| audio_duration_sec | numeric(10,2) | NULL 허용 | 원가 관측 — `SttResponse` 와 같은 필드명 |
+| stt_cost_usd | numeric(10,6) | NULL 허용 | 〃 |
+| created_at | timestamptz | NOT NULL | |
+
+## interview_findings — 서류 주장 ↔ 면접 발언 대조 (AI 면접 · v1.6)
+
+이력서·자기소개서에 쓴 주장과 면접에서 말한 것을 맞춰 본 결과. **이 기능의 핵심이다.**
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| session_id | bigint | FK → interview_sessions.id, NOT NULL | |
+| claim_source | varchar(20) | NOT NULL | `resume` / `self_intro` |
+| claim_text | text | NOT NULL | **서류 원문 인용** |
+| answer_text | text | NOT NULL | **면접 발언 원문 인용** |
+| verdict | varchar(20) | NOT NULL | `consistent` / `inconsistent` / `unverified` |
+| created_at | timestamptz | NOT NULL | |
+
+- **점수 컬럼이 없다. 일부러다.** 합불에 곱해지는 수치를 만들면 [ADR-0003](../03_decision/0003-ai-추천만.md)("AI 는 추천까지만")이 무너진다. 갈래는 셋뿐이고 판단은 사람이 한다
+- **양쪽 원문을 그대로 담는 이유**: 지원자가 반박할 수 있어야 한다. 목소리에서 심리 상태를 추론하지 않는 대신 근거를 인용해 보여 주는 것이 이 기능의 값이다(ADR-0026)
