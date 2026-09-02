@@ -8,7 +8,7 @@
 
 | 도메인 | 오너 | 폴더 (여기 밖은 내 것이 아니다) | 로드맵 |
 |---|---|---|---|
-| 인프라·총괄 | bestcow | `infra/` · `.github/` · `docker-compose.yml` · AWS | [role/infra.md](../01_role/infra.md) |
+| 인프라·총괄 | bestcow → **woojeongalex (2026-09-02 이관 중, [ADR-0025](../03_decision/0025-운영-권한-이관.md))** | `infra/` · `.github/` · `docker-compose.yml` · AWS | [role/infra.md](../01_role/infra.md) |
 | 프론트엔드 | cloverky | `frontend/` | [role/frontend.md](../01_role/frontend.md) |
 | 에이전트 | suvisdev | `backend/app/agent/` · `backend/app/api/agent.py` | [role/agent.md](../01_role/agent.md) |
 | 앱 | minahdev | `mobile/` | [role/app.md](../01_role/app.md) |

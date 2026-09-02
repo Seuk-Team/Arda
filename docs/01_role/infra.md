@@ -1,6 +1,6 @@
 # 인프라·총괄 로드맵
 
-> **오너**: bestcow (팀장) · **폴더**: `infra/` · `.github/` · `docker-compose.yml` · AWS 리소스 전부 · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
+> **오너**: bestcow (팀장) → **woojeongalex 로 이관 중 (2026-09-02, [ADR-0025](../03_decision/0025-운영-권한-이관.md) 체크리스트 11번이 끝나면 완료)** · **폴더**: `infra/` · `.github/` · `docker-compose.yml` · AWS 리소스 전부 · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
 > 공통 규칙은 [04-team.md](../00_overview/04-team.md).
 
 ## 일정 · 운영 (전 도메인 공통)
