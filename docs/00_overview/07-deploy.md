@@ -1,6 +1,6 @@
 # 07. 배포 — 실서버 구성과 사용법
 
-> **작성**: 2026-08-27 bestcow (인프라) · W2 실배포 1차 완료분. 변경은 인프라 도메인 소관.
+> **작성**: 2026-08-27 bestcow (인프라) · W2 실배포 1차 완료분. 변경은 인프라 도메인 소관. **2026-09-02 작성자 이탈** — 서버·AWS 를 만질 수 있는 사람은 woojeongalex(IAM `arda-ops`)뿐이다. 인계 요약은 [09-handover.md](09-handover.md).
 
 ## 주소 (전 팀원 공통)
 
@@ -27,7 +27,7 @@
 메일: api → SQS 큐 → worker → SES (샌드박스 — 해제 신청 08/27 거절, 검증된 수신자만 발송 가능)
 ```
 
-- EC2: 서울, t3.micro + 스왑 2G, 고정 IP(Elastic IP). SSH는 팀장 PC에서만 열려 있다.
+- EC2: 서울, t3.micro + 스왑 2G, 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
 - 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구.
 - 서버 compose는 `docker-compose.prod.yml`(로컬 개발용 루트 compose와 별개 — --reload 없음, DB 포트 비공개).
 - **S3 버킷 CORS (2026-08-31 설정)**: 이력서는 브라우저에서 S3 로 직행하는데, 버킷에 CORS 규칙이 **없어서 브라우저 업로드가 막혀 있었다.** 아래를 넣어 풀었다.
@@ -108,7 +108,7 @@ API 전체가 안 뜬 것**이다.
 
 **서버 `.env` 에 `MAIL_REPLY_TO=seukathon@gmail.com`** (2026-09-01 설정). Reply-To 는 SES 검증 대상이 아니라 실제 수신 가능한 메일함이면 된다. **비우면 아르·시스템 발송의 회신이 증발한다** — 문구가 전부 "이 메일에 회신해 주시기 바랍니다"라고 말하기 때문이다. 합격·불합격은 주체와 무관하게 사람 이름으로 서명한다(설계 근거는 [G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md) 결정 6~8).
 
-## 재배포 (현재는 수동 — 팀장)
+## 재배포 (현재는 수동 — IAM `arda-ops` 권한자, 2026-09-02 부터 woojeongalex)
 
 main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. **CI/CD(J4, main 머지 시 자동 배포)는 W3에 이 절차를 대체한다.** 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
 
@@ -169,9 +169,9 @@ psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql
 
 ## 주의
 
-- 시크릿(SSH 키·admin 비밀번호·API 키)은 이 문서에 없다 — 필요하면 팀장에게.
+- 시크릿(admin 비밀번호·API 키·서버 `.env`)은 이 문서에 없다 — 서버 `~/arda/backend/.env` 가 유일한 원본이고, 읽을 수 있는 사람은 Instance Connect 권한자(woojeongalex)뿐이다. **SSH 키는 없다** — 이탈한 팀장 PC 에 있던 것이 유일했다.
 - SSH 키 없는 PC에서 서버 작업이 필요하면: AWS 콘솔 → EC2 Instance Connect(브라우저 셸, 유저 `ubuntu`). 단, 보안그룹에 SSH 소스 `13.209.1.56/29`(서울 Instance Connect 대역)를 **임시 추가**하고 작업 후 제거한다 (08/28 · 09/02 실사용).
-- **AWS 권한 (2026-09-02 이관)**: 계정은 학원 크레딧 때문에 팀장 명의로 유지한다. 운영은 IAM 유저로 — `woojeongalex`(콘솔, 그룹 `arda-ops` = PowerUserAccess: EC2·S3·SES·SQS 전부, IAM·결제 제외) · `arda-server`(콘솔 없음, 서버 `.env` 전용 — S3 버킷 하나·SES 발송·SQS 만 허용하는 `arda-server-policy`). **서버 `.env` 의 AWS 키는 09/02 부터 `arda-server` 것**이고 팀장 개인 키는 비활성화했다. 키가 새면 `arda-server` 키만 재발급하면 된다.
+- **AWS 권한 (2026-09-02 이관)**: 계정(루트)은 이탈한 팀장 명의 그대로다 — 학원 통합 결제 멤버라 요금은 학원이 낸다. **루트가 어느 날 조직에서 빠지거나 계정을 닫으면 서버가 사라진다**([ADR-0025](../03_decision/0025-운영-권한-이관.md)). 운영은 IAM 유저로 — `woojeongalex`(콘솔, 그룹 `arda-ops` = PowerUserAccess: EC2·S3·SES·SQS 전부, IAM·결제 제외) · `arda-server`(콘솔 없음, 서버 `.env` 전용 — S3 버킷 하나·SES 발송·SQS 만 허용하는 `arda-server-policy`). **서버 `.env` 의 AWS 키는 09/02 부터 `arda-server` 것**이고 팀장 개인 키는 비활성화했다. 키가 새면 `arda-server` 키만 재발급하면 된다.
 - ~~SES는 샌드박스 유지 — 해제 신청이 08/27 거절됨.~~ **2026-09-01 18:31 프로덕션 승인** (CASE 178762338200935, 08/28 재신청분): **샌드박스 해제 · 50,000통/일 · 14통/초**, 서울 리전 즉시 적용. 이제 **미검증 수신자에게도 발송된다** — 실지원자 주소로 나가므로 테스트 발송은 SES 메일박스 시뮬레이터(`success@simulator.amazonses.com`)를 쓸 것. 바운스·컴플레인트 처리는 SNS 연결(08/28) 그대로.
 - **AWS 계정은 학원(ETECH SYSTEM) Organization 통합 결제 멤버**(2026-08-28 가입) — 요금은 학원 관리 계정에 청구되고 이 계정에선 결제 화면이 안 열린다. 상세·종료 절차는 [ADR-0025](../03_decision/0025-운영-권한-이관.md).
 
