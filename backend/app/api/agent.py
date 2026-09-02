@@ -5,18 +5,27 @@ M3: 읽기 에이전트 채팅 엔드포인트
 M4: 쓰기 도구 (예정)
 """
 
+import json
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status as http
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agent.entity_resolver import resolve_entities
+from app.agent.intent_router import DirectAction, classify
 from app.agent.prompts import render
-from app.agent.runtime import run_agent
+from app.agent.runtime import _describe_action, run_agent
 from app.agent.summarizer import generate_summary
 from app.agent.tools import WRITE_TOOL_NAMES, execute_tool
 from app.db import get_db
 from app.deps import get_current_user
+from app.labels import STAGE_LABEL_KR
 from app.models import Application, User
+from app.stages import STAGE_ORDER, StageTransitionError, validate_transition
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
@@ -110,9 +119,26 @@ def chat(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """에이전트 채팅 (M3). 읽기 도구로 지원자 검색·조회를 돕는다."""
+    """에이전트 채팅 (M3). 읽기 도구로 지원자 검색·조회를 돕는다.
+
+    빈출 요청은 `intent_router.classify` 로 먼저 잡아 LLM 을 우회한다 (Phase 1
+    레버 ②). 확신도 높은 것만 라우팅하고 애매하면 그대로 LLM 흐름으로 이어감.
+    """
     system_prompt, _ = render("agent", user_name=user.name, user_role=user.role)
     message = resolve_entities(body.message)
+
+    # 레버 ② — 규칙 라우터 먼저. 매치되면 LLM 안 부르고 즉시 응답
+    intent = classify(message)
+    if intent is not None:
+        logger.info(
+            "intent_router_hit",
+            extra={
+                "rule": intent.rule,
+                "tool": intent.tool_name,
+                "is_write": intent.is_write,
+            },
+        )
+        return _handle_direct(intent, db, user)
 
     result = run_agent(
         message=message,
@@ -147,6 +173,176 @@ def chat(
         cost_usd=round(cost, 6),
         backend=result.backend,
     )
+
+
+# ── 규칙 라우터 헬퍼 (Phase 1 레버 ②) ──────────────────────────
+
+def _handle_direct(intent: DirectAction, db: Session, user: User) -> ChatResponse:
+    """라우터가 매치한 요청 실행. LLM 안 부름.
+
+    - 읽기 도구 (`is_write=False`): 도구 즉시 실행 → 결과를 사람이 읽는 짧은
+      답변으로 렌더 → reply 로 반환
+    - 쓰기 도구 (`is_write=True`): `pending_action` 만 만들고 실제 실행은
+      담당자가 확인 카드를 승인해 `/confirm` 이 부를 때
+    - 이름 → id 조회가 필요한 경우 (`_name_lookup`): DB 에서 검색 후 정확·부분
+      일치 순. 0건이면 되묻기, 동명이인이면 이름 나열해 되묻기, 1건이면 id 채움
+    """
+    args = dict(intent.args)  # 원본 mutate 방지
+    app: Application | None = None
+
+    if "_name_lookup" in args:
+        name = args.pop("_name_lookup")
+        found = _lookup_applicants_by_name(db, name)
+        if not found:
+            return _router_reply(f"'{name}' 지원자를 찾지 못했어요. 이름을 다시 확인해 주세요.")
+        if len(found) > 1:
+            names = ", ".join(a.name for a in found[:5])
+            return _router_reply(
+                f"'{name}' 이름으로 여러 명이 있어요: {names}. 어떤 분인지 더 알려 주세요."
+            )
+        app = found[0]
+        args["application_id"] = app.id
+
+    if intent.is_write:
+        if intent.tool_name == "change_stage":
+            # 카드를 만들기 **전에** 전환 규칙을 검사한다. 실행 단계(/confirm)에서 422 로
+            # 튀면 카드가 화면에 남아 누를 때마다 같은 오류가 쌓인다 (2026-09-02 실측:
+            # 한도윤 applied→interview, 빨간 박스 5개). 어긋나면 이유를 말하고, 한 칸
+            # 건너뛴 경우엔 '다음 단계' 카드를 대신 제안한다 — 담당자가 원한 방향은 맞으니.
+            if app is None and args.get("application_id") is not None:
+                app = db.get(Application, int(args["application_id"]))
+            to_stage = args.get("to_stage")
+            if app is not None and to_stage:
+                try:
+                    validate_transition(app.current_stage, to_stage)
+                except StageTransitionError as e:
+                    return _stage_rule_reply(app, to_stage, str(e), db)
+        pending = PendingActionOut(
+            tool_name=intent.tool_name,
+            arguments=args,
+            description=_describe_action(intent.tool_name, args, db),
+        )
+        return _router_response(
+            reply="",
+            tool_calls=[ToolCallOut(name=intent.tool_name, input=args)],
+            pending=pending,
+        )
+
+    # 읽기 도구 — 즉시 실행 + 템플릿 렌더
+    output = execute_tool(intent.tool_name, args, db, user, compact=False)
+    try:
+        result = json.loads(output)
+    except json.JSONDecodeError:
+        result = {}
+    reply = _format_reply(intent.tool_name, result)
+    return _router_response(
+        reply=reply,
+        tool_calls=[ToolCallOut(name=intent.tool_name, input=args)],
+        pending=None,
+    )
+
+
+def _stage_rule_reply(app: Application, to_stage: str, reason: str, db: Session) -> ChatResponse:
+    """전환 규칙에 어긋난 요청에 대한 안내. 가능하면 '다음 단계' 카드를 대신 제안."""
+    cur = app.current_stage
+    cur_kr = STAGE_LABEL_KR.get(cur, cur)
+    to_kr = STAGE_LABEL_KR.get(to_stage, to_stage)
+
+    if cur == to_stage:
+        return _router_reply(f"{app.name} 님은 이미 {to_kr} 단계예요.")
+
+    # 전진 두 칸 이상 → 바로 다음 단계를 대신 제안
+    if cur in STAGE_ORDER and to_stage in STAGE_ORDER:
+        here, there = STAGE_ORDER.index(cur), STAGE_ORDER.index(to_stage)
+        if there - here > 1:
+            nxt = STAGE_ORDER[here + 1]
+            nxt_kr = STAGE_LABEL_KR.get(nxt, nxt)
+            args = {"application_id": app.id, "to_stage": nxt}
+            pending = PendingActionOut(
+                tool_name="change_stage",
+                arguments=args,
+                description=_describe_action("change_stage", args, db),
+            )
+            return _router_response(
+                reply=(
+                    f"{app.name} 님은 지금 {cur_kr} 단계라 {to_kr}(으)로 바로 못 옮겨요 "
+                    f"(한 단계씩만 진행). 먼저 {nxt_kr}(으)로 옮길까요?"
+                ),
+                tool_calls=[ToolCallOut(name="change_stage", input=args)],
+                pending=pending,
+            )
+
+    return _router_reply(f"{app.name} 님: {reason}")
+
+
+def _lookup_applicants_by_name(db: Session, name: str) -> list[Application]:
+    """정확 일치 우선, 없으면 부분 일치. 동명이인 감지 위해 다 반환."""
+    exact = db.execute(
+        select(Application).where(Application.name == name).limit(5)
+    ).scalars().all()
+    if exact:
+        return list(exact)
+    partial = db.execute(
+        select(Application).where(Application.name.like(f"%{name}%")).limit(5)
+    ).scalars().all()
+    return list(partial)
+
+
+def _router_reply(text: str) -> ChatResponse:
+    """짧은 안내만 있는 라우터 응답 (도구 호출 없음, 되묻기 등)."""
+    return _router_response(reply=text, tool_calls=[], pending=None)
+
+
+def _router_response(
+    reply: str,
+    tool_calls: list[ToolCallOut],
+    pending: PendingActionOut | None,
+) -> ChatResponse:
+    """라우터 응답 공통 shape. backend/model 태그로 라우터 힛을 표시."""
+    return ChatResponse(
+        reply=reply,
+        tool_calls=tool_calls,
+        pending_action=pending,
+        input_tokens=0,
+        output_tokens=0,
+        cache_write_tokens=0,
+        cache_read_tokens=0,
+        model="router:v1",
+        cost_usd=0.0,
+        backend="router",
+    )
+
+
+def _format_reply(tool_name: str, result: dict) -> str:
+    """도구 결과 → 담당자용 짧은 한국어 답변. LLM 없이 코드로 렌더.
+
+    복잡한 요약이 필요 없는 뻔한 결과에 쓴다 — 지원자 목록·상세 등. 이메일
+    본문 같은 자연어 생성은 여기 못 잡으니 라우터가 아예 안 낚아채고 LLM 로.
+    """
+    if tool_name == "search_applications":
+        results = result.get("results") or []
+        count = result.get("count", len(results))
+        if count == 0:
+            return "검색 결과가 없어요. 다른 조건으로 찾아볼까요?"
+        header = f"지원자 {count}명이 검색됐어요."
+        lines = []
+        for a in results[:5]:
+            name = a.get("name", "?")
+            years = a.get("career_years")
+            years_str = f" ({years}년)" if isinstance(years, int) else ""
+            skills = a.get("skills") or []
+            skills_str = ", ".join(skills[:3]) if skills else ""
+            stage_kr = STAGE_LABEL_KR.get(a.get("current_stage", ""), "")
+            parts = [f"- **{name}**{years_str}"]
+            if stage_kr:
+                parts.append(f"— {stage_kr}")
+            if skills_str:
+                parts.append(f"— {skills_str}")
+            lines.append(" ".join(parts))
+        tail = f"\n\n(총 {count}명 중 상위 5명 표시)" if count > 5 else ""
+        return "\n".join([header, *lines]) + tail
+    # 다른 읽기 도구 확장 대비 — 원시 JSON 잘라서 폴백
+    return f"{tool_name} 결과: {json.dumps(result, ensure_ascii=False)[:200]}"
 
 
 @router.post("/confirm", response_model=ConfirmResponse)

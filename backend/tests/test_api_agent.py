@@ -140,9 +140,13 @@ class TestChat:
     """POST /api/v1/agent/chat"""
 
     def test_success(self, client: TestClient):
+        # 메시지는 intent_router (Phase 1 레버 ②) 가 잡지 않을 자유 질의로 —
+        # "김도현 찾아줘" 같은 뻔한 이름 검색은 라우터가 LLM 을 우회하므로 이
+        # test 의 run_agent mock 이 안 걸린다. 라우터 자체 검증은
+        # tests/test_intent_router.py 참고.
         with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
-                "message": "김도현 찾아줘",
+                "message": "김도현에 대해 어떻게 생각해?",
                 "history": [],
             })
         assert resp.status_code == 200
@@ -203,6 +207,47 @@ class TestChat:
         call_kwargs = mock_run.call_args
         resolved_msg = call_kwargs.kwargs.get("message") or call_kwargs.args[0]
         assert "Python" in resolved_msg or "2년" in resolved_msg
+
+
+# ── 라우터 직접 실행 핸들러 (전환 규칙 사전 검사) ──────────────
+
+
+class TestDirectHandlerStageRule:
+    """카드를 만들기 전에 validate_transition 을 거친다 (2026-09-02 한도윤 사례)."""
+
+    def test_skip_forward_offers_next_stage_card(self, db, admin_user, application):
+        from app.agent.intent_router import DirectAction
+        from app.api.agent import _handle_direct
+        # fixture 의 김도현은 applied. interview 로 두 칸 건너뛰기 요청.
+        intent = DirectAction(
+            "change_stage", {"_name_lookup": "김도현", "to_stage": "interview"}, is_write=True,
+        )
+        resp = _handle_direct(intent, db, admin_user)
+        assert "먼저" in resp.reply and "서류 검토" in resp.reply
+        assert resp.pending_action is not None
+        assert resp.pending_action.tool_name == "change_stage"
+        assert resp.pending_action.arguments["to_stage"] == "screening"  # 다음 단계 제안
+        assert resp.pending_action.arguments["application_id"] == application.id
+        assert resp.backend == "router"
+
+    def test_valid_next_step_makes_normal_card(self, db, admin_user, application):
+        from app.agent.intent_router import DirectAction
+        from app.api.agent import _handle_direct
+        intent = DirectAction(
+            "change_stage", {"_name_lookup": "김도현", "to_stage": "screening"}, is_write=True,
+        )
+        resp = _handle_direct(intent, db, admin_user)
+        assert resp.reply == ""
+        assert resp.pending_action.arguments["to_stage"] == "screening"
+
+    def test_same_stage_says_already(self, db, admin_user, application):
+        from app.agent.intent_router import DirectAction
+        from app.api.agent import _handle_direct
+        intent = DirectAction(
+            "change_stage", {"_name_lookup": "김도현", "to_stage": "applied"}, is_write=True,
+        )
+        resp = _handle_direct(intent, db, admin_user)
+        assert "이미" in resp.reply and resp.pending_action is None
 
 
 # ── /confirm ────────────────────────────────────────────────

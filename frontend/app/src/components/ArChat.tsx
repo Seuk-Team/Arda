@@ -3,6 +3,7 @@ import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
 import { ApiError } from '../api/client'
 import { agent } from '../api/endpoints'
 import type { AgentHistoryMessage, AgentPendingAction, AgentToolCall } from '../api/types'
+import { STAGE_LABEL } from '../lib/stage'
 import { useToast } from './Toast'
 import Sprout from './Sprout'
 import styles from './ArChat.module.css'
@@ -33,6 +34,58 @@ const TOOL_LABELS: Record<string, string> = {
 
 function toolLabel(name: string) {
   return TOOL_LABELS[name] ?? name
+}
+
+/* ── 확인 카드 실행 결과를 아르 말로 ───────────────────────────
+   실행 로그는 숨겼으므로(2026-09-02), 실행됐다는 사실과 무엇이 바뀌었는지는 아르가
+   말풍선으로 알린다. 실패도 빨간 박스가 아니라 이유를 설명한다. */
+function stageKr(code: unknown): string {
+  return typeof code === 'string' && code in STAGE_LABEL
+    ? STAGE_LABEL[code as keyof typeof STAGE_LABEL]
+    : String(code ?? '')
+}
+
+/* _describe_action 형식 "이름 (학력)을(를) … 합니다" 에서 앞부분만 */
+function subjectOf(action: AgentPendingAction): string {
+  const i = action.description.indexOf('을(를)')
+  return i > 0 ? action.description.slice(0, i).trim() : ''
+}
+
+function confirmSummary(action: AgentPendingAction, result: Record<string, unknown>): string {
+  const who = subjectOf(action)
+  if (action.tool_name === 'change_stage') {
+    const from = stageKr(result.from_stage)
+    const to = stageKr(result.to_stage)
+    const mail = result.mail_queued ? ' 안내 메일이 발송 대기열에 들어갔어요.' : ''
+    return `${who ? `${who} 님을 ` : ''}${from} → ${to} 단계로 변경했어요.${mail}`
+  }
+  if (action.tool_name === 'send_email') return `${who ? `${who} 님에게 ` : ''}메일을 보냈어요.`
+  return `${toolLabel(action.tool_name)}을(를) 완료했어요.`
+}
+
+function confirmFailureText(action: AgentPendingAction, raw: string): string {
+  /* 서버 메시지의 단계 코드(applied 등)를 화면 라벨로 */
+  const pretty = raw.replace(/\b(applied|screening|interview|accepted|rejected)\b/g, (m) => stageKr(m))
+  return `${toolLabel(action.tool_name)}을(를) 실행하지 못했어요. ${pretty}`
+}
+
+/* 확인 응답 감지 — pending 카드가 살아있을 때만 매치한다.
+   4B 가 채팅 경로로 확인 응답을 처리하면 이전 도구 결과의 id 를 재추론하다
+   지어내는 실패가 있었다 (id=123, id=2 사례. 2026-09-02 실측). LLM 을 다시
+   부르지 않고 저장된 arguments 그대로 confirm 하는 편이 정확하고 빠르다.
+
+   규칙:
+   - CONFIRM_HEAD: 확인 단어로 문장 시작 + 그 뒤 자유 텍스트 허용 (word boundary)
+     "응", "응 변경해줘", "네 진행할게요", "좋아, 그렇게 해" 다 잡는다
+   - CANCEL_ANYWHERE: 부정 신호가 메시지 어디에 있어도 취소 우선
+     "응 아니 취소해줘" 는 취소로 (CONFIRM_HEAD 도 매치되지만 CANCEL 이 이김) */
+const CONFIRM_HEAD = /^\s*(응|네|넵|예|좋아요?|해줘|해|맞아요?|진행(?:해줘|할게요?|해)?|ㅇㅇ|ㅇㅋ|ok|okay|yes|yep|y|어)(?:\s|[.,!~?]|$)/i
+const CANCEL_ANYWHERE = /(아니(?:야|요|에요)?|취소|안\s?할래|안\s?해|안\s?됨|nope|\bno\b)/i
+
+function classifyConfirmReply(message: string): 'confirm' | 'cancel' | null {
+  if (CANCEL_ANYWHERE.test(message)) return 'cancel'
+  if (CONFIRM_HEAD.test(message)) return 'confirm'
+  return null
 }
 
 /* 인자를 한 줄로. 값이 길면 자른다 (§7 — 극단값 전제) */
@@ -189,6 +242,26 @@ export default function ArChat({
     const message = draft.trim()
     if (!message || busy) return
 
+    /* 레버 ① 확인 응답 규칙 라우터 — pending 카드가 살아있고 사용자가
+       확인/취소로 답했으면 LLM 을 다시 부르지 않는다. 저장된 arguments 로
+       바로 confirm (또는 취소). 4B 재추론에서 id 를 지어내는 실패를 원천 차단.
+       매치 안 되면 아래 기존 LLM 흐름으로 이어간다. */
+    if (pending) {
+      const kind = classifyConfirmReply(message)
+      if (kind === 'confirm') {
+        setDraft('')
+        push({ kind: 'user', text: message })
+        await confirmPending()
+        return
+      }
+      if (kind === 'cancel') {
+        setDraft('')
+        push({ kind: 'user', text: message })
+        cancelPending()
+        return
+      }
+    }
+
     setDraft('')
     setPending(null)
     setFlash(null)
@@ -224,14 +297,18 @@ export default function ArChat({
     setBusy('confirm')
 
     try {
-      await agent.confirm(action.tool_name, action.arguments)
+      const res = await agent.confirm(action.tool_name, action.arguments)
       setPending(null)
-      push({ kind: 'log', lines: [`${toolLabel(action.tool_name)} 실행 완료`] })
+      /* 무엇이 바뀌었는지 아르가 말한다 — 실행 로그는 숨겨져 있어 이게 유일한 확인 */
+      push({ kind: 'ar', text: confirmSummary(action, res.result) })
       setFlash('confirm')
       show('ok', `${toolLabel(action.tool_name)}을(를) 실행했습니다`)
     } catch (err) {
+      /* 실패해도 카드를 지운다 — 남겨 두면 누를 때마다 같은 오류가 쌓인다
+         (2026-09-02 실측: 빨간 박스 5개). 이유는 아르 말풍선으로. 다시 하려면 새로 요청. */
       const text = errorText(err)
-      push({ kind: 'error', text })
+      setPending(null)
+      push({ kind: 'ar', text: confirmFailureText(action, text) })
       setFlash('fail')
       show('fail', text)
     } finally {
