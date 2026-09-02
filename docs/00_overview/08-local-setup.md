@@ -35,14 +35,34 @@ uv run alembic upgrade head
 
 **스키마를 바꿨으면 마이그레이션을 같이 올린다.** 이 문서에 손 SQL 을 적는 시대는 끝났다.
 
+### 새로 만든 DB 에서 `upgrade head` 를 하면 임베딩 테이블이 안 생긴다 (놀라지 말 것)
+
+**정상이고, 앱을 한 번 띄우면 저절로 생긴다.** 다만 로그만 보면 실패처럼 보여서 적어 둔다.
+
+```
+pgvector 확장이 없어 application_embeddings 를 건너뛴다 — 시맨틱 검색만 꺼진다
+```
+
+**왜 그런가**: `vector` 확장은 DB 마다 따로 켜야 하는데, 새로 만든 DB 에는 아직 없다. `0001` 은 확장이 없으면 그 테이블만 건너뛴다 — **안 그러면 CREATE TABLE 이 실패해 나머지 14개까지 통째로 못 만든다.** 그래서 경고만 내고 성공으로 끝난다.
+
+**왜 alembic 은 확장을 안 켜나**: 확장을 켜는 코드는 `app/db.py` 의 연결 이벤트에 붙어 있는데, **alembic 은 자기 엔진을 따로 만든다**([`env.py`](../../backend/alembic/env.py) `create_engine`). 그래서 그 이벤트가 안 돈다.
+
+**어떻게 되나**: 앱이 처음 뜰 때 연결 이벤트가 확장을 켜고, `lifespan` 의 `create_all` 이 빠진 테이블을 만든다. **재현으로 확인했다** — `upgrade head` 직후 `application_embeddings` 없음(다른 14개는 있음) → 앱 기동 후 생김.
+
+기다리기 싫으면 미리 켜도 된다: `docker compose exec db psql -U postgres -d arda -c 'CREATE EXTENSION IF NOT EXISTS vector'`
+
+> **테스트만 돌릴 때는 미리 켜는 편이 낫다.** `conftest` 도 자기 엔진을 만들어서 같은 이유로 확장을 안 켠다 — 앱을 한 번도 안 띄운 새 DB 로 `pytest` 를 돌리면 임베딩 테이블 없이 돈다.
+
 ## 2. 평소 셋업
 
 ```bash
 git pull
+docker compose up -d --build      # **DB 를 먼저 띄운다.** --build 는 아래 이유로 필요할 때가 있다
 cd backend && uv sync
 uv run alembic upgrade head   # 스키마 최신화 (1절의 '처음 한 번' 을 마친 뒤부터)
-docker compose up -d --build      # --build 는 아래 이유로 필요할 때가 있다
 ```
+
+> **순서를 바꿨다 (2026-09-02).** 전에는 `alembic` 이 `docker compose up` 앞에 있었는데, **DB 가 떠 있지 않으면 마이그레이션이 붙을 데가 없다.** 컨테이너가 하나도 없는 PC 에서 그대로 따라 하면 여기서 막힌다(실제로 겪었다). `compose up` 뒤 DB 가 `healthy` 가 될 때까지 몇 초 기다린다.
 
 - **`uv sync` 만으로 충분하다.** 로컬 AI 모델(Ollama·faster-whisper)·GPU·새 API 키는 **설치할 필요 없다** — 3절 참고.
 - **`--build` 가 필요한 때**: 의존성이 바뀌었을 때, 그리고 2026-09-01 부터는 이미지가 임베딩 모델(약 440MB)을 빌드 단계에 굽는다. **첫 빌드가 느려지고 인터넷이 필요하다.** 대신 그 뒤로는 첫 검색 요청이 멈추지 않는다 ([07-deploy](07-deploy.md) 로컬 AI 모델 절).
