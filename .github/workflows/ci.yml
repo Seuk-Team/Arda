@@ -64,8 +64,8 @@ jobs:
         with:
           python-version: "3.12"   # Dockerfile 의 python:3.12-slim 과 맞춘다
 
-      # torch(CPU) 를 끌어오므로 **첫 실행은 몇 분** 걸린다. uv 캐시가 붙으면 짧아진다.
-      # (로컬 실측은 캐시가 이미 있는 상태였다 — CI 첫 실행 시간은 여기서 재지 못했다)
+      # torch(CPU) 182.9MiB 를 끌어온다. **캐시 없는 첫 실행에서도 이 단계가 3초**였다
+      # (2026-09-02 첫 실행 실측 — 러너 회선이 빠르다). "몇 분 걸린다" 고 예상했으나 아니었다.
       # --frozen: uv.lock 을 그대로 쓴다. 락이 낡았으면 여기서 실패하는 게 맞다
       - name: 의존성 설치
         working-directory: backend
