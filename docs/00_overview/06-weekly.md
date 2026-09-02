@@ -277,7 +277,8 @@
 | 검증 데이터 삭제 (지원자 24 · 공고 3) | woojeongalex | **완료** — DB 트랜잭션 + S3 객체 |
 | `docker-compose.prod.yml` 회수 (#122 후반) | woojeongalex · 인계 B5 | **완료** — `Caddyfile` 도 함께 `infra/` 로 |
 | CI `7bbbc5e` (인프라 폴더 선반영) | woojeongalex | **그대로 둔다.** 브랜치 보호는 08/28 개정대로 걸지 않음 |
-| 요약 재생성 22건 | woojeongalex 가 돌린다 | 재배포 됐으니 착수 가능 — 채널에 알림 |
+| 요약 재생성 22건 | woojeongalex 가 돌린다 | 재배포 됐으니 착수 가능 |
+| 인계 B6 — SES 재신청 결과 | 팀장 | **승인돼 있었다 (09/01 18:31 메일).** 샌드박스 해제 · 50,000통/일. 07-deploy 주의 절 갱신 |
 
 **같은 세션의 결정 — AWS 권한 이관.** 계정은 학원 크레딧 때문에 팀장 명의로 두고, 운영 권한만 IAM 유저로 넘긴다(`woojeongalex` 콘솔 · `arda-server` 서버 키). 서버 `.env` 가 팀장 개인 키를 쓰던 것을 끊었다. 나머지 이관(GitHub org · Vercel · 도메인 · Anthropic 키 · 시크릿 재발급)은 인수자 확정 뒤 별도 절.
 
