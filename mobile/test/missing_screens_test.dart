@@ -23,6 +23,8 @@ Widget detail(Applicant a) => MaterialApp(
   home: ApplicantDetailScreen(
     applicant: a,
     postingTitle: mockPostings.first.title,
+    // 상세는 서버에서 온다(큐 8) — 이 사람만 아는 가짜를 물린다
+    repository: FakeApplicantRepository(applicants: [a]),
   ),
 );
 
@@ -30,6 +32,8 @@ Widget detail(Applicant a) => MaterialApp(
 /// ensureVisible 로 끌어오면 된다(ListView 처럼 드래그할 필요가 없다).
 Future<void> openDetail(WidgetTester tester, Applicant applicant) async {
   await tester.pumpWidget(detail(applicant));
+  // 상세가 서버에서 오므로 먼저 정착시킨다 (큐 8)
+  await tester.pumpAndSettle();
   await tester.ensureVisible(find.text('첨부 파일'));
   await tester.pumpAndSettle();
 }

@@ -28,3 +28,18 @@ class ApplicationNote {
 
   final DateTime createdAt;
 }
+
+/// 서버 응답 → 모델.
+///
+/// **메모만 이름을 준다** — 상세에 박힌 것(`NoteOut`)에는 `author_id` 뿐이지만
+/// 전용 엔드포인트(`GET /applications/{id}/notes`)는 `author_name` 을 준다.
+/// 그래서 상세 화면은 메모만 한 번 더 부른다.
+extension ApplicationNoteJson on ApplicationNote {
+  static ApplicationNote fromJson(Map<String, dynamic> json) => ApplicationNote(
+    id: json['id'] as int,
+    applicationId: json['application_id'] as int,
+    authorName: json['author_name'] as String? ?? '알 수 없음',
+    body: json['body'] as String,
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
+}

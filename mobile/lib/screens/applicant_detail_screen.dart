@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../auth/authed_client.dart';
+import '../data/applicant_repository.dart';
+import '../data/repositories.dart';
 import '../models/applicant.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import 'ar_screen.dart';
+import '../widgets/async_view.dart';
 import '../widgets/detail_blocks.dart';
 import '../widgets/detail_section.dart';
 import '../widgets/stage_change_sheet.dart';
@@ -20,24 +23,64 @@ import '../widgets/stage_rail.dart';
 ///
 /// 시안 2·3번이 단계 이력·평가를 별도 화면으로 뺐고, 앱 UI 초안(2026-09-01)이
 /// 그중 단계 이력의 **최근 두 건만** 상세로 되살렸다. 전체는 여전히 별도 화면이다.
-class ApplicantDetailScreen extends StatelessWidget {
+///
+/// **서버에서 받아 온다**(큐 8, 2026-09-02). 목록에서 넘어온 [applicant] 은
+/// 이름·단계 정도만 들고 있어서 화면을 열면서 상세를 다시 받는다 —
+/// 그 사이 머리(이름·단계)는 넘어온 값으로 미리 그려 빈 화면을 안 보여 준다.
+///
+/// 평가자·단계 변경자 **이름은 서버가 주지 않는다**(id 뿐). 이름 없이 그리고,
+/// 백엔드가 넣어 주면 그때 보인다 — 자세한 것은 각 모델의 `fromJson` 주석.
+class ApplicantDetailScreen extends StatefulWidget {
   const ApplicantDetailScreen({
     super.key,
     required this.applicant,
     required this.postingTitle,
+    this.repository,
   });
 
+  /// 목록에서 넘어온 것. 상세를 받기 전까지 머리에 쓴다
   final Applicant applicant;
 
   /// 단계 이력 화면의 부제에 쓴다 — "김도현 · 백엔드 개발자 (신입)"
   final String postingTitle;
 
+  /// 테스트가 가짜를 넣는 자리
+  final ApplicantRepository? repository;
+
+  @override
+  State<ApplicantDetailScreen> createState() => _ApplicantDetailScreenState();
+}
+
+class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
+  late ApplicantRepository _repo;
+  late Future<ApplicantDetail> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _repo =
+        widget.repository ??
+        RepositoryScope.of(context)?.applicants ??
+        ApplicantRepository(authedClient());
+    _future = _load();
+  }
+
+  /// `ignore()` 이유는 postings_screen.dart 참고
+  Future<ApplicantDetail> _load() =>
+      _repo.detail(widget.applicant.id)..ignore();
+
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
+
   /// 초안의 `평점 4.3 / 5.0 · 3명`. 평가가 없으면 줄을 만들지 않는다 —
   /// "0.0" 은 나쁜 평가를 받은 것처럼 읽힌다 (D1 지시서)
-  String? get _ratingLabel {
-    final avg = mockEvaluations[applicant.id]?.avgScore;
+  String? _ratingLabel(ApplicantDetail d) {
+    final avg = d.avgScore;
     if (avg == null) return null;
-    return '$avg / 5.0 · ${formatCount(mockEvaluations[applicant.id]!.count)}';
+    return '$avg / 5.0 · ${formatCount(d.evaluations.length)}';
   }
 
   @override
@@ -47,85 +90,98 @@ class ApplicantDetailScreen extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Header(applicant: applicant),
+          // 머리는 목록에서 넘어온 값으로 바로 그린다 — 이름이 늦게 뜨면
+          // 어느 사람을 연 것인지 잠깐 알 수 없다
+          _Header(applicant: widget.applicant),
           Expanded(
-            child: SingleChildScrollView(
-              // 시안: 화면 여백 16dp
-              padding: const EdgeInsets.all(AppSpace.s4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 앱 UI 초안(2026-09-01): 지원 정보보다 먼저 "지금 어디까지
-                  // 왔는지". 불합격이면 레일이 나오지 않는다 — stage_rail.dart 참고
-                  if (StageRail.showsFor(applicant.currentStage)) ...[
-                    StageRail(current: applicant.currentStage),
-                    const SizedBox(height: AppSpace.s5),
-                  ],
-
-                  // 05-design §0.5: "요약문은 **상세 패널 상단**". 아래 지원 정보보다
-                  // 먼저 온다. NULL 이면(미생성) 자리를 만들지 않는다
-                  if (applicant.aiSummary != null) ...[
-                    ArSummaryBlock(applicant: applicant),
-                    const SizedBox(height: AppSpace.s3),
-                  ],
-
-                  DetailFieldList(
-                    fields: {
-                      if (applicant.phone != null) '연락처': applicant.phone!,
-                      '이메일': applicant.email,
-                      '학력': applicant.education ?? '—',
-                      '경력': applicant.careerLabel,
-                      if (applicant.skills.isNotEmpty)
-                        '기술': applicant.skills.join(' · '),
-                      '지원일': formatDate(applicant.createdAt),
-                      // 초안: 평점은 지원 정보 안의 한 줄이다. 개별 평가는
-                      // 아래 [평가] 화면에 있다 (시안 3번)
-                      '평점': ?_ratingLabel,
-                    },
-                  ),
-
-                  // 웹 C7(2026-09-02)과 같은 자리 — 지원 정보 바로 다음
-                  const SizedBox(height: AppSpace.s3),
-                  FilesBlock(applicationId: applicant.id),
-
-                  const SizedBox(height: AppSpace.s3),
-                  MailBlock(applicantName: applicant.name),
-
-                  const SizedBox(height: AppSpace.s3),
-                  EmailLogBlock(applicationId: applicant.id),
-
-                  const SizedBox(height: AppSpace.s3),
-                  NotesBlock(applicationId: applicant.id),
-
-                  // 초안(2026-09-01): 최근 두 건은 여기서 바로 보이고,
-                  // 전체는 시안 2번의 별도 화면 그대로다
-                  const SizedBox(height: AppSpace.s3),
-                  StageHistoryPreview(
-                    applicationId: applicant.id,
-                    onSeeAll: () => Navigator.pushNamed(
-                      context,
-                      Routes.stageHistory,
-                      arguments: (applicant, postingTitle),
-                    ),
-                  ),
-
-                  // 시안 3번: 개별 평가는 별도 화면이다. 초안에는 평점 한 줄만
-                  // 있지만 그 화면으로 들어갈 문이 여기밖에 없어 남긴다
-                  const SizedBox(height: AppSpace.s3),
-                  _LinkRow(
-                    icon: Icons.star_outline,
-                    label: '평가',
-                    onTap: () => Navigator.pushNamed(
-                      context,
-                      Routes.evaluations,
-                      arguments: applicant,
-                    ),
-                  ),
-                ],
-              ),
+            child: AsyncView<ApplicantDetail>(
+              future: _future,
+              onRetry: _reload,
+              emptyMessage: '',
+              builder: (context, detail) => _body(context, detail),
             ),
           ),
-          _StageChangeBar(applicant: applicant),
+          _StageChangeBar(applicant: widget.applicant),
+        ],
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context, ApplicantDetail detail) {
+    final applicant = detail.applicant;
+
+    return SingleChildScrollView(
+      // 시안: 화면 여백 16dp
+      padding: const EdgeInsets.all(AppSpace.s4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 앱 UI 초안(2026-09-01): 지원 정보보다 먼저 "지금 어디까지
+          // 왔는지". 불합격이면 레일이 나오지 않는다 — stage_rail.dart 참고
+          if (StageRail.showsFor(applicant.currentStage)) ...[
+            StageRail(current: applicant.currentStage),
+            const SizedBox(height: AppSpace.s5),
+          ],
+
+          // 05-design §0.5: "요약문은 **상세 패널 상단**". 아래 지원 정보보다
+          // 먼저 온다. NULL 이면(미생성) 자리를 만들지 않는다
+          if (applicant.aiSummary != null) ...[
+            ArSummaryBlock(applicant: applicant),
+            const SizedBox(height: AppSpace.s3),
+          ],
+
+          DetailFieldList(
+            fields: {
+              if (applicant.phone != null) '연락처': applicant.phone!,
+              '이메일': applicant.email,
+              '학력': applicant.education ?? '—',
+              '경력': applicant.careerLabel,
+              if (applicant.skills.isNotEmpty)
+                '기술': applicant.skills.join(' · '),
+              '지원일': formatDate(applicant.createdAt),
+              // 초안: 평점은 지원 정보 안의 한 줄이다. 개별 평가는
+              // 아래 [평가] 화면에 있다 (시안 3번)
+              '평점': ?_ratingLabel(detail),
+            },
+          ),
+
+          // 웹 C7(2026-09-02)과 같은 자리 — 지원 정보 바로 다음
+          const SizedBox(height: AppSpace.s3),
+          FilesBlock(files: detail.files),
+
+          const SizedBox(height: AppSpace.s3),
+          MailBlock(applicantName: applicant.name),
+
+          const SizedBox(height: AppSpace.s3),
+          EmailLogBlock(applicationId: applicant.id),
+
+          const SizedBox(height: AppSpace.s3),
+          NotesBlock(notes: detail.notes),
+
+          // 초안(2026-09-01): 최근 두 건은 여기서 바로 보이고,
+          // 전체는 시안 2번의 별도 화면 그대로다
+          const SizedBox(height: AppSpace.s3),
+          StageHistoryPreview(
+            history: detail.stageHistory,
+            onSeeAll: () => Navigator.pushNamed(
+              context,
+              Routes.stageHistory,
+              arguments: (applicant, widget.postingTitle),
+            ),
+          ),
+
+          // 시안 3번: 개별 평가는 별도 화면이다. 초안에는 평점 한 줄만
+          // 있지만 그 화면으로 들어갈 문이 여기밖에 없어 남긴다
+          const SizedBox(height: AppSpace.s3),
+          _LinkRow(
+            icon: Icons.star_outline,
+            label: '평가',
+            onTap: () => Navigator.pushNamed(
+              context,
+              Routes.evaluations,
+              arguments: applicant,
+            ),
+          ),
         ],
       ),
     );

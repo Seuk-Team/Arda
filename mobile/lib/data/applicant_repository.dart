@@ -56,4 +56,54 @@ class ApplicantRepository {
         ),
     ];
   }
+
+  /// 상세 — 화면 하나에 **요청 둘**이다.
+  ///
+  /// `GET /applications/{id}` 하나로 상세·이력·평가·메모·첨부가 다 오지만,
+  /// 거기 박혀 오는 **메모에는 작성자 이름이 없다**(`author_id` 뿐). 전용
+  /// 엔드포인트는 `author_name` 을 주므로 메모만 한 번 더 받는다 —
+  /// "이서연 · 08.21" 과 "알 수 없음 · 08.21" 은 쓸모가 다르다.
+  ///
+  /// 평가·이력도 이름이 없지만 **전용 엔드포인트도 마찬가지**라 더 부를 이유가
+  /// 없다. 그쪽은 이름 없이 그린다 (2026-09-02 실측).
+  Future<ApplicantDetail> detail(int id) async {
+    final json = await _client.get(Endpoints.application(id));
+
+    // 메모는 이름 때문에 따로 받는다. 실패해도 상세는 보여 준다 —
+    // 메모 하나 때문에 화면 전체가 오류가 되면 안 된다
+    var notes = <ApplicationNote>[];
+    try {
+      final raw = await _client.getList(Endpoints.applicationNotes(id));
+      notes = [
+        for (final n in raw)
+          ApplicationNoteJson.fromJson(n as Map<String, dynamic>),
+      ];
+    } on Exception {
+      notes = const [];
+    }
+
+    List<T> children<T>(String key, T Function(Map<String, dynamic>) parse) => [
+      for (final item in (json[key] as List? ?? const []))
+        parse(item as Map<String, dynamic>),
+    ];
+
+    return ApplicantDetail(
+      applicant: ApplicantJson.fromDetailJson(json),
+      // 서버는 오래된 순으로 준다. 화면은 **최신이 위**다
+      stageHistory: children(
+        'stage_history',
+        (m) => StageHistoryJson.fromJson(m, applicationId: id),
+      ).reversed.toList(),
+      evaluations: children(
+        'evaluations',
+        (m) => EvaluationJson.fromJson(m, applicationId: id),
+      ),
+      notes: notes,
+      files: children(
+        'files',
+        (m) => ApplicantFileJson.fromJson(m, applicationId: id),
+      ),
+      avgScore: (json['avg_score'] as num?)?.toDouble(),
+    );
+  }
 }

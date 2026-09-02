@@ -169,7 +169,9 @@ class _Entry extends StatelessWidget {
 
                   // 시안: 메일 발송 여부를 남긴다.
                   // "메일이 갔나?"는 단계 이력을 여는 가장 흔한 이유다
-                  if (entry.mailQueued) ...[
+                  // 서버가 이 값을 주지 않으면(null) 아무 말도 하지 않는다 —
+                  // 메일이 갔는지 모르면서 "갔다" 도 "안 갔다" 도 쓸 수 없다
+                  if (entry.mailQueued ?? false) ...[
                     const SizedBox(height: AppSpace.s1),
                     Row(
                       children: [

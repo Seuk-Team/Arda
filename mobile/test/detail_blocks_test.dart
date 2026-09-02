@@ -12,20 +12,31 @@ import 'package:arda/widgets/detail_blocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_repos.dart';
+
 /// 김도현 — AI 요약·메일 이력·메모를 모두 가진 유일한 목데이터
 final dohyun = mockApplicants.firstWhere((a) => a.name == '김도현');
 
-Widget host(Applicant a) => MaterialApp(
+/// 상세는 서버에서 받아 온다(큐 8) — 넘긴 사람 하나만 아는 가짜를 물린다.
+/// 목데이터에 없는 사람(요약 없음·규격밖 등)도 그대로 그려진다.
+Widget _host(Applicant a) => MaterialApp(
   home: ApplicantDetailScreen(
     applicant: a,
     postingTitle: mockPostings.first.title,
+    repository: FakeApplicantRepository(applicants: [a]),
   ),
 );
+
+/// 상세가 서버에서 오므로 한 번 정착시켜야 그려진다 (큐 8)
+Future<void> open(WidgetTester tester, Applicant a) async {
+  await tester.pumpWidget(_host(a));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   group('아르의 요약', () {
     testWidgets('앰버가 아니라 정보 블록이다 (§1 2026-09-01 확정)', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       final box = tester.widget<Container>(
         find
@@ -47,7 +58,7 @@ void main() {
     });
 
     testWidgets('지원 정보보다 위에 온다 (§0.5 "상세 패널 상단")', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       expect(
         tester.getRect(find.text('아르의 요약')).top,
@@ -56,12 +67,12 @@ void main() {
     });
 
     testWidgets('생성 시각과 모델을 남긴다 — 발표 근거', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
       expect(find.textContaining('생성 · claude-haiku'), findsOneWidget);
     });
 
     testWidgets('요지·강점·확인 필요로 나눠 그린다 — 웹과 같은 라벨', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       expect(find.textContaining('초당 처리량을 3배로'), findsOneWidget);
       expect(find.text('강점'), findsOneWidget);
@@ -100,7 +111,7 @@ void main() {
         currentStage: Stage.applied,
         createdAt: DateTime(2026, 9, 1),
       );
-      await tester.pumpWidget(host(odd));
+      await open(tester, odd);
 
       expect(find.text('모델이 그냥 문장으로 답한 경우입니다.'), findsOneWidget);
       expect(find.text('강점'), findsNothing);
@@ -117,7 +128,7 @@ void main() {
         currentStage: Stage.applied,
         createdAt: DateTime(2026, 9, 1),
       );
-      await tester.pumpWidget(host(thin));
+      await open(tester, thin);
 
       expect(find.text('자기소개 등 자료가 부족해 요약을 만들지 못했습니다.'), findsOneWidget);
     });
@@ -141,7 +152,7 @@ void main() {
         currentStage: Stage.applied,
         createdAt: DateTime(2026, 9, 1),
       );
-      await tester.pumpWidget(host(noSummary));
+      await open(tester, noSummary);
 
       expect(find.text('아르의 요약'), findsNothing);
       expect(find.byType(ArSummaryBlock), findsNothing);
@@ -150,7 +161,7 @@ void main() {
 
   group('시스템 — 메일 이력', () {
     testWidgets('실패만 적갈, 발송은 잎초록 (§1 색은 판단에만)', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       final failed = tester.widget<Text>(find.text(EmailStatus.failed.label));
       expect(failed.style!.color, AppColors.danger);
@@ -160,7 +171,7 @@ void main() {
     });
 
     testWidgets('제목과 날짜가 함께 나온다', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       expect(find.text('지원 접수 자동 안내'), findsOneWidget);
       expect(find.text('2026.09.01'), findsOneWidget);
@@ -169,7 +180,7 @@ void main() {
 
   group('메모', () {
     testWidgets('"작성자 · 날짜 + 본문" 시간순 — 최신이 위', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       final notes = mockNotes[dohyun.id]!;
       expect(
@@ -186,7 +197,7 @@ void main() {
     });
 
     testWidgets('쓰기는 아직 잠겨 있다 — 살아 있는 입력칸이 아니다', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       expect(find.text('메모 남기기'), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
@@ -195,7 +206,7 @@ void main() {
 
   group('메일', () {
     testWidgets('초안의 네 개가 다 있다', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       for (final label in ['면접 안내', '접수 확인', '최종 합격', '불합격']) {
         expect(find.widgetWithText(MailBlock, label), findsOneWidget);
@@ -203,7 +214,7 @@ void main() {
     });
 
     testWidgets('버튼 폭은 글자에 맞는다 — 한 줄에 하나씩 깔리지 않는다', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       final invite = tester.getRect(find.text('면접 안내'));
       final confirm = tester.getRect(find.text('접수 확인'));
@@ -214,7 +225,7 @@ void main() {
     });
 
     testWidgets('불합격만 적갈 — 되돌릴 수 없는 메일이다 (§1)', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       final reject = tester.widget<Text>(
         find.descendant(of: find.byType(MailBlock), matching: find.text('불합격')),
@@ -226,7 +237,7 @@ void main() {
     });
 
     testWidgets('아직 발송되지 않는다 — 누르면 그렇게 말한다', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       final button = find.widgetWithText(MailBlock, '면접 안내');
       await tester.ensureVisible(button);
@@ -240,7 +251,7 @@ void main() {
 
   group('지원 정보', () {
     testWidgets('연락처·이메일·기술이 들어왔다', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       expect(find.text('연락처'), findsOneWidget);
       expect(find.text(dohyun.phone!), findsOneWidget);
@@ -249,7 +260,7 @@ void main() {
     });
 
     testWidgets('평점은 한 줄로 — 초안 "4.3 / 5.0 · 3명"', (tester) async {
-      await tester.pumpWidget(host(dohyun));
+      await open(tester, dohyun);
 
       expect(find.text('평점'), findsOneWidget);
       expect(find.text('4.3 / 5.0 · 3명'), findsOneWidget);
@@ -259,7 +270,7 @@ void main() {
       final unrated = mockApplicants.firstWhere(
         (a) => !mockEvaluations.containsKey(a.id),
       );
-      await tester.pumpWidget(host(unrated));
+      await open(tester, unrated);
 
       expect(find.text('평점'), findsNothing);
     });
@@ -275,7 +286,11 @@ void main() {
       );
       await tester.pumpWidget(
         MaterialApp(
-          home: ApplicantDetailScreen(applicant: bare, postingTitle: '테스트'),
+          home: ApplicantDetailScreen(
+            applicant: bare,
+            postingTitle: '테스트',
+            repository: FakeApplicantRepository(applicants: [bare]),
+          ),
         ),
       );
 

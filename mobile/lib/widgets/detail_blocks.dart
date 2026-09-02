@@ -193,14 +193,13 @@ class _SummaryList extends StatelessWidget {
 /// **비어 있어도 블록을 그린다.** 담당자가 직접 등록한 사람(D6)은 파일이 없는데,
 /// 블록째 사라지면 "아직 안 붙었나" 와 "원래 없다" 가 구별되지 않는다.
 class FilesBlock extends StatelessWidget {
-  const FilesBlock({super.key, required this.applicationId});
+  const FilesBlock({super.key, required this.files});
 
-  final int applicationId;
+  /// 상세 응답이 함께 준다 — 화면이 목데이터를 뒤지지 않는다 (큐 8, 2026-09-02)
+  final List<ApplicantFile> files;
 
   @override
   Widget build(BuildContext context) {
-    final files = mockFiles[applicationId] ?? const <ApplicantFile>[];
-
     return DetailPanel(
       title: '첨부 파일',
       child: Column(
@@ -487,14 +486,14 @@ class EmailLogBlock extends StatelessWidget {
 /// 웹은 입력칸 하나지만 ERD 는 행을 쌓는 구조다(`application_notes`).
 /// 한 문서를 공동 편집하지 않고 각자 행을 추가한다(ADR-0005)므로 목록이 맞다.
 class NotesBlock extends StatelessWidget {
-  const NotesBlock({super.key, required this.applicationId});
+  const NotesBlock({super.key, required this.notes});
 
-  final int applicationId;
+  /// **전용 엔드포인트**에서 받은 것 — 상세에 박혀 오는 메모와 달리
+  /// 작성자 이름이 들어 있다 (큐 8, 2026-09-02)
+  final List<ApplicationNote> notes;
 
   @override
   Widget build(BuildContext context) {
-    final notes = mockNotes[applicationId] ?? const <ApplicationNote>[];
-
     return DetailPanel(
       title: '메모',
       trailing: notes.isEmpty ? null : formatItemCount(notes.length),
@@ -584,11 +583,13 @@ class NotesBlock extends StatelessWidget {
 class StageHistoryPreview extends StatelessWidget {
   const StageHistoryPreview({
     super.key,
-    required this.applicationId,
+    required this.history,
     required this.onSeeAll,
   });
 
-  final int applicationId;
+  /// **최신이 위**로 정렬된 것 — 저장소가 뒤집어 준다 (서버는 오래된 순)
+  final List<StageHistory> history;
+
   final VoidCallback onSeeAll;
 
   /// 초안이 두 줄이다. 더 늘리면 아래 [단계 변경] 이 멀어진다
@@ -596,10 +597,10 @@ class StageHistoryPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final all = mockStageHistory[applicationId] ?? const <StageHistory>[];
+    final all = history;
     if (all.isEmpty) return const SizedBox.shrink();
 
-    // mockStageHistory 는 최신이 위 — 앞에서 자르면 최근 두 건이다
+    // 최신이 위 — 앞에서 자르면 최근 두 건이다
     final shown = all.take(_previewCount).toList();
 
     return DetailPanel(

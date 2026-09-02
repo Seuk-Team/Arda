@@ -9,7 +9,7 @@ class Evaluation {
   const Evaluation({
     required this.id,
     required this.applicationId,
-    required this.evaluatorName,
+    this.evaluatorName,
     required this.score,
     this.comment,
     required this.createdAt,
@@ -22,7 +22,10 @@ class Evaluation {
   final int applicationId;
 
   /// `evaluations.evaluator_id` → 사람 이름
-  final String evaluatorName;
+  /// **서버는 이름을 주지 않는다** — `EvaluationOut` 은 `evaluator_id` 뿐이다
+  /// (2026-09-02 실측). id 를 화면에 띄우는 것은 의미가 없어 null 이면 안 그린다.
+  /// 백엔드가 이름을 넣어 주면 그때 다시 보인다.
+  final String? evaluatorName;
 
   /// `evaluations.score` — **1~5 체크 제약** (ERD)
   final int score;
@@ -54,4 +57,21 @@ class EvaluationSummary {
   Map<int, int> get distribution => {
     for (var s = 5; s >= 1; s--) s: items.where((e) => e.score == s).length,
   };
+}
+
+/// 서버 응답 → 모델. `EvaluationOut`.
+///
+/// **`evaluator_id` 만 온다** — 이름이 없어 [Evaluation.evaluatorName] 은 비운다.
+extension EvaluationJson on Evaluation {
+  static Evaluation fromJson(
+    Map<String, dynamic> json, {
+    required int applicationId,
+  }) => Evaluation(
+    id: json['id'] as int,
+    applicationId: applicationId,
+    evaluatorName: json['evaluator_name'] as String?,
+    score: json['score'] as int,
+    comment: json['comment'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
 }

@@ -13,6 +13,8 @@ import 'package:arda/widgets/stage_rail.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_repos.dart';
+
 import 'app_boot.dart';
 
 Widget detailOf(String name) {
@@ -21,6 +23,8 @@ Widget detailOf(String name) {
     home: ApplicantDetailScreen(
       applicant: applicant,
       postingTitle: mockPostings.first.title,
+      // 상세는 서버에서 온다(큐 8) — 이 사람만 아는 가짜를 물린다
+      repository: FakeApplicantRepository(applicants: [applicant]),
     ),
   );
 }
@@ -29,6 +33,8 @@ void main() {
   group('전형 레일 (지원자 상세)', () {
     testWidgets('접수~합격 4단만 그린다 — 불합격은 레일 밖', (tester) async {
       await tester.pumpWidget(detailOf('정우진')); // 서류 검토
+      // 상세가 서버에서 오므로 정착시킨다 (큐 8)
+      await tester.pumpAndSettle();
 
       expect(find.byType(StageRail), findsOneWidget);
       expect(StageRail.stages, [
@@ -42,6 +48,8 @@ void main() {
 
     testWidgets('지난 단계는 체크, 지금 단계는 번호', (tester) async {
       await tester.pumpWidget(detailOf('김도현')); // 면접 = 3번째
+      // 상세가 서버에서 오므로 정착시킨다 (큐 8)
+      await tester.pumpAndSettle();
 
       // 접수·서류를 지나왔으므로 체크 2개
       expect(
@@ -60,6 +68,8 @@ void main() {
 
     testWidgets('지금 단계 라벨만 잎색 + w600 (§1)', (tester) async {
       await tester.pumpWidget(detailOf('김도현'));
+      // 상세가 서버에서 오므로 정착시킨다 (큐 8)
+      await tester.pumpAndSettle();
 
       final now = tester.widget<Text>(
         find.descendant(of: find.byType(StageRail), matching: find.text('면접')),
@@ -78,6 +88,8 @@ void main() {
 
     testWidgets('불합격이면 레일을 아예 그리지 않는다', (tester) async {
       await tester.pumpWidget(detailOf('강민수')); // 불합격
+      // 상세가 서버에서 오므로 정착시킨다 (큐 8)
+      await tester.pumpAndSettle();
 
       expect(StageRail.showsFor(Stage.rejected), isFalse);
       expect(find.byType(StageRail), findsNothing);

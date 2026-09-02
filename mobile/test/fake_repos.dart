@@ -64,6 +64,23 @@ class FakeApplicantRepository implements ApplicantRepository {
         mockApplicants.where((a) => a.jobPostingId == postingId).toList();
   }
 
+  /// 상세 — 목데이터를 조립해 돌려준다. 서버가 한 번에 주는 것과 같은 모양이다
+  @override
+  Future<ApplicantDetail> detail(int id) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    final a = (applicants ?? mockApplicants).firstWhere((x) => x.id == id);
+    return ApplicantDetail(
+      applicant: a,
+      stageHistory: mockStageHistory[id] ?? const [],
+      evaluations: mockEvaluations[id]?.items ?? const [],
+      notes: mockNotes[id] ?? const [],
+      files: mockFiles[id] ?? const [],
+      avgScore: mockEvaluations[id]?.avgScore,
+    );
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

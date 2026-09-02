@@ -218,20 +218,24 @@ class _EvaluationItem extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                item.evaluatorName,
-                softWrap: false,
-                style: const TextStyle(
-                  fontFamily: AppType.fontFamily,
-                  fontSize: AppType.body,
-                  fontWeight: AppType.wSemiBold,
-                  color: AppColors.text,
+              // 이름을 못 받으면 점수만 남는다 — 서버는 `evaluator_id` 만 주고
+              // "평가자 7번" 은 아무 의미가 없다 (2026-09-02 실측)
+              if (item.evaluatorName != null) ...[
+                Text(
+                  item.evaluatorName!,
+                  softWrap: false,
+                  style: const TextStyle(
+                    fontFamily: AppType.fontFamily,
+                    fontSize: AppType.body,
+                    fontWeight: AppType.wSemiBold,
+                    color: AppColors.text,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpace.s2),
-              // §1: 점수에 색을 쓰지 않는다
-              const Icon(Icons.circle, size: 6, color: AppColors.neutral),
-              const SizedBox(width: AppSpace.s1),
+                const SizedBox(width: AppSpace.s2),
+                // §1: 점수에 색을 쓰지 않는다
+                const Icon(Icons.circle, size: 6, color: AppColors.neutral),
+                const SizedBox(width: AppSpace.s1),
+              ],
               Text(
                 '${item.score}',
                 style: const TextStyle(

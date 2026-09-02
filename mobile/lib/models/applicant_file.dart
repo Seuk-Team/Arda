@@ -67,3 +67,25 @@ enum FileKind {
     return value;
   }
 }
+
+/// 서버 응답 → 모델. `FileOut`.
+/// `s3_key` 는 오지 않는다 — 다운로드는 presigned URL 로 따로 발급한다.
+extension ApplicantFileJson on ApplicantFile {
+  static ApplicantFile fromJson(
+    Map<String, dynamic> json, {
+    required int applicationId,
+  }) => ApplicantFile(
+    id: json['id'] as int,
+    applicationId: applicationId,
+    filename: json['filename'] as String,
+    kind: FileKind.values.firstWhere(
+      (k) => k.value == json['kind'],
+      // 모르는 종류면 이력서로 넘겨짚지 않는다 — 자기소개서가 이력서로 보이면
+      // 담당자가 다른 파일을 열게 된다
+      orElse: () => FileKind.coverLetter,
+    ),
+    sizeBytes: json['size_bytes'] as int? ?? 0,
+    contentType: json['content_type'] as String? ?? '',
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
+}
