@@ -355,7 +355,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin: var(--sp-3) var(--content-x);
+  margin: var(--sp-3);
   height: 40px;
   padding: 0 var(--sp-3);
   border-radius: var(--r-ctl);
@@ -395,7 +395,7 @@
   display: flex;
   gap: var(--sp-2);
   overflow-x: auto;
-  padding: var(--sp-2) var(--content-x) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
   scrollbar-width: none;
 }
 .pills::-webkit-scrollbar { display: none; }
