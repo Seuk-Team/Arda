@@ -104,6 +104,25 @@
 | GET | /public/schedule/{token} | 지원자용 일정·전형 현황 조회 | **공개**. 만료된 제안은 조회 시점에 `expired` 판정(B4 방식). 없는 토큰 404 |
 | POST | /public/schedule/{token}/confirm | 슬롯 선택 → 확정 | **공개**. 본문 `{slot_id}`. 이미 확정·만료·취소면 409. 확정 시 통보 메일 큐 발행 |
 
+## AI 면접 (ADR-0026)
+
+지원자가 링크로 들어와 아르와 면접을 본다. 토큰 공개 접근은 일정 제안(B6)과 같은 패턴이다.
+설계는 [AI면접-설계](../02_tasks/AI면접-설계.md).
+
+| 메서드 | 경로 | 기능 | 비고 |
+|---|---|---|---|
+| POST | /applications/{id}/interview-sessions | 면접 세션 생성 + 공개 링크 발급 | 본문 `{expires_in_days?}` (1~30, 기본 7). **재발급이 아니라 새 행**이라 이전 링크가 죽지 않는다 — 공고 public-link 와 다르다 |
+| GET | /applications/{id}/interview-sessions | 이 지원자의 세션 목록 | 최신순 |
+| GET | /interview-sessions/{id} | 세션 상세 | 전사(`turns`)와 서류↔발언 대조(`findings`) 포함 |
+| GET | /public/interview/{token} | 지원자용 조회 | **공개**. 만료는 조회 시점 판정(B4 방식). **담당자 이름·평가·다른 지원자를 내려주지 않는다** |
+| POST | /public/interview/{token}/consent | 녹음·전사 동의 | **공개**. 본문 `{agreed}`. **지원 폼의 개인정보 동의와 별개다** — 거절하면 422, 기록도 안 남는다 |
+| POST | /public/interview/{token}/start | 면접 시작 | **공개**. 동의 없으면 422 · 만료면 410 · 준비된 질문이 없으면 422 |
+
+- **동의가 시작의 선행 조건이다.** `consented_at` 이 비어 있으면 `/start` 가 422 로 거절한다
+- `findings` 에 **점수가 없다** — `consistent` / `inconsistent` / `unverified` 셋뿐이고 판단은 사람이 한다 ([ADR-0003](../03_decision/0003-ai-추천만.md))
+- 답변 음성 업로드는 **기존 `POST /public/files/presign-upload` 를 그대로 쓴다** — 새 경로를 만들지 않았다
+- 아직 없는 것: 답변 제출·전사(`/turns`) · 종료(`/finish`). 설계 §5 의 4번부터다
+
 ## 메모 (담당자 서술형 — 기능 번호 미지정)
 
 | 메서드 | 경로 | 기능 | 비고 |
