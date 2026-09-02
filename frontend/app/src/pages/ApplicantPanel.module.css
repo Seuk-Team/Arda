@@ -278,3 +278,45 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+.fileList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.fileItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.fileItem:hover:not(:disabled) {
+  border-color: var(--leaf);
+}
+
+.fileItem:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.fileName {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.fileMeta {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}

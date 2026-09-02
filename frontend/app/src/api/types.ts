@@ -104,6 +104,15 @@ export interface Assignment {
   created_at: string
 }
 
+export interface FileOut {
+  id: number
+  filename: string
+  kind: string
+  size_bytes: number
+  content_type: string
+  created_at: string
+}
+
 export interface ApplicationDetail {
   id: number
   job_posting_id: number
@@ -118,6 +127,7 @@ export interface ApplicationDetail {
   current_stage: Stage
   created_at: string
   avg_score: number | null
+  files?: FileOut[]
 }
 
 export interface Note {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
-import { applications, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
-import type { ApplicationDetail, EmailLogItem, Note, Stage } from '../api/types'
+import { applications, files as filesApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
+import type { ApplicationDetail, EmailLogItem, FileOut, Note, Stage } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import styles from './ApplicantPanel.module.css'
@@ -213,6 +213,14 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
           </div>
 
           <div className={styles.sec}>
+            <h2>첨부 파일</h2>
+            {(detail.files?.length ?? 0) === 0
+              ? <p className={styles.state}>첨부된 파일이 없습니다.</p>
+              : <FileList files={detail.files!} />
+            }
+          </div>
+
+          <div className={styles.sec}>
             <h2>단계 변경</h2>
             <div className={styles.stageBtns}>
               {nextStages(detail.current_stage).map((s) => (
@@ -295,6 +303,53 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
         </>
       )}
     </SidePanel>
+  )
+}
+
+const KIND_LABEL: Record<string, string> = { resume: '이력서', cover_letter: '자기소개서 파일' }
+
+function fmtBytes(b: number) {
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function FileList({ files }: { files: FileOut[] }) {
+  const [downloading, setDownloading] = useState<Set<number>>(new Set())
+  const [err, setErr] = useState<string | null>(null)
+
+  async function open(fileId: number) {
+    setDownloading((prev) => new Set(prev).add(fileId))
+    setErr(null)
+    try {
+      const res = await filesApi.presignDownload(fileId)
+      /* fetch 로 내려받으면 CORS(PUT only)에 막힌다 — 링크 이동만 통과한다 */
+      window.location.href = res.download_url
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '파일을 열지 못했습니다')
+    } finally {
+      setDownloading((prev) => { const s = new Set(prev); s.delete(fileId); return s })
+    }
+  }
+
+  return (
+    <div className={styles.fileList}>
+      {files.map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          className={styles.fileItem}
+          disabled={downloading.has(f.id)}
+          onClick={() => open(f.id)}
+        >
+          <span className={styles.fileName}>{f.filename}</span>
+          <span className={styles.fileMeta}>
+            {KIND_LABEL[f.kind] ?? f.kind} · {fmtBytes(f.size_bytes)}
+          </span>
+        </button>
+      ))}
+      {err && <p className={styles.err} role="alert">{err}</p>}
+    </div>
   )
 }
 

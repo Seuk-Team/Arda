@@ -18,6 +18,13 @@ import type {
   EmailLogItem,
 } from './types'
 
+export const files = {
+  /* 다운로드 URL 발급 (F1). 누른 시점에 발급한다 — 300초 만료라 미리 발급하면 끊긴다.
+     CORS AllowedMethods 가 PUT 뿐이라 fetch 로 내려받으면 막힌다 — window.location.href 로 열 것 */
+  presignDownload: (fileId: number) =>
+    api.get<{ download_url: string; filename: string; expires_in: number }>(`/files/${fileId}/presign-download`),
+}
+
 export const auth = {
   login: (email: string, password: string) =>
     api.post<TokenResponse>('/auth/login', { email, password }, { auth: false }),
