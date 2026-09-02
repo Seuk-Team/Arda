@@ -1,7 +1,9 @@
-// 아르 — 05-design §1 의 AI 규약(앰버 점선 = 제안 / 사람이 확정)이 화면에
-// 실제로 지켜지는지가 핵심이다. 잘못 그리면 "AI가 이미 했다"로 읽힌다.
+// 아르 — 05-design §1 의 AI 규약이 화면에 실제로 지켜지는지가 핵심이다.
+// 앰버는 사람의 확정을 기다리는 것에만 쓴다(2026-09-01 개정). 앱의 아르는
+// 찾아 주기까지만 하고 확정 버튼이 없으므로 명단 카드는 정보 블록이어야 한다.
 
 import 'package:arda/data/mock_data.dart';
+import 'package:arda/models/ai_summary.dart';
 import 'package:arda/models/ar_message.dart';
 import 'package:arda/screens/ar_screen.dart';
 import 'package:arda/theme/tokens.dart';
@@ -51,56 +53,64 @@ void main() {
     });
   });
 
-  group('§1 AI 규약 — 앰버 점선', () {
-    testWidgets('제안 카드는 앰버 워시 바탕', (tester) async {
+  group('§1 AI 규약 — 확정 대기가 아니면 앰버가 아니다', () {
+    testWidgets('명단 카드는 앰버가 아니라 정보 블록이다', (tester) async {
       await tester.pumpWidget(host());
 
       final card = tester.widget<Container>(
         find
             .ancestor(
-              of: find.text('아르 제안 · 확인 필요'),
+              of: find.text('아르가 찾은 지원자'),
               matching: find.byType(Container),
             )
             .first,
       );
-      expect((card.decoration! as ShapeDecoration).color, AppColors.aiSoft);
+      final deco = card.decoration! as BoxDecoration;
+
+      // 상세의 아르의 요약과 같은 값 — 두 AI 블록이 같은 옷을 입는다
+      expect(deco.color, AppColors.bgSunken);
+      expect((deco.border! as Border).top.color, AppColors.borderSoft);
+      expect((deco.border! as Border).top.style, BorderStyle.solid);
+
+      expect(deco.color, isNot(AppColors.aiSoft));
+      final title = tester.widget<Text>(find.text('아르가 찾은 지원자'));
+      expect(title.style!.color, isNot(AppColors.ai));
     });
 
-    testWidgets('제목 글자는 --ai 앰버', (tester) async {
+    testWidgets('단계를 바꾸는 버튼이 없다 — 그건 상세 하나로 모은다', (tester) async {
       await tester.pumpWidget(host());
 
-      final label = tester.widget<Text>(find.text('아르 제안 · 확인 필요'));
-      expect(label.style!.color, AppColors.ai);
+      for (final label in ['면접으로 옮기기', '단계 변경', '승인']) {
+        expect(find.text(label), findsNothing, reason: '$label 이 카드에 있다');
+      }
     });
 
-    testWidgets('승인 버튼은 잎초록 — 사람이 확정하는 쪽', (tester) async {
+    testWidgets('[지원자 정보 보기] 는 살아 있다 — 상세로 간다', (tester) async {
       await tester.pumpWidget(host());
 
-      final confirm = mockArThread
-          .firstWhere((m) => m.pendingAction != null)
-          .pendingAction!
-          .confirmLabel;
-      final material = tester.widget<Material>(
-        find
-            .ancestor(of: find.text(confirm), matching: find.byType(Material))
-            .first,
-      );
-      expect(material.color, AppColors.leaf);
-    });
-
-    testWidgets('아직 실행되지 않았다 — 승인 버튼이 잠겨 있다', (tester) async {
-      await tester.pumpWidget(host());
-
-      final confirm = mockArThread
-          .firstWhere((m) => m.pendingAction != null)
-          .pendingAction!
-          .confirmLabel;
       final inkWell = tester.widget<InkWell>(
         find
-            .ancestor(of: find.text(confirm), matching: find.byType(InkWell))
+            .ancestor(
+              of: find.text('지원자 정보 보기'),
+              matching: find.byType(InkWell),
+            )
             .first,
       );
-      expect(inkWell.onTap, isNull, reason: '큐 8에서 /agent/confirm 에 붙는다');
+      expect(inkWell.onTap, isNotNull);
+    });
+
+    testWidgets('사람마다 아르의 요지가 함께 나온다', (tester) async {
+      await tester.pumpWidget(host());
+
+      final found = mockArThread
+          .firstWhere((m) => m.findings != null)
+          .findings!
+          .applicants;
+
+      for (final a in found) {
+        expect(a.gist, isNotNull, reason: '${a.name} 요지 없음');
+        expect(find.text(a.gist!), findsOneWidget);
+      }
     });
   });
 
@@ -132,20 +142,21 @@ void main() {
       expect(text.style!.shadows, AppTextShadow.onFill);
     });
 
-    testWidgets('제안 대상은 목데이터의 실제 지원자다 — 지어내지 않았다', (tester) async {
+    testWidgets('명단은 목데이터의 실제 지원자다 — 지어내지 않았다', (tester) async {
       await tester.pumpWidget(host());
 
-      final action = mockArThread
-          .firstWhere((m) => m.pendingAction != null)
-          .pendingAction!;
-      expect(action.targets, isNotEmpty);
-      for (final target in action.targets) {
-        expect(
-          mockApplicants.any((a) => a.name == target.name),
-          isTrue,
-          reason: '${target.name} 이 목데이터에 없다',
-        );
-        expect(find.text(target.name), findsOneWidget);
+      final findings = mockArThread
+          .firstWhere((m) => m.findings != null)
+          .findings!;
+      expect(findings.applicants, isNotEmpty);
+
+      for (final found in findings.applicants) {
+        final real = mockApplicants.where((a) => a.id == found.applicationId);
+        expect(real, hasLength(1), reason: '${found.name} 이 목데이터에 없다');
+        expect(real.single.name, found.name);
+        // 요지도 상세와 같은 값이어야 한다 — 두 화면이 다른 말을 하면 안 된다
+        expect(found.gist, AiSummary.parse(real.single.aiSummary!).gist);
+        expect(find.text(found.name), findsOneWidget);
       }
     });
   });

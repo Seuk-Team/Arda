@@ -14,49 +14,55 @@ library;
 enum ArSpeaker { ar, me }
 
 class ArMessage {
-  const ArMessage({
-    required this.speaker,
-    required this.text,
-    this.pendingAction,
-  });
+  const ArMessage({required this.speaker, required this.text, this.findings});
 
   final ArSpeaker speaker;
   final String text;
 
-  /// 이 답변에 딸려 온 실행 제안. 아르 말풍선에만 붙는다
-  final PendingAction? pendingAction;
+  /// 이 답변에 딸려 온 지원자 명단. 아르 말풍선에만 붙는다
+  final ArFindings? findings;
 }
 
-/// 아르가 하려는 일 — **아직 실행되지 않았다.**
-class PendingAction {
-  const PendingAction({
-    required this.toolName,
-    required this.description,
-    required this.targets,
-    required this.confirmLabel,
-  });
+/// 아르가 찾아 준 지원자들 — **읽기만 하는 결과다.**
+///
+/// 서버는 여전히 실행 제안(`pending_action`)을 돌려줄 수 있고 사람이
+/// `POST /agent/confirm` 으로 확정하는 2단이지만, **앱은 그 확정 버튼을 두지
+/// 않는다.** 단계 변경은 지원자 상세의 [단계 변경] 하나로 모은다 — 같은 일을
+/// 두 자리에서 할 수 있으면 어느 쪽이 진짜인지 헷갈린다.
+///
+/// 확정을 기다리는 것이 아니므로 05-design §1 에 따라 **앰버 점선이 아니다.**
+/// 상세의 아르의 요약과 같은 정보 블록으로 그린다.
+class ArFindings {
+  const ArFindings({required this.title, required this.applicants});
 
-  /// 서버가 주는 도구 이름 (`ChatResponse.pending_action.tool_name`)
-  final String toolName;
+  /// 카드 제목 — "아르가 찾은 지원자"
+  final String title;
 
-  /// 서버가 지어 준 사람 말 설명 (`description`)
-  final String description;
-
-  /// 대상이 누구인지 카드에 적기 위한 요약 — 이름과 지금 단계
-  final List<PendingTarget> targets;
-
-  /// 승인 버튼 문구
-  final String confirmLabel;
+  final List<FoundApplicant> applicants;
 }
 
-class PendingTarget {
-  const PendingTarget({
+/// 명단의 한 사람.
+///
+/// **지금 단계는 담지 않는다.** 한 번의 검색은 같은 단계에서 걸러 온 것이라
+/// 줄마다 같은 값이 반복되고, 그 설명은 이미 아르의 말풍선이 하고 있다.
+/// 줄에는 "면접에 부를지" 를 판단할 재료만 둔다.
+class FoundApplicant {
+  const FoundApplicant({
+    required this.applicationId,
     required this.name,
-    required this.stageLabel,
     required this.meta,
+    this.gist,
   });
+
+  /// [지원자 정보 보기] 가 여는 상세. 이력서·평가·메모가 거기 다 있다
+  final int applicationId;
 
   final String name;
-  final String stageLabel;
+
+  /// 경력과 기술 — "1년 · Python · AWS"
   final String meta;
+
+  /// 아르의 요약 요지 (`ai_summary.gist`). **상세에 뜨는 값과 같은 것**이라
+  /// 두 화면이 다른 말을 하지 않는다. 요약이 없으면 null 이고 줄만 나온다
+  final String? gist;
 }

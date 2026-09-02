@@ -9,15 +9,20 @@
 /// 실제 `POST /agent/chat` 연동은 큐 8이다. 살아 있는 것처럼 보이게 두면
 /// 데모에서 오해를 부르므로 입력칸을 **꺼 둔 채로** 둔다.
 ///
-/// 05-design §1 AI 규약(불변): **앰버 점선 = AI 제안 / 잎초록 실선 = 사람 확정.**
-/// 아르가 내놓은 실행 제안은 점선 카드 안에 있고, 승인 버튼을 누르기 전에는
-/// 아무 일도 일어나지 않는다(API 도 `pending_action` → `/agent/confirm` 2단이다).
+/// 05-design §1 (2026-09-01 팀장 확정): 앰버는 **사람의 확정을 기다리는 것**에만
+/// 쓴다. 앱의 아르는 지원자를 **찾아 주기까지**만 하고 확정 버튼을 두지 않으므로,
+/// 명단 카드는 앰버 점선이 아니라 정보 블록이다.
+///
+/// 단계 변경은 지원자 상세 하단 하나로 모은다 — 같은 일을 두 자리에서 할 수 있으면
+/// 어느 쪽이 진짜인지 헷갈린다. 서버의 `pending_action → /agent/confirm` 2단은
+/// 그대로 있고, 앱이 그 길을 쓰게 되면 그때 §1 대로 앰버 점선 카드를 되살린다.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
 import '../models/ar_message.dart';
+import '../routes.dart';
 import '../theme/tokens.dart';
 
 /// 전 화면 공통 진입점이 여는 시트.
@@ -48,9 +53,9 @@ class ArScreen extends StatelessWidget {
               children: [
                 for (final message in thread) ...[
                   _Bubble(message: message),
-                  if (message.pendingAction != null) ...[
+                  if (message.findings != null) ...[
                     const SizedBox(height: AppSpace.s2),
-                    _SuggestionCard(action: message.pendingAction!),
+                    _FindingsCard(findings: message.findings!),
                   ],
                   const SizedBox(height: AppSpace.s3),
                 ],
@@ -252,14 +257,20 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// 아르 제안 카드 — **앰버 점선**(05-design §1 AI 규약, 불변).
+/// 아르가 찾아 준 지원자 명단 — **읽기만 하는 정보 블록이다.**
 ///
-/// 실선은 사람이 확정한 것에만 쓴다. 승인 버튼을 눌러야 `/agent/confirm` 이
-/// 돌고, 그 전까지는 아무 일도 일어나지 않는다.
-class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard({required this.action});
+/// 05-design §1 (2026-09-01 팀장 확정): 앰버는 **사람의 확정을 기다리는 것**에만
+/// 쓴다. 이 카드에는 확정 버튼이 없으므로 앰버 점선이 아니라 상세의 아르의 요약과
+/// 같은 정보 블록(`--bg-sunken` + `--border-soft`)이다.
+///
+/// **단계 변경 버튼을 여기 두지 않는다.** 같은 일을 두 자리에서 할 수 있으면
+/// 어느 쪽이 진짜인지 헷갈린다 — 단계 변경은 지원자 상세 하단 하나로 모은다.
+/// 서버는 여전히 `pending_action → /agent/confirm` 2단을 갖고 있고, 앱이 그 길을
+/// 쓰게 되면 그때 §1 대로 앰버 점선 카드를 되살린다.
+class _FindingsCard extends StatelessWidget {
+  const _FindingsCard({required this.findings});
 
-  final PendingAction action;
+  final ArFindings findings;
 
   @override
   Widget build(BuildContext context) {
@@ -268,82 +279,110 @@ class _SuggestionCard extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 300),
         padding: const EdgeInsets.all(AppSpace.s3),
-        decoration: ShapeDecoration(
-          color: AppColors.aiSoft,
-          shape: _DashedBorder(color: AppColors.ai, radius: AppShape.rCard),
+        decoration: BoxDecoration(
+          color: AppColors.bgSunken,
+          borderRadius: AppShape.card,
+          border: Border.all(
+            color: AppColors.borderSoft,
+            width: AppShape.borderW,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              // §1: "AI 점수 박스엔 '확정은 담당자가 합니다' 상시 표기"와 같은 결
-              '아르 제안 · 확인 필요',
+              // 출처는 제목이 말한다 — §1 의 "아르의 요약"과 같은 방식
+              findings.title,
               style: const TextStyle(
                 fontFamily: AppType.fontFamily,
                 fontSize: AppType.caption,
                 fontWeight: FontWeight.w700,
-                color: AppColors.ai,
-              ),
-            ),
-            const SizedBox(height: AppSpace.s2),
-            Text(
-              action.description,
-              style: const TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.sm,
                 color: AppColors.text,
               ),
             ),
-            for (final target in action.targets) ...[
-              const SizedBox(height: AppSpace.s2),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      target.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontFamily: AppType.fontFamily,
-                        fontSize: AppType.sm,
-                        fontWeight: AppType.wSemiBold,
-                        color: AppColors.text,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpace.s2),
-                  Text(
-                    '${target.stageLabel} · ${target.meta}',
-                    softWrap: false,
-                    style: const TextStyle(
-                      fontFamily: AppType.fontFamily,
-                      fontSize: AppType.caption,
-                      color: AppColors.textSub,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: AppSpace.s3),
-            Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: action.confirmLabel,
-                    filled: true,
-                    // 큐 8: 여기가 POST /agent/confirm 이 된다
-                    onTap: null,
-                  ),
-                ),
-                const SizedBox(width: AppSpace.s2),
-                Expanded(
-                  child: _ActionButton(label: '닫기', filled: false, onTap: null),
-                ),
-              ],
-            ),
+            for (final applicant in findings.applicants)
+              _FoundRow(applicant: applicant),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 명단의 한 줄 — 이름 · 재료 · 아르의 요지 · [지원자 정보 보기].
+///
+/// 면접에 부를지 정하려면 이력서·평가·메모까지 봐야 하는데 그게 전부 상세에 있다.
+/// 그래서 "이력서 보기" 가 아니라 상세로 보낸다 — 이력서 열람은 아직 없기도 하다(W5).
+///
+/// 아르 화면은 `Navigator.push` 로 떠 있어, 상세를 열었다 돌아와도 명단이 남는다.
+class _FoundRow extends StatelessWidget {
+  const _FoundRow({required this.applicant});
+
+  final FoundApplicant applicant;
+
+  void _openDetail(BuildContext context) {
+    final target = mockApplicants.firstWhere(
+      (a) => a.id == applicant.applicationId,
+    );
+    final posting = mockPostings.firstWhere((p) => p.id == target.jobPostingId);
+    Navigator.pushNamed(
+      context,
+      Routes.applicantDetail,
+      arguments: (target, posting.title),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpace.s3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            applicant.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              fontWeight: AppType.wSemiBold,
+              color: AppColors.text,
+            ),
+          ),
+          Text(
+            applicant.meta,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              color: AppColors.textSub,
+            ),
+          ),
+          if (applicant.gist != null) ...[
+            const SizedBox(height: AppSpace.s2),
+            Text(
+              // 상세의 아르의 요약 요지와 같은 값이다. 여기서 줄이지 않는다 —
+              // 에이전트가 이미 2문장·160자로 만들어 준다(35ba4b5)
+              applicant.gist!,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.caption,
+                height: 1.55,
+                color: AppColors.text,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpace.s2),
+          _ActionButton(
+            label: '지원자 정보 보기',
+            filled: false,
+            onTap: () => _openDetail(context),
+          ),
+        ],
       ),
     );
   }
@@ -461,64 +500,4 @@ class _InputBar extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 점선 테두리 — Flutter 의 `Border` 에는 dashed 가 없어 직접 그린다.
-///
-/// 05-design §1 이 **앰버 점선**을 AI 제안의 불변 규약으로 못 박았으므로,
-/// 실선으로 대신하지 않는다.
-class _DashedBorder extends ShapeBorder {
-  const _DashedBorder({
-    required this.color,
-    required this.radius,
-    this.dash = 4,
-    this.gap = 3,
-    this.width = 1,
-  });
-
-  final Color color;
-  final Radius radius;
-  final double dash;
-  final double gap;
-  final double width;
-
-  @override
-  EdgeInsetsGeometry get dimensions => EdgeInsets.all(width);
-
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
-      Path()..addRRect(RRect.fromRectAndRadius(rect.deflate(width), radius));
-
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) =>
-      Path()..addRRect(RRect.fromRectAndRadius(rect, radius));
-
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width;
-
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(rect.deflate(width / 2), radius));
-
-    for (final metric in path.computeMetrics()) {
-      var distance = 0.0;
-      while (distance < metric.length) {
-        final end = (distance + dash).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance = end + gap;
-      }
-    }
-  }
-
-  @override
-  ShapeBorder scale(double t) => _DashedBorder(
-    color: color,
-    radius: radius,
-    dash: dash,
-    gap: gap,
-    width: width * t,
-  );
 }

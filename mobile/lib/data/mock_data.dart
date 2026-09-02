@@ -8,6 +8,7 @@
 library;
 
 import '../models/app_user.dart';
+import '../models/ai_summary.dart';
 import '../models/ar_message.dart';
 import '../models/applicant.dart';
 import '../models/application_note.dart';
@@ -560,18 +561,21 @@ final mockArThread = <ArMessage>[
     speaker: ArSpeaker.ar,
     text:
         '서류 검토 단계에서 ${_screeningApplicants.length}명을 찾았어요. '
-        '면접으로 옮길까요?',
-    pendingAction: PendingAction(
-      // 실제 도구 이름은 backend/app/agent/tools/write.py 를 따른다
-      toolName: 'change_stage',
-      description: '아래 지원자를 면접 단계로 옮깁니다. 안내 메일이 나갑니다.',
-      confirmLabel: '면접으로 옮기기',
-      targets: [
+        '아래에서 확인해 보세요.',
+    findings: ArFindings(
+      title: '아르가 찾은 지원자',
+      applicants: [
         for (final a in _screeningApplicants)
-          PendingTarget(
+          FoundApplicant(
+            applicationId: a.id,
             name: a.name,
-            stageLabel: a.currentStage.label,
-            meta: a.careerLabel,
+            // 면접에 부를지 판단할 재료 — 경력과 기술. 기술이 여섯 개인 사람도
+            // 있어(크리스토퍼) 앞 둘까지만 적는다
+            meta: [a.careerLabel, ...a.skills.take(2)].join(' · '),
+            // 상세의 아르의 요약과 **같은 값**을 판다 — 따로 짓지 않는다
+            gist: a.aiSummary == null
+                ? null
+                : AiSummary.parse(a.aiSummary!).gist,
           ),
       ],
     ),
