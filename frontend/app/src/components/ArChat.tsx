@@ -269,14 +269,9 @@ export default function ArChat({
             </div>
           )
           if (item.kind === 'error') return <p key={item.id} className={styles.error}>{item.text}</p>
-          return (
-            <div key={item.id} className={styles.log}>
-              <span className={styles.logCap}>실행 로그</span>
-              {item.lines.map((line, i) => (
-                <span key={i} className={styles.logLine}>{line}</span>
-              ))}
-            </div>
-          )
+          // 실행 로그(도구 호출 흔적) 는 담당자 UX 상 노이즈라 숨긴다 — 2026-09-02 결정.
+          // 데이터는 그대로 남기고 렌더링만 스킵해서 필요시 되살릴 수 있게 둔다.
+          return null
         })}
 
         {/* 쓰기 도구는 여기서 멈춘다. 앰버 점선 = AI 제안 (§1 불변 규약) */}

@@ -37,6 +37,7 @@ from .backends.base import (  # noqa: F401  (기존 임포트 경로 유지)
     trim_history,
 )
 from .tools import TOOL_DEFINITIONS, WRITE_TOOL_NAMES, execute_tool
+from .tools.guard import GuardedToolRunner
 
 logger = logging.getLogger(__name__)
 
@@ -127,11 +128,15 @@ def run_agent(
     """에이전트 대화 루프를 실행한다. 동기 호출."""
     backend = get_chat_backend()
 
+    # Guard 는 요청 스코프여야 한다 — 두 번째 사용자 요청에서 첫 요청의 카운트가
+    # 남아 있으면 정당한 재호출을 중복으로 오탐한다. run_agent() 가 매 호출마다
+    # 새 인스턴스를 만드는 이 구조가 그 보장이다.
+    tools = GuardedToolRunner(_DbToolRunner(db, user, compact=backend.compact_tool_results))
     result = backend.run_chat(
         message=message,
         history=history,
         system_prompt=system_prompt,
-        tools=_DbToolRunner(db, user, compact=backend.compact_tool_results),
+        tools=tools,
         request_id=request_id,
     )
 

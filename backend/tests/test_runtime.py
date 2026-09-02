@@ -226,15 +226,20 @@ class TestMaxRounds:
     """MAX_ROUNDS 초과 시 안내 메시지."""
 
     def test_exceeds_max_rounds(self):
-        loop_response = FakeResponse(
-            content=[FakeToolUseBlock(name="search_applications", input={"q": "test"})],
-            stop_reason="tool_use",
-        )
-        mock_module = _make_mock_anthropic(loop_response)
-        mock_module.Anthropic.return_value.messages.create.return_value = loop_response
+        # Guard 우회: 매 라운드 다른 인자 + 결과 1건 이상. 이 test 는 MAX_ROUNDS
+        # 안전장치 자체를 검증하는 것이고, 같은 (name, args) 반복·0건 연속 재시도는
+        # 이제 Guard 가 더 앞에서 잡는다 (tests/test_guard.py 에서 별도 검증).
+        loop_responses = [
+            FakeResponse(
+                content=[FakeToolUseBlock(name="search_applications", input={"q": f"test{i}"})],
+                stop_reason="tool_use",
+            )
+            for i in range(MAX_ROUNDS + 2)
+        ]
+        mock_module = _make_mock_anthropic(*loop_responses)
 
         result, mock_exec, _, _ = _run_with_mock(
-            "무한 검색", mock_module, execute_tool_return='[]',
+            "무한 검색", mock_module, execute_tool_return='[{"id":1}]',
         )
 
         assert "제한" in result.reply

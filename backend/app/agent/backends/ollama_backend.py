@@ -24,6 +24,7 @@ import re
 import threading
 from typing import Any
 
+from ..tools.guard import StopToolLoop
 from .base import (
     MAX_ROUNDS,
     AgentResult,
@@ -76,6 +77,14 @@ _BREVITY_SUFFIX = """
 # 시스템 프롬프트 텍스트(카탈로그)로 넣고, 호출은 스키마가 받는다.
 # 켜는 스위치: OLLAMA_CHAT_STRUCTURED=1 (기본 꺼짐 — 기존 경로 그대로).
 _STRUCTURED_ENV = "OLLAMA_CHAT_STRUCTURED"
+
+# Guard 가 도구 루프에서 빠져나오라고 신호를 보냈을 때 마지막 라운드에 쓸 스키마.
+# tool 분기를 아예 빼서 grammar 가 reply 를 강제한다.
+_REPLY_ONLY_SCHEMA = {
+    "type": "object",
+    "properties": {"action": {"const": "reply"}, "reply": {"type": "string"}},
+    "required": ["action", "reply"],
+}
 
 # 문법이 형식을 잡아도 내용은 확률적으로 튄다(실측: 같은 질의 3회에서 가짜 이름
 # 필터·도구 없이 지어낸 답변 각 1회). temperature 0 으로 결정화한다.
@@ -643,16 +652,27 @@ class OllamaBackend:
                 "tool_calls": tool_calls,
             })
 
-            for name, args in parsed_calls:
-                logger.info("tool_call", extra={"tool": name, "tool_args": sorted(args)})
-                result.tool_calls.append({"name": name, "input": args})
+            try:
+                for name, args in parsed_calls:
+                    logger.info("tool_call", extra={"tool": name, "tool_args": sorted(args)})
+                    result.tool_calls.append({"name": name, "input": args})
 
-                output = tools.execute(name, args)
-                messages.append({
-                    "role": "tool",
-                    "tool_name": name,
-                    "content": output,
-                })
+                    output = tools.execute(name, args)
+                    messages.append({
+                        "role": "tool",
+                        "tool_name": name,
+                        "content": output,
+                    })
+            except StopToolLoop as stop:
+                # 일반 경로에는 grammar 가 없어 reply 를 강제할 방법이 없다 —
+                # note 를 그대로 사용자에게 돌려주고 종료한다. structured 경로가
+                # 이 상황을 더 매끄럽게 다룬다.
+                logger.info(
+                    "nonstructured_stop_tool_loop",
+                    extra={"reason": stop.reason},
+                )
+                result.reply = stop.note
+                break
         else:
             result.reply = "도구 호출 횟수 제한에 도달했습니다. 질문을 더 구체적으로 해주세요."
 
@@ -757,7 +777,37 @@ class OllamaBackend:
 
             logger.info("tool_call", extra={"tool": name, "tool_args": sorted(args)})
             result.tool_calls.append({"name": name, "input": args})
-            output = tools.execute(name, args)
+            try:
+                output = tools.execute(name, args)
+            except StopToolLoop as stop:
+                # 도구 루프 탈출 — 마지막 한 라운드는 tool 분기를 뺀 스키마로
+                # reply 만 강제한다. 이번에 뽑아낸 tool 결정 JSON 은 대화 이력에
+                # 남겨 두어야 모델이 자기가 무엇을 부르려 했는지 본다.
+                logger.info(
+                    "structured_stop_tool_loop",
+                    extra={"reason": stop.reason, "tool": name},
+                )
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"{stop.note} 이번 응답은 도구를 부르지 말고 지금까지 알아낸 정보로 한국어 답만 주세요."
+                    ),
+                })
+                result.rounds += 1
+                data = self._chat_structured_once(messages, _REPLY_ONLY_SCHEMA)
+                result.input_tokens += data.get("prompt_eval_count", 0) or 0
+                result.output_tokens += data.get("eval_count", 0) or 0
+                raw_reply = strip_think((data.get("message") or {}).get("content") or "")
+                try:
+                    decision = json.loads(raw_reply)
+                except json.JSONDecodeError:
+                    decision = None
+                if isinstance(decision, dict):
+                    result.reply = str(decision.get("reply") or "").strip()
+                if not result.reply:
+                    result.reply = stop.note
+                break
 
             # 결정 JSON 을 assistant 턴으로 그대로 쌓는다 — 다음 라운드가
             # 자기가 무엇을 불렀는지 본다. 도구 결과는 tool 턴으로 잇는다.

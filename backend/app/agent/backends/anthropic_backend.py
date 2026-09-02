@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import os
 
+from ..tools.guard import StopToolLoop
+
 from .base import (
     MAX_ROUNDS,
     AgentResult,
@@ -167,17 +169,28 @@ class AnthropicBackend:
 
             messages.append({"role": "assistant", "content": response.content})
 
-            tool_results = []
-            for tu in tool_uses:
-                logger.info("tool_call", extra={"tool": tu.name, "tool_args": sorted(tu.input)})
-                result.tool_calls.append({"name": tu.name, "input": tu.input})
+            try:
+                tool_results = []
+                for tu in tool_uses:
+                    logger.info("tool_call", extra={"tool": tu.name, "tool_args": sorted(tu.input)})
+                    result.tool_calls.append({"name": tu.name, "input": tu.input})
 
-                output = tools.execute(tu.name, tu.input)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tu.id,
-                    "content": output,
-                })
+                    output = tools.execute(tu.name, tu.input)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": output,
+                    })
+            except StopToolLoop as stop:
+                # Anthropic 은 grammar 로 reply 를 강제할 수단이 없다 — note 를
+                # 그대로 돌려주고 종료한다. 원리상 클라우드에도 이 상황이 가능해
+                # tools 계층의 guard 는 백엔드와 무관하게 잡는다.
+                logger.info(
+                    "anthropic_stop_tool_loop",
+                    extra={"reason": stop.reason},
+                )
+                result.reply = stop.note
+                break
 
             messages.append({"role": "user", "content": tool_results})
         else:
