@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import BottomNav from './BottomNav'
 import ArPanel, { type ArMotion } from './ArPanel'
 import MorphNav from './MorphNav'
 import { useRightPanel } from './RightPanel'
@@ -56,6 +57,7 @@ export default function Layout() {
         </main>
         {/* 2026-09-01 — 사이드바 옆(왼쪽)에서 화면 오른쪽 끝으로 옮겼다 */}
         <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
+        <BottomNav />
       </div>
     </MorphNav>
   )

@@ -1,4 +1,8 @@
-﻿/* mockup.html 사이드바 규격을 그대로 옮긴다 (§12-1 시안 복제) */
+﻿@media (max-width: 768px) {
+  .sidebar { display: none; }
+}
+
+/* mockup.html 사이드바 규격을 그대로 옮긴다 (§12-1 시안 복제) */
 .sidebar {
   width: var(--sidebar-w);
   flex: none;

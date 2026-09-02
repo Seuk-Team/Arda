@@ -1,0 +1,141 @@
+.bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bar {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-sticky);
+    height: 60px;
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--sidebar-bg);
+    border-top: var(--border-w) solid var(--sidebar-line);
+  }
+
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-sub);
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease);
+  }
+
+  .tab svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .tab.active,
+  .tab:active {
+    color: var(--leaf);
+  }
+
+  /* 홈 탭: 중앙 원형 버튼 */
+  .homeTab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+  }
+
+  .homeTab svg {
+    width: 24px;
+    height: 24px;
+    padding: 10px;
+    border-radius: 50%;
+    background: var(--bg-elev);
+    border: var(--border-w) solid var(--sidebar-line);
+    color: var(--text-sub);
+    box-sizing: content-box;
+    transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+
+  .homeTab.homeActive svg {
+    background: var(--leaf);
+    border-color: var(--leaf);
+    color: #fff;
+    stroke: #fff;
+  }
+
+  /* 더보기 시트 */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-sticky) + 1);
+    background: var(--scrim);
+    display: flex;
+    align-items: flex-end;
+  }
+
+  .sheet {
+    width: 100%;
+    background: var(--bg-elev);
+    border-top: var(--border-w) solid var(--border);
+    border-radius: var(--r-card) var(--r-card) 0 0;
+    padding: var(--sp-3) 0 calc(var(--sp-4) + 60px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sheetLink {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-height: 52px;
+    padding: 0 var(--sp-5);
+    font-size: var(--font-body);
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .sheetLink svg {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--text-sub);
+  }
+
+  .sheetLink[aria-current='page'] {
+    color: var(--leaf);
+  }
+
+  .sheetLink[aria-current='page'] svg {
+    color: var(--leaf);
+  }
+
+  .sheetLogout {
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 var(--sp-5);
+    border: none;
+    background: none;
+    font-size: var(--font-body);
+    font-weight: 500;
+    color: var(--danger);
+    cursor: pointer;
+    margin-top: var(--sp-2);
+    border-top: var(--border-w) solid var(--border-soft);
+  }
+}
