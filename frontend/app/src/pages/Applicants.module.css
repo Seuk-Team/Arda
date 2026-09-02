@@ -393,17 +393,18 @@
 /* 단계 필터 필 */
 .pills {
   display: flex;
-  gap: var(--sp-2);
+  gap: 6px;
   overflow-x: auto;
-  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
   scrollbar-width: none;
 }
 .pills::-webkit-scrollbar { display: none; }
 
 .pill {
-  flex: none;
-  height: 32px;
-  padding: 0 var(--sp-3);
+  flex: 1;
+  text-align: center;
+  height: 30px;
+  padding: 0 var(--sp-2);
   border-radius: var(--r-pill);
   border: var(--border-w) solid var(--border);
   background: var(--bg-elev);
