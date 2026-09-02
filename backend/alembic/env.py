@@ -31,7 +31,7 @@ if not DATABASE_URL:
     raise SystemExit(
         "DATABASE_URL 이 필요하다. 예:\n"
         '  DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/arda" '
-        "uv run --with alembic alembic upgrade head"
+        "uv run alembic upgrade head"
     )
 
 

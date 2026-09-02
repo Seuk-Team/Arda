@@ -10,7 +10,7 @@
 ```bash
 cd backend
 export DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/arda"   # 자기 포트로
-uv run --with alembic alembic upgrade head
+uv run alembic upgrade head
 ```
 
 > **⚠️ 쓰던 DB 에 그냥 `upgrade head` 를 돌리면 실패한다.** `0001` 이 테이블을 **처음부터 만드는** 리비전이라 이미 있는 테이블과 부딪힌다 (재현으로 확인).
@@ -40,7 +40,7 @@ uv run --with alembic alembic upgrade head
 ```bash
 git pull
 cd backend && uv sync
-uv run --with alembic alembic upgrade head   # 스키마 최신화 (1절의 '처음 한 번' 을 마친 뒤부터)
+uv run alembic upgrade head   # 스키마 최신화 (1절의 '처음 한 번' 을 마친 뒤부터)
 docker compose up -d --build      # --build 는 아래 이유로 필요할 때가 있다
 ```
 

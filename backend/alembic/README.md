@@ -11,15 +11,23 @@
 
 ## 쓰는 법
 
-**alembic 은 런타임 의존성이 아니다.** `pyproject`·`uv.lock` 을 건드리지 않으려고 일부러 뺐다 — Dockerfile 이 uv 0.5.11 로 핀돼 있는데 `uv.lock` 은 그보다 새 uv 가 쓴 형식이라, 지금 잠금 파일을 다시 쓰면 **이미지 빌드가 깨질 수 있다.** 필요할 때만 받아 쓴다.
+**alembic 은 런타임 의존성이 아니다** — 서버가 뜰 때 돌지 않는다. 그래서 `[dependency-groups] dev` 에 있고, 운영 이미지는 `uv sync --frozen --no-dev` 라 **들어가지 않는다**(`uv export --no-dev` 로 실측 확인).
+
+> **왜 처음엔 뺐다가 이제 넣었나** (2026-09-02)
+>
+> 도입(`5941ae7`) 당시에는 `pyproject`·`uv.lock` 을 아예 건드리지 않고 `uv run --with alembic` 으로 그때그때 받아 썼다. **Dockerfile 이 uv `0.5.11` 로 핀돼 있는데 `uv.lock` 은 그보다 새 uv 가 쓴 형식이어서, 잠금 파일을 다시 쓰면 이미지 빌드가 깨질까 봐** 피한 것이다. 근거 있는 판단이었다.
+>
+> 뒤집은 이유는 둘이다. **첫째, 버전이 아무 데도 안 박힌다.** `--with` 는 매번 최신을 받아오므로 사람마다·CI 마다 **다른 alembic 으로 같은 리비전을 돌리게 된다.** 지금은 잘 돌아도 alembic 이 바뀌면 어느 날 한 명만 실패한다. 둘째, **걱정했던 위험이 실제로는 성립하지 않았다** — 이번에 다시 쓴 `uv.lock` 은 형식(`version = 1` · `revision = 3`)이 그대로이고 기존 패키지 버전도 하나도 안 움직였다(`alembic` `mako` 두 줄만 추가). 그리고 그 `revision = 3` 은 이 변경 **이전부터** 있던 값이고, 09/01 저녁 운영 재배포가 그 잠금 파일로 성공했다.
+>
+> 즉 원래 판단이 틀렸던 게 아니라 **전제가 이미 바뀌어 있었다.** 다만 Dockerfile 의 uv 핀과 잠금 파일 형식이 어긋나 있는 것 자체는 그대로다 — 별건으로 정리할 것.
 
 ```bash
 cd backend
 export DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:5432/arda"
 
-uv run --with alembic alembic upgrade head        # 최신으로
-uv run --with alembic alembic check               # 모델과 어긋난 곳이 있는지
-uv run --with alembic alembic current             # 지금 리비전
+uv run alembic upgrade head        # 최신으로
+uv run alembic check               # 모델과 어긋난 곳이 있는지
+uv run alembic current             # 지금 리비전
 ```
 
 ### 이미 쓰던 DB 가 있다면
@@ -54,7 +62,7 @@ uv run --with alembic alembic current             # 지금 리비전
 ## 스키마를 바꿀 때
 
 1. `app/models.py` 를 고친다
-2. 리비전을 만든다 — `uv run --with alembic alembic revision --autogenerate -m "무엇을"`
+2. 리비전을 만든다 — `uv run alembic revision --autogenerate -m "무엇을"`
 3. **생성된 파일을 읽는다.** autogenerate 는 완벽하지 않다 — 실제로 `use_alter` 순환 FK 를 빠뜨렸고 `alembic check` 로 잡았다
 4. `alembic upgrade head` 로 적용하고 `alembic check` 로 어긋남이 없는지 확인
 5. 코드와 **같은 커밋**에 넣고 `01-erd.md` 도 함께 갱신한다 (CLAUDE.md 규칙)
