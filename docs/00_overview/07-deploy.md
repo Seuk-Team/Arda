@@ -112,6 +112,8 @@ API 전체가 안 뜬 것**이다.
 
 main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. **CI/CD(J4, main 머지 시 자동 배포)는 W3에 이 절차를 대체한다.** 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
 
+**scp 없이 (2026-09-02 부터)**: 레포가 공개라 서버가 직접 받는다 — `~/arda` 에서 `curl -sL https://github.com/Team-Seuk/Arda/archive/<sha>.tar.gz -o /tmp/arda.tgz && tar xzf /tmp/arda.tgz --strip-components=1 -C ~/arda && echo <sha> > DEPLOYED_COMMIT`, 그 뒤 `build` → `up -d` 를 **나눠서**. `docker-compose.prod.yml`·`Caddyfile` 은 레포에 없어 tar 가 덮지 않는다 — 원본은 [infra/](../../infra/) 에 회수해 뒀다(2026-09-02). 서버 것과 다르면 서버가 진실이고 infra/ 를 고친다.
+
 ## 1회성 DB 이행
 
 스키마는 `create_all` 로 만들지만([db.py](../../backend/app/db.py)), **이미 데이터가 있는 DB** 는 값·제약을 바꿀 수단이 없다. 그런 변경은 `backend/scripts/` 에 SQL 파일로 두고 여기에 실행법을 적는다.
@@ -168,7 +170,8 @@ psql "$DATABASE_URL" -f backend/scripts/upgrade_settings_mail.sql
 ## 주의
 
 - 시크릿(SSH 키·admin 비밀번호·API 키)은 이 문서에 없다 — 필요하면 팀장에게.
-- SSH 키 없는 PC에서 서버 작업이 필요하면: AWS 콘솔 → EC2 Instance Connect(브라우저 셸, 유저 `ubuntu`). 단, 보안그룹에 SSH 소스 `13.209.1.56/29`(서울 Instance Connect 대역)를 **임시 추가**하고 작업 후 제거한다 (08/28 실사용).
+- SSH 키 없는 PC에서 서버 작업이 필요하면: AWS 콘솔 → EC2 Instance Connect(브라우저 셸, 유저 `ubuntu`). 단, 보안그룹에 SSH 소스 `13.209.1.56/29`(서울 Instance Connect 대역)를 **임시 추가**하고 작업 후 제거한다 (08/28 · 09/02 실사용).
+- **AWS 권한 (2026-09-02 이관)**: 계정은 학원 크레딧 때문에 팀장 명의로 유지한다. 운영은 IAM 유저로 — `woojeongalex`(콘솔, 그룹 `arda-ops` = PowerUserAccess: EC2·S3·SES·SQS 전부, IAM·결제 제외) · `arda-server`(콘솔 없음, 서버 `.env` 전용 — S3 버킷 하나·SES 발송·SQS 만 허용하는 `arda-server-policy`). **서버 `.env` 의 AWS 키는 09/02 부터 `arda-server` 것**이고 팀장 개인 키는 비활성화했다. 키가 새면 `arda-server` 키만 재발급하면 된다.
 - SES는 샌드박스 유지 — **해제(발송 한도 증가) 신청이 08/27 거절됨.** 실발송 테스트는 검증된 수신자(팀원 메일 등록)로만 가능하고, 데모도 이 방식으로 충분. SNS 바운스·컴플레인트 알림 연결 후 **08/28 재신청 제출 — 결과 대기.**
 
 
@@ -305,3 +308,22 @@ SES 샌드박스라 검증된 주소로만 발송된다. 시연 대상 5명의 `
 **남은 것**: 접수 확인 메일 15건이 `failed`(`applied` · `example.com`)로 그대로다. `email_logs.to_email` 이 발송 시점 스냅샷이라 주소를 바꿔도 되살아나지 않는다. **지원자 상세를 열면 방금 보낸 「발송됨」 바로 아래에 「실패」가 같이 보인다.** 그냥 두기 / 로그 정리 / 새로 한 통 보내 덮기 중 어느 쪽인지는 팀에서 정할 일이다.
 
 > ⚠️ **이 재생성은 `35ba4b5` 배포 전 기준이다 — 다음 배포 뒤에 한 번 더 돌려야 한다.** `35ba4b5`(같은 날 17:07, 에이전트 오너)가 요약 스키마에 상한을 넣었다: **gist 160자 · 리스트 항목 40자.** 위 재생성은 그 직전 배포본(`046cee9`)으로 돌아서 새 상한을 안 받았다. 실측하면 **gist 는 최대 157자로 전부 통과하는데, 리스트 항목은 40자 초과가 21명 중 18명·49건(최대 66자)** 이다. 지금 화면이 깨지는 것은 아니지만 **저장된 값이 곧 배포될 규격과 다르다.** 재생성은 21건에 85초라 배포 직후 다시 돌리면 된다.
+
+## 2026-09-02 재배포 (팀장) — 백엔드 오너 요청분 + 검증 데이터 정리 + AWS 권한 이관
+
+`f227673` 기준. 이번 PC 에는 SSH 키가 없어 **Instance Connect + 서버가 GitHub 타르볼을 직접 받는** 방식으로 갔다(위 "재배포" 절에 절차 추가). 들어간 백엔드 변경은 둘 — `35ba4b5`(요약 스키마 상한·단계 라벨 통합) · `b99a7b8`(alembic dev 의존). DB 이행 없음.
+
+| 단계 | 결과 |
+|---|---|
+| `df -h /` | 60% (7.5G 여유) — 빌드 전에 봤다 |
+| `build` (up 과 분리) | **성공 · 266초.** uv 0.5.11 이 `uv.lock revision = 3` 을 읽었다 — README 가 걱정하던 조합은 실측으로 문제없음 |
+| `up -d` | api·worker 재생성, `/health` ok, 첫 로그 `APP_ENV=production — 보안 게이트 켜짐` |
+| `DEPLOYED_COMMIT` | 서버 파일이 `58ae0ff` 로 낡아 있었다(실제 배포본은 09/01 `046cee9`). `f227673` 로 갱신 |
+
+**검증 데이터 삭제** (백엔드 오너 부탁 — API 로는 지원자 삭제 경로가 없고 공고는 지원서가 있으면 409): 지원자 id 24(우정알렉스 · C7 검증) · 공고 id 3(`closed`). 이름·상태 가드를 건 트랜잭션 하나로 — 자식 행 `application_embeddings`·`email_logs`·`files`·`stage_history` 각 1건, 나머지 5종 0건, 본체 2건. S3 객체 `applications/bce2d52f-…/resume.pdf` 도 api 컨테이너의 boto3 로 지웠다. 기존 공고 2개·지원자 23명은 그대로.
+
+**서버에만 있던 설정 회수**: `docker-compose.prod.yml`·`Caddyfile` → [infra/](../../infra/). 시크릿 리터럴 없음(`DB_PASSWORD` 는 `.env` 참조).
+
+**AWS 권한 이관** (위 "주의" 절): IAM 유저 `woojeongalex`(운영 콘솔) · `arda-server`(서버 `.env` 키) 신설. `.env` 키 교체 후 `up -d --force-recreate api worker` 로 반영 — `sts get-caller-identity` 가 `user/arda-server` 를 반환하는 것까지 확인. 팀장 개인 액세스 키는 비활성화(삭제 아님 — 되돌릴 수 있게).
+
+**남은 것**: AI 요약 재생성 22건 — 백엔드 오너가 돌리기로 함(85초). SES 재신청 결과는 여전히 미확인.

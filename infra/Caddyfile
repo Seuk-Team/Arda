@@ -1,0 +1,7 @@
+api.arda.seuk.cloud {
+	handle_path /demo/* {
+		root * /srv/demo
+		file_server
+	}
+	reverse_proxy api:8000
+}

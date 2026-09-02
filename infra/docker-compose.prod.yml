@@ -1,0 +1,55 @@
+# Arda 프로덕션 compose — EC2 전용. 로컬 개발은 저장소 루트의 docker-compose.yml.
+# 차이: --reload 제거, DB 포트 비공개, 워커 활성, restart 정책, env_file 주입.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set in .env}
+      POSTGRES_DB: arda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d arda"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    env_file: ./backend/.env
+    command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    env_file: ./backend/.env
+    command: /app/.venv/bin/python -m app.worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./demo:/srv/demo:ro
+      - caddy_data:/data
+    restart: unless-stopped
+    depends_on:
+      - api
+
+
+volumes:
+  pgdata:
+  caddy_data:
