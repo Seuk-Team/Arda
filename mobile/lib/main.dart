@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import 'auth/auth_service.dart';
 import 'auth/current_user.dart';
+import 'data/repositories.dart';
 import 'models/applicant.dart';
 import 'models/job_posting.dart';
 import 'routes.dart';
@@ -36,7 +37,7 @@ void _registerFontLicense() {
 }
 
 class ArdaApp extends StatelessWidget {
-  ArdaApp({super.key, this.auth, this.initialRoute});
+  ArdaApp({super.key, this.auth, this.initialRoute, this.repositories});
 
   /// 테스트가 가짜 인증을 넣는 자리. 평소에는 null 이라 진짜가 만들어진다
   final AuthService? auth;
@@ -44,12 +45,22 @@ class ArdaApp extends StatelessWidget {
   /// 테스트가 시작 화면(토큰 확인)을 건너뛰는 자리
   final String? initialRoute;
 
+  /// 테스트가 가짜 저장소를 넣는 자리 (큐 8)
+  final Repositories? repositories;
+
   /// 로그인한 사람. 시작 화면·로그인 화면이 채우고 더보기·설정이 읽는다 (큐 7)
   final _user = CurrentUser();
 
   @override
   Widget build(BuildContext context) {
-    return CurrentUserScope(notifier: _user, auth: auth, child: _app());
+    return CurrentUserScope(
+      notifier: _user,
+      auth: auth,
+      child: RepositoryScope(
+        repositories: repositories ?? const Repositories(),
+        child: _app(),
+      ),
+    );
   }
 
   Widget _app() {

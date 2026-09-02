@@ -69,3 +69,31 @@ class JobPosting {
     return deadlineLabel(today);
   }
 }
+
+/// 서버 응답 → 모델. `PostingOut`(backend/app/schemas/posting.py).
+///
+/// 서버는 `application_count`(총 지원자)와 `d_day`(계산값)도 주지만 담지 않는다 —
+/// 총원은 [postingCounts] 합으로 이미 나오고, D-day 는 [deadlineLabel] 이
+/// 오늘 날짜로 다시 계산한다. 서버가 준 d_day 를 들고 있으면 앱을 켜 둔 채
+/// 날이 바뀌었을 때 어제 값이 남는다.
+extension JobPostingJson on JobPosting {
+  static JobPosting fromJson(Map<String, dynamic> json) => JobPosting(
+    id: json['id'] as int,
+    title: json['title'] as String,
+    status: _status(json['status'] as String?),
+    // `deadline` 은 date 라 "2026-09-09" 로 온다. NULL 이면 상시 접수
+    deadline: switch (json['deadline']) {
+      final String s => DateTime.parse(s),
+      _ => null,
+    },
+  );
+
+  /// 모르는 상태가 오면 `작성 중` 으로 둔다 — 진행중으로 넘겨짚으면
+  /// 지원 링크가 열려 있는 것처럼 보인다
+  static PostingStatus _status(String? value) => PostingStatus.values
+      .firstWhere((s) => s.value == value, orElse: () => PostingStatus.draft);
+
+  /// 서버가 준 총 지원자 수. 퍼널을 아직 못 받았을 때 카드가 쓸 값이다
+  static int countOf(Map<String, dynamic> json) =>
+      json['application_count'] as int? ?? 0;
+}

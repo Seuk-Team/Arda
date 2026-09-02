@@ -13,16 +13,24 @@ import 'package:arda/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:arda/data/repositories.dart';
+
 import 'fake_auth.dart';
+import 'fake_repos.dart';
 
 /// 앱을 켜고 로그인을 통과해 탭 셸까지 간다.
 ///
 /// [tab] 을 주면 그 탭까지 옮긴다. 셸은 홈(대시보드)에서 시작하므로
 /// 공고·지원자 등을 보려면 탭 이름을 넘겨야 한다.
 Future<void> bootToShell(WidgetTester tester, {String? tab}) async {
-  // 시작 화면을 건너뛰고 로그인부터 — 토큰 확인은 launch_screen_test 가 본다
+  // 시작 화면을 건너뛰고 로그인부터 — 토큰 확인은 launch_screen_test 가 본다.
+  // 저장소도 가짜다(큐 8) — 화면 규칙을 보는 테스트가 서버에 붙을 이유가 없다
   await tester.pumpWidget(
-    ArdaApp(auth: FakeAuthService(), initialRoute: Routes.login),
+    ArdaApp(
+      auth: FakeAuthService(),
+      initialRoute: Routes.login,
+      repositories: Repositories(postings: FakePostingRepository()),
+    ),
   );
 
   await tester.enterText(find.byType(TextField).first, 'a@b.com');

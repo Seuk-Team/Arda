@@ -14,7 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'app_boot.dart';
+import 'package:arda/data/repositories.dart';
+
 import 'fake_auth.dart';
+import 'fake_repos.dart';
 
 void main() {
   /// 로그인 화면만 띄운다 — 버튼 활성화 같은 화면 규칙을 볼 때.
@@ -29,8 +32,14 @@ void main() {
   );
 
   /// 앱 전체를 로그인 화면부터 띄운다 — 통과 후 어디로 가는지를 볼 때.
-  Widget bootedApp({FakeAuthService? auth}) =>
-      ArdaApp(auth: auth ?? FakeAuthService(), initialRoute: Routes.login);
+  ///
+  /// 저장소도 가짜여야 한다. 통과하면 탭 셸이 뜨고 그 안의 공고 화면이 곧바로
+  /// 서버를 부른다 — 진짜 저장소면 15초 타임아웃까지 매달린다(큐 8).
+  Widget bootedApp({FakeAuthService? auth}) => ArdaApp(
+    auth: auth ?? FakeAuthService(),
+    initialRoute: Routes.login,
+    repositories: Repositories(postings: FakePostingRepository()),
+  );
 
   Future<void> fill(WidgetTester tester) async {
     await tester.enterText(find.byType(TextField).first, 'a@b.com');

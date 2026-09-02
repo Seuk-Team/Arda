@@ -10,6 +10,7 @@
 library;
 
 import '../api/api_client.dart';
+import 'authed_client.dart';
 import '../api/api_error.dart';
 import '../models/app_user.dart';
 import 'token_store.dart';
@@ -17,13 +18,7 @@ import 'token_store.dart';
 class AuthService {
   AuthService({ApiClient? client, TokenStore store = const TokenStore()})
     : _store = store {
-    _client =
-        client ??
-        ApiClient(
-          readToken: store.read,
-          // 401 을 받으면 죽은 토큰을 들고 있을 이유가 없다
-          onAuthExpired: store.clear,
-        );
+    _client = client ?? authedClient(store);
   }
 
   late final ApiClient _client;
