@@ -241,16 +241,37 @@
 .slotClear:active { background: var(--sunken-hover); }
 .slotClear:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
 
-/* 내 면접만 — 자기 면접을 추려 볼 때. 목록 자체는 전원에게 전부 보인다 */
+/* 내 면접만 — pill 토글 버튼 */
 .mine {
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
-  margin-left: auto;
+  height: 36px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
   font-size: var(--font-sm);
+  font-weight: 600;
   color: var(--text-sub);
   white-space: nowrap;
   cursor: pointer;
+  margin-left: auto;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.mine:hover { background: var(--bg-sunken); }
+
+.mineOn {
+  background: var(--sprout-soft);
+  border-color: var(--leaf);
+  color: var(--leaf);
+}
+
+/* ‹ 날짜 › 묶음 */
+.dayNavGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
 
@@ -400,7 +421,15 @@
   min-height: 72px;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-2);
+  gap: 0;
+  position: relative;
+}
+
+.cellNarrow .dot {
+  position: absolute;
+  bottom: var(--sp-2);
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .count {
@@ -415,6 +444,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--leaf);
+  flex: none;
+}
+
+.selected .dot {
+  background: #fff;
 }
 
 /* 그 달에 면접이 없을 때 (§6 empty) */
@@ -491,7 +532,7 @@
   font-size: var(--font-body);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  color: var(--leaf);
   white-space: nowrap;
 }
 
@@ -551,5 +592,73 @@
 
   .dayHead {
     flex-wrap: wrap;
+  }
+
+  .daybar {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+
+  /* 내비 그룹: 한 줄 전체 차지 */
+  .dayNavGroup {
+    flex: 0 0 100%;
+    justify-content: space-between;
+  }
+
+  .dayLabel {
+    font-size: var(--font-body);
+    text-align: center;
+    flex: 1;
+  }
+
+  /* 두 번째 줄: mine + today 오른쪽 정렬 */
+  .mine {
+    margin-left: auto;
+    height: 32px;
+    padding: 0 var(--sp-3);
+  }
+
+  .dayToday {
+    margin-left: 0;
+    height: 32px;
+    padding: 0 var(--sp-3);
+  }
+
+  /* 선택된 날: 진초록 채운 배경 */
+  .selected {
+    background: var(--leaf);
+    box-shadow: none;
+  }
+
+  .selected:hover {
+    background: var(--leaf-strong, var(--leaf));
+  }
+
+  .selected .date {
+    background: transparent;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .selected .count {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+  }
+
+  /* 인라인 면접 목록 */
+  .narrowList {
+    margin-top: var(--sp-4);
+    background: var(--bg-elev);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--r-card);
+    overflow: hidden;
+  }
+
+  .narrowListHead {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    padding: var(--sp-4) var(--sp-4) var(--sp-3);
+    border-bottom: var(--border-w) solid var(--border-soft);
   }
 }

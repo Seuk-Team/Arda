@@ -49,6 +49,13 @@ export default function Login() {
     <div className={styles.page}>
       <form className={styles.card} onSubmit={handleSubmit}>
         <h1 className={styles.logo}><span className={styles.seed}>A</span>rda</h1>
+        <div className={styles.mobileLogoArea} aria-hidden="true">
+          <div className={styles.avatar}>
+            <img src="/ar-login.png" alt="" className={styles.avatarImg} />
+          </div>
+          <span className={styles.mobileTitle}><span className={styles.seed}>A</span>rda</span>
+          <p className={styles.sub}>채용 관리</p>
+        </div>
 
         <label className={styles.label}>
           이메일

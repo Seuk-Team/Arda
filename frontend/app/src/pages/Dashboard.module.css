@@ -671,3 +671,294 @@
   color: var(--text-sub);
   word-break: keep-all;
 }
+
+/* ── 데스크탑 2열 그리드 (calCard 왼쪽 / postingCol 오른쪽) ──
+   topGrid 래퍼를 제거하고 .page(main)를 그리드 컨테이너로 씀.
+   DOM 순서: stats → calCard → mobileReview → pipeCard → postingCol
+   데스크탑에서 postingCol을 grid-row: 2로 올려 calCard 옆에 배치한다. */
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-5);
+  align-items: start;
+}
+
+/* 그리드 직계 자식의 margin-bottom은 gap이 대신한다 */
+.page > .stats,
+.page > .calCard,
+.page > .pipeCard,
+.page > .postingCol {
+  margin-bottom: 0;
+}
+
+.stats    { grid-column: 1 / -1; grid-row: 1; }
+.calCard  { grid-column: 1;      grid-row: 2; }
+.pipeCard { grid-column: 1 / -1; grid-row: 3; }
+.postingCol { grid-column: 2;    grid-row: 2; }
+
+/* 1100px 이하: 1열, postingCol은 calCard 바로 아래 (기존 topGrid 1열 동작 유지) */
+@media (max-width: 1100px) {
+  .page { grid-template-columns: minmax(0, 1fr); }
+  .calCard  { grid-row: 2; }
+  .postingCol { grid-column: 1; grid-row: 3; }
+  .pipeCard { grid-row: 4; }
+}
+
+/* ── 모바일 전용 요소 (기본 숨김) ────────────────── */
+.mobileCalTitle  { display: none; }
+.mobileCalMeta   { display: none; }
+.mobileReview    { display: none; }
+.mobilePipeTop   { display: none; }
+.mobilePipeBar   { display: none; }
+.mobilePostingTitle { display: none; }
+.mobilePipeLink  { display: none; }
+.mobileCalLink   { display: none; }
+
+/* ── 모바일 대시보드 (≤768px) ───────────────────── */
+@media (max-width: 768px) {
+  /* 그리드 해제 — DOM 순서대로 블록 스택 */
+  .page {
+    display: block;
+  }
+
+  /* 기존 margin-bottom 복원 */
+  .page > .calCard,
+  .page > .pipeCard,
+  .page > .postingCol {
+    margin-bottom: var(--sp-5);
+  }
+
+  /* 데스크탑 전용 요소 숨김 */
+  .stats     { display: none; }
+  .calTitle  { display: none; }
+  .calMonth  { display: none; }
+  .dow       { display: none; }
+  .strip     { display: none; }
+
+  /* 모바일 calCard 헤더 */
+  .mobileCalTitle {
+    display: block;
+    font-size: var(--font-h2);
+    font-weight: 700;
+    color: var(--text);
+    text-shadow: var(--ts-heading);
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .mobileCalMeta {
+    display: block;
+    font-size: var(--font-sm);
+    color: var(--text-sub);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* calHead flex는 유지되므로 mobileCalTitle이 flex item으로 작동 */
+  .calHead {
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
+  }
+
+  /* 내 리뷰 대기 카드 */
+  .mobileReview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    background: var(--bg-elev);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--r-card);
+    box-shadow: var(--sh-card);
+    padding: var(--sp-4);
+    margin-bottom: var(--sp-5);
+  }
+
+  .mobileReviewInfo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .mobileReviewLabel {
+    font-size: var(--font-sm);
+    color: var(--text-sub);
+    margin: 0;
+  }
+
+  .mobileReviewVal {
+    font-size: var(--font-display);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    text-shadow: var(--ts-heading);
+    margin: 0;
+  }
+
+  .mobileReviewUnit {
+    font-size: var(--font-num);
+    font-weight: 400;
+    color: var(--text-sub);
+    text-shadow: none;
+    margin-left: var(--sp-1);
+  }
+
+  .mobileReviewBtn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 var(--sp-4);
+    border-radius: var(--r-ctl);
+    background: var(--leaf);
+    color: #fff;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+
+  /* 파이프 카드 모바일 헤더 */
+  .mobilePipeTop {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+  }
+
+  .mobilePipeTitle {
+    font-size: var(--font-h2);
+    font-weight: 700;
+    color: var(--text);
+    text-shadow: var(--ts-heading);
+  }
+
+  .mobilePipeCnt {
+    font-size: var(--font-h2);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-sub);
+    text-shadow: var(--ts-heading);
+  }
+
+  .mobilePipeBar {
+    display: grid;
+    height: 8px;
+    border-radius: var(--r-pill);
+    overflow: hidden;
+    column-gap: var(--sp-1);
+    margin-bottom: var(--sp-3);
+  }
+
+  /* 진행중 공고 섹션 제목 + 건수 */
+  .mobilePostingTitle {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: var(--font-h2);
+    font-weight: 700;
+    color: var(--text);
+    text-shadow: var(--ts-heading);
+    margin-bottom: var(--sp-3);
+  }
+
+  .mobilePostingCount {
+    font-size: var(--font-sm);
+    font-weight: 400;
+    color: var(--text-sub);
+    text-shadow: none;
+  }
+
+  /* postingList → 단일 카드 */
+  .postingCol .postingList {
+    display: block;
+    background: var(--bg-elev);
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--r-card);
+    box-shadow: var(--sh-card);
+    overflow: hidden;
+    gap: 0;
+  }
+
+  /* 개별 공고카드 → 심플 행 */
+  .postingCol .postingCard {
+    background: transparent;
+    border: none;
+    border-bottom: var(--border-w) solid var(--border-soft);
+    border-radius: 0;
+    box-shadow: none;
+    padding: var(--sp-3) var(--sp-4);
+    margin-bottom: 0;
+  }
+
+  .postingCol .postingCard:last-child {
+    border-bottom: none;
+  }
+
+  /* 레일·단계 카운트 숨김 */
+  .postingCol .postingRail   { display: none; }
+  .postingCol .postingCounts { display: none; }
+  .postingCol .postingTop    { margin-bottom: 0; min-width: 0; overflow: hidden; }
+  .postingCol .postingName   { font-size: var(--font-sm); }
+  .postingCol .postingDday   { font-size: var(--font-sm); flex-shrink: 0; }
+
+  /* 지원자 현황: 전체 링크 위치 이동 (상단 pipeHead → 하단) */
+  .pipeCard .pipeHead { display: none; }
+  .mobilePipeLink { display: block; }
+
+  /* ── 오늘 면접 calCard ──────────────────────── */
+
+  /* 헤더: 오늘 면접(좌) / 날짜·건수(우) 한 줄, "캘린더 →"는 하단으로 */
+  .calHead {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+  .mobileCalTitle { flex: 1; font-size: var(--font-h2); }
+  .mobileCalMeta  { flex: none; }
+  .calHead .go    { display: none; }
+
+  /* 컬럼 헤더·면접관 숨김 */
+  .calCols { display: none; }
+  .calWho  { display: none; }
+
+  /* 행: CSS grid — 시각(왼쪽 span 2행) / 이름(위) + 공고(아래) */
+  .calRow {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: var(--sp-3);
+    row-gap: var(--sp-1);
+    padding: var(--sp-3) 0;
+  }
+
+  .calTime {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+    min-width: unset;
+    color: var(--leaf);
+    font-weight: 700;
+    font-size: var(--font-num);
+  }
+
+  .calName {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+    font-size: var(--font-sm);
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .calPosting {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: var(--font-caption);
+    color: var(--text-sub);
+  }
+
+  /* 하단 "캘린더 →" 항상 표시 */
+  .mobileCalLink { display: block; }
+}

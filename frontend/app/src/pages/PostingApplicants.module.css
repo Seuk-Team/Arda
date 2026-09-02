@@ -547,3 +547,19 @@
   border-color: var(--border);
   cursor: not-allowed;
 }
+
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 1fr 80px;
+    padding: 0 var(--sp-4);
+  }
+  .rowSel {
+    grid-template-columns: 32px 1fr 80px;
+  }
+  /* 경력·이메일·평점·지원일 숨김 */
+  .row > span:nth-child(n+4),
+  .rowSel > span:nth-child(n+4),
+  .rowSel > input ~ span:nth-child(n+4) {
+    display: none;
+  }
+}

@@ -52,6 +52,7 @@ class PostingOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     application_count: int = 0  # B3 — 집계 쿼리로 채운다. 컬럼이 아니다
+    stage_counts: dict[str, int] = Field(default_factory=dict)  # B3 — 단계별 집계
 
     @computed_field
     @property

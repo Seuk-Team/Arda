@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
@@ -71,8 +70,7 @@ export default function Settings() {
    admin 전용이라, 이게 없으면 member 에게 설정은 읽기 전용 화면이었다. */
 
 function MyAccount() {
-  const { user, refresh, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user, refresh } = useAuth()
   const { show } = useToast()
   const [name, setName] = useState(user?.name ?? '')
   const [current, setCurrent] = useState('')
@@ -171,21 +169,6 @@ function MyAccount() {
         </button>
       </div>
 
-      <hr className={styles.divider} />
-
-      <div className={styles.sessionBox}>
-        <div className={styles.sessionInfo}>
-          <span className={styles.sessionLabel}>세션</span>
-          <span className={styles.sessionDesc}>로그아웃하면 이 기기에서 로그인이 해제됩니다.</span>
-        </div>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => { logout(); navigate('/login') }}
-        >
-          로그아웃
-        </button>
-      </div>
     </div>
   )
 }

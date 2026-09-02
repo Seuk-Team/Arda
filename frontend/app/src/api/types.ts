@@ -66,6 +66,7 @@ export interface Posting {
   application_count: number
   /* 서버가 응답 시점에 계산해 준다. 마감일이 없으면 null, 지났으면 음수 */
   d_day: number | null
+  stage_counts?: Record<string, number>
 }
 
 /* 단계 코드. 01-erd.md 의 applications.current_stage 와 같은 값 */
@@ -230,4 +231,48 @@ export interface AgentConfirmRequest {
 export interface AgentConfirmResponse {
   ok: boolean
   result: Record<string, unknown>
+}
+
+/* ── AI 면접 (public/interview) ───────────────────────────────────── */
+
+export interface InterviewPublic {
+  status: 'pending' | 'in_progress' | 'done' | 'expired'
+  applicant_name: string
+  posting_title: string
+  expires_at: string | null
+  consent_required: boolean
+  current_question: string | null
+  question_seq: number | null
+}
+
+export interface InterviewSession {
+  id: number
+  application_id: number
+  status: string
+  token: string
+  url: string
+  expires_at: string | null
+  consented_at: string | null
+  started_at: string | null
+  ended_at: string | null
+  created_at: string
+}
+
+export interface InterviewTurn {
+  seq: number
+  question: string
+  transcript: string | null
+  audio_duration_sec: number | null
+}
+
+export interface InterviewFinding {
+  claim_source: string
+  claim_text: string
+  answer_text: string
+  verdict: string
+}
+
+export interface InterviewSessionDetail extends InterviewSession {
+  turns: InterviewTurn[]
+  findings: InterviewFinding[]
 }

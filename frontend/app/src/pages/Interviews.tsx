@@ -327,31 +327,35 @@ export default function Interviews() {
       <PageHead title="캘린더" />
       <main className="page-content">
       <div className={styles.daybar}>
-        <button
-          className={styles.dayNav}
-          aria-label={narrow ? '이전 주' : '이전 달'}
-          onClick={() => move(-1)}
-        >
-          ‹
-        </button>
-        <button
-          className={styles.dayNav}
-          aria-label={narrow ? '다음 주' : '다음 달'}
-          onClick={() => move(1)}
-        >
-          ›
-        </button>
-        <span className={styles.dayLabel}>
-          {narrow ? `${fmtMd(weekStart)} ~ ${fmtMd(addDays(weekStart, 6))}` : fmtMonth(view)}
-        </span>
-        {loading
+        <div className={styles.dayNavGroup}>
+          <button
+            className={styles.dayNav}
+            aria-label={narrow ? '이전 주' : '이전 달'}
+            onClick={() => move(-1)}
+          >
+            ‹
+          </button>
+          <span className={styles.dayLabel}>
+            {narrow ? `${fmtMd(weekStart)} ~ ${fmtMd(addDays(weekStart, 6))}` : fmtMonth(view)}
+          </span>
+          <button
+            className={styles.dayNav}
+            aria-label={narrow ? '다음 주' : '다음 달'}
+            onClick={() => move(1)}
+          >
+            ›
+          </button>
+        </div>
+        {!narrow && (loading
           ? <span className={styles.skelPill} aria-hidden="true" />
-          : <span className={styles.dayCount}>{count}건</span>}
-
-        <label className={styles.mine}>
-          <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} />
+          : <span className={styles.dayCount}>{count}건</span>)}
+        <button
+          type="button"
+          className={`${styles.mine} ${mine ? styles.mineOn : ''}`}
+          onClick={() => setMine((v) => !v)}
+        >
           내 면접만
-        </label>
+        </button>
         <button className={styles.dayToday} onClick={goToday}>오늘</button>
       </div>
 
@@ -409,7 +413,7 @@ export default function Interviews() {
                 <span className={styles.date}>{d.getDate()}</span>
 
                 {narrow
-                  ? items.length > 0 && <span className={styles.count}>{items.length}</span>
+                  ? items.length > 0 && <span className={styles.dot} aria-hidden="true" />
                   : (
                     <>
                       {items.slice(0, 3).map((iv) => (
@@ -428,7 +432,7 @@ export default function Interviews() {
         </div>
       </div>
 
-      {list !== null && monthCount === 0 && error === null && (
+      {!narrow && list !== null && monthCount === 0 && error === null && (
         <p className={styles.monthEmpty}>
           {mine
             ? `${fmtMonth(view)}에 내 면접이 없습니다.`
@@ -436,11 +440,47 @@ export default function Interviews() {
         </p>
       )}
 
+      {/* ── 좁은 화면 인라인 면접 목록 ───────────────── */}
+      {narrow && (
+        <div className={styles.narrowList}>
+          <div className={styles.narrowListHead}>
+            <span className={styles.dayTitle}>
+              {`${sel.getMonth() + 1}월 ${sel.getDate()}일 (${DOW[sel.getDay()]})`}
+            </span>
+            <span className={styles.dayCount}>
+              {loading ? '…' : `${shown.length}건`}
+            </span>
+          </div>
+          <div className={styles.ivList}>
+            {loading && [0, 1, 2].map((i) => <span key={i} className={styles.skelRow} />)}
+            {!loading && shown.map((iv) => (
+              <button
+                key={iv.proposal_id}
+                type="button"
+                className={styles.iv}
+                disabled={goingTo === iv.application_id}
+                onClick={() => goApplicant(iv.application_id)}
+              >
+                <span className={styles.ivTime}>{hhmm(iv.start_at)}</span>
+                <span className={styles.ivName}>{iv.applicant_name}</span>
+                <span className={styles.ivMeta}>{iv.posting_title} · {iv.interviewer_name}</span>
+              </button>
+            ))}
+            {!loading && shown.length === 0 && (
+              <div className={styles.empty}>
+                <p className={styles.emptyMain}>잡힌 면접이 없습니다.</p>
+                <p className={styles.emptySub}>확정된 일정만 표시됩니다</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       </main>
       </div>
 
       {/* ── 그날 일정 패널 (2026-09-01) — 지원자 상세와 같은 껍데기 ────────── */}
-      {dayOpen && (
+      {!narrow && dayOpen && (
       <SidePanel
         variant="content"
         onClose={() => rightPanel.close('day')}

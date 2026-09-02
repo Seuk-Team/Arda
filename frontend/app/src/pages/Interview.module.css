@@ -1,0 +1,152 @@
+/* 지원자용 AI 면접 공개 페이지 — Schedule.module.css 와 같은 껍데기 구조.
+   토큰은 전부 tokens.css (05-design 확정값). */
+
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-6) var(--sp-4) var(--sp-8);
+}
+
+.column {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.logo {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.seed {
+  color: var(--leaf);
+}
+
+.posting {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+}
+
+.card {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.cardDanger {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.cardTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.noticeTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.noticeBody {
+  font-size: var(--font-body);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+/* 질문 번호 라벨 */
+.seq {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--leaf);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* 질문 본문 */
+.question {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+/* 답변 입력 */
+.answerInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  font-size: var(--font-sm);
+  color: var(--text);
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.6;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.answerInput:focus-visible {
+  outline: 2px solid var(--leaf);
+  outline-offset: 1px;
+  border-color: var(--leaf);
+  background: var(--bg-elev);
+}
+
+.answerInput::placeholder {
+  color: var(--text-sub);
+}
+
+/* 버튼 행 — 그만하기(왼쪽) · 제출(오른쪽) */
+.actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.error {
+  font-size: var(--font-sm);
+  color: var(--danger);
+  margin: 0;
+}
+
+/* 스켈레톤 (05-design §6) */
+.skeleton {
+  height: 20px;
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  animation: pulse var(--dur-slow) var(--ease) infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 1; }
+  to { opacity: 0.55; }
+}

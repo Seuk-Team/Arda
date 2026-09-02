@@ -320,3 +320,87 @@
   font-size: var(--font-caption);
   color: var(--text-sub);
 }
+
+/* ── AI 면접 ─────────────────────────────────────────── */
+.ivRow {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ivHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ivStatus {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--text-sub);
+  flex: 1;
+}
+
+.ivStatusDone { color: var(--leaf); }
+
+.ivCopy {
+  height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--text-sub);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ivCopy:hover { background: var(--bg); color: var(--text); }
+
+.ivExpand {
+  height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--leaf);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.ivExpand:hover { background: var(--sprout-soft); }
+
+.ivTurns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: var(--border-w) solid var(--border-soft);
+}
+
+.ivQ {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 var(--sp-1);
+  word-break: keep-all;
+}
+
+.ivA {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+.ivEmpty { font-style: italic; color: var(--text-sub); }

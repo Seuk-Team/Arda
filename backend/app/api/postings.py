@@ -3,7 +3,7 @@ import secrets
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status as http
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -56,19 +56,36 @@ def list_postings(
     # 역할은 제한하지 않는다 — 면접관도 어떤 공고가 있는지는 봐야 한다.
     user: User = Depends(get_current_user),
 ):
-    # B3 지원자 수 — 컬럼을 두지 않고 LEFT JOIN 집계로 낸다
+    # B3 지원자 수 + 단계별 집계 — 컬럼을 두지 않고 LEFT JOIN 집계로 낸다
     rows = db.execute(
-        select(JobPosting, func.count(Application.id))
+        select(
+            JobPosting,
+            func.count(Application.id).label("total"),
+            func.count(case((Application.current_stage == "applied", Application.id))).label("n_applied"),
+            func.count(case((Application.current_stage == "screening", Application.id))).label("n_screening"),
+            func.count(case((Application.current_stage == "interview", Application.id))).label("n_interview"),
+            func.count(case((Application.current_stage == "accepted", Application.id))).label("n_accepted"),
+            func.count(case((Application.current_stage == "rejected", Application.id))).label("n_rejected"),
+        )
         .outerjoin(Application, Application.job_posting_id == JobPosting.id)
         .group_by(JobPosting.id)
         .order_by(JobPosting.created_at.desc())
     ).all()
     # B4 — 목록도 조회 지점이다. 행마다 커밋하지 않고 한 번에 모아 커밋한다.
-    if any([_expire(p) for p, _ in rows]):
+    if any([_expire(row.JobPosting) for row in rows]):
         db.commit()
     return [
-        PostingOut.model_validate(p).model_copy(update={"application_count": n})
-        for p, n in rows
+        PostingOut.model_validate(row.JobPosting).model_copy(update={
+            "application_count": row.total,
+            "stage_counts": {
+                "applied": row.n_applied,
+                "screening": row.n_screening,
+                "interview": row.n_interview,
+                "accepted": row.n_accepted,
+                "rejected": row.n_rejected,
+            },
+        })
+        for row in rows
     ]
 
 

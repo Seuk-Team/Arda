@@ -8,6 +8,7 @@ import RequireAuth from './auth/RequireAuth'
 import Login from './pages/Login'
 import Apply from './pages/Apply'
 import Schedule from './pages/Schedule'
+import Interview from './pages/Interview'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
 import PostingApplicants from './pages/PostingApplicants'
@@ -39,6 +40,8 @@ export default function App() {
         <Route path="/apply/:token" element={<Apply />} />
         {/* 지원자용 면접 일정 선택 — 메일 링크 착지점 (ADR-0016). 마찬가지로 로그인 밖 */}
         <Route path="/schedule/:token" element={<Schedule />} />
+        {/* 지원자용 AI 면접 — 메일 링크 착지점. 로그인 밖 */}
+        <Route path="/interview/:token" element={<Interview />} />
         {/* 아르 3D 모션 검토용. 내비 미노출·데이터 접근 없음 → 로그인 게이트 밖 */}
         <Route
           path="/dev/ar"

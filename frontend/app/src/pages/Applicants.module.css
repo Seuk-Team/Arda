@@ -337,3 +337,149 @@
 .pageCur:hover:not(:disabled) {
   background: var(--leaf-strong);
 }
+
+/* ── 모바일 툴바 ─────────────────────────────────── */
+.mobileToolbar {
+  flex: none;
+  background: var(--bg-elev);
+  border-bottom: var(--border-w) solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.mobileSearch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-3) var(--content-x);
+  height: 40px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid transparent;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.mobileSearch:focus-within {
+  background: var(--bg-elev);
+  border-color: var(--leaf);
+}
+
+.searchIcon {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  flex: none;
+}
+
+.mobileSearch input {
+  border: none;
+  background: none;
+  outline: none;
+  width: 100%;
+  font-size: var(--font-sm);
+  color: var(--text);
+}
+
+.mobileSearch input::placeholder { color: var(--text-sub); }
+
+/* 단계 필터 필 */
+.pills {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  padding: var(--sp-2) var(--content-x) var(--sp-3);
+  scrollbar-width: none;
+}
+.pills::-webkit-scrollbar { display: none; }
+
+.pill {
+  flex: none;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-sub);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+.pill:hover { background: var(--bg-sunken); }
+
+.pillOn {
+  background: var(--sprout-soft);
+  color: var(--leaf);
+  border-color: var(--sprout);
+  font-weight: 700;
+}
+
+/* ── 모바일 카드 목록 ────────────────────────────── */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-left: calc(var(--sp-3) - var(--content-x));
+  margin-right: calc(var(--sp-3) - var(--content-x));
+}
+
+.countLine {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+  margin: 0 calc(var(--content-x) - var(--sp-3));
+}
+
+.appCard {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.appCard:hover { background: var(--bg-sunken); }
+
+.appCardCur { background: var(--sprout-soft); }
+.appCardCur:hover { background: var(--sprout-soft); }
+
+.appCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.appName {
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.appPosting {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appMeta {
+  font-size: var(--font-caption);
+  color: var(--leaf);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

@@ -330,3 +330,13 @@
   color: var(--danger);
   word-break: keep-all;
 }
+
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 1fr 1fr;
+    padding: 0 var(--sp-4);
+  }
+  .row > span:nth-child(n+3) {
+    display: none;
+  }
+}

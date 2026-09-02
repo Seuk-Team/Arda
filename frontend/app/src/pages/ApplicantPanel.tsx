@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../api/client'
-import { applications, files as filesApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
-import type { ApplicationDetail, EmailLogItem, FileOut, Note, Stage } from '../api/types'
+import { applications, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
+import type { ApplicationDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import styles from './ApplicantPanel.module.css'
@@ -267,6 +267,8 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
 
           <MailSection applicationId={applicationId} />
 
+          <InterviewSection applicationId={applicationId} />
+
           <div className={styles.sec}>
             <h2>메모</h2>
             <textarea
@@ -349,6 +351,153 @@ function FileList({ files }: { files: FileOut[] }) {
         </button>
       ))}
       {err && <p className={styles.err} role="alert">{err}</p>}
+    </div>
+  )
+}
+
+/* ── AI 면접 ────────────────────────────────────────────────────────
+   세션 목록 + 만들기 + 질문 입력(시작 전) + Q&A 열람(완료) */
+
+const IV_STATUS_LABEL: Record<string, string> = {
+  pending: '대기 중',
+  in_progress: '진행 중',
+  done: '완료',
+  expired: '만료',
+}
+
+function InterviewSection({ applicationId }: { applicationId: number }) {
+  const [sessions, setSessions] = useState<InterviewSession[] | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [expandedDetail, setExpandedDetail] = useState<InterviewSessionDetail | null>(null)
+  const [questions, setQuestions] = useState<Record<number, string>>({})
+  const [savingQ, setSavingQ] = useState<Record<number, boolean>>({})
+
+  const load = useCallback(async () => {
+    try {
+      const data = await interviewsApi.list(applicationId)
+      setSessions(data)
+    } catch {
+      setSessions([])
+    }
+  }, [applicationId])
+
+  useEffect(() => { void load() }, [load])
+
+  async function create() {
+    setCreating(true)
+    setErr(null)
+    try {
+      await interviewsApi.create(applicationId)
+      await load()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'AI 면접을 만들지 못했습니다')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function copyUrl(url: string) {
+    try { await navigator.clipboard.writeText(url) } catch { /* ignore */ }
+  }
+
+  async function saveQuestions(sessionId: number) {
+    const text = questions[sessionId] ?? ''
+    const qs = text.split('\n').map((s) => s.trim()).filter(Boolean)
+    setSavingQ((prev) => ({ ...prev, [sessionId]: true }))
+    setErr(null)
+    try {
+      await interviewsApi.setQuestions(sessionId, qs)
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '질문을 저장하지 못했습니다')
+    } finally {
+      setSavingQ((prev) => ({ ...prev, [sessionId]: false }))
+    }
+  }
+
+  async function toggleExpand(session: InterviewSession) {
+    if (expandedId === session.id) { setExpandedId(null); setExpandedDetail(null); return }
+    setExpandedId(session.id)
+    setExpandedDetail(null)
+    try {
+      const detail = await interviewsApi.detail(session.id)
+      setExpandedDetail(detail)
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div className={styles.sec}>
+      <h2>AI 면접</h2>
+      <div className={styles.actions}>
+        <button type="button" className={styles.btnStage} disabled={creating} onClick={create}>
+          {creating ? '만드는 중…' : 'AI 면접 만들기'}
+        </button>
+      </div>
+
+      {err && <p className={styles.err} role="alert">{err}</p>}
+
+      {sessions?.map((s) => {
+        const isDone = s.status === 'done'
+        const isExpanded = expandedId === s.id
+        const notStarted = s.started_at === null && s.status === 'pending'
+        return (
+          <div key={s.id} className={styles.ivRow}>
+            <div className={styles.ivHead}>
+              <span className={`${styles.ivStatus} ${isDone ? styles.ivStatusDone : ''}`}>
+                {IV_STATUS_LABEL[s.status] ?? s.status}
+              </span>
+              <button type="button" className={styles.ivCopy} onClick={() => copyUrl(s.url)}>
+                링크 복사
+              </button>
+              {isDone && (
+                <button type="button" className={styles.ivExpand} onClick={() => toggleExpand(s)}>
+                  {isExpanded ? '닫기' : 'Q&A 보기'}
+                </button>
+              )}
+            </div>
+
+            {notStarted && (
+              <>
+                <textarea
+                  className={styles.input}
+                  rows={3}
+                  placeholder={'질문을 한 줄에 하나씩 입력하세요\n(비워두면 기본 질문으로 진행됩니다)'}
+                  value={questions[s.id] ?? ''}
+                  disabled={savingQ[s.id]}
+                  onChange={(e) => setQuestions((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                />
+                <div className={styles.actions}>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={savingQ[s.id]}
+                    onClick={() => saveQuestions(s.id)}
+                  >
+                    {savingQ[s.id] ? '저장 중…' : '질문 저장'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {isExpanded && (
+              <div className={styles.ivTurns}>
+                {expandedDetail === null && <p className={styles.state}>불러오는 중…</p>}
+                {expandedDetail?.turns.length === 0 && (
+                  <p className={`${styles.state} ${styles.ivEmpty}`}>답변이 없습니다.</p>
+                )}
+                {expandedDetail?.turns.map((t) => (
+                  <div key={t.seq}>
+                    <p className={styles.ivQ}>Q{t.seq}. {t.question}</p>
+                    <p className={styles.ivA}>{t.transcript ?? '(답변 없음)'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {sessions?.length === 0 && <p className={styles.state}>AI 면접이 없습니다.</p>}
     </div>
   )
 }

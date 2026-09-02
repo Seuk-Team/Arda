@@ -72,3 +72,50 @@
   color: var(--text-sub);
   cursor: not-allowed;
 }
+
+/* ── 모바일 전용 (≤768px) ───────────────────────── */
+.mobileLogoArea {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .logo {
+    display: none;
+  }
+
+  .mobileLogoArea {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+  }
+
+  .avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--bg-elev);
+    box-shadow: 0 0 0 2px var(--sprout);
+  }
+
+  .avatarImg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .mobileTitle {
+    font-size: var(--font-h1);
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .sub {
+    font-size: var(--font-sm);
+    color: var(--leaf);
+    margin: 0;
+  }
+}

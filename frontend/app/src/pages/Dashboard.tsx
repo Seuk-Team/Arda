@@ -234,6 +234,7 @@ export default function Dashboard() {
   )
   const calItems = calByDay.get(dayKey(calSel)) ?? []
   const todayKey = dayKey(startOfToday())
+  const mobileCalDate = `${calSel.getFullYear()}.${String(calSel.getMonth() + 1).padStart(2, '0')}.${String(calSel.getDate()).padStart(2, '0')}`
 
   /* 축소판 → 캘린더 화면. 2026-09-01 확대 전환을 뺐다 — 그냥 이동한다.
      보고 있던 날짜를 ?date= 로 넘기면 캘린더가 그 날을 고른 채 우측 패널을 연다 —
@@ -292,9 +293,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* ── 캘린더 축소판(절반) + 진행중 공고(절반) — 2026-08-31 2열 개편.
-            1100px 아래에선 1열로 스택 (§9 확정 브레이크포인트 재사용) */}
-        <div className={styles.topGrid}>
         {/* ── 면접 일정 축소판 — 누르면 캘린더 화면으로 이어진다 ────────── */}
         <section
           className={`${styles.card} ${styles.calCard}`}
@@ -303,9 +301,8 @@ export default function Dashboard() {
           <div className={styles.calHead}>
             <h2 className={styles.calTitle}>캘린더</h2>
             <span className={styles.calMonth}>{fmtMonth(calSel)}</span>
-            {/* 주 이동·오늘 버튼은 뺐다 (2026-08-31 절반 너비 개편) — 축소판은 이번 주만,
-                다른 주·달은 캘린더 화면이 받는다 */}
-            {/* 키보드로도 캘린더에 닿는 길 (§10) — 전환은 여기서도 같은 것을 탄다 */}
+            <span className={styles.mobileCalTitle}>오늘 면접</span>
+            <span className={styles.mobileCalMeta}>{mobileCalDate} · {calItems.length}건</span>
             <Link
               to="/calendar"
               className={styles.go}
@@ -391,68 +388,40 @@ export default function Dashboard() {
                 외 {calItems.length - CAL_LIMIT}건 →
               </button>
             )}
+            <button type="button" className={`${styles.moreLink} ${styles.mobileCalLink}`} onClick={() => goCalendar()}>
+              캘린더 →
+            </button>
           </div>
         </section>
 
-        {/* 섹션 라벨은 두지 않는다 — 왼쪽 캘린더 카드와 같은 위계라 같은 자리에서 시작해야 한다.
-            공고 카드 하나하나가 캘린더 카드와 같은 규격(.card)의 흰 블록이고, 공고 제목이 "캘린더"에 대응한다 */}
-        <div className={styles.postingCol}>
-          {data === null && error === null && <p className={`${styles.card} ${styles.state}`}>불러오는 중…</p>}
-          {data !== null && data.openPostings.length === 0 && (
-            <p className={`${styles.card} ${styles.state}`}>진행중인 공고가 없습니다.</p>
-          )}
-          <div className={styles.postingList}>
-            {data?.openPostings.map((p) => {
-              const counts = rails[p.id] ?? RAIL.map(() => 0)
-              const total = counts.reduce((a, b) => a + b, 0)
-              /* 0 건도 6px 남긴다 — 폭이 0 이면 단계가 통째로 사라져 레일이 몇 단인지 안 보인다.
-                 fr 은 공고 규모와 무관하게 비율을 맞추므로 최소 폭은 px 로 따로 준다 */
-              const cols = counts.map((n) => `minmax(6px, ${n}fr)`).join(' ')
-              return (
-                <button
-                  key={p.id}
-                  className={`${styles.card} ${styles.postingCard}`}
-                  onClick={() => navigate(`/postings/${p.id}`)}
-                >
-                  <div className={styles.postingTop}>
-                    <span className={styles.postingName}>{p.title}</span>
-                    {/* 레일이 아직 안 왔으면 총 인원도 쓰지 않는다 — 0 명으로 잠깐 보이면 그게 실제 값처럼 읽힌다.
-                        마감일이 없는 공고(상시)는 D-day 를 그리지 않는다 */}
-                    {(rails[p.id] !== undefined || p.d_day !== null) && (
-                      <span className={styles.postingDday}>
-                        {[
-                          rails[p.id] !== undefined ? `총 ${total}명` : null,
-                          p.d_day === null ? null : p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`,
-                        ].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </div>
-                  <div className={styles.postingRail} style={{ gridTemplateColumns: cols }}>
-                    {RAIL.map((r) => (
-                      <div key={r.stage} className={styles.railSeg} style={{ background: r.color }} />
-                    ))}
-                  </div>
-                  {/* 눈금이 아니라 범례다 — 색 점이 라벨을 자기 구간에 잇는다.
-                      한 줄 고정: 폭이 모자라면 넘치는 쪽을 자른다 (§7 ellipsis 원칙) */}
-                  <div className={styles.postingCounts}>
-                    {RAIL.map((r, i) => (
-                      <span
-                        key={r.stage}
-                        className={`${styles.countItem} ${r.stage === 'accepted' ? styles.countPass : ''}`}
-                      >
-                        <span className={styles.countDot} style={{ background: r.color }} />
-                        {STAGE_LABEL[r.stage]} <b>{counts[i]}</b>
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              )
-            })}
+        {/* 모바일 전용: 내 리뷰 대기 카드 */}
+        <div className={styles.mobileReview}>
+          <div className={styles.mobileReviewInfo}>
+            <p className={styles.mobileReviewLabel}>내 리뷰 대기</p>
+            <p className={styles.mobileReviewVal}>
+              {data?.reviewWaiting ?? 0}<span className={styles.mobileReviewUnit}>명</span>
+            </p>
           </div>
-        </div>
+          <Link to="/evaluations" className={styles.mobileReviewBtn}>평가하러 가기 →</Link>
         </div>
 
-        <div className={styles.card}>
+        <div className={`${styles.card} ${styles.pipeCard}`}>
+          {data !== null && (
+            <div className={styles.mobilePipeTop}>
+              <span className={styles.mobilePipeTitle}>지원자 현황</span>
+              <span className={styles.mobilePipeCnt}>{data.pipe.reduce((a, g) => a + g.total, 0)}명</span>
+            </div>
+          )}
+          {data !== null && data.pipe.reduce((a, g) => a + g.total, 0) > 0 && (
+            <div
+              className={styles.mobilePipeBar}
+              style={{ gridTemplateColumns: data.pipe.map(g => `minmax(4px, ${g.total || 0.1}fr)`).join(' ') }}
+            >
+              {RAIL.map(r => (
+                <div key={r.stage} className={styles.railSeg} style={{ background: r.color }} />
+              ))}
+            </div>
+          )}
           <div className={styles.pipeHead}>
             <div className={styles.vtoggle} role="group" aria-label="보기 방식">
               <button
@@ -539,6 +508,61 @@ export default function Dashboard() {
               )}
             </>
           )}
+          <Link to="/applicants" className={`${styles.moreLink} ${styles.mobilePipeLink}`}>전체 지원자 →</Link>
+        </div>
+
+        {/* 진행중 공고 — 데스크탑: calCard 옆 오른쪽 열; 모바일: 파이프 아래 */}
+        <div className={styles.postingCol}>
+          <div className={styles.mobilePostingTitle}>
+            <span>진행중 공고</span>
+            {data !== null && <span className={styles.mobilePostingCount}>{data.openPostings.length}개</span>}
+          </div>
+          {data === null && error === null && <p className={`${styles.card} ${styles.state}`}>불러오는 중…</p>}
+          {data !== null && data.openPostings.length === 0 && (
+            <p className={`${styles.card} ${styles.state}`}>진행중인 공고가 없습니다.</p>
+          )}
+          <div className={styles.postingList}>
+            {data?.openPostings.map((p) => {
+              const counts = rails[p.id] ?? RAIL.map(() => 0)
+              const total = counts.reduce((a, b) => a + b, 0)
+              const cols = counts.map((n) => `minmax(6px, ${n}fr)`).join(' ')
+              return (
+                <button
+                  key={p.id}
+                  className={`${styles.card} ${styles.postingCard}`}
+                  onClick={() => navigate(`/postings/${p.id}`)}
+                >
+                  <div className={styles.postingTop}>
+                    <span className={styles.postingName}>{p.title}</span>
+                    {(rails[p.id] !== undefined || p.d_day !== null) && (
+                      <span className={styles.postingDday}>
+                        {[
+                          rails[p.id] !== undefined ? `총 ${total}명` : null,
+                          p.d_day === null ? null : p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`,
+                        ].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.postingRail} style={{ gridTemplateColumns: cols }}>
+                    {RAIL.map((r) => (
+                      <div key={r.stage} className={styles.railSeg} style={{ background: r.color }} />
+                    ))}
+                  </div>
+                  <div className={styles.postingCounts}>
+                    {RAIL.map((r, i) => (
+                      <span
+                        key={r.stage}
+                        className={`${styles.countItem} ${r.stage === 'accepted' ? styles.countPass : ''}`}
+                      >
+                        <span className={styles.countDot} style={{ background: r.color }} />
+                        {STAGE_LABEL[r.stage]} <b>{counts[i]}</b>
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
       </main>

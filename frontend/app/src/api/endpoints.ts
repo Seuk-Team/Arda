@@ -164,7 +164,23 @@ import type {
   AgentConfirmRequest,
   AgentConfirmResponse,
   AgentHistoryMessage,
+  InterviewSession,
+  InterviewSessionDetail,
 } from './types'
+
+export const interviews = {
+  create: (applicationId: number) =>
+    api.post<InterviewSession>(`/applications/${applicationId}/interview-sessions`, {}),
+
+  list: (applicationId: number, signal?: AbortSignal) =>
+    api.get<InterviewSession[]>(`/applications/${applicationId}/interview-sessions`, { signal }),
+
+  setQuestions: (sessionId: number, questions: string[]) =>
+    api.put<InterviewSession>(`/interview-sessions/${sessionId}/questions`, { questions }),
+
+  detail: (sessionId: number, signal?: AbortSignal) =>
+    api.get<InterviewSessionDetail>(`/interview-sessions/${sessionId}`, { signal }),
+}
 
 export const agent = {
   /* 자연어 한 마디. 대화 이력은 화면이 들고 매번 같이 보낸다 (서버는 저장하지 않는다) */

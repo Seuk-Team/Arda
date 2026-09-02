@@ -80,3 +80,113 @@
 .clickable {
   cursor: pointer;
 }
+
+/* ── 모바일 카드 목록 ─────────────────────────────── */
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+@media (max-width: 768px) {
+  .cardList {
+    margin-left: calc(var(--sp-3) - var(--content-x));
+    margin-right: calc(var(--sp-3) - var(--content-x));
+  }
+}
+
+.card {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.card:hover { background: var(--bg-sunken); }
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.cardTitle {
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  word-break: break-word;
+}
+
+.cardSub {
+  font-size: var(--font-caption);
+  color: var(--leaf);
+  margin: 0;
+}
+
+/* 단계 비율 바 — 0건 구간도 6px 유지 (minmax(6px, n fr)) */
+.bar {
+  display: grid;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.barSeg {
+  border-radius: 3px;
+  min-width: 4px;
+}
+
+/* 단계별 카운트 */
+.stageCounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.stageItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.stageDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.sep { color: var(--text-sub); }
+
+.addBtn {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.addBtn:hover { background: var(--bg-sunken); }

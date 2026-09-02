@@ -64,6 +64,7 @@ h1, h2, h3 { text-wrap: balance; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--sp-5) var(--content-x);
 }
 

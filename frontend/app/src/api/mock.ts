@@ -35,16 +35,19 @@ const POSTINGS: Posting[] = [
     id: 1, title: '프론트엔드 개발자 (React)', description: null, status: 'open',
     deadline: null, created_by: 0, created_at: at(-20, 9), updated_at: at(-1, 9),
     application_count: 6, d_day: 12,
+    stage_counts: { applied: 3, screening: 2, interview: 1, accepted: 0, rejected: 0 },
   },
   {
     id: 2, title: '백엔드 개발자 (Python·FastAPI)', description: null, status: 'open',
     deadline: null, created_by: 0, created_at: at(-18, 9), updated_at: at(-2, 9),
     application_count: 5, d_day: 5,
+    stage_counts: { applied: 2, screening: 1, interview: 1, accepted: 1, rejected: 0 },
   },
   {
     id: 3, title: '데이터 엔지니어', description: null, status: 'closed',
     deadline: null, created_by: 0, created_at: at(-40, 9), updated_at: at(-10, 9),
     application_count: 2, d_day: null,
+    stage_counts: { applied: 0, screening: 0, interview: 1, accepted: 1, rejected: 0 },
   },
 ]
 
