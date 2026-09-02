@@ -75,7 +75,6 @@ export default function Applicants() {
 
   const [rows, setRows] = useState<ApplicationListItem[] | null>(null)
   const [total, setTotal] = useState<number | null>(null)
-  const [tookMs, setTookMs] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [postingMap, setPostingMap] = useState<Map<number, Posting>>(new Map())
 
@@ -124,7 +123,6 @@ export default function Applicants() {
       .then((res) => {
         setRows(res.items)
         setTotal(res.total)
-        setTookMs(res.took_ms)
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return
