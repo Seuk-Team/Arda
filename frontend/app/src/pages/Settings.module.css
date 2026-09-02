@@ -124,6 +124,34 @@
   margin-top: var(--sp-3);
 }
 
+.sessionBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--bg-sunken);
+}
+
+.sessionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.sessionLabel {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sessionDesc {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
 .rowActions {
   display: flex;
   justify-content: flex-end;

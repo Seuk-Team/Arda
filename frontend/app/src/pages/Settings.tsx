@@ -173,7 +173,11 @@ function MyAccount() {
 
       <hr className={styles.divider} />
 
-      <div className={styles.formActions}>
+      <div className={styles.sessionBox}>
+        <div className={styles.sessionInfo}>
+          <span className={styles.sessionLabel}>세션</span>
+          <span className={styles.sessionDesc}>로그아웃하면 이 기기에서 로그인이 해제됩니다.</span>
+        </div>
         <button
           type="button"
           className="btn"
