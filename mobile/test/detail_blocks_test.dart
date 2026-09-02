@@ -77,7 +77,10 @@ void main() {
         final parsed = AiSummary.parse(a.aiSummary!);
         expect(parsed.isRawText, isFalse, reason: '${a.name} 요약이 JSON 이 아님');
         expect(parsed.gist, isNotNull, reason: '${a.name} 요지 없음');
-        // 팀장 요청(6905c37) 분량 상한
+
+        // 에이전트 스키마 상한 (35ba4b5) — gist 160자 · 리스트 항목 40자.
+        // 목데이터가 규격을 넘으면 실제 응답도 그럴 것처럼 보인다
+        expect(parsed.gist!.length, lessThanOrEqualTo(160), reason: a.name);
         expect(parsed.fit.length, lessThanOrEqualTo(2));
         expect(parsed.concerns.length, lessThanOrEqualTo(2));
         for (final line in [...parsed.fit, ...parsed.concerns]) {
