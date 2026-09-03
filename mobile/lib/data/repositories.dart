@@ -11,17 +11,26 @@ library;
 import 'package:flutter/widgets.dart';
 
 import 'applicant_repository.dart';
+import 'dashboard_repository.dart';
 import 'posting_repository.dart';
 import 'schedule_repository.dart';
 
 class Repositories {
-  const Repositories({this.postings, this.applicants, this.schedules});
+  const Repositories({
+    this.postings,
+    this.applicants,
+    this.schedules,
+    this.dashboard,
+  });
 
   final PostingRepository? postings;
   final ApplicantRepository? applicants;
 
   /// 캘린더·대시보드가 쓴다 (큐 8 4단계, 2026-09-03)
   final ScheduleRepository? schedules;
+
+  /// 대시보드 · 평가 대기 큐 (큐 8 4단계)
+  final DashboardRepository? dashboard;
 }
 
 class RepositoryScope extends InheritedWidget {

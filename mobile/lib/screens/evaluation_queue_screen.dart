@@ -17,9 +17,14 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../auth/authed_client.dart';
+import '../auth/current_user.dart';
+import '../data/applicant_repository.dart';
+import '../data/dashboard_repository.dart';
+import '../data/posting_repository.dart';
+import '../data/repositories.dart';
+import '../data/schedule_repository.dart';
 import '../models/applicant.dart';
-import '../models/stage.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
@@ -29,25 +34,8 @@ import '../widgets/stage_label.dart';
 /// 평가 대기 한 줄에 필요한 것 — 지원자 + 어느 공고인지.
 typedef QueueEntry = (Applicant applicant, String postingTitle);
 
-/// 큐를 가져오는 일. API 연동(큐 8) 때 이 자리가 `GET /evaluations/queue` 가 된다.
+/// 큐를 가져오는 일. 테스트가 세 상태(로딩·빈·오류)를 만드는 구멍이다.
 typedef QueueLoader = Future<List<QueueEntry>> Function();
-
-/// 목 로더 — 잠깐 기다렸다가 목데이터를 준다.
-///
-/// 곧바로 돌려주면 로딩 상태가 한 프레임도 안 보여서 만들어 놓고도 확인이 안 된다.
-Future<List<QueueEntry>> mockQueueLoader() async {
-  await Future<void>.delayed(const Duration(milliseconds: 400));
-  return [
-    for (final applicant in mockApplicants)
-      if ((applicant.currentStage == Stage.screening ||
-              applicant.currentStage == Stage.interview) &&
-          !mockEvaluations.containsKey(applicant.id))
-        (
-          applicant,
-          mockPostings.firstWhere((p) => p.id == applicant.jobPostingId).title,
-        ),
-  ];
-}
 
 class EvaluationQueueScreen extends StatefulWidget {
   const EvaluationQueueScreen({super.key, this.loader});
@@ -60,32 +48,80 @@ class EvaluationQueueScreen extends StatefulWidget {
 }
 
 class _EvaluationQueueScreenState extends State<EvaluationQueueScreen> {
-  late Future<List<QueueEntry>> _future;
+  Future<List<QueueEntry>>? _future;
+  int? _loadedFor;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  /// 배정 → 사람마다 상세, 그리고 공고명 표.
+  ///
+  /// **배정 응답에 이름도 공고명도 없어서** 건마다 상세를 한 번 더 받는다
+  /// (`AssignmentOut` 은 id 뿐). 웹 `Evaluations.tsx` 도 `Promise.all` 로
+  /// 똑같이 한다 — 배정이 보통 몇 건이라 병렬이면 체감이 없다.
+  ///
+  /// 공고명은 못 받아도 큐는 보여 준다(웹과 같은 처리).
+  Future<List<QueueEntry>> _serverLoader(int userId) async {
+    final scope = RepositoryScope.of(context);
+    final dash =
+        scope?.dashboard ??
+        DashboardRepository(
+          authedClient(),
+          scope?.postings ?? PostingRepository(authedClient()),
+          scope?.schedules ?? ScheduleRepository(authedClient()),
+        );
+    final applicantRepo =
+        scope?.applicants ?? ApplicantRepository(authedClient());
+    final postingRepo = scope?.postings ?? PostingRepository(authedClient());
+
+    final ids = await dash.assignedIds(userId);
+
+    var titles = <int, String>{};
+    try {
+      final postings = await postingRepo.list();
+      titles = {for (final p in postings) p.posting.id: p.posting.title};
+    } on Exception {
+      titles = const {};
+    }
+
+    final details = await Future.wait(ids.map(applicantRepo.detail));
+    return [
+      for (final d in details)
+        (d.applicant, titles[d.applicant.jobPostingId] ?? ''),
+    ];
   }
 
-  void _load() {
+  void _reload() {
+    final id = _loadedFor;
     setState(() {
-      _future = (widget.loader ?? mockQueueLoader)();
+      _future = widget.loader != null
+          ? widget.loader!()
+          : (id == null ? null : _serverLoader(id));
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // 배정은 "누구에게" 가 있어야 물을 수 있다. 로그인 정보가 들어온 뒤
+    // 한 번만 시작한다 — build 마다 만들면 다시 그릴 때마다 새 요청이 나간다
+    if (widget.loader != null) {
+      _future ??= widget.loader!();
+    } else {
+      final me = CurrentUserScope.of(context);
+      if (me != null && _loadedFor != me.id) {
+        _loadedFor = me.id;
+        _future = _serverLoader(me.id)..ignore();
+      }
+    }
+
     return Scaffold(
       appBar: const AppTopBar(title: '평가 현황', showBack: true),
       body: FutureBuilder<List<QueueEntry>>(
         future: _future,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (_future == null ||
+              snapshot.connectionState == ConnectionState.waiting) {
             return const _Loading();
           }
           if (snapshot.hasError) {
-            return _Error(onRetry: _load);
+            return _Error(onRetry: _reload);
           }
           final items = snapshot.data ?? const [];
           if (items.isEmpty) return const _Empty();

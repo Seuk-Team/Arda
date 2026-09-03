@@ -120,6 +120,20 @@ extension ApplicantJson on Applicant {
     createdAt: DateTime.parse(json['created_at'] as String),
   );
 
+  /// 통합 검색 — `GET /applications` 의 `ApplicationListItem`.
+  ///
+  /// 공고별 목록과 달리 **`job_posting_id` 가 응답에 들어 있다**(전 공고를
+  /// 뒤지므로 없으면 어느 공고인지 알 수가 없다). 대신 여기도 학력·기술은 없다.
+  static Applicant fromSearchJson(Map<String, dynamic> json) => Applicant(
+    id: json['id'] as int,
+    jobPostingId: json['job_posting_id'] as int,
+    name: json['name'] as String,
+    email: json['email'] as String? ?? '',
+    careerYears: json['career_years'] as int?,
+    currentStage: _stage(json['current_stage'] as String?),
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
+
   /// 상세 — `ApplicationDetail`. 학력·기술·연락처·요약까지 다 온다.
   ///
   /// **`ai_summary_model` 은 서버가 주지 않는다.** ERD 에는 컬럼이 있지만

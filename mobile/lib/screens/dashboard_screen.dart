@@ -14,17 +14,22 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../auth/authed_client.dart';
+import '../auth/current_user.dart';
+import '../data/dashboard_repository.dart';
+import '../data/posting_repository.dart';
+import '../data/repositories.dart';
+import '../data/schedule_repository.dart';
+import '../widgets/async_view.dart';
 import '../models/applicant.dart';
 import '../models/interview.dart';
-import '../models/job_posting.dart';
 import '../models/stage.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import '../widgets/funnel_bar.dart';
 import '../widgets/funnel_legend.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
     super.key,
     this.today,
@@ -32,6 +37,7 @@ class DashboardScreen extends StatelessWidget {
     this.onOpenReviews,
     this.onOpenApplicants,
     this.onOpenPostings,
+    this.repository,
   });
 
   /// 테스트가 날짜를 고정할 수 있게 열어 둔다. 비면 기기 오늘.
@@ -44,6 +50,9 @@ class DashboardScreen extends StatelessWidget {
   final VoidCallback? onOpenApplicants;
   final VoidCallback? onOpenPostings;
 
+  /// 테스트가 가짜를 넣는 자리 (큐 8 4단계)
+  final DashboardRepository? repository;
+
   /// 05-design §0.5 대시보드 레일은 **접수~합격 4단**. 불합격은 레일에 없다
   static const railStages = [
     Stage.applied,
@@ -53,11 +62,78 @@ class DashboardScreen extends StatelessWidget {
   ];
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  late DashboardRepository _repo;
+  Future<DashboardData>? _future;
+
+  /// 내 id 를 알아야 "내 리뷰 대기" 를 물을 수 있다. 로그인 정보가 늦게
+  /// 들어오면 그때 시작한다 — 없는 채로 부르면 남의 배정을 볼 수 없다
+  int? _loadedFor;
+
+  @override
+  void initState() {
+    super.initState();
+    final scope = RepositoryScope.of(context);
+    _repo =
+        widget.repository ??
+        scope?.dashboard ??
+        DashboardRepository(
+          authedClient(),
+          scope?.postings ?? PostingRepository(authedClient()),
+          scope?.schedules ?? ScheduleRepository(authedClient()),
+        );
+  }
+
+  /// `ignore()` 이유는 postings_screen.dart 참고
+  Future<DashboardData> _load(int userId) =>
+      _repo.load(userId: userId, today: widget.today)..ignore();
+
+  void _reload() {
+    final id = _loadedFor;
+    if (id == null) return;
+    setState(() {
+      _future = _load(id);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final day = today ?? DateTime.now();
-    final interviews = mockInterviewsOn(day);
-    final stageTotals = mockOpenStageCounts;
-    final openPostings = mockOpenPostings;
+    final me = CurrentUserScope.of(context);
+
+    // 로그인 정보가 들어온 뒤 한 번만 시작한다. build 마다 만들면 다시 그릴
+    // 때마다 새 요청이 나간다
+    if (me != null && _loadedFor != me.id) {
+      _loadedFor = me.id;
+      _future = _load(me.id);
+    }
+
+    final future = _future;
+    if (future == null) {
+      // 아직 내가 누구인지 모른다 — 시작 화면이 곧 채운다
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return AsyncView<DashboardData>(
+      future: future,
+      onRetry: _reload,
+      emptyMessage: '',
+      builder: (context, data) => _body(data),
+    );
+  }
+
+  Widget _body(DashboardData data) {
+    final day = widget.today ?? DateTime.now();
+    final interviews = data.todayInterviews;
+    final stageTotals = data.stageCounts;
+    final openPostings = data.openPostings;
+
+    // 이름 줄이 공고명을 적는다 — 공고 목록에서 표를 만들어 넘긴다
+    final titles = {
+      for (final p in openPostings) p.posting.id: p.posting.title,
+    };
 
     return ListView(
       // 05-design §3: 화면 여백은 --sp-4
@@ -75,7 +151,7 @@ class DashboardScreen extends StatelessWidget {
                     '${formatDate(day)} · ${formatItemCount(interviews.length)}',
               ),
               for (final interview in interviews) _InterviewRow(interview),
-              _CardLink(label: '캘린더 →', onTap: onOpenCalendar),
+              _CardLink(label: '캘린더 →', onTap: widget.onOpenCalendar),
             ],
           ),
         ),
@@ -84,8 +160,8 @@ class DashboardScreen extends StatelessWidget {
         // ② 내 리뷰 대기 — 이 앱을 켜는 가장 큰 이유. 화면에서 유일하게 채운 버튼
         _Card(
           child: _ReviewQueue(
-            count: mockReviewQueueCount,
-            onTap: onOpenReviews,
+            count: data.reviewWaiting,
+            onTap: widget.onOpenReviews,
           ),
         ),
         const SizedBox(height: AppSpace.s3),
@@ -105,21 +181,35 @@ class DashboardScreen extends StatelessWidget {
               _CardHead(
                 title: '지원자 현황',
                 meta: formatCount(
-                  railStages.fold(0, (sum, s) => sum + (stageTotals[s] ?? 0)),
+                  DashboardScreen.railStages.fold(
+                    0,
+                    (sum, s) => sum + (stageTotals[s] ?? 0),
+                  ),
                 ),
               ),
               const SizedBox(height: AppSpace.s3),
               FunnelBar(
                 counts: stageTotals,
-                stages: railStages,
+                stages: DashboardScreen.railStages,
                 // §0.5: 0건 구간도 6px 남긴다 — 몇 단짜리인지가 늘 읽혀야 한다
                 keepEmptySegments: true,
               ),
               const SizedBox(height: AppSpace.s3),
-              FunnelLegend(counts: stageTotals, stages: railStages),
-              for (final stage in railStages)
-                _StageGroup(stage: stage, today: day),
-              _CardLink(label: '전체 지원자 →', onTap: onOpenApplicants),
+              FunnelLegend(
+                counts: stageTotals,
+                stages: DashboardScreen.railStages,
+              ),
+              for (final stage in DashboardScreen.railStages)
+                _StageGroup(
+                  stage: stage,
+                  today: day,
+                  applicants: data.applicantsByStage[stage] ?? const [],
+                  total: stageTotals[stage] ?? 0,
+                  postingTitles: titles,
+                  todayInterviews: interviews,
+                  scheduleStatus: data.scheduleStatus,
+                ),
+              _CardLink(label: '전체 지원자 →', onTap: widget.onOpenApplicants),
             ],
           ),
         ),
@@ -134,9 +224,8 @@ class DashboardScreen extends StatelessWidget {
                 title: '진행중 공고',
                 meta: formatItemCount(openPostings.length),
               ),
-              for (final posting in openPostings)
-                _PostingRow(posting: posting, today: day),
-              _CardLink(label: '채용 공고 →', onTap: onOpenPostings),
+              for (final p in openPostings) _PostingRow(item: p, today: day),
+              _CardLink(label: '채용 공고 →', onTap: widget.onOpenPostings),
             ],
           ),
         ),
@@ -470,15 +559,17 @@ class _FilledButton extends StatelessWidget {
 /// 내용을 왼쪽으로 몬다. 오른쪽 아래는 아르 버튼이 떠 있는 자리라 거기에
 /// 읽어야 하는 값을 두면 가린다.
 class _PostingRow extends StatelessWidget {
-  const _PostingRow({required this.posting, required this.today});
+  const _PostingRow({required this.item, required this.today});
 
-  final JobPosting posting;
+  /// 공고 + 그 공고의 단계별 인원. 목록이 이미 세어 준 것을 그대로 쓴다
+  final PostingWithCounts item;
+
   final DateTime today;
 
   @override
   Widget build(BuildContext context) {
-    final counts = postingCounts(posting.id);
-    final people = counts.values.fold(0, (a, b) => a + b);
+    final posting = item.posting;
+    final people = item.total;
     final deadline = posting.deadlineOrDate(today);
 
     return Container(
@@ -528,10 +619,32 @@ class _PostingRow extends StatelessWidget {
 ///
 /// 색 점 + 단계 이름 + 인원, 그 아래 사람 몇 줄. 넘치면 "외 n명 →".
 class _StageGroup extends StatelessWidget {
-  const _StageGroup({required this.stage, required this.today});
+  const _StageGroup({
+    required this.stage,
+    required this.today,
+    required this.applicants,
+    required this.total,
+    required this.postingTitles,
+    required this.todayInterviews,
+    required this.scheduleStatus,
+  });
 
   final Stage stage;
   final DateTime today;
+
+  /// 이 단계의 지원자 — 진행중 공고 것만이다 (2026-09-03 결정)
+  final List<Applicant> applicants;
+
+  final int total;
+
+  /// `공고 id → 제목`. 목록 응답이 공고명을 안 줘서 표로 넘겨받는다
+  final Map<int, String> postingTitles;
+
+  /// 오늘 확정된 면접 — 면접 행의 시각 칩이 여기서 온다
+  final List<Interview> todayInterviews;
+
+  /// 지원자 id → 일정 제안 상태. **묻지 않은 사람은 아예 없다**
+  final Map<int, ScheduleChip> scheduleStatus;
 
   /// 단계당 보여 줄 사람 수.
   ///
@@ -541,8 +654,7 @@ class _StageGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final all = mockApplicantsIn(stage);
-    final total = mockOpenStageCounts[stage] ?? 0;
+    final all = applicants;
     final shown = all.take(_perStage).toList();
 
     return Column(
@@ -602,7 +714,12 @@ class _StageGroup extends StatelessWidget {
           )
         else
           for (final applicant in shown)
-            _StageRow(applicant: applicant, stage: stage, today: today),
+            _StageRow(
+              applicant: applicant,
+              stage: stage,
+              postingTitle: postingTitles[applicant.jobPostingId] ?? '',
+              chip: scheduleStatus[applicant.id],
+            ),
 
         if (total > shown.length)
           Padding(
@@ -629,17 +746,25 @@ class _StageRow extends StatelessWidget {
   const _StageRow({
     required this.applicant,
     required this.stage,
-    required this.today,
+    required this.postingTitle,
+    required this.chip,
   });
 
   final Applicant applicant;
   final Stage stage;
-  final DateTime today;
+
+  /// 목록 응답에 공고명이 없어 위에서 표로 찾아 넘겨준다
+  final String postingTitle;
+
+  /// 일정 제안 상태 + 확정 시각. 안 물어본 사람은 null 이다
+  final ScheduleChip? chip;
 
   @override
   Widget build(BuildContext context) {
-    final interview = stage == Stage.interview
-        ? mockInterviewFor(applicant.id, today)
+    // 확정된 면접 시각. 상태가 확정인데 시각이 없으면(있으면 안 되는 경우)
+    // 아래에서 "일정 없음" 으로 떨어진다 — 빈 칩보다는 낫다
+    final confirmedAt = chip?.status == ScheduleStatus.confirmed
+        ? chip?.confirmedAt
         : null;
 
     return Container(
@@ -671,9 +796,7 @@ class _StageRow extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Text(
-              mockPostings
-                  .firstWhere((p) => p.id == applicant.jobPostingId)
-                  .title,
+              postingTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               softWrap: false,
@@ -691,13 +814,14 @@ class _StageRow extends StatelessWidget {
           // 확정이면 시각, 아니면 제안 중 · 제안 만료 · 일정 없음.
           // **확정만 연두, 나머지는 전부 무채**(§1 색은 판단에만).
           if (stage == Stage.interview)
+            // **확정이면 그 시각을 적는다 — 오늘인지는 상관없다.** 오늘 면접
+            // 목록에서만 찾으면 다른 날로 확정된 사람이 빈 알약이 된다
+            // (2026-09-03 실기기에서 잡은 것). 웹 scheduleChip 과 같은 순서다
             _Chip(
-              label: interview != null
-                  ? '${formatMonthDay(interview.startAt)} '
-                        '${formatTime(interview.startAt)}'
-                  : (mockScheduleStatus[applicant.id] ?? ScheduleStatus.none)
-                        .label,
-              confirmed: interview != null,
+              label: confirmedAt != null
+                  ? '${formatMonthDay(confirmedAt)} ${formatTime(confirmedAt)}'
+                  : (chip?.status ?? ScheduleStatus.none).label,
+              confirmed: confirmedAt != null,
             )
           else
             Text(

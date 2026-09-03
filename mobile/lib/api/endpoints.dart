@@ -21,8 +21,34 @@ abstract final class Endpoints {
   static String postingApplications(int id) => '/postings/$id/applications';
 
   /// 전 공고 통합 검색. `SearchResult { items, total, took_ms, next_cursor }`.
-  /// `took_ms` 가 지원자 화면의 **응답 시간 표기**(app.md 큐 8)에 쓰는 값이다
+  ///
+  /// **`took_ms` 는 안 쓴다** — 웹이 응답 시간 표기를 2026-09-02 에 없앴다(app.md).
   static const applications = '/applications';
+
+  /// 검색 조건을 붙인 것. `with_total` 은 화면이 "48명" 을 적어야 해서 켠다 —
+  /// 끄면 서버가 세지 않아 빨라지지만 총원을 알 수 없다.
+  ///
+  /// 커서(`next_cursor`)도 있지만 `offset` 을 쓴다 — 웹과 같고, "더 보기" 로
+  /// 이어 붙이기에 단순하다.
+  static String applicationSearch({
+    String? query,
+    String? stage,
+    int? postingId,
+    int limit = 30,
+    int offset = 0,
+  }) {
+    final params = <String>[
+      'limit=$limit',
+      'offset=$offset',
+      'with_total=true',
+      if (query != null && query.isNotEmpty)
+        'q=${Uri.encodeQueryComponent(query)}',
+      if (stage != null) 'stage=$stage',
+      // `q` 는 이름·이메일만 본다. 공고명으로 찾으려면 이쪽으로 좁힌다
+      if (postingId != null) 'posting_id=$postingId',
+    ];
+    return '$applications?${params.join('&')}';
+  }
 
   /// 지원자 상세. **한 번에 다 온다** — 상세 + 단계 이력 + 평가 + 메모 + 첨부.
   /// 화면 하나에 요청 하나면 된다

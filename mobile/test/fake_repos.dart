@@ -17,6 +17,9 @@ import 'package:arda/models/interview.dart';
 import 'package:arda/models/availability.dart';
 import 'package:arda/data/settings_repository.dart';
 import 'package:arda/data/schedule_repository.dart';
+import 'package:arda/models/stage.dart';
+import 'package:arda/data/dashboard_repository.dart';
+import 'package:arda/data/agent_repository.dart';
 
 class FakePostingRepository implements PostingRepository {
   FakePostingRepository({
@@ -140,6 +143,8 @@ class FakeApplicantRepository implements ApplicantRepository {
     this.mailPreviewText,
     this.fileUrl,
     this.fileError,
+    this.searchResults,
+    this.searchTotal,
   });
 
   final List<Applicant>? applicants;
@@ -160,6 +165,17 @@ class FakeApplicantRepository implements ApplicantRepository {
 
   /// 주면 첨부 주소 받기만 이걸로 실패한다 — 상세는 정상인 상황
   final Object? fileError;
+
+  /// 통합 검색이 돌려줄 것. 안 주면 목데이터를 조건대로 거른다 (큐 8 4단계)
+  final List<Applicant>? searchResults;
+  final int? searchTotal;
+
+  /// 검색으로 들어온 조건 — 서버로 뭘 보냈는지 본다
+  String? searchedQuery;
+  Stage? searchedStage;
+  int? searchedPostingId;
+  int? searchedOffset;
+  int searchCalls = 0;
 
   /// 어느 파일의 주소를 물었는지
   int? askedFileId;
@@ -209,6 +225,41 @@ class FakeApplicantRepository implements ApplicantRepository {
     updatedScore = score;
     updatedComment = comment;
     if (writeError != null) throw writeError!;
+  }
+
+  @override
+  Future<({List<Applicant> items, int? total})> search({
+    String? query,
+    Stage? stage,
+    int? postingId,
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    searchCalls++;
+    searchedQuery = query;
+    searchedStage = stage;
+    searchedPostingId = postingId;
+    searchedOffset = offset;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    if (searchResults != null) {
+      final page = searchResults!.skip(offset).take(limit).toList();
+      return (items: page, total: searchTotal ?? searchResults!.length);
+    }
+
+    // 목데이터를 서버처럼 거른다 — 이름·이메일을 보고 단계로 좁힌다
+    final q = (query ?? '').trim().toLowerCase();
+    final all = (applicants ?? mockApplicants).where((a) {
+      if (stage != null && a.currentStage != stage) return false;
+      if (postingId != null && a.jobPostingId != postingId) return false;
+      if (q.isEmpty) return true;
+      return a.name.toLowerCase().contains(q) ||
+          a.email.toLowerCase().contains(q);
+    }).toList();
+
+    return (items: all.skip(offset).take(limit).toList(), total: all.length);
   }
 
   @override
@@ -353,6 +404,129 @@ class FakeSettingsRepository implements SettingsRepository {
   Future<List<Availability>> availability(int userId) async {
     if (error != null) throw error!;
     return slots ?? const [];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 대시보드 — 목데이터로 같은 모양을 만들어 준다 (큐 8 4단계, 2026-09-03).
+class FakeDashboardRepository implements DashboardRepository {
+  FakeDashboardRepository({
+    this.data,
+    this.error,
+    this.delay = Duration.zero,
+    this.assigned,
+  });
+
+  final DashboardData? data;
+  final Object? error;
+  final Duration delay;
+
+  /// 평가 대기 큐가 받는 배정 id 들. 안 주면 목데이터의 대기 인원
+  final List<int>? assigned;
+
+  @override
+  Future<DashboardData> load({required int userId, DateTime? today}) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+    if (data != null) return data!;
+
+    final day = today ?? DateTime.now();
+    final open = [
+      for (final p in mockPostings)
+        if (p.status == PostingStatus.open)
+          PostingWithCounts(
+            posting: p,
+            counts: postingCounts(p.id),
+            applicants: mockApplicants
+                .where((a) => a.jobPostingId == p.id)
+                .toList(),
+          ),
+    ];
+
+    return DashboardData(
+      todayInterviews: mockInterviewsOn(day),
+      reviewWaiting: mockReviewQueueCount,
+      openPostings: open,
+      stageCounts: mockOpenStageCounts,
+      applicantsByStage: {
+        for (final s in Stage.values)
+          s: [
+            for (final p in open)
+              ...p.applicants.where((a) => a.currentStage == s),
+          ],
+      },
+      scheduleStatus: {
+        for (final e in mockScheduleStatus.entries)
+          e.key: ScheduleChip(
+            e.value,
+            // 목데이터의 확정은 그날 면접 시각을 쓴다 — 서버의
+            // `confirmed_slot` 자리다
+            confirmedAt: e.value == ScheduleStatus.confirmed
+                ? mockInterviewFor(e.key, day)?.startAt
+                : null,
+          ),
+      },
+    );
+  }
+
+  @override
+  Future<List<int>> assignedIds(int userId) async {
+    if (error != null) throw error!;
+    return assigned ??
+        [
+          for (final a in mockApplicants)
+            if ((a.currentStage == Stage.screening ||
+                    a.currentStage == Stage.interview) &&
+                !mockEvaluations.containsKey(a.id))
+              a.id,
+        ];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 아르 — 정해 준 답을 돌려준다 (큐 8 5단계, 2026-09-03).
+class FakeAgentRepository implements AgentRepository {
+  FakeAgentRepository({
+    this.reply,
+    this.error,
+    this.confirmOk = true,
+    this.delay = Duration.zero,
+  });
+
+  final ArReply? reply;
+  final Object? error;
+  final bool confirmOk;
+  final Duration delay;
+
+  /// 서버로 보낸 것 — 이력이 쌓여 가는지 이걸로 본다
+  String? sentMessage;
+  List<ArHistoryEntry> sentHistory = const [];
+  ArPendingAction? confirmed;
+  int chatCalls = 0;
+
+  @override
+  Future<ArReply> chat(String message, List<ArHistoryEntry> history) async {
+    chatCalls++;
+    sentMessage = message;
+    // 화면이 들고 있는 목록을 그대로 넘기므로 복사해 둔다
+    sentHistory = [...history];
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    return reply ?? const ArReply(text: '면접 단계에 2명 있습니다.');
+  }
+
+  @override
+  Future<bool> confirm(ArPendingAction action) async {
+    confirmed = action;
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+    return confirmOk;
   }
 
   @override

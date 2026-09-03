@@ -8,18 +8,30 @@ import 'package:arda/widgets/applicant_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_repos.dart';
+
+/// 큐 8 4단계로 서버에서 받아 온다 — 가짜가 목데이터를 조건대로 걸러 준다
 Widget host({void Function(Applicant, String)? onOpen}) => MaterialApp(
-  home: Scaffold(body: ApplicantsSearchScreen(onOpenApplicant: onOpen)),
+  home: Scaffold(
+    body: ApplicantsSearchScreen(
+      onOpenApplicant: onOpen,
+      repository: FakeApplicantRepository(),
+      postingRepository: FakePostingRepository(),
+    ),
+  ),
 );
 
+/// 타자 뒤 300ms 를 흘려보내야 검색이 나간다(디바운스) — 큐 8 4단계
 Future<void> type(WidgetTester tester, String term) async {
   await tester.enterText(find.byType(TextField), term);
+  await tester.pump(const Duration(milliseconds: 350));
   await tester.pumpAndSettle();
 }
 
 void main() {
   testWidgets('처음에는 전 공고 지원자가 모두 나온다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     // ListView 는 화면 밖 카드를 만들지 않는다 — 총 개수는 건수 라벨이 계약이다
     expect(find.byType(ApplicantCard), findsWidgets);
@@ -28,6 +40,7 @@ void main() {
 
   testWidgets('카드에 공고명이 함께 있다 — 공고를 가리지 않는 화면이라', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     final card = tester.widget<ApplicantCard>(find.byType(ApplicantCard).first);
     expect(card.postingTitle, isNotNull);
@@ -36,6 +49,7 @@ void main() {
 
   testWidgets('이름으로 걸러진다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     await type(tester, '김도현');
 
     expect(find.byType(ApplicantCard), findsOneWidget);
@@ -44,6 +58,7 @@ void main() {
 
   testWidgets('공고명으로도 걸러진다 — placeholder 가 약속한 대로', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     expect(find.text('이름 또는 공고 검색'), findsOneWidget);
 
     await type(tester, '백엔드');
@@ -52,6 +67,7 @@ void main() {
 
   testWidgets('단계 칩으로 걸러진다 — 전체가 기본', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     expect(find.text('전체'), findsOneWidget);
 
     await tester.tap(find.text(Stage.interview.label).first);
@@ -66,6 +82,7 @@ void main() {
 
   testWidgets('검색 + 단계 칩이 함께 걸린다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text(Stage.interview.label).first);
     await tester.pumpAndSettle();
@@ -76,6 +93,7 @@ void main() {
 
   testWidgets('결과가 없으면 웹과 같은 문구 (§6)', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     await type(tester, '없는사람이름');
 
     expect(find.text('0건'), findsOneWidget);
@@ -86,10 +104,13 @@ void main() {
 
   testWidgets('검색어를 지우면 다시 전체가 나온다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     await type(tester, '김도현');
     expect(find.byType(ApplicantCard), findsOneWidget);
 
     await tester.tap(find.byTooltip('검색어 지우기'));
+    // 지우기도 디바운스를 지나야 서버로 간다
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
     // ListView 는 화면 밖 카드를 만들지 않는다 — 총 개수는 건수 라벨이 계약이다
     expect(find.byType(ApplicantCard), findsWidgets);
@@ -108,6 +129,8 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byType(ApplicantCard).first);
     await tester.pumpAndSettle();
 
@@ -117,6 +140,7 @@ void main() {
 
   testWidgets('칸반은 없다 — 05-design §0.5', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     expect(find.textContaining('칸반'), findsNothing);
   });
 }

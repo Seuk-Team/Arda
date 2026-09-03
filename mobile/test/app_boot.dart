@@ -33,6 +33,7 @@ Future<void> bootToShell(WidgetTester tester, {String? tab}) async {
         postings: FakePostingRepository(),
         applicants: FakeApplicantRepository(),
         schedules: FakeScheduleRepository(),
+        dashboard: FakeDashboardRepository(),
       ),
     ),
   );

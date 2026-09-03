@@ -12,6 +12,7 @@ library;
 
 import '../api/api_client.dart';
 import '../api/endpoints.dart';
+import '../models/applicant.dart';
 import '../models/job_posting.dart';
 import '../models/stage.dart';
 
@@ -20,13 +21,22 @@ import '../models/stage.dart';
 /// 카드가 둘 다 필요해서 묶어 나른다 — 화면이 두 목록을 짝지어 들고 있으면
 /// 하나만 늦게 와서 어긋나는 순간이 생긴다.
 class PostingWithCounts {
-  const PostingWithCounts({required this.posting, required this.counts});
+  const PostingWithCounts({
+    required this.posting,
+    required this.counts,
+    this.applicants = const [],
+  });
 
   final JobPosting posting;
 
   /// 단계별 인원. **불합격까지 포함한다** — 퍼널 범례 합이 총원과 같아야 한다.
   /// 4단계만 세면 사람이 조용히 사라진다(2026-09-01 실기기에서 잡은 것)
   final Map<Stage, int> counts;
+
+  /// 그 공고의 지원자들. **인원을 세려고 어차피 다 받아 온다** — 버리지 않고
+  /// 들고 있으면 대시보드가 이름을 쓰는 데 요청이 하나도 더 안 든다
+  /// (큐 8 4단계, 2026-09-03)
+  final List<Applicant> applicants;
 
   int get total => counts.values.fold(0, (a, b) => a + b);
 }
@@ -46,29 +56,33 @@ class PostingRepository {
         JobPostingJson.fromJson(item as Map<String, dynamic>),
     ];
 
-    final counts = await Future.wait(postings.map(_countsFor));
-
-    return [
-      for (var i = 0; i < postings.length; i++)
-        PostingWithCounts(posting: postings[i], counts: counts[i]),
-    ];
+    return Future.wait(postings.map(_withCounts));
   }
 
-  /// 한 공고의 단계별 인원. 목록을 받아 클라이언트에서 센다.
-  Future<Map<Stage, int>> _countsFor(JobPosting posting) async {
+  /// 한 공고 + 그 공고의 지원자·단계별 인원. 목록을 받아 클라이언트에서 센다.
+  Future<PostingWithCounts> _withCounts(JobPosting posting) async {
     final raw = await _client.getList(
       Endpoints.postingApplications(posting.id),
     );
 
+    final applicants = [
+      for (final item in raw)
+        ApplicantJson.fromListJson(
+          item as Map<String, dynamic>,
+          jobPostingId: posting.id,
+        ),
+    ];
+
     final counts = {for (final s in Stage.values) s: 0};
-    for (final item in raw) {
-      final value = (item as Map<String, dynamic>)['current_stage'] as String?;
-      // 모르는 단계가 오면 세지 않는다 — 총원이 틀리는 편이 낫다고 볼 수도
-      // 있지만, 없는 칸에 넣으면 어느 단계인지 화면이 거짓말을 한다
-      final stage = Stage.values.where((s) => s.value == value).firstOrNull;
-      if (stage != null) counts[stage] = counts[stage]! + 1;
+    for (final a in applicants) {
+      counts[a.currentStage] = counts[a.currentStage]! + 1;
     }
-    return counts;
+
+    return PostingWithCounts(
+      posting: posting,
+      counts: counts,
+      applicants: applicants,
+    );
   }
 
   /// 공고를 만든다 — `POST /postings` (큐 8 3단계, 2026-09-03).

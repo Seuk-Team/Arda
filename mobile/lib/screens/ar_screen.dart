@@ -5,23 +5,29 @@
 /// ([ADR-0009](../../docs/03_decision/0009-에이전트-UI-위치.md) 2026-08-31 개정).
 /// 앱은 그 오버레이 쪽이라 전체 화면 시트로 올린다.
 ///
-/// **아직 서버에 붙지 않았다.** 대화는 목데이터이고 입력칸은 잠겨 있다 —
-/// 실제 `POST /agent/chat` 연동은 큐 8이다. 살아 있는 것처럼 보이게 두면
-/// 데모에서 오해를 부르므로 입력칸을 **꺼 둔 채로** 둔다.
+/// **서버에 붙었다** (큐 8 5단계, 2026-09-03) — `POST /agent/chat`.
+/// 대화 이력은 서버가 저장하지 않아 화면이 들고 매번 같이 보낸다. 시트를 닫으면
+/// 대화가 사라지는 것은 그래서다(웹도 같다).
 ///
 /// 05-design §1 (2026-09-01 팀장 확정): 앰버는 **사람의 확정을 기다리는 것**에만
-/// 쓴다. 앱의 아르는 지원자를 **찾아 주기까지**만 하고 확정 버튼을 두지 않으므로,
-/// 명단 카드는 앰버 점선이 아니라 정보 블록이다.
+/// 쓴다.
 ///
-/// 단계 변경은 지원자 상세 하단 하나로 모은다 — 같은 일을 두 자리에서 할 수 있으면
-/// 어느 쪽이 진짜인지 헷갈린다. 서버의 `pending_action → /agent/confirm` 2단은
-/// 그대로 있고, 앱이 그 길을 쓰게 되면 그때 §1 대로 앰버 점선 카드를 되살린다.
+/// - **명단 카드**(목데이터 시절의 `_FindingsCard`)는 확정 버튼이 없어 정보
+///   블록이었다. 서버 응답에는 그런 구조가 아예 없어서(글 + 도구 호출뿐)
+///   이제 안 그린다.
+/// - **확인 카드는 되살렸다.** 서버가 `pending_action` 을 주면 쓰기 도구가
+///   아직 실행되지 않은 것이고, 사람이 눌러야 `POST /agent/confirm` 이 돈다 —
+///   §1 이 앰버를 쓰라고 한 바로 그 자리다. 이 화면 문서가 예고해 둔 대로다.
 library;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../api/api_error.dart';
+import '../auth/authed_client.dart';
+import '../data/agent_repository.dart';
+import '../models/applicant.dart';
 import '../models/ar_message.dart';
+import '../models/stage.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 
@@ -32,15 +38,139 @@ Future<void> showArSheet(BuildContext context) {
   );
 }
 
-class ArScreen extends StatelessWidget {
-  const ArScreen({super.key, this.messages});
+class ArScreen extends StatefulWidget {
+  const ArScreen({super.key, this.messages, this.repository});
 
+  /// 테스트가 대화를 미리 채워 넣는 자리
   final List<ArMessage>? messages;
+
+  /// 테스트가 가짜를 넣는 자리 (큐 8 5단계)
+  final AgentRepository? repository;
+
+  @override
+  State<ArScreen> createState() => _ArScreenState();
+}
+
+class _ArScreenState extends State<ArScreen> {
+  late final AgentRepository _repo =
+      widget.repository ?? AgentRepository(authedClient());
+
+  late final List<ArMessage> _thread = [...?widget.messages];
+
+  /// 서버로 매번 같이 보내는 이력 — 서버가 저장하지 않는다
+  final _history = <ArHistoryEntry>[];
+
+  final _draft = TextEditingController();
+  final _scroll = ScrollController();
+
+  /// 사람의 확인을 기다리는 제안. 있으면 앰버 점선 카드가 뜬다
+  ArPendingAction? _pending;
+
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _draft.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  bool get _canSend => !_sending && _draft.text.trim().isNotEmpty;
+
+  void _push(ArMessage message) {
+    setState(() => _thread.add(message));
+    // 새 줄이 화면 밖에 생기면 아무 일도 안 일어난 것처럼 보인다
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: AppMotion.base,
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _send() async {
+    final message = _draft.text.trim();
+    if (message.isEmpty || _sending) return;
+
+    _draft.clear();
+    setState(() {
+      _pending = null;
+      _sending = true;
+    });
+    _push(ArMessage(speaker: ArSpeaker.me, text: message));
+
+    try {
+      final reply = await _repo.chat(message, _history);
+      if (!mounted) return;
+
+      // 무엇을 했는지 먼저 — 답이 짧아도 뭘 뒤졌는지는 보여야 한다
+      for (final call in reply.toolCalls) {
+        _push(ArMessage(speaker: ArSpeaker.log, text: _toolLine(call)));
+      }
+      if (reply.text.trim().isNotEmpty) {
+        _push(ArMessage(speaker: ArSpeaker.ar, text: reply.text.trim()));
+      }
+      if (reply.pending != null) setState(() => _pending = reply.pending);
+
+      // 이력의 assistant 자리는 비울 수 없다 — 답이 없으면 확인 요청 문장을
+      // 대신 넣는다(웹과 같은 처리)
+      final assistant = reply.text.trim().isNotEmpty
+          ? reply.text.trim()
+          : (reply.pending?.description ?? '(확인 대기)');
+      _history
+        ..add((role: 'user', content: message))
+        ..add((role: 'assistant', content: assistant));
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      _push(ArMessage(speaker: ArSpeaker.error, text: e.message));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 확인 카드의 [확인] — **쓰기 도구가 실제로 도는 유일한 자리다.**
+  Future<void> _confirm() async {
+    final action = _pending;
+    if (action == null || _sending) return;
+
+    setState(() => _sending = true);
+    try {
+      final ok = await _repo.confirm(action);
+      if (!mounted) return;
+      setState(() => _pending = null);
+      _push(
+        ArMessage(
+          speaker: ok ? ArSpeaker.log : ArSpeaker.error,
+          text: ok ? '실행했습니다 — ${action.description}' : '실행하지 못했습니다',
+        ),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      _push(ArMessage(speaker: ArSpeaker.error, text: e.message));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// 도구 한 줄 — 웹 `logLine` 과 같은 모양이다.
+  static String _toolLine(ArToolCall call) {
+    final args = call.input.entries
+        .map((e) => '${e.key}: ${e.value}')
+        .take(3)
+        .join(' · ');
+    return args.isEmpty ? call.name : '${call.name} — $args';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final thread = messages ?? mockArThread;
-
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: Column(
@@ -48,21 +178,210 @@ class ArScreen extends StatelessWidget {
         children: [
           const _ArHeader(),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(AppSpace.s4),
-              children: [
-                for (final message in thread) ...[
-                  _Bubble(message: message),
-                  if (message.findings != null) ...[
-                    const SizedBox(height: AppSpace.s2),
-                    _FindingsCard(findings: message.findings!),
-                  ],
-                  const SizedBox(height: AppSpace.s3),
-                ],
-              ],
+            child: _thread.isEmpty && _pending == null
+                ? const _EmptyThread()
+                : ListView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(AppSpace.s4),
+                    children: [
+                      for (final message in _thread) ...[
+                        _Line(message: message),
+                        if (message.findings != null) ...[
+                          const SizedBox(height: AppSpace.s2),
+                          _FindingsCard(findings: message.findings!),
+                        ],
+                        const SizedBox(height: AppSpace.s3),
+                      ],
+                      if (_sending) const _Thinking(),
+                      if (_pending != null)
+                        _PendingCard(
+                          action: _pending!,
+                          busy: _sending,
+                          onConfirm: _confirm,
+                          onCancel: () => setState(() => _pending = null),
+                        ),
+                    ],
+                  ),
+          ),
+          _InputBar(
+            controller: _draft,
+            enabled: !_sending,
+            canSend: _canSend,
+            onSend: _send,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 아직 아무 말도 안 했을 때. 시트를 닫으면 대화가 사라지므로 여기로 자주 온다.
+class _EmptyThread extends StatelessWidget {
+  const _EmptyThread();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.s6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ArAvatar(size: 56),
+            const SizedBox(height: AppSpace.s3),
+            const Text(
+              '무엇을 찾아 드릴까요?',
+              style: TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.body,
+                fontWeight: AppType.wSemiBold,
+                color: AppColors.text,
+              ),
+            ),
+            const SizedBox(height: AppSpace.s2),
+            const Text(
+              '"면접 단계 지원자 보여줘" 처럼 말하면 됩니다.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.sm,
+                height: 1.5,
+                color: AppColors.textSub,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 보내는 중 — 답이 오기까지 몇 초 걸린다. 아무 표시가 없으면 안 눌린 줄 안다.
+class _Thinking extends StatelessWidget {
+  const _Thinking();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.only(bottom: AppSpace.s3),
+    child: Text(
+      '생각하는 중…',
+      style: TextStyle(
+        fontFamily: AppType.fontFamily,
+        fontSize: AppType.sm,
+        color: AppColors.textSub,
+      ),
+    ),
+  );
+}
+
+/// 대화 한 줄 — 말풍선이거나(아르·나) 가운데 회색 줄이거나(도구·오류).
+class _Line extends StatelessWidget {
+  const _Line({required this.message});
+
+  final ArMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    if (message.speaker == ArSpeaker.ar || message.speaker == ArSpeaker.me) {
+      return _Bubble(message: message);
+    }
+
+    // 도구 로그·오류는 대화가 아니다 — 말풍선으로 그리면 아르가 한 말처럼 읽힌다
+    final isError = message.speaker == ArSpeaker.error;
+    return Text(
+      message.text,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontFamily: AppType.fontFamily,
+        fontSize: AppType.caption,
+        height: 1.5,
+        // §1: 적갈은 판단에만 — 실패가 그 판단이다
+        color: isError ? AppColors.danger : AppColors.textSub,
+      ),
+    );
+  }
+}
+
+/// 확인 카드 — **앰버 점선** (05-design §1).
+///
+/// 서버가 `pending_action` 을 줬다는 것은 **쓰기 도구가 아직 실행되지 않았다**는
+/// 뜻이다. 사람이 눌러야 `POST /agent/confirm` 이 돈다 — §1 이 앰버를 쓰라고 한
+/// 바로 그 자리다("앰버 점선 = AI 제안 / 잎초록 실선 = 사람 확정").
+class _PendingCard extends StatelessWidget {
+  const _PendingCard({
+    required this.action,
+    required this.busy,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  final ArPendingAction action;
+  final bool busy;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.s4),
+      decoration: BoxDecoration(
+        color: AppColors.aiSoft,
+        borderRadius: AppShape.card,
+        border: Border.all(
+          color: AppColors.ai,
+          width: AppShape.borderW,
+          // §1: 제안은 점선. 사람이 확정하면 실선이 된다
+          strokeAlign: BorderSide.strokeAlignInside,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            '아르의 제안',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ai,
             ),
           ),
-          const _InputBar(),
+          const SizedBox(height: AppSpace.s2),
+          Text(
+            // 서버가 만든 문장을 그대로 쓴다 — 앱이 지어내면 실제로 실행될
+            // 것과 화면 문구가 갈린다
+            action.description,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.body,
+              height: 1.6,
+              color: AppColors.text,
+            ),
+          ),
+          const SizedBox(height: AppSpace.s4),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: AppLayout.minTouchTarget,
+                  child: OutlinedButton(
+                    onPressed: busy ? null : onCancel,
+                    child: const Text('취소'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpace.s3),
+              Expanded(
+                child: SizedBox(
+                  height: AppLayout.minTouchTarget,
+                  child: FilledButton(
+                    onPressed: busy ? null : onConfirm,
+                    child: const Text('확인'),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -321,16 +640,18 @@ class _FoundRow extends StatelessWidget {
 
   final FoundApplicant applicant;
 
+  /// **껍데기만 만들어 넘긴다.** 명단에는 id·이름·재료뿐이고 나머지는 상세가
+  /// 어차피 id 로 다시 받는다(캘린더 행과 같은 처리, 큐 8 4단계).
   void _openDetail(BuildContext context) {
-    final target = mockApplicants.firstWhere(
-      (a) => a.id == applicant.applicationId,
+    final stub = Applicant(
+      id: applicant.applicationId,
+      jobPostingId: 0,
+      name: applicant.name,
+      email: '',
+      currentStage: Stage.applied,
+      createdAt: DateTime.now(),
     );
-    final posting = mockPostings.firstWhere((p) => p.id == target.jobPostingId);
-    Navigator.pushNamed(
-      context,
-      Routes.applicantDetail,
-      arguments: (target, posting.title),
-    );
+    Navigator.pushNamed(context, Routes.applicantDetail, arguments: (stub, ''));
   }
 
   @override
@@ -436,9 +757,22 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// 입력줄 — **아직 잠겨 있다.** 큐 8에서 `POST /agent/chat` 에 붙는다.
+/// 입력줄 — **큐 8 5단계에서 잠금을 풀었다** (2026-09-03).
+///
+/// 05-design §9 터치 타깃 44. 여러 줄 입력을 받되(질문이 길어질 수 있다)
+/// 화면을 다 먹지 않게 4줄에서 멈추고 안에서 스크롤한다.
 class _InputBar extends StatelessWidget {
-  const _InputBar();
+  const _InputBar({
+    required this.controller,
+    required this.enabled,
+    required this.canSend,
+    required this.onSend,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final bool canSend;
+  final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
@@ -454,11 +788,17 @@ class _InputBar extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(AppSpace.s3),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: Container(
-                  height: AppLayout.minTouchTarget,
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4),
+                  constraints: const BoxConstraints(
+                    minHeight: AppLayout.minTouchTarget,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpace.s4,
+                    vertical: AppSpace.s1,
+                  ),
                   alignment: Alignment.centerLeft,
                   decoration: BoxDecoration(
                     color: AppColors.bgSunken,
@@ -468,30 +808,55 @@ class _InputBar extends StatelessWidget {
                       width: AppShape.borderW,
                     ),
                   ),
-                  child: const Text(
-                    '아르에게 물어보기',
-                    style: TextStyle(
+                  child: TextField(
+                    controller: controller,
+                    enabled: enabled,
+                    minLines: 1,
+                    maxLines: 4,
+                    // 서버가 2000자까지 받는다(`ChatRequest.message`)
+                    maxLength: 2000,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => canSend ? onSend() : null,
+                    style: const TextStyle(
                       fontFamily: AppType.fontFamily,
                       fontSize: AppType.body,
-                      color: AppColors.textSub,
+                      color: AppColors.text,
+                    ),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      // 알약 안이라 글자수 표시가 들어갈 자리가 없다
+                      counterText: '',
+                      hintText: '아르에게 물어보기',
+                      hintStyle: TextStyle(
+                        fontFamily: AppType.fontFamily,
+                        fontSize: AppType.body,
+                        color: AppColors.textSub,
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: AppSpace.s2),
-              Container(
-                width: AppLayout.minTouchTarget,
-                height: AppLayout.minTouchTarget,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  // 비활성 — 테마의 disabledBackgroundColor 와 같은 단계
-                  color: AppColors.bgSunken,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.arrow_forward,
-                  size: 20,
-                  color: AppColors.textSub,
+              Semantics(
+                button: true,
+                label: '보내기',
+                child: Material(
+                  color: canSend ? AppColors.leaf : AppColors.bgSunken,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: canSend ? onSend : null,
+                    child: SizedBox(
+                      width: AppLayout.minTouchTarget,
+                      height: AppLayout.minTouchTarget,
+                      child: Icon(
+                        Icons.arrow_forward,
+                        size: 20,
+                        color: canSend ? AppColors.bgElev : AppColors.textSub,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

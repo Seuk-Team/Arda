@@ -12,8 +12,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'app_boot.dart';
 
+/// 명단 카드 같은 화면 규칙을 보려면 대화가 있어야 한다. 큐 8 5단계로 서버에
+/// 붙으면서 기본 대화가 사라졌으므로(시트를 열면 빈 화면이다) 목 대화를 넣는다
 Widget host({List<ArMessage>? messages}) =>
-    MaterialApp(home: ArScreen(messages: messages));
+    MaterialApp(home: ArScreen(messages: messages ?? mockArThread));
 
 void main() {
   group('진입점 — 전 화면 공통 (§0.5)', () {
@@ -161,11 +163,9 @@ void main() {
     });
   });
 
-  testWidgets('입력칸은 아직 잠겨 있다 — 서버에 안 붙었다', (tester) async {
+  testWidgets('입력칸이 살아 있다 — 큐 8 5단계(2026-09-03)에서 잠금을 풀었다', (tester) async {
     await tester.pumpWidget(host());
 
-    expect(find.text('아르에게 물어보기'), findsOneWidget);
-    // 살아 있는 입력칸이 아니다 — TextField 가 있으면 보내지는 것처럼 보인다
-    expect(find.byType(TextField), findsNothing);
+    expect(find.widgetWithText(TextField, '아르에게 물어보기'), findsOneWidget);
   });
 }

@@ -11,7 +11,20 @@
 /// 보는 곳은 웹의 실행 로그다).
 library;
 
-enum ArSpeaker { ar, me }
+/// 대화에 들어가는 줄의 종류.
+///
+/// [log] 와 [error] 는 말풍선이 아니라 가운데 회색 한 줄이다 — 아르가 한 말도,
+/// 내가 한 말도 아니어서 말풍선으로 그리면 대화가 아닌 것이 대화처럼 보인다.
+enum ArSpeaker {
+  ar,
+  me,
+
+  /// 아르가 부른 도구 — "지원자 검색 — 단계: 면접" (큐 8 5단계)
+  log,
+
+  /// 보내지 못했거나 서버가 거절했다
+  error,
+}
 
 class ArMessage {
   const ArMessage({required this.speaker, required this.text, this.findings});
@@ -19,7 +32,11 @@ class ArMessage {
   final ArSpeaker speaker;
   final String text;
 
-  /// 이 답변에 딸려 온 지원자 명단. 아르 말풍선에만 붙는다
+  /// 이 답변에 딸려 온 지원자 명단. 아르 말풍선에만 붙는다.
+  ///
+  /// **서버 응답에는 이런 구조가 없다** — `ChatResponse` 는 `reply` 글과
+  /// `tool_calls` 뿐이다. 목데이터 시절에 화면을 그려 보려고 두었던 것이라
+  /// 서버에서 온 줄에는 붙지 않는다 (큐 8 5단계, 2026-09-03)
   final ArFindings? findings;
 }
 

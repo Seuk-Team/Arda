@@ -125,15 +125,7 @@ void main() {
     });
   });
 
-  // testWidgets 가 아니라 test 다. 목 로더 안의 Future.delayed 는 위젯 테스트의
-  // 가짜 시계에서 스스로 깨어나지 않아, pump 없이 await 하면 그대로 멈춘다.
-  test('목 로더는 평가 기록이 없는 서류·면접 단계만 준다', () async {
-    final queue = await mockQueueLoader();
-
-    expect(queue, isNotEmpty);
-    for (final (applicant, _) in queue) {
-      expect(mockEvaluations.containsKey(applicant.id), isFalse);
-    }
-    expect(queue.length, mockReviewQueueCount);
-  });
+  // 목 로더는 큐 8 4단계(2026-09-03)에서 사라졌다 — 큐가 서버에서 온다.
+  // 무엇이 큐에 들어가는지는 **서버가 정한다**(내게 배정된 것), 그래서 앱이
+  // 검사할 규칙이 없어졌다. 화면 규칙(세 상태·정렬·이동)만 위에서 본다.
 }

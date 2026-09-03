@@ -130,6 +130,44 @@ class ApplicantRepository {
     );
   }
 
+  /// 전 공고 통합 검색 — `GET /applications` (큐 8 4단계, 2026-09-03).
+  ///
+  /// **공고명이 안 온다**(`job_posting_id` 뿐). 화면이 공고 목록을 따로 받아
+  /// `id → 제목` 표를 만들어 붙인다 — 웹 `Applicants.tsx` 의 `postingMap` 과 같다.
+  ///
+  /// **`q` 는 이름·이메일만 본다** (backend/app/api/search.py:120). 공고명으로
+  /// 찾으려면 [postingId] 로 좁혀야 한다 — 웹도 공고 검색을 그렇게 처리한다.
+  ///
+  /// 커서(`next_cursor`)도 있지만 **`offset` 을 쓴다** — 웹과 같고, "더 보기" 로
+  /// 이어 붙이기에도 이쪽이 단순하다.
+  ///
+  /// [total] 은 `with_total` 을 켜야 온다. 화면이 "48명" 을 적어야 해서 켠다.
+  Future<({List<Applicant> items, int? total})> search({
+    String? query,
+    Stage? stage,
+    int? postingId,
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    final json = await _client.get(
+      Endpoints.applicationSearch(
+        query: query,
+        stage: stage?.value,
+        postingId: postingId,
+        limit: limit,
+        offset: offset,
+      ),
+    );
+
+    return (
+      items: [
+        for (final item in (json['items'] as List? ?? const []))
+          ApplicantJson.fromSearchJson(item as Map<String, dynamic>),
+      ],
+      total: json['total'] as int?,
+    );
+  }
+
   /// 단계 변경 — `PATCH /applications/{id}/stage` (D3).
   ///
   /// 서버가 한 트랜잭션에서 **단계 · 이력 · 메일 큐**를 함께 처리한다. 앱이

@@ -1,18 +1,33 @@
 // 대시보드 — 조각 3~9. 05-design 이 값을 못 박은 곳은 전부 그 값으로 검사한다.
 
+import 'package:arda/data/dashboard_repository.dart';
 import 'package:arda/data/mock_data.dart';
+import 'package:arda/models/interview.dart';
 import 'package:arda/models/stage.dart';
+import 'package:arda/auth/current_user.dart';
 import 'package:arda/screens/dashboard_screen.dart';
 import 'package:arda/theme/tokens.dart';
 import 'package:arda/widgets/funnel_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_repos.dart';
+
 /// 2026-09-01 은 화요일 — 목데이터가 면접 2건을 두는 날
 final aDay = DateTime(2026, 9, 1);
 
-Widget host({DateTime? today}) => MaterialApp(
-  home: Scaffold(body: DashboardScreen(today: today ?? aDay)),
+/// 큐 8 4단계로 서버에서 받아 온다 — 가짜가 목데이터를 그대로 준다.
+/// 내 id 를 알아야 "내 리뷰 대기" 를 묻기 시작하므로 로그인한 사람도 넣는다.
+Widget host({DateTime? today}) => CurrentUserScope(
+  notifier: CurrentUser(mockUser),
+  child: MaterialApp(
+    home: Scaffold(
+      body: DashboardScreen(
+        today: today ?? aDay,
+        repository: FakeDashboardRepository(),
+      ),
+    ),
+  ),
 );
 
 Finder get card => find
@@ -39,6 +54,7 @@ void main() {
   group('조각 3 — 카드 자리', () {
     testWidgets('흰 바탕 · radius 8 · 1px 테두리 · 카드 그림자 (§4)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
       final deco = decorationOf(tester);
 
       expect(deco.color, AppColors.bgElev);
@@ -50,6 +66,7 @@ void main() {
 
     testWidgets('화면 여백 --sp-4, 카드 안쪽 여백도 --sp-4 (§3 · §0.5)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final screen = tester.getRect(find.byType(DashboardScreen));
       final box = tester.getRect(card);
@@ -65,6 +82,7 @@ void main() {
 
     testWidgets('높이는 내용이 정한다 — 잠정 높이를 걷어냈다', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       // 카드 높이 = 내용 높이 + 안쪽 여백 위아래 + 테두리 위아래.
       // 고정 높이가 남아 있으면 이 등식이 깨진다
@@ -84,6 +102,7 @@ void main() {
   group('조각 4 — 카드 제목 줄', () {
     testWidgets('제목은 h2 · w700 · 제목 그림자 (§2 · §0.5)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final title = tester.widget<Text>(find.text('오늘 면접'));
       expect(title.style!.fontSize, AppType.h2);
@@ -94,11 +113,13 @@ void main() {
 
     testWidgets('메타는 "날짜 · N건" — 날짜는 §2 표기, 일정은 명이 아니라 건', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
       expect(find.text('2026.09.01 · 2건'), findsOneWidget);
     });
 
     testWidgets('메타는 --font-num + tabular-nums, 그림자 없음 (§2)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final meta = tester.widget<Text>(find.text('2026.09.01 · 2건'));
       expect(meta.style!.fontSize, AppType.num);
@@ -111,6 +132,7 @@ void main() {
   group('조각 5 — 면접 행', () {
     testWidgets('오늘 확정된 면접이 시각 순서대로 나온다', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       expect(find.text('14:00'), findsOneWidget);
       expect(find.text('16:30'), findsOneWidget);
@@ -122,6 +144,7 @@ void main() {
 
     testWidgets('행에 지원자 이름과 공고가 함께 있다', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       for (final interview in mockInterviewsOn(aDay)) {
         expect(
@@ -142,6 +165,7 @@ void main() {
 
     testWidgets('시각은 --font-num + tabular + 잎초록 (§1 · §2)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final time = tester.widget<Text>(find.text('14:00'));
       expect(time.style!.fontSize, AppType.num);
@@ -153,6 +177,7 @@ void main() {
 
     testWidgets('이름은 본문 크기 w600, 공고는 캡션 크기 보조색', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
       final first = mockInterviewsOn(aDay).first;
 
       final name = tester.widget<Text>(
@@ -172,6 +197,7 @@ void main() {
 
     testWidgets('긴 이름은 한 줄 말줄임 — 시간표가 무너지지 않는다 (§7)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final long = mockInterviewsOn(aDay)
           .map((i) => i.applicantName)
@@ -196,6 +222,7 @@ void main() {
 
     testWidgets('행 사이 실선은 --border-soft 1px (§4)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final row = tester.widget<Container>(find.byType(Container).at(1));
       final border = (row.decoration! as BoxDecoration).border! as Border;
@@ -207,6 +234,7 @@ void main() {
   group('조각 6 — 캘린더 링크', () {
     testWidgets('링크 글자는 --leaf · sm · w600, 그림자 없음 (§1 · §2)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final link = tester.widget<Text>(find.text('캘린더 →'));
       expect(link.style!.color, AppColors.leaf);
@@ -217,6 +245,7 @@ void main() {
 
     testWidgets('누를 자리가 44×44 이상이다 (§9)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final tapArea = tester.getSize(
         find
@@ -229,6 +258,7 @@ void main() {
 
     testWidgets('오른쪽 끝이 카드 안쪽 선에 맞는다 — 위 날짜와 같은 세로선', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final link = tester.getRect(find.text('캘린더 →'));
       final meta = tester.getRect(find.text('2026.09.01 · 2건'));
@@ -238,15 +268,20 @@ void main() {
     testWidgets('누르면 콜백이 온다', (tester) async {
       var opened = false;
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: DashboardScreen(
-              today: aDay,
-              onOpenCalendar: () => opened = true,
+        CurrentUserScope(
+          notifier: CurrentUser(mockUser),
+          child: MaterialApp(
+            home: Scaffold(
+              body: DashboardScreen(
+                today: aDay,
+                repository: FakeDashboardRepository(),
+                onOpenCalendar: () => opened = true,
+              ),
             ),
           ),
         ),
       );
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('캘린더 →'));
       expect(opened, isTrue);
@@ -256,6 +291,7 @@ void main() {
   group('조각 7 — 내 리뷰 대기', () {
     testWidgets('라벨 · 큰 숫자 · 채운 버튼', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       expect(find.text('내 리뷰 대기'), findsOneWidget);
       // 범례에도 같은 숫자가 있어 글자로는 특정할 수 없다 — 키로 집는다
@@ -268,6 +304,7 @@ void main() {
 
     testWidgets('숫자는 display + 제목 그림자, 단위는 보조색 (§2)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final number = tester.widget<Text>(find.byKey(reviewCountKey));
       expect(number.style!.fontSize, AppType.display);
@@ -287,6 +324,7 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final material = tester.widget<Material>(
         find
@@ -311,6 +349,7 @@ void main() {
   group('조각 8 — 지원자 현황', () {
     testWidgets('레일은 접수~합격 4단 — 불합격은 없다 (§0.5)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final rail = tester.widget<FunnelBar>(find.byType(FunnelBar));
       expect(rail.stages, DashboardScreen.railStages);
@@ -364,6 +403,7 @@ void main() {
 
     testWidgets('범례는 왼쪽부터 붙여 쓴다 — 균등 분산 금지 (§0.5)', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
       final wrap = tester.widget<Wrap>(find.byType(Wrap));
       expect(wrap.alignment, WrapAlignment.start);
@@ -376,6 +416,7 @@ void main() {
   group('조각 9 — 진행중 공고', () {
     testWidgets('진행중 공고만 나온다 — 마감은 없다', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
       // 지원자 현황 목록이 들어오면서 이 카드가 아래로 밀렸다.
       // ListView 는 화면 밖 자식을 만들지 않으므로 내려가서 본다
       await scrollToPostings(tester);
@@ -392,11 +433,88 @@ void main() {
 
     testWidgets('행 오른쪽 끝은 비워 둔다 — 아르 버튼 자리', (tester) async {
       await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
       await scrollToPostings(tester);
 
       final screen = tester.getRect(find.byType(DashboardScreen));
       final meta = tester.getRect(find.textContaining('마감 D-').first);
       expect(screen.right - meta.right, greaterThan(60));
+    });
+  });
+
+  group('면접 행의 일정 칩 (2026-09-03 실기기에서 잡은 것)', () {
+    /// 대시보드 아래쪽 면접 그룹까지 내려간다
+    Future<void> scrollToInterview(WidgetTester tester) async {
+      await tester.dragUntilVisible(
+        find.text('면접').first,
+        find.byType(Scrollable).first,
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final interviewee = mockApplicants.firstWhere(
+      (x) => x.currentStage == Stage.interview,
+    );
+
+    Widget hostWith(Map<int, ScheduleChip> chips) => CurrentUserScope(
+      notifier: CurrentUser(mockUser),
+      child: MaterialApp(
+        home: Scaffold(
+          body: DashboardScreen(
+            today: aDay,
+            repository: FakeDashboardRepository(
+              data: DashboardData(
+                todayInterviews: const [],
+                reviewWaiting: 0,
+                openPostings: const [],
+                stageCounts: const {Stage.interview: 1},
+                applicantsByStage: {
+                  Stage.interview: [interviewee],
+                },
+                scheduleStatus: chips,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets('확정이면 그날이 오늘이 아니어도 시각을 적는다 — 빈 알약이 되면 안 된다', (tester) async {
+      await tester.pumpWidget(
+        hostWith({
+          // 오늘(09.01)이 아닌 날로 확정됐다
+          interviewee.id: ScheduleChip(
+            ScheduleStatus.confirmed,
+            confirmedAt: DateTime(2026, 9, 4, 15, 30),
+          ),
+        }),
+      );
+      await tester.pumpAndSettle();
+      await scrollToInterview(tester);
+
+      // 예전 버그: 오늘 면접 목록에서만 시각을 찾아, 다른 날로 확정된 사람은
+      // confirmed 의 빈 라벨이 그대로 나가 알약만 남았다
+      expect(find.text('09.04 15:30'), findsOneWidget);
+      expect(find.text('일정 없음'), findsNothing);
+    });
+
+    testWidgets('확정이 아니면 상태 문구를 적는다', (tester) async {
+      await tester.pumpWidget(
+        hostWith({interviewee.id: const ScheduleChip(ScheduleStatus.proposed)}),
+      );
+      await tester.pumpAndSettle();
+      await scrollToInterview(tester);
+
+      expect(find.text('일정 제안 중'), findsOneWidget);
+    });
+
+    testWidgets('안 물어본 사람은 "일정 없음"', (tester) async {
+      await tester.pumpWidget(hostWith(const {}));
+      await tester.pumpAndSettle();
+      await scrollToInterview(tester);
+
+      expect(find.text('일정 없음'), findsOneWidget);
     });
   });
 }
