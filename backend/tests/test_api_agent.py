@@ -89,8 +89,21 @@ def unauth_client(db: Session) -> TestClient:
 class TestSummarize:
     """POST /api/v1/agent/applications/{id}/summarize"""
 
+    def _available_backend(self):
+        """`unavailable_reason() → None` 인 백엔드 목. 대부분의 테스트가 이 상태를 원한다.
+
+        `get_summary_backend()` 를 직접 mock 해서, 테스트 프로세스에 실제
+        ANTHROPIC_API_KEY 가 있든 없든 결과가 같게 만든다.
+        """
+        backend = MagicMock()
+        backend.unavailable_reason.return_value = None
+        return backend
+
     def test_success(self, client: TestClient, application: Application):
-        with patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'):
+        with (
+            patch("app.api.agent.get_summary_backend", return_value=self._available_backend()),
+            patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'),
+        ):
             resp = client.post(f"/api/v1/agent/applications/{application.id}/summarize")
         assert resp.status_code == 200
         data = resp.json()
@@ -102,9 +115,24 @@ class TestSummarize:
         assert resp.status_code == 404
 
     def test_summary_generation_fails(self, client: TestClient, application: Application):
-        with patch("app.api.agent.generate_summary", return_value=None):
+        """백엔드는 살아 있지만 생성 자체가 실패 → 422 (LLM 응답 파싱 실패 등)."""
+        with (
+            patch("app.api.agent.get_summary_backend", return_value=self._available_backend()),
+            patch("app.api.agent.generate_summary", return_value=None),
+        ):
             resp = client.post(f"/api/v1/agent/applications/{application.id}/summarize")
         assert resp.status_code == 422
+        # 문구가 "API 키" 를 언급하지 않아야 한다 — 그건 503 사유다
+        assert "API 키" not in resp.json()["message"]
+
+    def test_backend_unavailable(self, client: TestClient, application: Application):
+        """키 미설정 등 백엔드 사유 → 503 + 원문 사유."""
+        backend = MagicMock()
+        backend.unavailable_reason.return_value = "ANTHROPIC_API_KEY 미설정"
+        with patch("app.api.agent.get_summary_backend", return_value=backend):
+            resp = client.post(f"/api/v1/agent/applications/{application.id}/summarize")
+        assert resp.status_code == 503
+        assert "ANTHROPIC_API_KEY" in resp.json()["message"]
 
     def test_unauth_rejected(self, unauth_client: TestClient, application: Application):
         resp = unauth_client.post(f"/api/v1/agent/applications/{application.id}/summarize")

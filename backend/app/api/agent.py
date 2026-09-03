@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.agent.backends import get_summary_backend
 from app.agent.entity_resolver import resolve_entities
 from app.agent.intent_router import DirectAction, classify
 from app.agent.prompts import render
@@ -97,16 +98,32 @@ def regenerate_summary(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """AI 요약 재생성. 로그인한 사람이면 누구나. 기존 요약을 덮어쓴다."""
+    """AI 요약 재생성. 로그인한 사람이면 누구나. 기존 요약을 덮어쓴다.
+
+    실패 사유를 분리해서 돌려준다. 이전에는 "API 키 또는 프로필 정보를 확인하세요"
+    한 문구로 뭉쳐서, 09/02 실측에서 김데모(프로필 빈 테스트 행)로 시험했을 때
+    원인이 키 폐기인지 데이터인지 갈리지 않았다. 이제는:
+    - 백엔드 사용 불가(키 미설정 등) → **503** + `backend.unavailable_reason()` 원문
+    - 그 외 실패(LLM 응답 파싱 실패·중간 예외) → **422** + 재시도 안내
+    프로필이 정말 비어 있는 경우는 실패가 아니라 `insufficient=True` 요약이
+    저장되므로 여기까지 오지 않는다.
+    """
     app = db.get(Application, application_id)
     if app is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
+
+    reason = get_summary_backend().unavailable_reason()
+    if reason:
+        raise HTTPException(
+            http.HTTP_503_SERVICE_UNAVAILABLE,
+            f"요약 백엔드를 사용할 수 없습니다: {reason}",
+        )
 
     summary = generate_summary(db, application_id)
     if summary is None:
         raise HTTPException(
             http.HTTP_422_UNPROCESSABLE_ENTITY,
-            "요약을 생성할 수 없습니다 (API 키 또는 프로필 정보를 확인하세요)",
+            "요약 생성에 실패했습니다. LLM 응답을 처리하지 못했습니다 — 잠시 후 다시 시도해 주세요.",
         )
 
     return SummaryOut(summary=summary, model=app.ai_summary_model)
