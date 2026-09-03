@@ -44,10 +44,16 @@ class ApiClient {
     bool authenticated = true,
   }) => _send('POST', path, body: body, authenticated: authenticated);
 
+  /// [authExpiryOn401] 을 false 로 주면 **401 을 만료로 보지 않는다.**
+  ///
+  /// `PATCH /auth/me` 가 그렇다: 여기서 401 은 "세션이 끝났다" 가 아니라
+  /// "현재 비밀번호를 틀렸다" 다. 기본값대로 두면 **비밀번호 오타 한 번에
+  /// 로그아웃된다** — 토큰은 멀쩡한데 지워 버리기 때문이다.
   Future<Map<String, dynamic>> patch(
     String path, {
     Map<String, dynamic>? body,
-  }) => _send('PATCH', path, body: body);
+    bool authExpiryOn401 = true,
+  }) => _send('PATCH', path, body: body, authExpiryOn401: authExpiryOn401);
 
   /// 목록을 주는 엔드포인트용 — 최상위가 배열이라 [_send] 의 Map 과 다르다.
   Future<List<dynamic>> getList(String path) async {
@@ -63,12 +69,14 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
+    bool authExpiryOn401 = true,
   }) async {
     final decoded = await _sendRaw(
       method,
       path,
       body: body,
       authenticated: authenticated,
+      authExpiryOn401: authExpiryOn401,
     );
     if (decoded is! Map<String, dynamic>) {
       throw const ServerError(200, '예상과 다른 응답이 왔습니다.');
@@ -81,6 +89,7 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? body,
     bool authenticated = true,
+    bool authExpiryOn401 = true,
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = <String, String>{
@@ -111,12 +120,17 @@ class ApiClient {
       throw const NetworkError();
     }
 
-    return _handle(response, isLogin: !authenticated);
+    return _handle(
+      response,
+      isLogin: !authenticated,
+      authExpiryOn401: authExpiryOn401,
+    );
   }
 
   Future<dynamic> _handle(
     http.Response response, {
     required bool isLogin,
+    required bool authExpiryOn401,
   }) async {
     final code = response.statusCode;
 
@@ -124,6 +138,12 @@ class ApiClient {
       // 로그인 요청의 401 은 "비밀번호가 틀렸다" 다 — 만료가 아니다.
       // 같은 문구를 쓰면 로그인 화면에서 "다시 로그인하세요" 가 뜬다
       if (isLogin) throw const LoginFailed();
+
+      // 이 요청에서 401 이 만료가 아닌 경우 — 비밀번호 변경의 "현재 비밀번호가
+      // 틀렸다". 토큰은 멀쩡하므로 지우지 않는다
+      if (!authExpiryOn401) {
+        throw ServerError(401, _detail(response) ?? '현재 비밀번호가 올바르지 않습니다.');
+      }
 
       // 리프레시 토큰이 없어 갱신할 방법이 없다. 저장된 것을 버린다
       await onAuthExpired?.call();

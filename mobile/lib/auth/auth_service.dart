@@ -83,6 +83,9 @@ class AuthService {
         'current_password': ?currentPassword,
         'new_password': ?newPassword,
       },
+      // 여기서 401 은 만료가 아니라 **현재 비밀번호가 틀렸다**는 뜻이다.
+      // 기본값대로 두면 오타 한 번에 토큰이 지워져 로그아웃된다
+      authExpiryOn401: false,
     );
     return AppUserJson.fromJson(res);
   }

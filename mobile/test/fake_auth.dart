@@ -25,6 +25,7 @@ class FakeAuthService implements AuthService {
     this.error,
     this.restored,
     this.delay = Duration.zero,
+    this.updateError,
   });
 
   /// 로그인 성공 시 돌려줄 사용자
@@ -39,8 +40,17 @@ class FakeAuthService implements AuthService {
   /// 보내는 중 상태(스피너·버튼 잠금)를 볼 수 있게 늦춘다
   final Duration delay;
 
+  /// 주면 내 정보 수정이 이걸 던진다 (큐 8 3단계)
+  final ApiError? updateError;
+
   /// 로그아웃이 실제로 불렸는지
   bool loggedOut = false;
+
+  /// `PATCH /auth/me` 로 보낸 값
+  String? sentName;
+  String? sentCurrentPassword;
+  String? sentNewPassword;
+  int updateCalls = 0;
 
   @override
   Future<AppUser> login({
@@ -63,7 +73,18 @@ class FakeAuthService implements AuthService {
     String? name,
     String? currentPassword,
     String? newPassword,
-  }) async => user ?? testUser;
+  }) async {
+    updateCalls++;
+    sentName = name;
+    sentCurrentPassword = currentPassword;
+    sentNewPassword = newPassword;
+
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (updateError != null) throw updateError!;
+
+    final base = user ?? testUser;
+    return name == null ? base : base.copyWithName(name);
+  }
 
   @override
   Future<void> logout() async => loggedOut = true;

@@ -6,14 +6,17 @@
 /// **역할별 화면 분기를 만들지 않는다**(app.md W4 · ADR-0017) — 네 탭을 다 두고,
 /// 막는 것은 서버가 한다. 지금은 어차피 전부 조회 전용이다.
 ///
-/// **아직 서버에 붙지 않았다.** 배포판도 "내 정보 수정 API가 아직 없어 저장할 수
-/// 없습니다"로 잠겨 있고, 앱은 목데이터라 더 그렇다 — 입력칸을 살아 있는 것처럼
-/// 두지 않는다. 실제 연동은 큐 8이다.
+/// **내 계정 탭만 서버에 붙었다** (큐 8 3단계, 2026-09-03) — `PATCH /auth/me` 로
+/// 이름·비밀번호를 바꾼다. 그 API 가 받는 것이 그 둘뿐이라(`MeUpdate`) 나머지 탭
+/// (사용자·권한 · 메일 템플릿 · 면접 가능 시간)은 아직 잠겨 있다. 잠긴 칸은
+/// 살아 있는 것처럼 두지 않는다 — 글자가 보조색인 `_LockedField` 다.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../api/api_error.dart';
+import '../auth/auth_service.dart';
 import '../auth/current_user.dart';
 import '../auth/logout.dart';
 import '../models/app_user.dart';
@@ -33,9 +36,12 @@ enum SettingsTab {
 }
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, this.user});
+  const SettingsScreen({super.key, this.user, this.auth});
 
   final AppUser? user;
+
+  /// 테스트가 가짜를 넣는 자리 (큐 8)
+  final AuthService? auth;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -56,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _Tabs(current: _tab, onSelected: (t) => setState(() => _tab = t)),
           Expanded(
             child: switch (_tab) {
-              SettingsTab.account => _Account(user: me),
+              SettingsTab.account => _Account(user: me, auth: widget.auth),
               SettingsTab.users => const _Users(),
               SettingsTab.mail => const _Mail(),
               SettingsTab.availability => const _Availability(),
@@ -154,11 +160,137 @@ class _Tab extends StatelessWidget {
   }
 }
 
-/// 내 계정 — 배포판처럼 전부 잠겨 있다.
-class _Account extends StatelessWidget {
-  const _Account({required this.user});
+/// 내 계정 — **여기만 잠금이 풀렸다** (큐 8 3단계, 2026-09-03).
+///
+/// `PATCH /auth/me` 는 이름과 비밀번호만 받는다. 이메일·역할은 서버가 아예
+/// 안 받으므로(`MeUpdate`) 잠긴 채로 둔다 — 로그인 식별자와 권한이라 본인이
+/// 스스로 바꿀 것이 아니다.
+///
+/// 이름과 비밀번호를 한 [저장] 으로 묶지 않는다: 바뀌는 대상이 다르고 비밀번호는
+/// 현재 것을 맞혀야 한다. 웹도 별도 폼이다.
+class _Account extends StatefulWidget {
+  const _Account({required this.user, this.auth});
 
   final AppUser user;
+
+  /// 테스트가 가짜를 넣는 자리
+  final AuthService? auth;
+
+  @override
+  State<_Account> createState() => _AccountState();
+}
+
+class _AccountState extends State<_Account> {
+  late final _name = TextEditingController(text: widget.user.name);
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  final _confirm = TextEditingController();
+
+  bool _savingName = false;
+  bool _savingPassword = false;
+
+  /// 새 비밀번호가 규칙에 맞지 않으면 그 이유. 맞으면 null
+  String? _passwordProblem;
+
+  AuthService get _auth =>
+      widget.auth ??
+      CurrentUserScope.authOf(context) as AuthService? ??
+      AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    // 이름이 그대로면 [저장] 이 잠긴다 — 글자마다 다시 그려야 그게 보인다
+    _name.addListener(() => setState(() {}));
+    for (final c in [_current, _next, _confirm]) {
+      c.addListener(() => setState(() => _passwordProblem = null));
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_name, _current, _next, _confirm]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  /// 서버가 `name` 1~50자를 요구한다(`MeUpdate`). 안 바뀌었으면 보낼 것이 없다
+  bool get _canSaveName {
+    final v = _name.text.trim();
+    return !_savingName &&
+        v.isNotEmpty &&
+        v.length <= 50 &&
+        v != widget.user.name;
+  }
+
+  bool get _canChangePassword =>
+      !_savingPassword &&
+      _current.text.isNotEmpty &&
+      _next.text.isNotEmpty &&
+      _confirm.text.isNotEmpty;
+
+  Future<void> _saveName() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final holder = CurrentUserScope.notifierOf(context);
+    setState(() => _savingName = true);
+
+    try {
+      final updated = await _auth.updateMe(name: _name.text.trim());
+      if (!mounted) return;
+      // 상단 바 아바타·더보기의 이름이 같은 값을 봐야 한다
+      holder?.value = updated;
+      messenger.showSnackBar(const SnackBar(content: Text('이름을 저장했습니다')));
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _savingName = false);
+    }
+  }
+
+  Future<void> _changePassword() async {
+    // 서버도 막지만 화면에서 먼저 본다 — 422 를 받고 알려 주면 헛걸음이다.
+    // 확인칸은 서버로 보내지 않는다(화면에서만 대조하는 값이다)
+    if (_next.text.length < 8) {
+      setState(() => _passwordProblem = '새 비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
+    if (_next.text != _confirm.text) {
+      setState(() => _passwordProblem = '새 비밀번호가 서로 다릅니다.');
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _savingPassword = true;
+      _passwordProblem = null;
+    });
+
+    try {
+      await _auth.updateMe(
+        currentPassword: _current.text,
+        newPassword: _next.text,
+      );
+      if (!mounted) return;
+
+      // 셋 다 비운다. 남겨 두면 남이 화면을 잡았을 때 그대로 보인다
+      for (final c in [_current, _next, _confirm]) {
+        c.clear();
+      }
+      messenger.showSnackBar(
+        // 서버가 기존 토큰을 죽이지 않아 다시 로그인할 필요가 없다
+        const SnackBar(content: Text('비밀번호를 바꿨습니다')),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      // 401 은 "현재 비밀번호가 올바르지 않습니다" 다. 여기서는 만료가 아니라
+      // 틀린 것이므로 로그아웃되지 않는다(api_client.dart authExpiryOn401)
+      setState(() => _passwordProblem = e.message);
+    } finally {
+      if (mounted) setState(() => _savingPassword = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -172,35 +304,180 @@ class _Account extends StatelessWidget {
         AppSpace.s4 + MediaQuery.paddingOf(context).bottom,
       ),
       children: [
-        _LockedField(label: '이름', value: user.name),
-        _LockedField(label: '이메일', value: user.email),
-        _LockedField(label: '역할', value: user.role.label),
-        const _Note('내 정보 수정 API가 아직 없어 저장할 수 없습니다.'),
+        _LiveField(label: '이름', controller: _name, enabled: !_savingName),
+        // 서버가 안 받는 것들이다 — 살아 있는 칸으로 두면 바꿀 수 있는 줄 안다
+        _LockedField(label: '이메일', value: widget.user.email),
+        _LockedField(label: '역할', value: widget.user.role.label),
+        const _Note('이메일과 역할은 본인이 바꿀 수 없습니다.'),
         const SizedBox(height: AppSpace.s4),
-        const Align(
+        Align(
           alignment: Alignment.centerRight,
-          child: _LockedButton('저장'),
+          child: _ActionButton(
+            label: '저장',
+            enabled: _canSaveName,
+            busy: _savingName,
+            onPressed: _saveName,
+          ),
         ),
 
-        // 비밀번호 변경 — 웹 설정에 있는데 앱엔 없었다(2026-09-02 추가).
-        // 위 이름·이메일과 같은 [저장] 으로 묶지 않는다: 바뀌는 대상이 다르고
-        // 현재 비밀번호 확인이 따로 필요하다. 웹도 별도 폼이다.
         const _Divider(),
         const _SectionTitle('비밀번호 변경'),
-        const _LockedField(label: '현재 비밀번호', value: '••••••••'),
-        const _LockedField(label: '새 비밀번호', value: '••••••••'),
-        const _LockedField(label: '새 비밀번호 확인', value: '••••••••'),
+        _LiveField(
+          label: '현재 비밀번호',
+          controller: _current,
+          obscure: true,
+          enabled: !_savingPassword,
+        ),
+        _LiveField(
+          label: '새 비밀번호',
+          controller: _next,
+          obscure: true,
+          enabled: !_savingPassword,
+        ),
+        _LiveField(
+          label: '새 비밀번호 확인',
+          controller: _confirm,
+          obscure: true,
+          enabled: !_savingPassword,
+        ),
+        if (_passwordProblem != null) ...[
+          const SizedBox(height: AppSpace.s2),
+          Text(
+            _passwordProblem!,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              height: 1.5,
+              // §1: 적갈은 판단에만 — 여기가 그 자리다
+              color: AppColors.danger,
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpace.s4),
-        const Align(
+        Align(
           alignment: Alignment.centerRight,
-          child: _LockedButton('변경'),
+          child: _ActionButton(
+            label: '변경',
+            enabled: _canChangePassword,
+            busy: _savingPassword,
+            onPressed: _changePassword,
+          ),
         ),
 
-        // 로그아웃 — 웹 836bc01 반영. 이 탭에서 **유일하게 실제로 도는 동작**이라
-        // 잠긴 [저장]·[변경] 과 섞이면 안 된다. 더보기에도 있다(웹의 우측 상단 자리).
+        // 로그아웃 — 웹 836bc01 반영. 더보기에도 있다(웹의 우측 상단 자리).
+        const _Divider(),
         const _Divider(),
         Align(alignment: Alignment.centerRight, child: _LogoutButton()),
       ],
+    );
+  }
+}
+
+/// 실제로 타이핑되는 칸 — [_LockedField] 와 달리 글자가 본문색이다.
+class _LiveField extends StatelessWidget {
+  const _LiveField({
+    required this.label,
+    required this.controller,
+    this.obscure = false,
+    this.enabled = true,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final bool obscure;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    const outline = OutlineInputBorder(
+      borderRadius: AppShape.ctl,
+      borderSide: BorderSide(color: AppColors.border, width: AppShape.borderW),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.s3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              color: AppColors.textSub,
+            ),
+          ),
+          const SizedBox(height: AppSpace.s1),
+          TextField(
+            controller: controller,
+            obscureText: obscure,
+            enabled: enabled,
+            // 비밀번호 칸에 자동완성·추천이 뜨면 안 된다
+            autocorrect: !obscure,
+            enableSuggestions: !obscure,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.body,
+              color: AppColors.text,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.bgSunken,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppSpace.s3,
+                vertical: AppSpace.s3,
+              ),
+              border: outline,
+              enabledBorder: outline,
+              disabledBorder: outline,
+              focusedBorder: OutlineInputBorder(
+                borderRadius: AppShape.ctl,
+                borderSide: BorderSide(
+                  color: AppColors.leaf,
+                  width: AppShape.borderW,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 실제로 도는 버튼 — [_LockedButton] 과 같은 모양이되 눌린다.
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.label,
+    required this.enabled,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool enabled;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: AppLayout.minTouchTarget,
+      child: FilledButton(
+        onPressed: enabled ? onPressed : null,
+        child: busy
+            // 글자 자리에 스피너를 둔다 — 버튼 크기가 변하면 눌린 자리가 흔들린다
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.bgElev,
+                ),
+              )
+            : Text(label),
+      ),
     );
   }
 }

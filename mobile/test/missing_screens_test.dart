@@ -148,7 +148,7 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
       await tester.dragUntilVisible(
         find.text('로그아웃'),
-        find.byType(Scrollable).last,
+        find.byType(ListView).last,
         const Offset(0, -200),
       );
       await tester.pumpAndSettle();

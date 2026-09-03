@@ -38,12 +38,14 @@ void main() {
     expect(find.text(mockUser.role.label), findsOneWidget);
   });
 
-  testWidgets('내 계정은 잠겨 있다 — 배포판과 같은 문구', (tester) async {
+  testWidgets('내 계정만 잠금이 풀렸다 — 이메일·역할은 그대로다 (큐 8, 2026-09-03)', (tester) async {
     await tester.pumpWidget(host());
 
-    expect(find.text('내 정보 수정 API가 아직 없어 저장할 수 없습니다.'), findsOneWidget);
-    // 살아 있는 입력칸이 없다 — 있으면 고칠 수 있는 것처럼 보인다
-    expect(find.byType(TextField), findsNothing);
+    // 이름은 살아 있는 칸이다 — PATCH /auth/me 가 받는 유일한 텍스트
+    expect(find.byType(TextField), findsWidgets);
+    // 이메일·역할은 서버가 아예 안 받는다(MeUpdate) — 잠긴 채로 둔다
+    expect(find.text('이메일과 역할은 본인이 바꿀 수 없습니다.'), findsOneWidget);
+    expect(find.text('내 정보 수정 API가 아직 없어 저장할 수 없습니다.'), findsNothing);
   });
 
   testWidgets('사용자·권한 — 웹 표를 카드로 폈다 (§9)', (tester) async {
