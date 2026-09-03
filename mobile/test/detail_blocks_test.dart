@@ -196,11 +196,16 @@ void main() {
       );
     });
 
-    testWidgets('쓰기는 아직 잠겨 있다 — 살아 있는 입력칸이 아니다', (tester) async {
+    testWidgets('살아 있는 입력칸이다 — 큐 8(2026-09-02)에서 잠금을 풀었다', (tester) async {
       await open(tester, dohyun);
 
-      expect(find.text('메모 남기기'), findsOneWidget);
-      expect(find.byType(TextField), findsNothing);
+      expect(find.widgetWithText(TextField, '메모 남기기'), findsOneWidget);
+
+      // 빈 칸이면 보내기가 잠겨 있다
+      final send = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, '남기기'),
+      );
+      expect(send.onPressed, isNull);
     });
   });
 

@@ -90,7 +90,8 @@ void main() {
     );
     expect(locked.onPressed, isNull);
 
-    await tester.enterText(find.byType(TextField), '기술 요건 미달');
+    // 상세에 메모 입력칸도 있다(큐 8) — 시트 안의 것을 집는다
+    await tester.enterText(find.byType(TextField).last, '기술 요건 미달');
     await tester.pumpAndSettle();
 
     final unlocked = tester.widget<FilledButton>(

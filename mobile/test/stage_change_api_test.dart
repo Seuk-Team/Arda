@@ -60,6 +60,8 @@ Future<void> pickStage(WidgetTester tester, String label) async {
 }
 
 void main() {
+  noteTests();
+
   testWidgets('고른 단계를 서버로 보낸다', (tester) async {
     final repo = _RecordingRepository(applicants: [dohyun]);
     await open(tester, repo);
@@ -104,7 +106,8 @@ void main() {
       await open(tester, repo);
 
       await pickStage(tester, '불합격');
-      await tester.enterText(find.byType(TextField), '요건과 맞지 않음');
+      // 상세에 메모 입력칸도 있다 — 시트 안의 것을 집는다
+      await tester.enterText(find.byType(TextField).last, '요건과 맞지 않음');
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('불합격으로 변경'));
@@ -162,5 +165,104 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('네트워크를 확인'), findsOneWidget);
+  });
+}
+
+/// 메모 쓰기 — 큐 8 3단계. 쓰기의 본을 여기서 만든다.
+class _NoteRepository extends FakeApplicantRepository {
+  _NoteRepository({super.applicants, this.failWith});
+
+  final ApiError? failWith;
+
+  String? written;
+  int calls = 0;
+
+  @override
+  Future<void> addNote(int id, String body) async {
+    calls++;
+    written = body;
+    if (failWith != null) throw failWith!;
+  }
+}
+
+void noteTests() {
+  Future<void> openWith(WidgetTester tester, _NoteRepository repo) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ApplicantDetailScreen(
+          applicant: dohyun,
+          postingTitle: mockPostings.first.title,
+          repository: repo,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(TextField, '메모 남기기'));
+    await tester.pumpAndSettle();
+  }
+
+  group('메모 쓰기', () {
+    testWidgets('적은 본문이 그대로 간다', (tester) async {
+      final repo = _NoteRepository(applicants: [dohyun]);
+      await openWith(tester, repo);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, '메모 남기기'),
+        '2차에서 아키텍처를 더 볼 것',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('남기기'));
+      await tester.pumpAndSettle();
+
+      expect(repo.written, '2차에서 아키텍처를 더 볼 것');
+    });
+
+    testWidgets('앞뒤 공백만 있으면 보내지 않는다', (tester) async {
+      final repo = _NoteRepository(applicants: [dohyun]);
+      await openWith(tester, repo);
+
+      await tester.enterText(find.widgetWithText(TextField, '메모 남기기'), '   ');
+      await tester.pumpAndSettle();
+
+      final send = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, '남기기'),
+      );
+      // 서버도 422 로 막지만 헛걸음을 만들지 않는다
+      expect(send.onPressed, isNull);
+      expect(repo.calls, 0);
+    });
+
+    testWidgets('보낸 뒤 입력칸을 비운다 — 남아 있으면 두 번 보내기 쉽다', (tester) async {
+      final repo = _NoteRepository(applicants: [dohyun]);
+      await openWith(tester, repo);
+
+      final field = find.widgetWithText(TextField, '메모 남기기');
+      await tester.enterText(field, '확인함');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('남기기'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('확인함'), findsNothing);
+    });
+
+    testWidgets('실패하면 문구를 띄우고 적은 것을 지우지 않는다', (tester) async {
+      final repo = _NoteRepository(
+        applicants: [dohyun],
+        failWith: const NetworkError(),
+      );
+      await openWith(tester, repo);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, '메모 남기기'),
+        '지우면 안 되는 메모',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('남기기'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('네트워크를 확인'), findsOneWidget);
+      // 다시 타이핑하게 만들면 안 된다
+      expect(find.text('지우면 안 되는 메모'), findsOneWidget);
+    });
   });
 }

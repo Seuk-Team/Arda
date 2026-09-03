@@ -122,4 +122,15 @@ class ApplicantRepository {
     Endpoints.applicationStage(id),
     body: {'to_stage': to.value, 'reason': ?reason},
   );
+
+  /// 메모 쓰기 — `POST /applications/{id}/notes`.
+  ///
+  /// 서버가 작성자를 토큰에서 읽는다. 앱이 누구인지 보내지 않는다.
+  /// 응답에 `author_name` 이 들어 있어 목록을 다시 받지 않고 바로 끼워 넣을 수
+  /// 있지만, **다시 받는 쪽을 택했다** — 그 사이 남이 쓴 메모가 있으면
+  /// 내 것만 늘고 남의 것은 안 보이는 화면이 된다.
+  ///
+  /// 빈 본문은 서버가 422 로 막는다. 화면에서도 먼저 막는다.
+  Future<void> addNote(int id, String body) =>
+      _client.post(Endpoints.applicationNotes(id), body: {'body': body});
 }

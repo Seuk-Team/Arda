@@ -162,7 +162,15 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
           EmailLogBlock(applicationId: applicant.id),
 
           const SizedBox(height: AppSpace.s3),
-          NotesBlock(notes: detail.notes),
+          NotesBlock(
+            notes: detail.notes,
+            onSubmit: (body) async {
+              await _repo.addNote(applicant.id, body);
+              // 목록을 다시 받는다 — 내 것만 끼워 넣으면 그 사이 남이 쓴 메모가
+              // 안 보인다
+              _reload();
+            },
+          ),
 
           // 초안(2026-09-01): 최근 두 건은 여기서 바로 보이고,
           // 전체는 시안 2번의 별도 화면 그대로다

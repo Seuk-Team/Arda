@@ -6,6 +6,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../api/api_error.dart';
 import '../data/mock_data.dart';
 import '../models/ai_summary.dart';
 import '../models/applicant.dart';
@@ -485,12 +486,57 @@ class EmailLogBlock extends StatelessWidget {
 ///
 /// 웹은 입력칸 하나지만 ERD 는 행을 쌓는 구조다(`application_notes`).
 /// 한 문서를 공동 편집하지 않고 각자 행을 추가한다(ADR-0005)므로 목록이 맞다.
-class NotesBlock extends StatelessWidget {
-  const NotesBlock({super.key, required this.notes});
+class NotesBlock extends StatefulWidget {
+  const NotesBlock({super.key, required this.notes, required this.onSubmit});
 
   /// **전용 엔드포인트**에서 받은 것 — 상세에 박혀 오는 메모와 달리
   /// 작성자 이름이 들어 있다 (큐 8, 2026-09-02)
   final List<ApplicationNote> notes;
+
+  /// 본문을 서버로 보낸다. 성공하면 상세를 다시 받아 목록이 갱신된다
+  final Future<void> Function(String body) onSubmit;
+
+  @override
+  State<NotesBlock> createState() => _NotesBlockState();
+}
+
+class _NotesBlockState extends State<NotesBlock> {
+  final _draft = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 빈 칸이면 보내기가 잠긴다 — 글자마다 다시 그려야 그게 보인다
+    _draft.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _draft.dispose();
+    super.dispose();
+  }
+
+  bool get _canSubmit => !_sending && _draft.text.trim().isNotEmpty;
+
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    setState(() => _sending = true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await widget.onSubmit(_draft.text.trim());
+      if (!mounted) return;
+      // 보낸 것을 지운다 — 남아 있으면 두 번 보내기 쉽다
+      _draft.clear();
+    } on ApiError catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  List<ApplicationNote> get notes => widget.notes;
 
   @override
   Widget build(BuildContext context) {
@@ -546,25 +592,74 @@ class NotesBlock extends StatelessWidget {
               ),
 
           const SizedBox(height: AppSpace.s3),
-          // 쓰기는 큐 8 이다. 살아 있는 입력칸을 두면 써지는 것처럼 보인다
-          Container(
-            height: AppLayout.minTouchTarget,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s3),
-            alignment: Alignment.centerLeft,
-            decoration: BoxDecoration(
-              color: AppColors.bgSunken,
-              borderRadius: AppShape.ctl,
-              border: Border.all(
-                color: AppColors.border,
-                width: AppShape.borderW,
-              ),
+          // 큐 8(2026-09-02): 살아 있는 입력칸이 됐다
+          TextField(
+            controller: _draft,
+            enabled: !_sending,
+            // 메모는 여러 줄이 흔하다 — 한 줄로 두면 긴 메모를 못 읽으며 쓴다
+            minLines: 2,
+            maxLines: 5,
+            textInputAction: TextInputAction.newline,
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              height: 1.55,
+              color: AppColors.text,
             ),
-            child: const Text(
-              '메모 남기기',
-              style: TextStyle(
+            decoration: const InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.bgSunken,
+              hintText: '메모 남기기',
+              hintStyle: TextStyle(
                 fontFamily: AppType.fontFamily,
                 fontSize: AppType.sm,
                 color: AppColors.textSub,
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppSpace.s3,
+                vertical: AppSpace.s3,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: AppShape.ctl,
+                borderSide: BorderSide(
+                  color: AppColors.border,
+                  width: AppShape.borderW,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: AppShape.ctl,
+                borderSide: BorderSide(
+                  color: AppColors.border,
+                  width: AppShape.borderW,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: AppShape.ctl,
+                borderSide: BorderSide(
+                  color: AppColors.leaf,
+                  width: AppShape.borderW,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpace.s2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              height: AppLayout.minTouchTarget,
+              child: FilledButton(
+                onPressed: _canSubmit ? _submit : null,
+                child: _sending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.bgElev,
+                        ),
+                      )
+                    : const Text('남기기'),
               ),
             ),
           ),
