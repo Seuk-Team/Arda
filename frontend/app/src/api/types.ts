@@ -114,6 +114,15 @@ export interface FileOut {
   created_at: string
 }
 
+export interface StageHistoryItem {
+  id: number
+  from_stage: string | null
+  to_stage: string
+  changed_by: number | null
+  reason: string | null
+  created_at: string
+}
+
 export interface ApplicationDetail {
   id: number
   job_posting_id: number
@@ -128,7 +137,9 @@ export interface ApplicationDetail {
   current_stage: Stage
   created_at: string
   avg_score: number | null
+  eval_count?: number
   files?: FileOut[]
+  stage_history?: StageHistoryItem[]
 }
 
 export interface Note {

@@ -82,7 +82,10 @@ def get_application(
 
     scores = [e.score for e in row.evaluations]
     return ApplicationDetail.model_validate(row).model_copy(
-        update={"avg_score": round(sum(scores) / len(scores), 1) if scores else None}
+        update={
+            "avg_score": round(sum(scores) / len(scores), 1) if scores else None,
+            "eval_count": len(scores),
+        }
     )
 
 

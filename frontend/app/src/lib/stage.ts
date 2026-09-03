@@ -28,6 +28,11 @@ export function fmtDate(iso: string): string {
   return iso.slice(0, 10).replaceAll('-', '.')
 }
 
+/* 단계 이력용 단축 표기 (08.27) */
+export function fmtDateShort(iso: string): string {
+  return iso.slice(5, 10).replace('-', '.')
+}
+
 /* 역할 코드 → 화면 문구. 역할은 2종뿐이다 —
    admin 만 배정·계정·메일 템플릿을 만지고, 조회는 로그인한 전원이 한다. */
 export const ROLE_LABEL: Record<User['role'], string> = {

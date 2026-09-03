@@ -99,6 +99,18 @@
   }
 }
 
+/* 768px 이하에서는 전체 너비 */
+@media (max-width: 768px) {
+  .content {
+    left: 0;
+    width: 100%;
+  }
+
+  .content .inner {
+    width: 100%;
+  }
+}
+
 /* ── 헤더 행 (title 을 준 경우) ────────────────────── */
 .head {
   display: flex;
@@ -211,4 +223,8 @@
   fill: none;
   stroke-width: 2;
   stroke-linecap: round;
+}
+
+@media (max-width: 768px) {
+  .closeFloat { display: none; }
 }

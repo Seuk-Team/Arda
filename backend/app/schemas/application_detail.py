@@ -89,6 +89,7 @@ class ApplicationDetail(BaseModel):
     files: list[FileOut] = []
 
     avg_score: float | None = None  # 평가 평균. 평가가 없으면 None
+    eval_count: int = 0  # 평가 건수
 
 
 class ManualApplicationCreate(BaseModel):
