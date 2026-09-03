@@ -12,7 +12,7 @@ import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
 import 'screens/evaluation_queue_screen.dart';
 import 'screens/evaluations_screen.dart';
-import 'screens/posting_new_screen.dart';
+import 'screens/posting_form_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/stage_history_screen.dart';
@@ -82,7 +82,7 @@ class ArdaApp extends StatelessWidget {
         Routes.login: (_) => LoginScreen(auth: auth),
         Routes.evaluationQueue: (_) => const EvaluationQueueScreen(),
         Routes.settings: (_) => const SettingsScreen(),
-        Routes.postingNew: (_) => const PostingNewScreen(),
+        Routes.postingNew: (_) => const PostingFormScreen(),
       },
       // 지원자·상세는 "어느 공고/누구"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
       onGenerateRoute: (settings) {
@@ -91,6 +91,13 @@ class ArdaApp extends StatelessWidget {
           return MaterialPageRoute(
             settings: settings,
             builder: (_) => ApplicantsScreen(posting: posting),
+          );
+        }
+        if (settings.name == Routes.postingEdit) {
+          final posting = settings.arguments! as JobPosting;
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => PostingFormScreen(posting: posting),
           );
         }
         if (settings.name == Routes.stageHistory) {

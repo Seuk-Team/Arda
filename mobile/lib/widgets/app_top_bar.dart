@@ -18,6 +18,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.showBack = false,
     this.onSearchPressed,
     this.onAddPressed,
+    this.onEditPressed,
+    this.onBackPressed,
   });
 
   final String title;
@@ -25,11 +27,19 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   /// 공고 → 지원자로 파고들 때만 뒤로가기를 단다. 첫 화면에는 없다
   final bool showBack;
 
+  /// 뒤로가기를 눌렀을 때. 비우면 그냥 [Navigator.pop] 이다 —
+  /// 부른 쪽에 값을 들려 보내야 할 때만 넘긴다(공고 수정 → 목록 갱신)
+  final VoidCallback? onBackPressed;
+
   final VoidCallback? onSearchPressed;
 
   /// 만들기 진입점 — 공고 탭의 [+] (2026-09-02). 검색 오른쪽에 온다:
   /// 거르는 것보다 만드는 것이 덜 잦아 손에서 먼 쪽이 맞다
   final VoidCallback? onAddPressed;
+
+  /// 고치기 진입점 — 공고별 지원자 화면의 [✎] (2026-09-03).
+  /// 그 화면이 곧 "이 공고" 라서, 고칠 대상이 화면에 이미 떠 있다
+  final VoidCallback? onEditPressed;
 
   /// 터치 타깃 44 + 위아래 여백 8 = 60
   static const _height = AppLayout.minTouchTarget + AppSpace.s2 * 2;
@@ -61,7 +71,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                   AppIconButton(
                     icon: Icons.arrow_back,
                     semanticLabel: '뒤로',
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: onBackPressed ?? () => Navigator.pop(context),
                   ),
                   const SizedBox(width: AppSpace.s1),
                 ] else
@@ -90,6 +100,12 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                     icon: Icons.search,
                     semanticLabel: '검색',
                     onPressed: onSearchPressed,
+                  ),
+                if (onEditPressed != null)
+                  AppIconButton(
+                    icon: Icons.edit_outlined,
+                    semanticLabel: '공고 수정',
+                    onPressed: onEditPressed,
                   ),
                 if (onAddPressed != null)
                   AppIconButton(

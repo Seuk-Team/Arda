@@ -16,6 +16,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../models/job_posting.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_bottom_nav.dart';
@@ -52,20 +53,35 @@ class _HomeShellState extends State<HomeShell> {
   /// 탭 이동 — 하단 바와 카드 안 링크("캘린더 →")가 같은 문을 쓴다
   void _go(AppTab tab) => setState(() => _current = tab);
 
+  /// 공고 목록에 "다시 받아라" 고 알리는 종. 등록 화면이 성공하고 돌아올 때만
+  /// 흔든다 — 취소하고 나온 것까지 다시 받으면 헛걸음이다
+  final _postingsReload = ValueNotifier(0);
+
+  @override
+  void dispose() {
+    _postingsReload.dispose();
+    super.dispose();
+  }
+
+  /// 공고 등록 — 만들고 돌아오면 목록을 새로 받는다 (큐 8 3단계).
+  /// 취소하고 나오면 null 이라 헛걸음하지 않는다
+  Future<void> _openPostingNew() async {
+    final created = await Navigator.pushNamed(context, Routes.postingNew);
+    if (created is JobPosting) _postingsReload.value++;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppTopBar(
         title: _titles[_current]!,
         // 공고 탭에만 [+] — 다른 탭에서 만들 것이 없다 (2026-09-02)
-        onAddPressed: _current == AppTab.postings
-            ? () => Navigator.pushNamed(context, Routes.postingNew)
-            : null,
+        onAddPressed: _current == AppTab.postings ? _openPostingNew : null,
       ),
       body: IndexedStack(
         index: AppTab.values.indexOf(_current),
         children: [
-          const PostingsScreen(),
+          PostingsScreen(reloadSignal: _postingsReload),
           ApplicantsSearchScreen(
             onOpenApplicant: (applicant, postingTitle) => Navigator.pushNamed(
               context,

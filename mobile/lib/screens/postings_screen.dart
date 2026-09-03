@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/authed_client.dart';
 import '../data/posting_repository.dart';
 import '../data/repositories.dart';
+import '../models/job_posting.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../widgets/async_view.dart';
@@ -18,10 +19,16 @@ import '../widgets/posting_card.dart';
 ///
 /// **서버에서 받아 온다**(큐 8, 2026-09-02). 목데이터를 걷어낸 첫 화면이다.
 class PostingsScreen extends StatefulWidget {
-  const PostingsScreen({super.key, this.repository});
+  const PostingsScreen({super.key, this.repository, this.reloadSignal});
 
   /// 테스트가 가짜를 넣는 자리
   final PostingRepository? repository;
+
+  /// 바깥에서 "다시 받아라" 고 알리는 자리. [HomeShell] 의 `[+]` 가 공고를
+  /// 만들고 돌아오면 흔든다 — 목록이 그대로면 방금 만든 공고가 안 보인다.
+  ///
+  /// `[+]` 는 상단 바(HomeShell)에 있고 목록은 여기 있어서 서로 닿지 않는다
+  final Listenable? reloadSignal;
 
   @override
   State<PostingsScreen> createState() => _PostingsScreenState();
@@ -39,6 +46,13 @@ class _PostingsScreenState extends State<PostingsScreen> {
         RepositoryScope.of(context)?.postings ??
         PostingRepository(authedClient());
     _future = _load();
+    widget.reloadSignal?.addListener(_reload);
+  }
+
+  @override
+  void dispose() {
+    widget.reloadSignal?.removeListener(_reload);
+    super.dispose();
   }
 
   /// 요청을 시작한다.
@@ -59,6 +73,18 @@ class _PostingsScreenState extends State<PostingsScreen> {
     setState(() {
       _future = _load();
     });
+  }
+
+  /// 공고 → 그 공고의 지원자. 거기서 공고를 고치고 나오면 `true` 가 돌아온다 —
+  /// 그때만 다시 받는다. 제목·마감일이 여기 카드에도 걸려 있어서 그대로 두면
+  /// 방금 고친 것이 안 반영된 줄 안다 (2026-09-03)
+  Future<void> _openApplicants(JobPosting posting) async {
+    final changed = await Navigator.pushNamed(
+      context,
+      Routes.applicants,
+      arguments: posting,
+    );
+    if (changed == true && mounted) _reload();
   }
 
   @override
@@ -88,11 +114,7 @@ class _PostingsScreenState extends State<PostingsScreen> {
           itemBuilder: (_, i) => PostingCard(
             posting: items[i].posting,
             counts: items[i].counts,
-            onTap: () => Navigator.pushNamed(
-              context,
-              Routes.applicants,
-              arguments: items[i].posting,
-            ),
+            onTap: () => _openApplicants(items[i].posting),
           ),
         ),
       ),

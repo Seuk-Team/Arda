@@ -16,6 +16,8 @@ class FakePostingRepository implements PostingRepository {
     this.postings,
     this.error,
     this.delay = Duration.zero,
+    this.createError,
+    this.createDelay = Duration.zero,
   });
 
   /// 안 주면 목데이터 그대로
@@ -27,8 +29,32 @@ class FakePostingRepository implements PostingRepository {
   /// 로딩 상태를 볼 수 있게 늦춘다
   final Duration delay;
 
+  /// 주면 등록이 이걸로 실패한다
+  final Object? createError;
+
+  /// 보내는 중 잠금을 볼 수 있게 늦춘다
+  final Duration createDelay;
+
+  /// 몇 번 받아 왔는지 — 등록 뒤 목록이 새로 오는지 이걸로 본다
+  int listCalls = 0;
+
+  /// 등록으로 보낸 값 (큐 8 3단계)
+  String? createdTitle;
+  PostingStatus? createdStatus;
+  DateTime? createdDeadline;
+
+  /// 수정으로 보낸 값 (2026-09-03)
+  int? updatedId;
+  String? updatedTitle;
+  PostingStatus? updatedStatus;
+  DateTime? updatedDeadline;
+
+  /// 마감일을 실제로 보냈는가 — 안 보내는 것과 `null` 을 보내는 것이 다르다
+  bool? updatedChangeDeadline;
+
   @override
   Future<List<PostingWithCounts>> list() async {
+    listCalls++;
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     if (error != null) throw error!;
 
@@ -37,6 +63,59 @@ class FakePostingRepository implements PostingRepository {
       for (final p in items)
         PostingWithCounts(posting: p, counts: postingCounts(p.id)),
     ];
+  }
+
+  @override
+  Future<JobPosting> create({
+    required String title,
+    required PostingStatus status,
+    DateTime? deadline,
+  }) async {
+    createdTitle = title;
+    createdStatus = status;
+    createdDeadline = deadline;
+
+    if (createDelay > Duration.zero) await Future<void>.delayed(createDelay);
+    if (createError != null) throw createError!;
+
+    // 서버가 돌려주는 것과 같은 모양 — id 는 서버가 매긴다
+    return JobPosting(
+      id: 900,
+      title: title,
+      status: status,
+      deadline: deadline,
+    );
+  }
+
+  @override
+  Future<JobPosting> update(
+    int id, {
+    required String title,
+    required PostingStatus status,
+    required bool changeDeadline,
+    DateTime? deadline,
+  }) async {
+    updatedId = id;
+    updatedTitle = title;
+    updatedStatus = status;
+    updatedChangeDeadline = changeDeadline;
+    updatedDeadline = deadline;
+
+    if (createDelay > Duration.zero) await Future<void>.delayed(createDelay);
+    if (createError != null) throw createError!;
+
+    return JobPosting(
+      id: id,
+      title: title,
+      status: status,
+      // 안 보냈으면 서버는 원래 값을 그대로 둔다 — 원본에서 찾아 돌려준다
+      deadline: changeDeadline
+          ? deadline
+          : (postings ?? mockPostings)
+                .where((p) => p.id == id)
+                .firstOrNull
+                ?.deadline,
+    );
   }
 
   @override

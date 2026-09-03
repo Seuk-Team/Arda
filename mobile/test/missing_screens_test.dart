@@ -8,7 +8,7 @@ import 'package:arda/models/interview.dart';
 import 'package:arda/models/job_posting.dart';
 import 'package:arda/screens/applicant_detail_screen.dart';
 import 'package:arda/screens/applicants_screen.dart';
-import 'package:arda/screens/posting_new_screen.dart';
+import 'package:arda/screens/posting_form_screen.dart';
 import 'package:arda/screens/settings_screen.dart';
 import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
@@ -201,7 +201,7 @@ void main() {
 
   group('공고 등록', () {
     Future<void> open(WidgetTester tester) async {
-      await tester.pumpWidget(const MaterialApp(home: PostingNewScreen()));
+      await tester.pumpWidget(const MaterialApp(home: PostingFormScreen()));
     }
 
     testWidgets('공고명이 비면 [등록] 이 잠긴다', (tester) async {
@@ -236,34 +236,8 @@ void main() {
       expect(draft.style!.color, AppColors.textSub);
     });
 
-    testWidgets('아직 저장되지 않는다 — 누르면 그렇게 말한다', (tester) async {
-      // [등록] 은 토스트를 띄우고 화면을 닫는다. 돌아갈 화면이 없으면 토스트까지
-      // 같이 사라지므로, 실제처럼 밀어 올린 뒤에 확인한다
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (c) => Scaffold(
-              body: TextButton(
-                onPressed: () => Navigator.push(
-                  c,
-                  MaterialPageRoute(builder: (_) => const PostingNewScreen()),
-                ),
-                child: const Text('열기'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('열기'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextField), '백엔드 개발자');
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, '등록'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('아직 저장되지 않음'), findsOneWidget);
-    });
+    // 저장(POST /postings)은 postings_api_test.dart 가 본다 — 큐 8 3단계에서
+    // 잠금이 풀렸다(2026-09-03). 여기 있던 "아직 저장되지 않음" 은 사라졌다
   });
 
   group('일정 제안 상태', () {

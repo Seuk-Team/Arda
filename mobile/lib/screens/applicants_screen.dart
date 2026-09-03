@@ -52,6 +52,29 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
   /// 않는다(한 공고에 수십 명이라 한 번 받아 거르는 쪽이 왕복이 적다)
   List<Applicant> _all = const [];
 
+  /// 지금 보고 있는 공고. 수정하고 돌아오면 여기가 바뀐다 —
+  /// `widget.posting` 만 보면 고친 제목·마감일이 헤더에 안 나타난다
+  late JobPosting _posting = widget.posting;
+
+  /// 공고를 고쳤는가. 뒤로 갈 때 목록에게 알려 준다 —
+  /// 목록이 그대로면 고친 것이 반영 안 된 줄 안다
+  bool _postingChanged = false;
+
+  /// 공고 수정 — 상단 바의 [✎] (2026-09-03).
+  Future<void> _editPosting() async {
+    final saved = await Navigator.pushNamed(
+      context,
+      Routes.postingEdit,
+      arguments: _posting,
+    );
+    if (saved is! JobPosting || !mounted) return;
+
+    setState(() {
+      _posting = saved;
+      _postingChanged = true;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -111,8 +134,25 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 뒤로 갈 때 "공고가 바뀌었다" 를 들려 보낸다. 기기 뒤로가기(제스처·버튼)도
+    // 상단 바 [←] 와 같은 값을 내야 해서 PopScope 로 한 번 더 막는다
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.pop(context, _postingChanged);
+      },
+      child: _scaffold(),
+    );
+  }
+
+  Widget _scaffold() {
     return Scaffold(
-      appBar: const AppTopBar(title: '지원자', showBack: true),
+      appBar: AppTopBar(
+        title: '지원자',
+        showBack: true,
+        onBackPressed: () => Navigator.pop(context, _postingChanged),
+        onEditPressed: _editPosting,
+      ),
       // 빈 상태를 AsyncView 에 맡기지 않는다 — 지원자가 없어도 공고 머리와
       // 단계 탭은 남아야 "이 공고에 아무도 없다" 가 읽힌다
       body: AsyncView<List<Applicant>>(
@@ -130,7 +170,7 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
   Widget _body(List<Applicant> applicants, Map<Stage, int> counts) {
     return Column(
       children: [
-        PostingHeader(posting: widget.posting, counts: counts),
+        PostingHeader(posting: _posting, counts: counts),
         // 웹 PostingApplicants.tsx 의 "검색어 입력". 단계 탭 위에 둔다 —
         // 탭보다 넓은 범위를 거르는 것이라 위가 맞다
         Padding(
@@ -172,7 +212,7 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
                     onTap: () => Navigator.pushNamed(
                       context,
                       Routes.applicantDetail,
-                      arguments: (applicants[i], widget.posting.title),
+                      arguments: (applicants[i], _posting.title),
                     ),
                   ),
                 ),

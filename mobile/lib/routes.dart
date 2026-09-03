@@ -40,6 +40,10 @@ abstract final class Routes {
   /// 공고 등록 (2026-09-02) — 공고 탭 상단 [+]
   static const postingNew = '/postings/new';
 
+  /// 공고 수정 (2026-09-03) — 공고별 지원자 화면 상단 [✎].
+  /// 인자로 고칠 JobPosting 을 받고, 저장되면 그 결과를 돌려준다
+  static const postingEdit = '/postings/edit';
+
   /// 지원자 상세. 인자로 Applicant 를 받는다
   static const applicantDetail = '/applicants/detail';
 }

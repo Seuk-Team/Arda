@@ -70,4 +70,68 @@ class PostingRepository {
     }
     return counts;
   }
+
+  /// 공고를 만든다 — `POST /postings` (큐 8 3단계, 2026-09-03).
+  ///
+  /// **웹에는 아직 없는 동작이다.** `Postings.tsx` 의 `[+]` 는 아직 아무 데도
+  /// 연결돼 있지 않다(핸들러 없음). 앱이 먼저 붙인다.
+  ///
+  /// `description` 은 보내지 않는다. 서버 스키마에는 있지만 시안·웹 어디에도
+  /// 입력칸이 없다 — 없는 칸을 앱이 혼자 만들지 않는다.
+  Future<JobPosting> create({
+    required String title,
+    required PostingStatus status,
+    DateTime? deadline,
+  }) async {
+    final json = await _client.post(
+      Endpoints.postings,
+      body: {
+        'title': title,
+        'status': status.value,
+        // 비우면 열쇠를 아예 안 보낸다 — `null` 을 보내는 것과 같지만
+        // 서버 기본값(상시)을 그대로 쓰는 편이 뜻이 분명하다
+        if (deadline != null) 'deadline': _apiDate(deadline),
+      },
+    );
+    return JobPostingJson.fromJson(json);
+  }
+
+  /// 공고를 고친다 — `PATCH /postings/{id}` (2026-09-03).
+  ///
+  /// **마감일은 바뀌었을 때만 보낸다** ([changeDeadline]). 서버는 보낸 열쇠만
+  /// 검사하는데(`exclude_unset`), 마감일 검사가 *지난 날짜를 거절*한다
+  /// (`_reject_past`, backend/app/schemas/posting.py). 그래서 이미 마감이 지난
+  /// 공고의 마감일을 그대로 되보내면 **제목만 고치려 해도 422 로 막힌다.**
+  /// 안 건드렸으면 안 보내는 것이 맞다.
+  ///
+  /// 지운 경우(`changeDeadline: true, deadline: null`)는 `null` 을 명시해
+  /// 보낸다 — 상시로 바꾸라는 뜻이고 서버가 그건 막지 않는다.
+  ///
+  /// `description` 은 여기서도 안 보낸다 — 앱에 입력칸이 없다. 안 보내면
+  /// 서버가 건드리지 않으므로 웹에서 적은 것이 지워지지 않는다.
+  Future<JobPosting> update(
+    int id, {
+    required String title,
+    required PostingStatus status,
+    required bool changeDeadline,
+    DateTime? deadline,
+  }) async {
+    final json = await _client.patch(
+      Endpoints.posting(id),
+      body: {
+        'title': title,
+        'status': status.value,
+        if (changeDeadline)
+          'deadline': deadline == null ? null : _apiDate(deadline),
+      },
+    );
+    return JobPostingJson.fromJson(json);
+  }
+
+  /// `2026-09-17` — 서버가 `format: date` 로 받는다. 화면 표기(`2026.09.17`,
+  /// [formatDate])와 다르므로 섞어 쓰지 않는다
+  static String _apiDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 }

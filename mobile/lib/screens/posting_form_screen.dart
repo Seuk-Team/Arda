@@ -1,4 +1,4 @@
-/// 공고 등록 — 웹 `Postings.tsx` 의 [+ 공고 등록]. 앱엔 없던 화면이다(2026-09-02).
+/// 공고 등록·수정 — 웹 `Postings.tsx` 의 [+ 공고 등록]. 앱엔 없던 화면이다.
 ///
 /// **앱에서 무언가를 만드는 첫 화면이다.** 지금까지 앱은 읽고 단계만 바꿨다.
 /// 그래서 이 화면에만 **살아 있는 입력칸**이 있다 — 설정의 잠긴 칸(`_LockedField`,
@@ -7,37 +7,74 @@
 /// 웹은 모달이지만 앱은 별도 화면이다. 375px 에서 모달은 화면을 거의 다 덮어
 /// 모달일 이유가 없고, 뒤로가기가 그대로 취소가 된다.
 ///
-/// **저장은 아직 없다.** [등록] 은 `POST /job-postings` 자리이고 큐 8이다 —
-/// 지금은 고른 값을 토스트로 되비춘다(단계 변경 바와 같은 방식).
+/// **한 화면이 둘을 다 한다.** [posting] 이 없으면 등록(`POST /postings`),
+/// 있으면 그 공고 수정(`PATCH /postings/{id}`) 이다. 칸이 셋으로 똑같아서
+/// 화면을 둘로 나누면 같은 폼을 두 벌 들고 있게 된다.
+///
+/// **웹에는 둘 다 없다** — `Postings.tsx` 의 `[+]` 는 핸들러가 없고, 수정 화면도
+/// 없다. 공고를 만들고 고칠 수 있는 곳은 지금 앱뿐이다(2026-09-03).
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../api/api_error.dart';
+import '../auth/authed_client.dart';
+import '../data/posting_repository.dart';
+import '../data/repositories.dart';
 import '../models/job_posting.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import '../widgets/app_top_bar.dart';
 
-class PostingNewScreen extends StatefulWidget {
-  const PostingNewScreen({super.key});
+class PostingFormScreen extends StatefulWidget {
+  const PostingFormScreen({super.key, this.posting, this.repository});
+
+  /// 고칠 공고. **없으면 등록**이다
+  final JobPosting? posting;
+
+  /// 테스트가 가짜를 넣는 자리
+  final PostingRepository? repository;
 
   @override
-  State<PostingNewScreen> createState() => _PostingNewScreenState();
+  State<PostingFormScreen> createState() => _PostingFormScreenState();
 }
 
-class _PostingNewScreenState extends State<PostingNewScreen> {
+class _PostingFormScreenState extends State<PostingFormScreen> {
   final _title = TextEditingController();
+
+  late final PostingRepository _repo =
+      widget.repository ??
+      RepositoryScope.of(context)?.postings ??
+      PostingRepository(authedClient());
+
+  /// 보내는 중 — 버튼을 잠근다. 두 번 누르면 공고가 두 개 생긴다
+  bool _sending = false;
 
   /// 비워 두면 상시 채용이다 — ERD `job_postings.deadline` 이 NULL 가능
   DateTime? _deadline;
 
-  /// 웹 기본값과 같다. 만들자마자 지원을 받는 것이 가장 흔한 경우다
+  /// 등록의 기본값은 웹과 같다. 만들자마자 지원을 받는 것이 가장 흔하다.
+  /// 수정이면 지금 값에서 시작한다
   PostingStatus _status = PostingStatus.open;
+
+  /// 고치는 중인가 — 제목·버튼 글자·보낼 곳이 갈린다
+  bool get _editing => widget.posting != null;
 
   @override
   void initState() {
     super.initState();
-    // 제목이 비면 [등록] 이 잠긴다 — 글자마다 다시 그려야 그게 보인다
+
+    // 수정이면 지금 값을 채워 넣는다. 빈 칸에서 시작하면 안 건드릴 값까지
+    // 다시 적어야 하고, 뭐가 들어 있었는지도 안 보인다
+    final posting = widget.posting;
+    if (posting != null) {
+      _title.text = posting.title;
+      _status = posting.status;
+      _deadline = posting.deadline;
+    }
+
+    // 제목이 비면 버튼이 잠긴다 — 글자마다 다시 그려야 그게 보인다
     _title.addListener(() => setState(() {}));
   }
 
@@ -47,14 +84,22 @@ class _PostingNewScreenState extends State<PostingNewScreen> {
     super.dispose();
   }
 
-  bool get _canSubmit => _title.text.trim().isNotEmpty;
+  bool get _canSubmit => _title.text.trim().isNotEmpty && !_sending;
 
   Future<void> _pickDeadline() async {
     final now = DateTime.now();
+    final current = _deadline;
+
+    // 이미 마감이 지난 공고를 고치는 경우 원래 값이 [firstDate] 보다 앞선다 —
+    // 그대로 넘기면 달력이 뜨지 않고 터진다. 그때는 오늘부터 편다
+    final initial = current == null || current.isBefore(now)
+        ? now.add(const Duration(days: 14))
+        : current;
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _deadline ?? now.add(const Duration(days: 14)),
-      // 지난 날짜로 마감을 걸 이유가 없다
+      initialDate: initial,
+      // 지난 날짜로 마감을 걸 이유가 없다 — 서버도 422 로 막는다
       firstDate: now,
       lastDate: DateTime(now.year + 2),
       helpText: '마감일',
@@ -64,21 +109,55 @@ class _PostingNewScreenState extends State<PostingNewScreen> {
     if (picked != null) setState(() => _deadline = picked);
   }
 
-  void _submit() {
-    // 큐 8: 여기가 POST /job-postings 가 된다
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${_title.text.trim()} — ${_status.label} (아직 저장되지 않음)'),
-      ),
-    );
-    Navigator.pop(context);
+  Future<void> _submit() async {
+    // 화면이 닫힌 뒤에도 토스트는 띄워야 한다 — 닫히기 전에 잡아 둔다
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final posting = widget.posting;
+
+    setState(() => _sending = true);
+
+    try {
+      final saved = posting == null
+          ? await _repo.create(
+              title: _title.text.trim(),
+              status: _status,
+              deadline: _deadline,
+            )
+          : await _repo.update(
+              posting.id,
+              title: _title.text.trim(),
+              status: _status,
+              // 안 건드렸으면 안 보낸다 — 지난 마감일을 되보내면 서버가
+              // 422 로 막아 제목조차 못 고친다(posting_repository.dart)
+              changeDeadline: _deadline != posting.deadline,
+              deadline: _deadline,
+            );
+      if (!mounted) return;
+
+      // 저장된 공고를 들려 보낸다. 부른 쪽이 이걸로 목록·헤더를 맞춘다 —
+      // 그대로 두면 방금 고친 것이 안 보여 저장이 안 된 줄 안다
+      navigator.pop(saved);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${saved.title} — 공고를 ${posting == null ? '등록' : '수정'}했습니다',
+          ),
+        ),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      // 화면을 닫지 않는다. 닫으면 적어 둔 것이 다 사라진다
+      setState(() => _sending = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      appBar: const AppTopBar(title: '공고 등록', showBack: true),
+      appBar: AppTopBar(title: _editing ? '공고 수정' : '공고 등록', showBack: true),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -92,6 +171,10 @@ class _PostingNewScreenState extends State<PostingNewScreen> {
                   child: TextField(
                     controller: _title,
                     textInputAction: TextInputAction.next,
+                    // 서버가 200자까지 받는다(`PostingCreate.title`). 넘겨 보내
+                    // 422 를 받느니 애초에 안 들어가게 한다. 글자수 표시는
+                    // 달지 않는다 — 공고명이 200자에 닿는 일은 없다
+                    inputFormatters: [LengthLimitingTextInputFormatter(200)],
                     style: const TextStyle(
                       fontFamily: AppType.fontFamily,
                       fontSize: AppType.body,
@@ -139,7 +222,12 @@ class _PostingNewScreenState extends State<PostingNewScreen> {
               ],
             ),
           ),
-          _SubmitBar(enabled: _canSubmit, onSubmit: _submit),
+          _SubmitBar(
+            label: _editing ? '저장' : '등록',
+            enabled: _canSubmit,
+            sending: _sending,
+            onSubmit: _submit,
+          ),
         ],
       ),
     );
@@ -350,9 +438,18 @@ class _StatusChip extends StatelessWidget {
 
 /// 화면 아래에 붙는 등록 줄 — 상세의 [단계 변경] 과 같은 자리·같은 높이.
 class _SubmitBar extends StatelessWidget {
-  const _SubmitBar({required this.enabled, required this.onSubmit});
+  const _SubmitBar({
+    required this.label,
+    required this.enabled,
+    required this.sending,
+    required this.onSubmit,
+  });
 
+  /// 등록이면 "등록", 수정이면 "저장" — 무엇을 하는 버튼인지 화면 제목만으로는
+  /// 모르고, 이미 있는 공고에 "등록" 이 붙어 있으면 새로 만드는 줄 안다
+  final String label;
   final bool enabled;
+  final bool sending;
   final VoidCallback onSubmit;
 
   @override
@@ -376,9 +473,20 @@ class _SubmitBar extends StatelessWidget {
             width: double.infinity,
             height: AppLayout.minTouchTarget,
             child: FilledButton(
-              // 공고명이 없으면 못 만든다 — 서버에 보내 400 을 받지 않는다
+              // 공고명이 없으면 못 만든다 — 서버에 보내 422 를 받지 않는다
               onPressed: enabled ? onSubmit : null,
-              child: const Text('등록'),
+              child: sending
+                  // 글자를 지우지 않고 그 자리에 스피너를 둔다 —
+                  // 버튼 크기가 변하면 눌린 자리가 흔들린다(단계 변경과 같은 방식)
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.bgElev,
+                      ),
+                    )
+                  : Text(label),
             ),
           ),
         ),
