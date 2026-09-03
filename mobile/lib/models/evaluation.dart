@@ -10,6 +10,7 @@ class Evaluation {
     required this.id,
     required this.applicationId,
     this.evaluatorName,
+    this.evaluatorId,
     required this.score,
     this.comment,
     required this.createdAt,
@@ -26,6 +27,12 @@ class Evaluation {
   /// (2026-09-02 실측). id 를 화면에 띄우는 것은 의미가 없어 null 이면 안 그린다.
   /// 백엔드가 이름을 넣어 주면 그때 다시 보인다.
   final String? evaluatorName;
+
+  /// `evaluations.evaluator_id` — 이름 대신 오는 것.
+  ///
+  /// 화면에 띄우지는 않지만 **내가 쓴 것을 찾는 데 쓴다**: 로그인한 사람의
+  /// id 와 같으면 내 평가다. 목데이터에는 없어서 null 을 허용한다
+  final int? evaluatorId;
 
   /// `evaluations.score` — **1~5 체크 제약** (ERD)
   final int score;
@@ -70,6 +77,7 @@ extension EvaluationJson on Evaluation {
     id: json['id'] as int,
     applicationId: applicationId,
     evaluatorName: json['evaluator_name'] as String?,
+    evaluatorId: json['evaluator_id'] as int?,
     score: json['score'] as int,
     comment: json['comment'] as String?,
     createdAt: DateTime.parse(json['created_at'] as String),

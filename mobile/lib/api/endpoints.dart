@@ -35,6 +35,10 @@ abstract final class Endpoints {
   static String applicationEvaluations(int id) =>
       '/applications/$id/evaluations';
 
+  /// 평가 하나 고치기 — **내가 쓴 것만** 고칠 수 있다(서버가 `evaluator_id` 를
+  /// 본다). 웹은 아직 이 경로를 쓰지 않는다(2026-09-03)
+  static String evaluation(int id) => '/evaluations/$id';
+
   /// 일정 제안 상태 — 대시보드 면접 행의 칩(제안 중·제안 만료)
   static String scheduleProposals(int id) =>
       '/applications/$id/schedule-proposals';

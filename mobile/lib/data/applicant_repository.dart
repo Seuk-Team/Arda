@@ -133,4 +133,52 @@ class ApplicantRepository {
   /// 빈 본문은 서버가 422 로 막는다. 화면에서도 먼저 막는다.
   Future<void> addNote(int id, String body) =>
       _client.post(Endpoints.applicationNotes(id), body: {'body': body});
+
+  /// 한 지원자의 평가 목록 — `GET /applications/{id}/evaluations`.
+  ///
+  /// 상세(`detail`)도 평가를 함께 주지만 평가 화면은 이쪽을 따로 부른다:
+  /// 평가를 쓰고 나서 **평가만** 다시 받으면 되는데, 상세를 통째로 다시 받으면
+  /// 첨부·메모·이력까지 딸려 온다.
+  Future<EvaluationSummary> evaluations(int id) async {
+    final json = await _client.get(Endpoints.applicationEvaluations(id));
+    final items = (json['items'] as List<dynamic>? ?? const []);
+    return EvaluationSummary(
+      items: [
+        for (final item in items)
+          EvaluationJson.fromJson(
+            item as Map<String, dynamic>,
+            applicationId: id,
+          ),
+      ],
+    );
+  }
+
+  /// 평가 쓰기 — `POST /applications/{id}/evaluations`.
+  ///
+  /// 작성자는 서버가 토큰에서 읽는다. 점수는 1~5 고 서버도 다시 검사한다.
+  /// **`member` 는 자기에게 배정된 지원자만 쓸 수 있다** — 아니면 403 이 온다
+  /// (`assert_can_evaluate`, ADR-0017). admin 은 무제한.
+  Future<void> addEvaluation(int id, {required int score, String? comment}) =>
+      _client.post(
+        Endpoints.applicationEvaluations(id),
+        // 빈 코멘트는 `null` 로 보낸다 — 웹과 같다. 빈 문자열을 저장하면
+        // "코멘트를 안 썼다" 와 "빈 줄을 썼다" 가 구별되지 않는다
+        body: {'score': score, 'comment': comment},
+      );
+
+  /// 내 평가 고치기 — `PATCH /evaluations/{id}`.
+  ///
+  /// **같은 사람이 또 평가하면 새로 만들지 않고 이걸 부른다**(2026-09-03 결정).
+  /// 서버도 웹도 중복을 막지 않아 그냥 POST 하면 한 사람이 여러 줄을 남기고
+  /// **평균과 "n명이 평가함" 이 둘 다 틀어진다**. 서버에 이미 "내가 쓴 것만
+  /// 고칠 수 있다" 는 검사가 있는데(`evaluator_id != user.id`) 웹이 안 쓰고
+  /// 있었다 — 앱이 먼저 쓴다.
+  Future<void> updateEvaluation(
+    int evaluationId, {
+    required int score,
+    String? comment,
+  }) => _client.patch(
+    Endpoints.evaluation(evaluationId),
+    body: {'score': score, 'comment': comment},
+  );
 }

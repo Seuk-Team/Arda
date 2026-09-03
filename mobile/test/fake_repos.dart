@@ -9,6 +9,7 @@ import 'package:arda/data/mock_data.dart';
 import 'package:arda/data/applicant_repository.dart';
 import 'package:arda/data/posting_repository.dart';
 import 'package:arda/models/applicant.dart';
+import 'package:arda/models/evaluation.dart';
 import 'package:arda/models/job_posting.dart';
 
 class FakePostingRepository implements PostingRepository {
@@ -128,11 +129,61 @@ class FakeApplicantRepository implements ApplicantRepository {
     this.applicants,
     this.error,
     this.delay = Duration.zero,
+    this.evaluationSummary,
+    this.writeError,
   });
 
   final List<Applicant>? applicants;
   final Object? error;
   final Duration delay;
+
+  /// 평가 목록을 직접 주고 싶을 때. 안 주면 목데이터 (2026-09-03)
+  final EvaluationSummary? evaluationSummary;
+
+  /// 주면 평가 쓰기·고치기가 이걸로 실패한다
+  final Object? writeError;
+
+  /// 평가 쓰기로 보낸 값
+  int? addedScore;
+  String? addedComment;
+
+  /// 평가 고치기로 보낸 값 — **id 가 들어오면 새로 만들지 않았다는 뜻**
+  int? updatedEvaluationId;
+  int? updatedScore;
+  String? updatedComment;
+
+  @override
+  Future<EvaluationSummary> evaluations(int id) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    return evaluationSummary ??
+        mockEvaluations[id] ??
+        const EvaluationSummary(items: []);
+  }
+
+  @override
+  Future<void> addEvaluation(
+    int id, {
+    required int score,
+    String? comment,
+  }) async {
+    addedScore = score;
+    addedComment = comment;
+    if (writeError != null) throw writeError!;
+  }
+
+  @override
+  Future<void> updateEvaluation(
+    int evaluationId, {
+    required int score,
+    String? comment,
+  }) async {
+    updatedEvaluationId = evaluationId;
+    updatedScore = score;
+    updatedComment = comment;
+    if (writeError != null) throw writeError!;
+  }
 
   @override
   Future<List<Applicant>> byPosting(int postingId) async {
