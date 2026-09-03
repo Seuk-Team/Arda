@@ -7,6 +7,7 @@ import 'package:arda/models/applicant.dart';
 import 'package:arda/models/email_log.dart';
 import 'package:arda/models/stage.dart';
 import 'package:arda/screens/applicant_detail_screen.dart';
+import 'package:arda/screens/mail_compose_screen.dart';
 import 'package:arda/theme/tokens.dart';
 import 'package:arda/widgets/detail_blocks.dart';
 import 'package:flutter/material.dart';
@@ -241,7 +242,7 @@ void main() {
       expect(invite.style!.color, AppColors.text);
     });
 
-    testWidgets('아직 발송되지 않는다 — 누르면 그렇게 말한다', (tester) async {
+    testWidgets('누르면 메일 쓰기 화면으로 간다 — 여기서 바로 안 보낸다', (tester) async {
       await open(tester, dohyun);
 
       final button = find.widgetWithText(MailBlock, '면접 안내');
@@ -250,7 +251,11 @@ void main() {
       await tester.tap(button);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('아직 발송되지 않음'), findsOneWidget);
+      // 프리셋 → 편집 → 확인 순이다(웹과 같다). 버튼 한 번에 나가면 안 된다
+      expect(find.byType(MailComposeScreen), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '보내기'), findsOneWidget);
+      // 큐 8 전의 "아직 발송되지 않음" 은 사라졌다 (2026-09-03)
+      expect(find.textContaining('아직 발송되지 않음'), findsNothing);
     });
   });
 

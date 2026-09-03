@@ -14,6 +14,7 @@ import '../models/applicant_file.dart';
 import '../models/application_note.dart';
 import '../models/email_log.dart';
 import '../models/stage_history.dart';
+import '../screens/mail_compose_screen.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 
@@ -314,17 +315,17 @@ class _FileRow extends StatelessWidget {
 /// **불합격만 적갈**이다 (§1 색은 판단에만). 되돌릴 수 없는 메일이라
 /// 나머지와 같은 무채로 두면 잘못 누른다.
 class MailBlock extends StatelessWidget {
-  const MailBlock({super.key, required this.applicantName});
+  const MailBlock({
+    super.key,
+    required this.applicantName,
+    required this.onPick,
+  });
 
   final String applicantName;
 
-  /// 초안의 네 개. 문구는 배포판 웹의 메일 템플릿 이름을 그대로 쓴다
-  static const _kinds = <(String, bool)>[
-    ('면접 안내', false),
-    ('접수 확인', false),
-    ('최종 합격', false),
-    ('불합격', true),
-  ];
+  /// 프리셋을 고르면 부르는 쪽이 메일 쓰기 화면을 연다.
+  /// **여기서 바로 보내지 않는다** — 프리필 → 편집 → 확인을 거친다(웹과 같다)
+  final ValueChanged<MailPreset> onPick;
 
   @override
   Widget build(BuildContext context) {
@@ -334,17 +335,11 @@ class MailBlock extends StatelessWidget {
         spacing: AppSpace.s2,
         runSpacing: AppSpace.s2,
         children: [
-          for (final (label, danger) in _kinds)
+          for (final preset in MailPreset.values)
             _MailButton(
-              label: label,
-              danger: danger,
-              // 실제 발송은 큐 8(API 연동)이다. 지금 확인 시트를 띄우면
-              // 확인할 것이 없는 시트가 된다 — 안 나갔다는 것만 되비춘다
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$applicantName — $label 메일 (아직 발송되지 않음)'),
-                ),
-              ),
+              label: preset.label,
+              danger: preset.danger,
+              onTap: () => onPick(preset),
             ),
         ],
       ),

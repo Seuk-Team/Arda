@@ -32,6 +32,11 @@ abstract final class Endpoints {
   static String applicationHistory(int id) => '/applications/$id/history';
   static String applicationNotes(int id) => '/applications/$id/notes';
   static String applicationEmails(int id) => '/applications/$id/emails';
+
+  /// 수동 발송 프리필. `?stage=` 로 어느 문구를 채울지 고른다.
+  /// **치환은 서버가 한다** — 화면이 하면 미리보기와 실제가 갈린다
+  static String applicationEmailPreview(int id, String stage) =>
+      '/applications/$id/emails/preview?stage=$stage';
   static String applicationEvaluations(int id) =>
       '/applications/$id/evaluations';
 

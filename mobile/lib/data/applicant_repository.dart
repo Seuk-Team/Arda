@@ -166,6 +166,39 @@ class ApplicantRepository {
         body: {'score': score, 'comment': comment},
       );
 
+  /// 메일 프리필 — `GET /applications/{id}/emails/preview?stage=`.
+  ///
+  /// 제목·본문에 든 `{지원자명}` 같은 자리는 **서버가 채워서 준다.** 앱이
+  /// 채우면 미리보기와 실제로 나가는 것이 갈린다.
+  Future<({String subject, String body})> mailPreview(
+    int id,
+    String stage,
+  ) async {
+    final json = await _client.get(
+      Endpoints.applicationEmailPreview(id, stage),
+    );
+    return (
+      subject: json['subject'] as String? ?? '',
+      body: json['body'] as String? ?? '',
+    );
+  }
+
+  /// 메일 발송 — `POST /applications/{id}/emails`.
+  ///
+  /// **받는 사람을 보내지 않는다.** 서버가 `application.email` 로 고정하므로
+  /// 주소를 잘못 넣어 엉뚱한 사람에게 갈 경로가 아예 없다.
+  ///
+  /// 큐에 쌓이는 것이 아니라 **SES 로 실제 발송된다**(`app/worker.py`).
+  /// 이 앱에서 유일하게 되돌릴 수 없는 동작이라 화면이 확인을 한 번 더 받는다.
+  Future<void> sendMail(
+    int id, {
+    required String subject,
+    required String body,
+  }) => _client.post(
+    Endpoints.applicationEmails(id),
+    body: {'subject': subject, 'body': body},
+  );
+
   /// 내 평가 고치기 — `PATCH /evaluations/{id}`.
   ///
   /// **같은 사람이 또 평가하면 새로 만들지 않고 이걸 부른다**(2026-09-03 결정).

@@ -131,6 +131,7 @@ class FakeApplicantRepository implements ApplicantRepository {
     this.delay = Duration.zero,
     this.evaluationSummary,
     this.writeError,
+    this.mailPreviewText,
   });
 
   final List<Applicant>? applicants;
@@ -140,8 +141,16 @@ class FakeApplicantRepository implements ApplicantRepository {
   /// 평가 목록을 직접 주고 싶을 때. 안 주면 목데이터 (2026-09-03)
   final EvaluationSummary? evaluationSummary;
 
-  /// 주면 평가 쓰기·고치기가 이걸로 실패한다
+  /// 주면 평가 쓰기·고치기·메일 발송이 이걸로 실패한다
   final Object? writeError;
+
+  /// 메일 프리필로 돌려줄 (제목, 본문). 안 주면 기본값 (2026-09-03)
+  final (String, String)? mailPreviewText;
+
+  /// 메일 발송으로 보낸 값 — **받는 사람은 안 보낸다**(서버가 고정한다)
+  String? sentSubject;
+  String? sentBody;
+  int mailsSent = 0;
 
   /// 평가 쓰기로 보낸 값
   int? addedScore;
@@ -182,6 +191,32 @@ class FakeApplicantRepository implements ApplicantRepository {
     updatedEvaluationId = evaluationId;
     updatedScore = score;
     updatedComment = comment;
+    if (writeError != null) throw writeError!;
+  }
+
+  @override
+  Future<({String subject, String body})> mailPreview(
+    int id,
+    String stage,
+  ) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    final t = mailPreviewText;
+    return t == null
+        ? (subject: '[아르다] 지원서가 접수되었습니다', body: '홍길동 님, 안녕하세요.')
+        : (subject: t.$1, body: t.$2);
+  }
+
+  @override
+  Future<void> sendMail(
+    int id, {
+    required String subject,
+    required String body,
+  }) async {
+    mailsSent++;
+    sentSubject = subject;
+    sentBody = body;
     if (writeError != null) throw writeError!;
   }
 

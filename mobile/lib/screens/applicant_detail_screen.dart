@@ -9,6 +9,7 @@ import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import 'ar_screen.dart';
+import 'mail_compose_screen.dart';
 import '../widgets/async_view.dart';
 import '../widgets/detail_blocks.dart';
 import '../widgets/detail_section.dart';
@@ -156,7 +157,25 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
           FilesBlock(files: detail.files),
 
           const SizedBox(height: AppSpace.s3),
-          MailBlock(applicantName: applicant.name),
+          MailBlock(
+            applicantName: applicant.name,
+            // 프리셋을 고르면 쓰기 화면으로 간다. 보내고 오면 이력이 한 줄
+            // 늘어나므로 상세를 다시 받는다
+            onPick: (preset) async {
+              final sent = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MailComposeScreen(
+                    applicationId: applicant.id,
+                    applicantName: applicant.name,
+                    preset: preset,
+                    repository: widget.repository,
+                  ),
+                ),
+              );
+              if (sent == true) _reload();
+            },
+          ),
 
           const SizedBox(height: AppSpace.s3),
           EmailLogBlock(applicationId: applicant.id),
