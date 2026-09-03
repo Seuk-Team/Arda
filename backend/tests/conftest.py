@@ -13,6 +13,33 @@ import os
 # 기동 자체가 막힌다(.env 는 git 에 없어서 새 클론·CI 에서 특히).
 os.environ.setdefault("APP_ENV", "dev")
 
+# 개발 편의로 `.env` 에 넣은 에이전트 백엔드 스위치가 pytest 프로세스로 유입되면
+# mock 이 우회된다: `AGENT_CHAT_BACKEND=ollama` 면 `patch(...)` 가 anthropic 경로를
+# 잡아도 실제 요청이 Ollama 로 나가고, `OLLAMA_CHAT_STRUCTURED=1` 은 mock 응답 파싱과
+# 어긋난다. 그래서 지금까지는 매번
+# `AGENT_CHAT_BACKEND=anthropic OLLAMA_CHAT_STRUCTURED= … pytest` 로 override 해야 했다.
+#
+# **한 발 늦다** — `app.main` 이 부르는 `load_dotenv()`(override=False 기본) 는 이미 있는
+# 키는 안 건드리지만 **없는 키는 `.env` 값을 넣는다**. 그러니 여기서 "지우기"가 아니라
+# 알려진 스위치를 빈 값으로 **선점**해야 뒤이은 load_dotenv 가 못 덮는다.
+# 빈 값의 의미: backends/__init__ 은 빈 값을 `DEFAULT_BACKEND`(anthropic)로 폴백,
+# ollama_backend 는 `== "1"` 비교라 빈 값은 꺼짐, intent_router 는 rules 로 떨어진다.
+_TEST_SAFE_SWITCHES = (
+    "AGENT_CHAT_BACKEND",
+    "AGENT_SUMMARY_BACKEND",
+    "AGENT_INTENT_ROUTER",
+    "AGENT_CHAT_MODEL",
+    "AGENT_SUMMARY_MODEL",
+    "OLLAMA_CHAT_STRUCTURED",
+    "OLLAMA_THINK",
+    "OLLAMA_CHAT_MODEL",
+    "OLLAMA_SUMMARY_MODEL",
+    "OLLAMA_NUM_PREDICT",
+    "OLLAMA_KEEP_ALIVE",
+)
+for _key in _TEST_SAFE_SWITCHES:
+    os.environ[_key] = ""
+
 from datetime import UTC, datetime  # noqa: E402
 
 import pytest  # noqa: E402
