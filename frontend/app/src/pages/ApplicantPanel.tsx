@@ -3,7 +3,7 @@ import { ApiError } from '../api/client'
 import { applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
 import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
 import SidePanel from '../components/SidePanel'
-import { STAGE_LABEL, careerText, fmtDate, fmtDateShort, stageTone } from '../lib/stage'
+import { STAGE_LABEL, careerText, fmtDate, fmtDateShort } from '../lib/stage'
 import styles from './ApplicantPanel.module.css'
 
 interface AiSummary {
@@ -726,7 +726,6 @@ function MailSection({ applicationId, onSent }: { applicationId: number; onSent:
 /* ── 시스템 (메일 이력) ── */
 
 const MAIL_STATUS_LABEL: Record<string, string> = { queued: '대기', sent: '발송됨', failed: '실패' }
-const ACTOR_LABEL: Record<string, string> = { human: '담당자', agent: '아르', system: '시스템' }
 
 function MailHistorySection({ applicationId, refreshKey }: { applicationId: number; refreshKey: number }) {
   const [history, setHistory] = useState<EmailLogItem[] | null>(null)
