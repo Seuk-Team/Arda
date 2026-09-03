@@ -1,0 +1,128 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--content-x);
+}
+
+/* ── 사용자 카드 ─────────────────────────────── */
+.userCard {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+}
+
+.avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--sprout);
+  color: var(--bg-elev);
+  font-size: var(--font-h2);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-shadow: var(--ts-onfill);
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.userName {
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.userMeta {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 메뉴 그룹 ──────────────────────────────── */
+.group {
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  overflow: hidden;
+}
+
+.divider {
+  height: var(--border-w);
+  background: var(--border-soft);
+  margin: 0 var(--sp-4);
+}
+
+.item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4);
+  height: 52px;
+  background: none;
+  border: none;
+  font-size: var(--font-body);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.item:hover {
+  background: var(--bg-sunken);
+}
+
+.item:active {
+  background: var(--sunken-hover);
+}
+
+.itemLabel {
+  flex: 1;
+}
+
+.itemSub {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--text-sub);
+}
+
+.chevron {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--text-sub);
+}
+
+.logout {
+  color: var(--text);
+}
+
+/* ── 버전 ────────────────────────────────────── */
+.version {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  text-align: center;
+  padding: var(--sp-2) 0 var(--sp-4);
+}

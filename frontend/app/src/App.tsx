@@ -17,6 +17,7 @@ import Applicants from './pages/Applicants'
 import Interviews from './pages/Interviews'
 import Evaluations from './pages/Evaluations'
 import Settings from './pages/Settings'
+import More from './pages/More'
 /* three.js 를 초기 번들에서 빼기 위해 이 페이지도 지연 로드한다 (Sidebar 의 ArViewer 와 같은 청크) */
 const ArDemo = lazy(() => import('./pages/ArDemo'))
 
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/interviews" element={<LegacyCalendarRedirect />} />
             <Route path="/evaluations" element={<Evaluations />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/more" element={<More />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/login" replace />} />

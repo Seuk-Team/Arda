@@ -77,6 +77,9 @@ export default function Evaluations() {
     [],
   )
 
+  const [loadKey, setLoadKey] = useState(0)
+  const retry = () => { setQueue(null); setError(null); setLoadKey((k) => k + 1) }
+
   useEffect(() => {
     if (!user) return
     const ac = new AbortController()
@@ -89,7 +92,7 @@ export default function Evaluations() {
         setError(err instanceof ApiError ? err.message : '평가 대기 목록을 불러오지 못했습니다')
       })
     return () => ac.abort()
-  }, [user, load])
+  }, [user, load, loadKey])
 
   function open(item: QueueItem) {
     setOpenId(item.applicationId)
@@ -179,10 +182,22 @@ export default function Evaluations() {
               </div>
             ))}
 
-            {error !== null && <p className={styles.empty} role="alert">{error}</p>}
-            {error === null && queue === null && <p className={styles.empty}>불러오는 중…</p>}
+            {error === null && queue === null && (
+              [0, 1, 2].map((i) => <div key={i} className={`${styles.row} ${styles.skelRow}`} />)
+            )}
             {error === null && queue?.length === 0 && (
-              <p className={styles.empty}>평가 대기 중인 지원자가 없습니다.</p>
+              <div className={styles.emptyState} role="status">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <p>평가 대기 중인 지원자가 없습니다.</p>
+              </div>
+            )}
+            {error !== null && (
+              <div className={styles.errorCard} role="alert">
+                <p>{error}</p>
+                <button type="button" className={styles.retryBtn} onClick={retry}>다시 시도</button>
+              </div>
             )}
           </div>
         </main>
@@ -191,6 +206,38 @@ export default function Evaluations() {
         <aside className={`${styles.side} ${current ? styles.sideOpen : ''}`} aria-label="평가 패널">
           {current && (
             <div className={styles.sideInner}>
+              {/* 모바일 전용 뒤로가기 헤더 */}
+              <div className={styles.mobileBack}>
+                <button type="button" aria-label="닫기" onClick={close}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                </button>
+                <h1>평가</h1>
+              </div>
+
+              {/* 모바일 전용 점수 요약 */}
+              <div className={styles.scoreSummary}>
+                <div className={styles.scoreMain}>
+                  <p className={styles.scoreNum}>
+                    {current.detail.avg_score?.toFixed(1) ?? '—'}
+                    <span> / 5</span>
+                  </p>
+                  <p className={styles.scoreCount}>
+                    {current.detail.eval_count ?? 0}명이 평가했습니다
+                  </p>
+                </div>
+                <div className={styles.scoreBars}>
+                  {[5, 4, 3, 2, 1].map((n) => (
+                    <div key={n} className={styles.scoreBarRow}>
+                      <span>{n}</span>
+                      <div className={styles.scoreBarTrack}>
+                        <div className={styles.scoreBarFill} style={{ width: 0 }} />
+                      </div>
+                      <span>0</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className={styles.sideHead}>
                 <span className={styles.sideName}>{current.detail.name}</span>
                 <span className={styles.stage}>{STAGE_LABEL[current.detail.current_stage]}</span>
@@ -210,6 +257,7 @@ export default function Evaluations() {
 
               <div className={styles.sec}>
                 <h2>평가</h2>
+                <p className={styles.secLabel}>내 평가</p>
                 <div className={styles.rate} role="group" aria-label="평가 점수">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
@@ -227,7 +275,7 @@ export default function Evaluations() {
                   className={styles.input}
                   rows={3}
                   aria-label="평가 코멘트 입력"
-                  placeholder="평가 코멘트를 입력합니다"
+                  placeholder="코멘트 (선택)"
                   value={comment}
                   disabled={saving}
                   onChange={(e) => setComment(e.target.value)}

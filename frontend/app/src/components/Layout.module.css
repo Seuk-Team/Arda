@@ -1,5 +1,38 @@
+/* 모바일 아르 플로팅 버튼 — 더보기 탭(1/5 맨 오른쪽) 바로 위 */
+.arFloat {
+  display: none;
+}
+
 @media (max-width: 768px) {
-  .main { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .main { padding-bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom)); }
+
+  /* 5칸 내비의 맨 오른쪽(더보기) 칸 중앙 = 오른쪽에서 10vw.
+     버튼 폭(--sp-8)의 절반만큼 되물려 그 중앙에 세운다.
+     44px 최소 터치 타깃(§9)보다 크고, 원은 --r-pill 이다(§4 radius 3종). */
+  .arFloat {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + var(--sp-2));
+    right: calc(10vw - var(--sp-8) / 2);
+    width: var(--sp-8);
+    height: var(--sp-8);
+    border-radius: var(--r-pill);
+    background: var(--bg-elev);
+    border: 2px solid var(--sprout);
+    box-shadow: var(--sh-overlay);
+    z-index: var(--z-sticky);
+    cursor: pointer;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .arFloat img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
 /* mockup.html 의 body/.main 구조 (§12-1 시안 복제).
