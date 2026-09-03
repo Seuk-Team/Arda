@@ -116,10 +116,41 @@ class TestLexicalPayload:
 class TestSemanticMerge:
     """ADR-0021 의 '결과 병합' — 벡터와 키워드를 합치고 중복을 제거한다."""
 
-    def test_벡터와_키워드_양쪽에_걸리면_맨_위(self, monkeypatch):
-        both = FakeApplication(1, name="양쪽", skills=["Python"])
-        vector_only = FakeApplication(2, name="벡터만", skills=["Django"])
-        keyword_only = FakeApplication(3, name="키워드만", skills=["Python"])
+    def test_스킬_exact_match_가_최상위(self, monkeypatch):
+        """직무 어휘는 skills exact match 가 semantic 만인 결과를 이긴다.
+
+        2026-09-02 실측: "Kubernetes 경험" 질의에 벡터가 React 개발자를 상위에
+        올리고 정작 skills 에 "Kubernetes" 를 가진 지원자는 뒤로 밀렸다. 이
+        정렬은 그 상황을 뒤집는다.
+        """
+        skill_and_semantic = FakeApplication(1, name="스킬+벡터", skills=["Python"])
+        semantic_only = FakeApplication(2, name="벡터만", skills=["Django"])
+        skill_only = FakeApplication(3, name="스킬만", skills=["Python"])
+
+        monkeypatch.setattr(
+            embedder, "search_similar", lambda *a, **k: [(1, 0.2), (2, 0.3)]
+        )
+        payload = read_tools._semantic_search(
+            fake_db([skill_and_semantic, semantic_only, skill_only]),
+            MagicMock(),
+            {"semantic": "Python 경험"},
+            limit=10,
+        )
+
+        # rank 0(스킬+벡터) → rank 0(스킬만) → rank 2(벡터만)
+        assert [r["id"] for r in payload["results"]] == [1, 3, 2]
+        assert payload["results"][0]["matched_by"] == "skill+semantic"
+        assert payload["results"][1]["matched_by"] == "skill_exact"
+        assert payload["results"][2]["matched_by"] == "semantic"
+        # skill_hits 는 exact 매치가 몇 개인지, keyword_hits 는 substring 몇 개인지
+        assert payload["results"][0]["skill_hits"] == 1
+        assert payload["search_mode"] == "semantic+keyword"
+
+    def test_스킬_없이_벡터와_키워드만이면_기존_순서(self, monkeypatch):
+        """스킬 exact 가 없을 때는 both → semantic → keyword 그대로."""
+        both = FakeApplication(1, name="양쪽", skills=["Django"], self_intro="Python 3년")
+        vector_only = FakeApplication(2, name="벡터만", skills=["Ruby"])
+        keyword_only = FakeApplication(3, name="키워드만", skills=["Java"], self_intro="Python 강의")
 
         monkeypatch.setattr(
             embedder, "search_similar", lambda *a, **k: [(1, 0.2), (2, 0.3)]
@@ -135,7 +166,31 @@ class TestSemanticMerge:
         assert payload["results"][0]["matched_by"] == "both"
         assert payload["results"][1]["matched_by"] == "semantic"
         assert payload["results"][2]["matched_by"] == "keyword"
-        assert payload["search_mode"] == "semantic+keyword"
+
+    def test_kubernetes_는_semantic_top_을_넘어선다(self, monkeypatch):
+        """실측 재현: 벡터는 Kubernetes 를 놓치는데, 실제 소유자를 앞으로 올린다."""
+        react_dev_top = FakeApplication(
+            1, name="React 개발자", skills=["React", "TypeScript"]
+        )
+        vue_dev = FakeApplication(2, name="Vue 개발자", skills=["Vue", "JavaScript"])
+        k8s_dev = FakeApplication(
+            3, name="Kubernetes 소유자", skills=["Kubernetes", "Docker", "Go"]
+        )
+
+        # 벡터는 프론트 개발자 두 명을 앞에, k8s 소유자는 아예 못 잡음
+        monkeypatch.setattr(
+            embedder, "search_similar", lambda *a, **k: [(1, 0.35), (2, 0.42)]
+        )
+        payload = read_tools._semantic_search(
+            fake_db([react_dev_top, vue_dev, k8s_dev]),
+            MagicMock(),
+            {"semantic": "Kubernetes 경험"},
+            limit=10,
+        )
+
+        # k8s 소유자가 반드시 첫 번째
+        assert payload["results"][0]["id"] == 3
+        assert payload["results"][0]["matched_by"] == "skill_exact"
 
     def test_같은_지원자가_두_번_나오지_않는다(self, monkeypatch):
         app = FakeApplication(1, skills=["Python"])
@@ -205,7 +260,9 @@ class TestSemanticFallback:
         )
         # 여기서 0건이 나오면 아르가 "지원자가 없습니다" 라고 답한다.
         assert payload["count"] == 1
-        assert payload["results"][0]["matched_by"] == "keyword"
+        # skills 에 "Python" 이 정확히 있어 skill_exact 로 잡힌다. 벡터가 없어도
+        # 정답을 놓치지 않는다는 것이 핵심 — 라벨은 그 결과의 근거를 말할 뿐.
+        assert payload["results"][0]["matched_by"] in ("skill_exact", "keyword")
         assert payload["search_mode"] == "keyword_fallback"
         assert "임베딩" in payload["note"]
 

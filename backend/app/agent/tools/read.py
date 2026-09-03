@@ -88,6 +88,25 @@ def _keyword_hits(app: Application, keywords: list[str]) -> int:
     return sum(1 for kw in keywords if kw.lower() in haystack)
 
 
+def _skill_exact_hits(app: Application, keywords: list[str]) -> int:
+    """스킬 배열에 키워드가 **exact 원소** 로 몇 개 들어있는지 (대소문자 무시).
+
+    직무·기술 어휘(Python, Kubernetes, FastAPI…) 는 임베딩보다 exact match 가
+    확실한 신호다. 더미 실측(2026-09-02): "Kubernetes 경험" 질의에 벡터가 React
+    개발자를 상위에 올리는데, 정작 skills 에 "Kubernetes" 를 정확히 가진 지원자는
+    임계값 밖으로 밀리거나 rank 3(keyword only) 으로 뒤에 붙었다. 이 함수는
+    그런 사람을 rank 0 으로 끌어올려, 랭킹에서 semantic 만인 오답을 이긴다.
+
+    `_keyword_hits` 는 self_intro·education 같은 자연어 필드까지 훑는 substring
+    이라 신호가 흐리다("교육" 안의 "육" 은 아니지만 "python-교육생" 은 잡힘).
+    여기서는 **skills 배열의 각 원소와 완전 일치** 만 세서 오탐을 낮춘다.
+    """
+    if not app.skills or not keywords:
+        return 0
+    skills_lower = {s.lower() for s in app.skills}
+    return sum(1 for kw in keywords if kw.lower() in skills_lower)
+
+
 def _semantic_search(db: Session, user: User, params: dict, limit: int) -> dict:
     """벡터 + 키워드 하이브리드 검색 (ADR-0021 결과 병합).
 
@@ -153,12 +172,18 @@ def _semantic_search(db: Session, user: User, params: dict, limit: int) -> dict:
     for app in apps:
         distance = distances.get(app.id)
         hits = _keyword_hits(app, keywords) if keywords else 0
-        if distance is not None and hits:
-            matched_by, rank = "both", 0
+        skill_hits = _skill_exact_hits(app, keywords) if keywords else 0
+        # skills exact match 는 최상위 신호 — 있으면 semantic 만인 결과보다 앞선다
+        if skill_hits and distance is not None:
+            matched_by, rank = "skill+semantic", 0
+        elif skill_hits:
+            matched_by, rank = "skill_exact", 0
+        elif distance is not None and hits:
+            matched_by, rank = "both", 1
         elif distance is not None:
-            matched_by, rank = "semantic", 1
+            matched_by, rank = "semantic", 2
         elif hits:
-            matched_by, rank = "keyword", 2
+            matched_by, rank = "keyword", 3
         else:
             continue
         row = _app_to_dict(app) | {"matched_by": matched_by}
@@ -166,10 +191,15 @@ def _semantic_search(db: Session, user: User, params: dict, limit: int) -> dict:
             row["similarity"] = round(1.0 - distance, 3)
         if hits:
             row["keyword_hits"] = hits
-        rows.append((rank, distance if distance is not None else 1.0, -hits, row))
+        if skill_hits:
+            row["skill_hits"] = skill_hits
+        rows.append(
+            (rank, -skill_hits, distance if distance is not None else 1.0, -hits, row)
+        )
 
-    rows.sort(key=lambda r: (r[0], r[1], r[2]))
-    results = [r[3] for r in rows][:limit]
+    # 정렬: (rank 오름차순, skill_hits 많은 순, 벡터 거리 짧은 순, 키워드 적중 많은 순)
+    rows.sort(key=lambda r: (r[0], r[1], r[2], r[3]))
+    results = [r[4] for r in rows][:limit]
 
     if degraded:
         mode = "keyword_fallback"
