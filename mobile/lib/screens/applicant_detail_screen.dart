@@ -5,9 +5,11 @@ import '../data/applicant_repository.dart';
 import '../api/api_error.dart';
 import '../data/repositories.dart';
 import '../models/applicant.dart';
+import '../models/applicant_file.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
+import '../utils/open_url.dart';
 import 'ar_screen.dart';
 import 'mail_compose_screen.dart';
 import '../widgets/async_view.dart';
@@ -38,6 +40,7 @@ class ApplicantDetailScreen extends StatefulWidget {
     required this.applicant,
     required this.postingTitle,
     this.repository,
+    this.openUrl,
   });
 
   /// 목록에서 넘어온 것. 상세를 받기 전까지 머리에 쓴다
@@ -48,6 +51,9 @@ class ApplicantDetailScreen extends StatefulWidget {
 
   /// 테스트가 가짜를 넣는 자리
   final ApplicantRepository? repository;
+
+  /// 첨부를 열 때 쓰는 통로. 테스트가 진짜 브라우저를 안 띄우게 갈아 끼운다
+  final UrlOpener? openUrl;
 
   @override
   State<ApplicantDetailScreen> createState() => _ApplicantDetailScreenState();
@@ -75,6 +81,29 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
     setState(() {
       _future = _load();
     });
+  }
+
+  /// 첨부 열기 — 주소를 받아 브라우저로 넘긴다 (큐 8 4단계, 2026-09-03).
+  ///
+  /// **누를 때마다 새로 받는다.** S3 서명 URL 은 유효 시간이 있어서 상세를
+  /// 받을 때 미리 챙겨 두면 누를 때쯤 만료된다.
+  Future<void> _openFile(ApplicantFile file) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final open = widget.openUrl ?? openInBrowser;
+
+    try {
+      final link = await _repo.fileDownloadUrl(file.id);
+      final ok = await open(link.url);
+      if (!mounted || ok) return;
+
+      // 열 앱이 없는 기기가 있다. 아무 일도 안 일어난 것처럼 두면 안 된다
+      messenger.showSnackBar(
+        const SnackBar(content: Text('이 파일을 열 수 있는 앱이 없습니다')),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   /// 초안의 `평점 4.3 / 5.0 · 3명`. 평가가 없으면 줄을 만들지 않는다 —
@@ -154,7 +183,7 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
 
           // 웹 C7(2026-09-02)과 같은 자리 — 지원 정보 바로 다음
           const SizedBox(height: AppSpace.s3),
-          FilesBlock(files: detail.files),
+          FilesBlock(files: detail.files, onOpen: _openFile),
 
           const SizedBox(height: AppSpace.s3),
           MailBlock(
@@ -178,7 +207,7 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
           ),
 
           const SizedBox(height: AppSpace.s3),
-          EmailLogBlock(applicationId: applicant.id),
+          EmailLogBlock(logs: detail.emails),
 
           const SizedBox(height: AppSpace.s3),
           NotesBlock(
@@ -199,7 +228,7 @@ class _ApplicantDetailScreenState extends State<ApplicantDetailScreen> {
             onSeeAll: () => Navigator.pushNamed(
               context,
               Routes.stageHistory,
-              arguments: (applicant, widget.postingTitle),
+              arguments: (applicant, widget.postingTitle, detail.stageHistory),
             ),
           ),
 

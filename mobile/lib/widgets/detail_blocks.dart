@@ -7,7 +7,6 @@ library;
 import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
-import '../data/mock_data.dart';
 import '../models/ai_summary.dart';
 import '../models/applicant.dart';
 import '../models/applicant_file.dart';
@@ -194,14 +193,41 @@ class _SummaryList extends StatelessWidget {
 ///
 /// **비어 있어도 블록을 그린다.** 담당자가 직접 등록한 사람(D6)은 파일이 없는데,
 /// 블록째 사라지면 "아직 안 붙었나" 와 "원래 없다" 가 구별되지 않는다.
-class FilesBlock extends StatelessWidget {
-  const FilesBlock({super.key, required this.files});
+class FilesBlock extends StatefulWidget {
+  const FilesBlock({super.key, required this.files, this.onOpen});
 
   /// 상세 응답이 함께 준다 — 화면이 목데이터를 뒤지지 않는다 (큐 8, 2026-09-02)
   final List<ApplicantFile> files;
 
+  /// 파일을 눌렀을 때. 주소를 받아 브라우저로 넘기는 일은 부르는 쪽이 한다
+  /// (저장소를 들고 있는 것이 화면이다). 없으면 눌러도 아무 일이 없다
+  final Future<void> Function(ApplicantFile)? onOpen;
+
+  @override
+  State<FilesBlock> createState() => _FilesBlockState();
+}
+
+class _FilesBlockState extends State<FilesBlock> {
+  /// 여는 중인 파일. 주소를 받아 오는 동안 그 줄만 표시가 바뀐다 —
+  /// 눌렀는데 아무 반응이 없으면 안 눌린 줄 안다
+  int? _opening;
+
+  Future<void> _open(ApplicantFile file) async {
+    final onOpen = widget.onOpen;
+    if (onOpen == null || _opening != null) return;
+
+    setState(() => _opening = file.id);
+    try {
+      await onOpen(file);
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final files = widget.files;
+
     return DetailPanel(
       title: '첨부 파일',
       child: Column(
@@ -223,7 +249,11 @@ class FilesBlock extends StatelessWidget {
           else
             for (var i = 0; i < files.length; i++) ...[
               if (i > 0) const SizedBox(height: AppSpace.s2),
-              _FileRow(file: files[i]),
+              _FileRow(
+                file: files[i],
+                opening: _opening == files[i].id,
+                onTap: widget.onOpen == null ? null : () => _open(files[i]),
+              ),
             ],
         ],
       ),
@@ -232,9 +262,18 @@ class FilesBlock extends StatelessWidget {
 }
 
 class _FileRow extends StatelessWidget {
-  const _FileRow({required this.file});
+  const _FileRow({
+    required this.file,
+    required this.opening,
+    required this.onTap,
+  });
 
   final ApplicantFile file;
+
+  /// 주소를 받아 오는 중. 아이콘 자리가 스피너가 된다
+  final bool opening;
+
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -246,10 +285,7 @@ class _FileRow extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        // 큐 8: POST /files/{id}/presign-download → 받은 URL 을 브라우저로 넘긴다
-        onTap: () => ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${file.filename} (아직 열 수 없음)'))),
+        onTap: onTap,
         // §5: 모바일은 hover 없음 전제 — press 만 정의한다
         highlightColor: AppColors.bgSunken,
         splashColor: AppColors.bgSunken,
@@ -261,11 +297,21 @@ class _FileRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(
-                Icons.description_outlined,
-                size: 20,
-                color: AppColors.textSub,
-              ),
+              if (opening)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textSub,
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.description_outlined,
+                  size: 20,
+                  color: AppColors.textSub,
+                ),
               const SizedBox(width: AppSpace.s3),
               Expanded(
                 child: Column(
@@ -406,13 +452,16 @@ class _MailButton extends StatelessWidget {
 /// 시스템 — 메일 발송 이력. **실패만 적갈**이다.
 /// 메일이 안 나간 것을 놓치면 지원자가 연락을 받지 못한다.
 class EmailLogBlock extends StatelessWidget {
-  const EmailLogBlock({super.key, required this.applicationId});
+  const EmailLogBlock({super.key, required this.logs});
 
-  final int applicationId;
+  /// 상세를 받을 때 함께 받아 온다 — 상세 응답에 없어서 따로 부른 값이다
+  /// (큐 8 4단계, 2026-09-03)
+  final List<EmailLog> logs;
 
   @override
   Widget build(BuildContext context) {
-    final logs = mockEmailLogs[applicationId] ?? const <EmailLog>[];
+    // 아직 아무 메일도 안 나간 사람은 블록째 없다 — 빈 "시스템" 칸은
+    // 담당자가 할 일이 없는 자리다
     if (logs.isEmpty) return const SizedBox.shrink();
 
     return DetailPanel(

@@ -7,16 +7,25 @@ import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'fake_repos.dart';
+
 /// 2026-09-01 은 화요일 — 목데이터가 면접 2건을 두는 날
 final tuesday = DateTime(2026, 9, 1);
 
 Widget host({DateTime? today}) => MaterialApp(
-  home: Scaffold(body: CalendarScreen(today: today ?? tuesday)),
+  home: Scaffold(
+    // 큐 8 4단계로 서버에서 받아 온다 — 가짜가 목데이터를 그대로 준다
+    body: CalendarScreen(
+      today: today ?? tuesday,
+      repository: FakeScheduleRepository(),
+    ),
+  ),
 );
 
 void main() {
   testWidgets('한 주 7칸이 일요일부터 나온다 — 월 그리드가 아니다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     for (final label in ['일', '월', '화', '수', '목', '금', '토']) {
       expect(find.text(label), findsOneWidget);
@@ -40,6 +49,7 @@ void main() {
 
   testWidgets('칸에는 건수만 적는다 — 이름은 없다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     for (final interview in mockInterviewsOn(tuesday)) {
       expect(
@@ -54,6 +64,7 @@ void main() {
 
   testWidgets('오늘이 기본 선택 — 그날 목록이 함께 나온다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     expect(find.text('2026.09.01'), findsOneWidget);
     expect(find.text('2건'), findsOneWidget);
@@ -63,11 +74,13 @@ void main() {
 
   testWidgets('그날 목록에 면접관이 있다 (05-design 캘린더 절)', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     expect(find.textContaining('면접관'), findsWidgets);
   });
 
   testWidgets('다른 날을 고르면 그날 목록으로 바뀐다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     // 목요일(09.03) — 목데이터가 1건 두는 날
     await tester.tap(find.byKey(dayCellKey(DateTime(2026, 9, 3))));
@@ -80,6 +93,7 @@ void main() {
 
   testWidgets('면접 없는 날은 빈 상태 문구 (§6)', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     // 수요일(09.02) — 목데이터가 비워 둔 날
     await tester.tap(find.byKey(dayCellKey(DateTime(2026, 9, 2))));
@@ -91,6 +105,7 @@ void main() {
 
   testWidgets('같은 시각 두 건이면 시각은 첫 행에만 (캘린더 절 슬롯 묶기)', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     // 금요일(09.04) — 10:00 하나 + 15:00 두 건
     await tester.tap(find.byKey(dayCellKey(DateTime(2026, 9, 4))));
@@ -102,6 +117,7 @@ void main() {
 
   testWidgets('주 이동은 달이 아니라 주 단위다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
     expect(find.text('08.30 – 09.05'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.chevron_right));
@@ -115,6 +131,7 @@ void main() {
 
   testWidgets('"오늘" 을 누르면 오늘로 돌아온다', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.chevron_right));
     await tester.pumpAndSettle();
@@ -127,6 +144,7 @@ void main() {
 
   testWidgets('"내 면접만" 은 권한이 아니라 필터 — 기본은 꺼짐', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     final pill = tester.widget<Material>(
       find
@@ -148,6 +166,7 @@ void main() {
 
   testWidgets('터치 타깃 44 — 날짜 칸과 주 이동 버튼 (§9)', (tester) async {
     await tester.pumpWidget(host());
+    await tester.pumpAndSettle();
 
     final cell = tester.getSize(
       find.ancestor(of: find.text('일'), matching: find.byType(InkWell)).first,
@@ -171,13 +190,19 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: CalendarScreen(today: tuesday)),
+        home: Scaffold(
+          body: CalendarScreen(
+            today: tuesday,
+            repository: FakeScheduleRepository(),
+          ),
+        ),
         onGenerateRoute: (settings) => MaterialPageRoute(
           settings: settings,
           builder: (_) => const Scaffold(body: Text('상세 화면')),
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('김도현'));
     await tester.pumpAndSettle();

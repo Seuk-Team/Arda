@@ -46,5 +46,12 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- 첨부 파일을 브라우저로 넘긴다 (url_launcher, 큐 8 4단계 2026-09-03).
+             Android 11 부터 다른 앱을 보려면 여기 적어야 한다 — 없으면
+             canLaunchUrl 이 늘 false 라 "열 앱이 없다"로 끝난다. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

@@ -7,6 +7,7 @@ import 'auth/current_user.dart';
 import 'data/repositories.dart';
 import 'models/applicant.dart';
 import 'models/job_posting.dart';
+import 'models/stage_history.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicants_screen.dart';
@@ -101,11 +102,16 @@ class ArdaApp extends StatelessWidget {
           );
         }
         if (settings.name == Routes.stageHistory) {
-          final args = settings.arguments! as (Applicant, String);
+          // 이력은 상세가 이미 받아 온 것을 그대로 싣고 온다 (큐 8 4단계)
+          final args =
+              settings.arguments! as (Applicant, String, List<StageHistory>);
           return MaterialPageRoute(
             settings: settings,
-            builder: (_) =>
-                StageHistoryScreen(applicant: args.$1, postingTitle: args.$2),
+            builder: (_) => StageHistoryScreen(
+              applicant: args.$1,
+              postingTitle: args.$2,
+              entries: args.$3,
+            ),
           );
         }
         if (settings.name == Routes.evaluations) {

@@ -15,8 +15,14 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
+import '../auth/authed_client.dart';
+import '../auth/current_user.dart';
+import '../data/repositories.dart';
+import '../data/schedule_repository.dart';
+import '../widgets/async_view.dart';
+import '../models/applicant.dart';
 import '../models/interview.dart';
+import '../models/stage.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
@@ -27,10 +33,13 @@ const weekStripKey = Key('calendar-week-strip');
 Key dayCellKey(DateTime d) => Key('calendar-day-${d.year}-${d.month}-${d.day}');
 
 class CalendarScreen extends StatefulWidget {
-  const CalendarScreen({super.key, this.today});
+  const CalendarScreen({super.key, this.today, this.repository});
 
   /// 테스트가 날짜를 고정할 수 있게 열어 둔다. 비면 기기 오늘.
   final DateTime? today;
+
+  /// 테스트가 가짜를 넣는 자리 (큐 8 4단계)
+  final ScheduleRepository? repository;
 
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
@@ -40,28 +49,77 @@ class _CalendarScreenState extends State<CalendarScreen> {
   late final DateTime _today = _dateOnly(widget.today ?? DateTime.now());
   late DateTime _selected = _today;
 
+  late ScheduleRepository _repo;
+  late Future<List<Interview>> _future;
+
+  /// 지금 받아 둔 주의 일요일. 주를 옮겨 이 밖으로 나가면 다시 받는다
+  late DateTime _loadedWeek;
+
   /// 05-design: 자기가 면접관인 건만 좁히는 **필터**. 기본은 전체.
   bool _mineOnly = false;
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-  /// 목데이터에는 배정이 없어 면접관 이름으로 대신한다 — API 연동 때 내 user id 로 바뀐다
-  static const _me = mockMyName;
+  static DateTime _sundayOf(DateTime d) =>
+      _dateOnly(d).subtract(Duration(days: d.weekday % 7));
 
-  List<Interview> _filter(List<Interview> items) =>
-      _mineOnly ? items.where((i) => i.interviewerName == _me).toList() : items;
+  @override
+  void initState() {
+    super.initState();
+    _repo =
+        widget.repository ??
+        RepositoryScope.of(context)?.schedules ??
+        ScheduleRepository(authedClient());
+    _loadedWeek = _sundayOf(_selected);
+    _future = _load();
+  }
+
+  /// `ignore()` 이유는 postings_screen.dart 참고
+  Future<List<Interview>> _load() => _repo.week(_selected)..ignore();
+
+  void _reload() {
+    setState(() {
+      _loadedWeek = _sundayOf(_selected);
+      _future = _load();
+    });
+  }
+
+  /// **내 것만**은 배정된 면접관 id 로 거른다. 이름으로 맞추면 동명이인이 섞인다
+  List<Interview> _filter(List<Interview> items, int? myId) =>
+      _mineOnly && myId != null
+      ? items.where((i) => i.interviewerId == myId).toList()
+      : items;
 
   void _moveWeek(int weeks) {
-    setState(() {
-      _selected = _selected.add(Duration(days: 7 * weeks));
-    });
+    final next = _selected.add(Duration(days: 7 * weeks));
+    setState(() => _selected = next);
+    // 같은 주 안에서 날짜만 옮기는 것은 이미 받아 둔 값으로 그린다
+    if (_sundayOf(next) != _loadedWeek) _reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    final week = mockInterviewsInWeek(_selected);
-    final days = week.keys.toList()..sort();
-    final selectedItems = _filter(week[_selected] ?? const []);
+    return AsyncView<List<Interview>>(
+      future: _future,
+      onRetry: _reload,
+      // 면접이 없어도 주간 스트립과 컨트롤은 남아야 한다 — 날짜를 옮길 수
+      // 있어야 "이 주만 비었다" 를 확인한다
+      emptyMessage: '',
+      builder: (context, items) => _body(items),
+    );
+  }
+
+  Widget _body(List<Interview> items) {
+    final myId = CurrentUserScope.of(context)?.id;
+
+    // 서버는 한 주치를 한 줄로 준다. 스트립이 쓰는 "날짜 → 건수" 로 접는다
+    final sunday = _sundayOf(_selected);
+    final days = [for (var i = 0; i < 7; i++) sunday.add(Duration(days: i))];
+    final week = <DateTime, List<Interview>>{
+      for (final day in days)
+        day: items.where((i) => _dateOnly(i.startAt) == day).toList(),
+    };
+    final selectedItems = _filter(week[_selected] ?? const [], myId);
 
     return ListView(
       padding: const EdgeInsets.all(AppSpace.s4),
@@ -80,7 +138,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           days: days,
           selected: _selected,
           today: _today,
-          countOf: (day) => _filter(week[day] ?? const []).length,
+          countOf: (day) => _filter(week[day] ?? const [], myId).length,
           onSelect: (day) => setState(() => _selected = day),
         ),
         const SizedBox(height: AppSpace.s5),
@@ -468,18 +526,26 @@ class _Row extends StatelessWidget {
   /// 웹은 `/postings/{공고}?applicant={지원}` 으로 보내 공고의 지원자 화면이 그
   /// 사람을 연 채로 뜨게 한다. 앱은 상세가 별도 화면이라 곧장 그리로 간다.
   ///
-  /// API 주의(큐 8): `GET /schedules` 는 **공고 id 를 주지 않는다** — 웹은 상세를
-  /// 한 번 더 받아 알아낸다. 여기서는 목데이터라 지원자 id 로 바로 찾는다.
+  /// **껍데기만 만들어 넘긴다.** `GET /schedules` 는 지원자 id·이름·공고명만
+  /// 주고 나머지(단계·이메일·경력)는 안 준다. 상세 화면이 어차피 id 로 다시
+  /// 받으므로, 머리에 잠깐 쓸 이름과 id 만 채우면 된다.
+  ///
+  /// 단계는 `면접` 으로 둔다 — 확정된 면접이 잡힌 사람이라 맞고, 상세가 오면
+  /// 진짜 값으로 바뀐다.
   void _openDetail(BuildContext context) {
-    final applicant = mockApplicants
-        .where((a) => a.id == interview.applicationId)
-        .firstOrNull;
-    if (applicant == null) return;
+    final stub = Applicant(
+      id: interview.applicationId,
+      jobPostingId: 0,
+      name: interview.applicantName,
+      email: '',
+      currentStage: Stage.interview,
+      createdAt: interview.startAt,
+    );
 
     Navigator.pushNamed(
       context,
       Routes.applicantDetail,
-      arguments: (applicant, interview.postingTitle),
+      arguments: (stub, interview.postingTitle),
     );
   }
 

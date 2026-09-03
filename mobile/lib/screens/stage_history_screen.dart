@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../models/applicant.dart';
 import '../models/stage.dart';
 import '../models/stage_history.dart';
@@ -23,15 +22,18 @@ class StageHistoryScreen extends StatelessWidget {
     super.key,
     required this.applicant,
     required this.postingTitle,
+    required this.entries,
   });
 
   final Applicant applicant;
   final String postingTitle;
 
+  /// 상세가 이미 받아 온 것을 넘겨받는다 — 여기서 다시 부르면 같은 값을
+  /// 두 번 받는다 (큐 8 4단계, 2026-09-03)
+  final List<StageHistory> entries;
+
   @override
   Widget build(BuildContext context) {
-    final entries = mockStageHistory[applicant.id] ?? const <StageHistory>[];
-
     return Scaffold(
       appBar: const AppTopBar(title: '단계 이력', showBack: true),
       body: ListView(

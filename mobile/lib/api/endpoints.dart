@@ -48,8 +48,15 @@ abstract final class Endpoints {
   static String scheduleProposals(int id) =>
       '/applications/$id/schedule-proposals';
 
-  /// 확정된 면접만. 쿼리 `from`·`to`·`mine`
-  static const schedules = '/schedules';
+  /// 확정된 면접만. `from`·`to` 는 **날짜**(`2026-09-03`)다 — 시각을 붙이면
+  /// 서버가 안 받는다. `mine` 도 있지만 앱은 한 주를 받아 화면에서 거른다
+  static String schedules(DateTime from, DateTime to) =>
+      '/schedules?from=${_date(from)}&to=${_date(to)}';
+
+  static String _date(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   /// 내게 배정된 지원자 — 평가 대기 큐
   static String assignedApplications(int userId) =>

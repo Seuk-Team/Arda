@@ -17,6 +17,7 @@ import '../models/email_log.dart';
 import '../models/job_posting.dart';
 import '../models/evaluation.dart';
 import '../models/interview.dart';
+import '../models/team_member.dart';
 import '../models/stage.dart';
 import '../models/stage_history.dart';
 
@@ -612,26 +613,11 @@ Interview? mockInterviewFor(int applicationId, DateTime around) {
   return null;
 }
 
-/// 설정 · 사용자·권한 탭이 쓰는 팀 목록.
+/// 설정 · 사용자·권한 탭이 쓰던 팀 목록.
 ///
-/// 배포판 웹의 목록(`frontend/app/src/pages/Settings.tsx`)을 그대로 옮겼다 —
-/// 앱이 다른 사람을 보여 주면 같은 시스템으로 안 읽힌다.
-class TeamMember {
-  const TeamMember({
-    required this.name,
-    required this.email,
-    required this.role,
-    required this.active,
-  });
-
-  final String name;
-  final String email;
-  final UserRole role;
-
-  /// `users` 에 활성 플래그가 없어 화면 표시용으로만 둔다 — API 연동 때 정리한다
-  final bool active;
-}
-
+/// **화면은 이제 서버에서 받는다**(큐 8 4단계, 2026-09-03) — 이 목록은
+/// 테스트가 쓰는 값으로만 남는다. `TeamMember` 는 `models/team_member.dart` 로
+/// 옮겼다(진짜 데이터가 되었으므로 파서와 같은 자리에 있어야 한다).
 const mockTeam = <TeamMember>[
   TeamMember(
     name: '김채용',

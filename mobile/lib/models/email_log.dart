@@ -53,3 +53,38 @@ class EmailLog {
   final EmailActor actorKind;
   final DateTime createdAt;
 }
+
+/// 서버 응답 → 모델. `EmailLogOut`(backend/app/schemas/email.py).
+///
+/// `subject` 는 NULL 로 올 수 있다 — 단계 자동 발송은 보낼 때 렌더하므로
+/// 큐에 있는 동안에는 제목이 아직 없다. 그때는 단계 이름으로 대신한다.
+extension EmailLogJson on EmailLog {
+  static EmailLog fromJson(
+    Map<String, dynamic> json, {
+    required int applicationId,
+  }) => EmailLog(
+    id: json['id'] as int,
+    applicationId: applicationId,
+    subject:
+        json['subject'] as String? ?? _stageLabel(json['stage'] as String?),
+    status: EmailStatus.values.firstWhere(
+      (s) => s.value == json['status'],
+      // 모르는 상태는 대기로 둔다 — 발송으로 넘겨짚으면 안 간 것이 간 것처럼 보인다
+      orElse: () => EmailStatus.queued,
+    ),
+    actorKind: EmailActor.values.firstWhere(
+      (a) => a.value == json['actor_kind'],
+      orElse: () => EmailActor.system,
+    ),
+    createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+  );
+
+  /// 제목이 아직 없을 때 쓸 이름 — 메일 프리셋과 같은 문구다
+  static String _stageLabel(String? stage) => switch (stage) {
+    'applied' => '접수 확인',
+    'interview' => '면접 안내',
+    'accepted' => '최종 합격',
+    'rejected' => '불합격',
+    _ => '메일',
+  };
+}

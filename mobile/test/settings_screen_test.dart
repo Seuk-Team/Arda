@@ -8,7 +8,12 @@ import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Widget host({AppUser? user}) => MaterialApp(home: SettingsScreen(user: user));
+import 'fake_repos.dart';
+
+Widget host({AppUser? user}) => MaterialApp(
+  // 나머지 세 탭이 서버에서 받아 온다(큐 8 4단계) — 가짜를 물린다
+  home: SettingsScreen(user: user, repository: FakeSettingsRepository()),
+);
 
 Future<void> openTab(WidgetTester tester, SettingsTab tab) async {
   await tester.tap(find.text(tab.label));
@@ -59,7 +64,7 @@ void main() {
     // 비활성 계정은 목록 맨 아래다 — ListView 는 화면 밖 자식을 만들지 않는다
     await tester.dragUntilVisible(
       find.text('한도윤'),
-      find.byType(Scrollable).last,
+      find.byType(ListView).last,
       const Offset(0, -200),
     );
     await tester.pumpAndSettle();
@@ -77,15 +82,26 @@ void main() {
     expect(member.style!.color, AppColors.textSub);
   });
 
-  testWidgets('메일 템플릿 — 단계를 고르면 안내 문구가 따라 바뀐다', (tester) async {
+  testWidgets('메일 템플릿 — 서버 문구를 보여 준다 (큐 8 4단계, 2026-09-03)', (tester) async {
     await tester.pumpWidget(host());
     await openTab(tester, SettingsTab.mail);
 
-    expect(find.text('서류 검토 단계 메일 문구는 아직 확정 전입니다.'), findsOneWidget);
+    // 실제로 나가는 문구다 — 자동 발송도 이걸 쓴다
+    expect(find.text('[아르다] 지원서가 접수되었습니다'), findsOneWidget);
+    expect(find.text('기본 문구입니다. 고치려면 웹 설정에서 하세요.'), findsOneWidget);
+    expect(find.text('단계를 바꿀 때 자동으로 나가는 메일도 이 문구를 씁니다.'), findsOneWidget);
+  });
 
-    await tester.tap(find.text('불합격'));
+  testWidgets('메일 템플릿 — 단계를 고르면 문구가 바뀌고 고친 사람이 보인다', (tester) async {
+    await tester.pumpWidget(host());
+    await openTab(tester, SettingsTab.mail);
+
+    await tester.tap(find.text('면접 안내'));
     await tester.pumpAndSettle();
-    expect(find.text('불합격 단계 메일 문구는 아직 확정 전입니다.'), findsOneWidget);
+
+    expect(find.text('[아르다] 면접 안내'), findsOneWidget);
+    // 기본 문구가 아니면 누가 고쳤는지가 붙는다 (`source: custom`)
+    expect(find.textContaining('김채용 님이 고친 문구입니다'), findsOneWidget);
   });
 
   testWidgets('면접 가능 시간 — 비어 있음 문구는 배포판 그대로', (tester) async {

@@ -11,6 +11,12 @@ import 'package:arda/data/posting_repository.dart';
 import 'package:arda/models/applicant.dart';
 import 'package:arda/models/evaluation.dart';
 import 'package:arda/models/job_posting.dart';
+import 'package:arda/models/team_member.dart';
+import 'package:arda/models/mail_template.dart';
+import 'package:arda/models/interview.dart';
+import 'package:arda/models/availability.dart';
+import 'package:arda/data/settings_repository.dart';
+import 'package:arda/data/schedule_repository.dart';
 
 class FakePostingRepository implements PostingRepository {
   FakePostingRepository({
@@ -132,6 +138,8 @@ class FakeApplicantRepository implements ApplicantRepository {
     this.evaluationSummary,
     this.writeError,
     this.mailPreviewText,
+    this.fileUrl,
+    this.fileError,
   });
 
   final List<Applicant>? applicants;
@@ -146,6 +154,15 @@ class FakeApplicantRepository implements ApplicantRepository {
 
   /// 메일 프리필로 돌려줄 (제목, 본문). 안 주면 기본값 (2026-09-03)
   final (String, String)? mailPreviewText;
+
+  /// 첨부 열기가 돌려줄 주소. 안 주면 기본값 (2026-09-03)
+  final String? fileUrl;
+
+  /// 주면 첨부 주소 받기만 이걸로 실패한다 — 상세는 정상인 상황
+  final Object? fileError;
+
+  /// 어느 파일의 주소를 물었는지
+  int? askedFileId;
 
   /// 메일 발송으로 보낸 값 — **받는 사람은 안 보낸다**(서버가 고정한다)
   String? sentSubject;
@@ -195,6 +212,20 @@ class FakeApplicantRepository implements ApplicantRepository {
   }
 
   @override
+  Future<({String url, String filename})> fileDownloadUrl(int fileId) async {
+    askedFileId = fileId;
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    // 상세는 정상인데 첨부 주소만 실패하는 경우를 따로 만든다
+    if (fileError != null) throw fileError!;
+    if (error != null) throw error!;
+
+    return (
+      url: fileUrl ?? 'https://example.com/signed/$fileId.pdf',
+      filename: 'x.pdf',
+    );
+  }
+
+  @override
   Future<({String subject, String body})> mailPreview(
     int id,
     String stage,
@@ -241,9 +272,87 @@ class FakeApplicantRepository implements ApplicantRepository {
       stageHistory: mockStageHistory[id] ?? const [],
       evaluations: mockEvaluations[id]?.items ?? const [],
       notes: mockNotes[id] ?? const [],
+      emails: mockEmailLogs[id] ?? const [],
       files: mockFiles[id] ?? const [],
       avgScore: mockEvaluations[id]?.avgScore,
     );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 면접 일정 — 목데이터를 그대로 돌려준다 (큐 8 4단계, 2026-09-03).
+class FakeScheduleRepository implements ScheduleRepository {
+  FakeScheduleRepository({this.items, this.error, this.delay = Duration.zero});
+
+  /// 안 주면 목데이터에서 그 주를 뽑아 준다
+  final List<Interview>? items;
+  final Object? error;
+  final Duration delay;
+
+  @override
+  Future<List<Interview>> between(DateTime from, DateTime to) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (error != null) throw error!;
+
+    if (items != null) return items!;
+    // 목데이터의 주간 묶음을 한 줄로 편다 — 서버가 주는 모양과 같다
+    return [for (final list in mockInterviewsInWeek(from).values) ...list];
+  }
+
+  @override
+  Future<List<Interview>> week(DateTime anchor) => between(anchor, anchor);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 설정 세 탭이 읽는 것들 — 목데이터 그대로.
+class FakeSettingsRepository implements SettingsRepository {
+  FakeSettingsRepository({
+    this.members,
+    this.mailTemplates,
+    this.slots,
+    this.error,
+  });
+
+  final List<TeamMember>? members;
+  final List<MailTemplate>? mailTemplates;
+  final List<Availability>? slots;
+  final Object? error;
+
+  @override
+  Future<List<TeamMember>> users() async {
+    if (error != null) throw error!;
+    return members ?? mockTeam;
+  }
+
+  @override
+  Future<List<MailTemplate>> templates() async {
+    if (error != null) throw error!;
+    return mailTemplates ??
+        const [
+          MailTemplate(
+            stage: 'applied',
+            subject: '[아르다] 지원서가 접수되었습니다',
+            body: '홍길동 님, 안녕하세요.',
+            isDefault: true,
+          ),
+          MailTemplate(
+            stage: 'interview',
+            subject: '[아르다] 면접 안내',
+            body: '면접 일시: …',
+            isDefault: false,
+            updatedByName: '김채용',
+          ),
+        ];
+  }
+
+  @override
+  Future<List<Availability>> availability(int userId) async {
+    if (error != null) throw error!;
+    return slots ?? const [];
   }
 
   @override

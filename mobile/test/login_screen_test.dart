@@ -41,6 +41,8 @@ void main() {
     repositories: Repositories(
       postings: FakePostingRepository(),
       applicants: FakeApplicantRepository(),
+      // 캘린더 탭도 셸과 함께 만들어져 곧바로 서버를 부른다 (큐 8 4단계)
+      schedules: FakeScheduleRepository(),
     ),
   );
 

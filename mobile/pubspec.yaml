@@ -44,6 +44,11 @@ dependencies:
   # flutter_secure_storage: 토큰 보관. shared_preferences 는 평문이라 쓰지 않는다 —
   # Android 는 Keystore 에 넣는다. 12시간짜리 토큰이라도 남의 계정이다.
   flutter_secure_storage: ^9.2.2
+  #
+  # url_launcher: 이력서·자기소개서를 브라우저로 넘긴다 (큐 8 4단계, 2026-09-03).
+  # 서버가 presigned URL 을 주고 앱은 그것만 연다 — 앱 안에서 보려면 PDF 렌더러가
+  # 또 필요하고 이미지·docx 는 각각 다르다. 웹도 presigned URL 을 그냥 연다.
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

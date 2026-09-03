@@ -14,14 +14,21 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../data/mock_data.dart';
 import '../api/api_error.dart';
 import '../auth/auth_service.dart';
+import '../auth/authed_client.dart';
 import '../auth/current_user.dart';
 import '../auth/logout.dart';
+import '../data/mock_data.dart';
+import '../data/settings_repository.dart';
 import '../models/app_user.dart';
+import '../models/availability.dart';
+import '../models/mail_template.dart';
+import '../models/team_member.dart';
 import '../theme/tokens.dart';
+import '../utils/format.dart';
 import '../widgets/app_top_bar.dart';
+import '../widgets/async_view.dart';
 
 /// 배포판 웹과 같은 탭 구성·순서.
 enum SettingsTab {
@@ -36,12 +43,15 @@ enum SettingsTab {
 }
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, this.user, this.auth});
+  const SettingsScreen({super.key, this.user, this.auth, this.repository});
 
   final AppUser? user;
 
   /// 테스트가 가짜를 넣는 자리 (큐 8)
   final AuthService? auth;
+
+  /// 나머지 세 탭이 읽는 것들 (큐 8 4단계)
+  final SettingsRepository? repository;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -49,6 +59,9 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   SettingsTab _tab = SettingsTab.account;
+
+  late final SettingsRepository _repo =
+      widget.repository ?? SettingsRepository(authedClient());
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +76,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Expanded(
             child: switch (_tab) {
               SettingsTab.account => _Account(user: me, auth: widget.auth),
-              SettingsTab.users => const _Users(),
-              SettingsTab.mail => const _Mail(),
-              SettingsTab.availability => const _Availability(),
+              SettingsTab.users => _Users(repository: _repo),
+              SettingsTab.mail => _Mail(repository: _repo),
+              // 내 것만 본다 — 남의 가용 시간은 이 화면이 볼 자리가 아니다
+              SettingsTab.availability => _Availability(
+                repository: _repo,
+                userId: me.id,
+              ),
             },
           ),
         ],
@@ -561,21 +578,31 @@ class _LogoutButton extends StatelessWidget {
 
 /// 사용자·권한 — 웹은 표, 앱은 카드(§9 "테이블은 카드형").
 class _Users extends StatelessWidget {
-  const _Users();
+  const _Users({required this.repository});
+
+  final SettingsRepository repository;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpace.s4),
-      children: [
-        const Align(
-          alignment: Alignment.centerRight,
-          child: _LockedButton('사용자 추가'),
-        ),
-        const SizedBox(height: AppSpace.s3),
-        for (final u in mockTeam) _UserCard(user: u),
-        const _Note('계정 생성·권한 변경은 admin 전용이고, 아직 앱에서 호출하지 않는다.'),
-      ],
+    return _Section<List<TeamMember>>(
+      load: repository.users,
+      emptyMessage: '등록된 사용자가 없습니다.',
+      builder: (users) => ListView(
+        padding: const EdgeInsets.all(AppSpace.s4),
+        children: [
+          const Align(
+            alignment: Alignment.centerRight,
+            child: _LockedButton('사용자 추가'),
+          ),
+          const SizedBox(height: AppSpace.s3),
+          // 비활성 계정은 맨 아래로 — 지금 일하는 사람이 위에 있어야 한다
+          for (final u in [
+            ...users,
+          ]..sort((a, b) => a.active == b.active ? 0 : (a.active ? -1 : 1)))
+            _UserCard(user: u),
+          const _Note('계정 생성·권한 변경은 admin 전용이라 앱에서는 보기만 합니다.'),
+        ],
+      ),
     );
   }
 }
@@ -659,7 +686,9 @@ class _UserCard extends StatelessWidget {
 
 /// 메일 템플릿 — 단계 고르기 + 제목·본문. 배포판처럼 문구는 아직 비어 있다.
 class _Mail extends StatefulWidget {
-  const _Mail();
+  const _Mail({required this.repository});
+
+  final SettingsRepository repository;
 
   @override
   State<_Mail> createState() => _MailState();
@@ -668,37 +697,48 @@ class _Mail extends StatefulWidget {
 class _MailState extends State<_Mail> {
   int _picked = 0;
 
-  /// 메일이 나가는 단계 — `StageTransitions.notifyStages` 와 같은 구성이다
-  static const _stages = ['서류 검토', '면접', '최종 합격', '불합격'];
-
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpace.s4),
-      children: [
-        SizedBox(
-          height: AppLayout.minTouchTarget,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _stages.length,
-            separatorBuilder: (_, _) => const SizedBox(width: AppSpace.s2),
-            itemBuilder: (_, i) => _StagePill(
-              label: _stages[i],
-              selected: i == _picked,
-              onTap: () => setState(() => _picked = i),
+    return _Section<List<MailTemplate>>(
+      load: widget.repository.templates,
+      emptyMessage: '등록된 문구가 없습니다.',
+      builder: (templates) {
+        // 받아 온 순서가 바뀌어도 고른 자리가 어긋나지 않게 잘라 둔다
+        final picked = templates[_picked.clamp(0, templates.length - 1)];
+
+        return ListView(
+          padding: const EdgeInsets.all(AppSpace.s4),
+          children: [
+            SizedBox(
+              height: AppLayout.minTouchTarget,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: templates.length,
+                separatorBuilder: (_, _) => const SizedBox(width: AppSpace.s2),
+                itemBuilder: (_, i) => _StagePill(
+                  label: templates[i].label,
+                  selected: i == _picked,
+                  onTap: () => setState(() => _picked = i),
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: AppSpace.s4),
-        const _LockedField(label: '제목', value: '(문구 작성 중)'),
-        const _LockedField(label: '본문', value: '(문구 작성 중)', lines: 6),
-        _Note('${_stages[_picked]} 단계 메일 문구는 아직 확정 전입니다.'),
-        const SizedBox(height: AppSpace.s4),
-        const Align(
-          alignment: Alignment.centerRight,
-          child: _LockedButton('저장'),
-        ),
-      ],
+            const SizedBox(height: AppSpace.s4),
+
+            // **읽기만 한다.** 고치면 이후 모든 지원자에게 나가는 문구가 바뀌고,
+            // 폰에서 여러 줄 본문을 고치는 것은 실수하기 쉽다 — 웹에서 한다
+            _LockedField(label: '제목', value: picked.subject),
+            _LockedField(label: '본문', value: picked.body, lines: 10),
+            _Note(
+              picked.isDefault
+                  ? '기본 문구입니다. 고치려면 웹 설정에서 하세요.'
+                  : '${picked.updatedByName ?? '누군가'} 님이 고친 문구입니다. '
+                        '고치려면 웹 설정에서 하세요.',
+            ),
+            const SizedBox(height: AppSpace.s3),
+            const _Note('단계를 바꿀 때 자동으로 나가는 메일도 이 문구를 씁니다.'),
+          ],
+        );
+      },
     );
   }
 }
@@ -755,40 +795,96 @@ class _StagePill extends StatelessWidget {
 }
 
 /// 면접 가능 시간 — 등록한 시간대에서 담당자가 후보 시간을 만든다.
+///
+/// **읽기만 한다** (큐 8 4단계). 등록은 시작·종료를 고르는 시간 구간 UI 가
+/// 따로 필요해서 이번 범위 밖이다.
 class _Availability extends StatelessWidget {
-  const _Availability();
+  const _Availability({required this.repository, required this.userId});
+
+  final SettingsRepository repository;
+
+  /// 내 것만 본다 — 남의 가용 시간은 이 화면이 볼 자리가 아니다
+  final int userId;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpace.s4),
-      children: [
-        const _Note(
-          '등록한 시간대에서 담당자가 면접 후보 시간을 만들어 지원자에게 보냅니다. '
-          '비워 두면 제안을 만들 수 없습니다.',
-        ),
-        const SizedBox(height: AppSpace.s4),
-        const _LockedField(label: '시작', value: '연도-월-일 --:--'),
-        const _LockedField(label: '종료', value: '연도-월-일 --:--'),
-        const Align(
-          alignment: Alignment.centerRight,
-          child: _LockedButton('추가'),
-        ),
-        const SizedBox(height: AppSpace.s5),
-        const Center(
-          child: Text(
-            // 배포판과 같은 문구
-            '등록된 가능 시간이 없습니다.',
-            style: TextStyle(
-              fontFamily: AppType.fontFamily,
-              fontSize: AppType.sm,
-              color: AppColors.textSub,
-            ),
+    return _Section<List<Availability>>(
+      load: () => repository.availability(userId),
+      // 비어도 안내 문구는 남아야 한다 — 왜 비면 안 되는지가 그 문구에 있다
+      emptyMessage: '',
+      hideWhenEmpty: false,
+      builder: (slots) => ListView(
+        padding: const EdgeInsets.all(AppSpace.s4),
+        children: [
+          const _Note(
+            '등록한 시간대에서 담당자가 면접 후보 시간을 만들어 지원자에게 보냅니다. '
+            '비워 두면 제안을 만들 수 없습니다. 추가·삭제는 웹 설정에서 하세요.',
           ),
-        ),
-      ],
+          const SizedBox(height: AppSpace.s4),
+          if (slots.isEmpty)
+            const Center(
+              child: Text(
+                // 배포판과 같은 문구
+                '등록된 가능 시간이 없습니다.',
+                style: TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.sm,
+                  color: AppColors.textSub,
+                ),
+              ),
+            )
+          else
+            for (final s in slots)
+              _LockedField(
+                label: formatDate(s.startAt),
+                value: '${formatTime(s.startAt)} – ${formatTime(s.endAt)}',
+              ),
+        ],
+      ),
     );
   }
+}
+
+/// 탭 하나가 서버에서 받아 그리는 틀 — 세 탭이 같은 모양이라 한 번만 쓴다.
+///
+/// [AsyncView] 를 그대로 쓰되 **탭마다 Future 를 한 번만 만든다** — `build`
+/// 안에서 만들면 다시 그릴 때마다 새 요청이 나간다.
+class _Section<T> extends StatefulWidget {
+  const _Section({
+    required this.load,
+    required this.builder,
+    required this.emptyMessage,
+    this.hideWhenEmpty = true,
+  });
+
+  final Future<T> Function() load;
+  final Widget Function(T) builder;
+  final String emptyMessage;
+
+  /// 비면 [emptyMessage] 만 그릴지. false 면 **비어도 [builder] 를 부른다** —
+  /// 면접 가능 시간은 비었을 때도 "왜 비면 안 되는지" 를 적어야 한다
+  final bool hideWhenEmpty;
+
+  @override
+  State<_Section<T>> createState() => _SectionState<T>();
+}
+
+class _SectionState<T> extends State<_Section<T>> {
+  late Future<T> _future = _load();
+
+  /// `ignore()` 이유는 postings_screen.dart 참고
+  Future<T> _load() => widget.load()..ignore();
+
+  @override
+  Widget build(BuildContext context) => AsyncView<T>(
+    future: _future,
+    onRetry: () => setState(() {
+      _future = _load();
+    }),
+    emptyMessage: widget.emptyMessage,
+    isEmpty: (v) => widget.hideWhenEmpty && v is List && v.isEmpty,
+    builder: (context, value) => widget.builder(value),
+  );
 }
 
 /// 잠긴 입력칸 — 05-design §4 인풋은 sunken. 값은 보조색으로 둬서

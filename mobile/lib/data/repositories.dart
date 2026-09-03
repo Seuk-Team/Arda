@@ -12,12 +12,16 @@ import 'package:flutter/widgets.dart';
 
 import 'applicant_repository.dart';
 import 'posting_repository.dart';
+import 'schedule_repository.dart';
 
 class Repositories {
-  const Repositories({this.postings, this.applicants});
+  const Repositories({this.postings, this.applicants, this.schedules});
 
   final PostingRepository? postings;
   final ApplicantRepository? applicants;
+
+  /// 캘린더·대시보드가 쓴다 (큐 8 4단계, 2026-09-03)
+  final ScheduleRepository? schedules;
 }
 
 class RepositoryScope extends InheritedWidget {

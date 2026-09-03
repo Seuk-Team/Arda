@@ -12,6 +12,7 @@ import '../models/applicant.dart';
 import '../models/stage.dart';
 import '../models/application_note.dart';
 import '../models/applicant_file.dart';
+import '../models/email_log.dart';
 import '../models/evaluation.dart';
 import '../models/stage_history.dart';
 
@@ -23,6 +24,7 @@ class ApplicantDetail {
     required this.evaluations,
     required this.notes,
     required this.files,
+    this.emails = const [],
     this.avgScore,
   });
 
@@ -34,6 +36,9 @@ class ApplicantDetail {
   final List<Evaluation> evaluations;
   final List<ApplicationNote> notes;
   final List<ApplicantFile> files;
+
+  /// 메일 이력 — **상세 응답에 없다.** 따로 받아 붙인다 (큐 8 4단계)
+  final List<EmailLog> emails;
 
   /// 평가 평균. 평가가 없으면 null — **0.0 이 아니다**(D1 지시서).
   /// "0.0" 은 나쁜 평가를 받은 것처럼 읽힌다
@@ -58,12 +63,14 @@ class ApplicantRepository {
     ];
   }
 
-  /// 상세 — 화면 하나에 **요청 둘**이다.
+  /// 상세 — 화면 하나에 **요청 셋**이다.
   ///
   /// `GET /applications/{id}` 하나로 상세·이력·평가·메모·첨부가 다 오지만,
   /// 거기 박혀 오는 **메모에는 작성자 이름이 없다**(`author_id` 뿐). 전용
   /// 엔드포인트는 `author_name` 을 주므로 메모만 한 번 더 받는다 —
   /// "이서연 · 08.21" 과 "알 수 없음 · 08.21" 은 쓸모가 다르다.
+  ///
+  /// **메일 이력은 상세 응답에 아예 없어** 세 번째 요청이 된다 (큐 8 4단계).
   ///
   /// 평가·이력도 이름이 없지만 **전용 엔드포인트도 마찬가지**라 더 부를 이유가
   /// 없다. 그쪽은 이름 없이 그린다 (2026-09-02 실측).
@@ -83,6 +90,20 @@ class ApplicantRepository {
       notes = const [];
     }
 
+    // 메일 이력도 상세 응답에 없다(`ApplicationDetail` 에 emails 가 없다).
+    // 같은 이유로 따로 받고 실패하면 비운다 — 이력 하나 때문에 화면 전체가
+    // 오류가 되면 안 된다
+    var emails = <EmailLog>[];
+    try {
+      final res = await _client.get(Endpoints.applicationEmails(id));
+      emails = [
+        for (final e in (res['items'] as List? ?? const []))
+          EmailLogJson.fromJson(e as Map<String, dynamic>, applicationId: id),
+      ];
+    } on Exception {
+      emails = const [];
+    }
+
     List<T> children<T>(String key, T Function(Map<String, dynamic>) parse) => [
       for (final item in (json[key] as List? ?? const []))
         parse(item as Map<String, dynamic>),
@@ -100,6 +121,7 @@ class ApplicantRepository {
         (m) => EvaluationJson.fromJson(m, applicationId: id),
       ),
       notes: notes,
+      emails: emails,
       files: children(
         'files',
         (m) => ApplicantFileJson.fromJson(m, applicationId: id),
@@ -165,6 +187,21 @@ class ApplicantRepository {
         // "코멘트를 안 썼다" 와 "빈 줄을 썼다" 가 구별되지 않는다
         body: {'score': score, 'comment': comment},
       );
+
+  /// 첨부 파일 열기용 주소 — `GET /files/{id}/presign-download`.
+  ///
+  /// S3 가 서명한 임시 URL 이라 **유효 시간이 있다**(`expires_in`). 미리 받아
+  /// 두면 누를 때쯤 만료되므로 **누를 때마다 새로 받는다.**
+  ///
+  /// 앱은 이 주소를 브라우저로 넘기기만 한다 — 앱 안에서 보려면 PDF 렌더러가
+  /// 또 필요하고 이미지·docx 는 각각 다르다. 웹도 그냥 연다.
+  Future<({String url, String filename})> fileDownloadUrl(int fileId) async {
+    final json = await _client.get(Endpoints.fileDownload(fileId));
+    return (
+      url: json['download_url'] as String,
+      filename: json['filename'] as String? ?? '',
+    );
+  }
 
   /// 메일 프리필 — `GET /applications/{id}/emails/preview?stage=`.
   ///
