@@ -22,8 +22,8 @@
 
 /* 드롭 영역 표시 (§6) */
 .colOver {
-  background: var(--sprout-soft);
-  border-color: var(--sprout);
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .colHead {
@@ -103,7 +103,7 @@
   cursor: pointer;
 }
 
-.move:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+.move:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
 .move:disabled { cursor: not-allowed; }
 
 .empty,

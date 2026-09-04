@@ -54,7 +54,7 @@
 .go {
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--leaf);
+  color: var(--accent-text);
   white-space: nowrap;
 }
 
@@ -152,12 +152,12 @@
 
 .stripCell:hover { background: var(--bg-sunken); }
 .stripCell:active { background: var(--sunken-hover); }
-.stripCell:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.stripCell:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 
 /* 고른 날 — 아래 목록이 어느 칸의 것인지 (캘린더 화면 .selected 와 같은 표시) */
 .stripSel {
   background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 2px var(--leaf);
+  box-shadow: inset 0 0 0 2px var(--accent-text);
 }
 
 .stripSel:hover { background: var(--bg-sunken); }
@@ -195,8 +195,8 @@
 .stripToday .stripDot { background: var(--accent); }
 
 .stripToday .stripDate {
-  background: var(--sprout-soft);
-  color: var(--leaf);
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -242,7 +242,7 @@
 
 .calRow:hover { background: var(--bg-sunken); }
 .calRow:active { background: var(--sunken-hover); }
-.calRow:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.calRow:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 
 .calRow + .calRow { border-top: var(--border-w) solid var(--border-soft); }
 
@@ -348,12 +348,12 @@
 }
 
 .vtoggle button:hover { background: var(--bg-sunken); }
-.vtoggle button:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.vtoggle button:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 .vtoggle button + button { border-left: var(--border-w) solid var(--border); }
 
 .vOn {
-  background: var(--sprout-soft) !important;
-  color: var(--leaf) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent-text) !important;
   text-shadow: var(--ts-heading);
 }
 
@@ -374,7 +374,7 @@
   background: var(--neutral);
 }
 
-.dotPass { background: var(--sprout); }
+.dotPass { background: var(--accent); }
 
 .groupLabel {
   font-size: var(--font-sm);
@@ -383,7 +383,7 @@
   white-space: nowrap;
 }
 
-.groupLabelPass { color: var(--leaf); }
+.groupLabelPass { color: var(--accent-text); }
 
 .groupCount {
   font-size: var(--font-caption);
@@ -420,7 +420,7 @@
 
 .row:hover { background: var(--bg-sunken); }
 .row:active { background: var(--sunken-hover); }
-.row:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.row:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 
 .rowName {
   flex: none;
@@ -468,9 +468,9 @@
 }
 
 .chipConfirmed {
-  background: var(--sprout-soft);
-  color: var(--leaf);
-  border: var(--border-w) solid var(--sprout);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border: var(--border-w) solid var(--accent);
 }
 
 .chipNeutral {
@@ -488,7 +488,7 @@
   text-align: right;
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--leaf);
+  color: var(--accent-text);
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
@@ -526,8 +526,8 @@
   transition: border-color var(--dur-fast) var(--ease);
 }
 
-.kcard:hover { border-color: var(--sprout); }
-.kcard:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+.kcard:hover { border-color: var(--accent); }
+.kcard:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
 
 .kcardName {
   font-size: var(--font-sm);
@@ -557,7 +557,7 @@
   text-align: right;
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--leaf);
+  color: var(--accent-text);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -662,7 +662,7 @@
   color: var(--text);
 }
 
-.countPass b { color: var(--leaf); }
+.countPass b { color: var(--accent-text); }
 
 .postingDday {
   font-size: var(--font-num);
@@ -974,7 +974,7 @@
     grid-row: 1 / span 2;
     align-self: center;
     min-width: unset;
-    color: var(--leaf);
+    color: var(--accent-text);
     font-weight: 700;
     font-size: var(--font-num);
   }

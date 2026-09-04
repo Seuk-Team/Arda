@@ -81,7 +81,7 @@
 
 .slotChip:hover { background: var(--sunken-hover); }
 .slotChip:active { background: var(--bg-elev); }
-.slotChip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.slotChip:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .dayToday {
   margin-left: var(--sp-3);
@@ -157,7 +157,7 @@
 }
 
 .ddBtn:hover { background: var(--bg-sunken); }
-.ddBtn:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.ddBtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .ddBtn svg {
   width: 12px;
@@ -212,16 +212,16 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.ddMenu li:hover { background: var(--sprout-soft); }
+.ddMenu li:hover { background: var(--accent-soft); }
 .ddMenu li:active { background: var(--sunken-hover); }
-.ddSel { color: var(--leaf); font-weight: 700; }
+.ddSel { color: var(--accent-text); font-weight: 700; }
 
 /* 고른 것을 색·굵기로만 알리지 않는다 (§10). 빈 칸도 자리를 지켜 글자가 안 흔들린다 */
 .ddMark {
   flex: none;
   width: var(--sp-3);
   text-align: center;
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 /* 여러 개 골랐을 때만 나오는 한 번에 지우기 */
@@ -233,7 +233,7 @@
   font-family: inherit;
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--leaf);
+  color: var(--accent-text);
   white-space: nowrap;
   cursor: pointer;
   border-radius: var(--r-ctl);
@@ -242,7 +242,7 @@
 
 .slotClear:hover { background: var(--bg-sunken); }
 .slotClear:active { background: var(--sunken-hover); }
-.slotClear:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.slotClear:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* 내 면접만 — pill 토글 버튼 */
 .mine {
@@ -265,9 +265,9 @@
 .mine:hover { background: var(--bg-sunken); }
 
 .mineOn {
-  background: var(--sprout-soft);
-  border-color: var(--leaf);
-  color: var(--leaf);
+  background: var(--accent-soft);
+  border-color: var(--accent-text);
+  color: var(--accent-text);
 }
 
 /* ‹ 날짜 › 묶음 */
@@ -341,7 +341,7 @@
 }
 
 .cell:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 
@@ -369,15 +369,15 @@
 
 /* 오늘 강조 — 연두 워시 + 잎초록 글자 (대비 확보) */
 .today .date {
-  background: var(--sprout-soft);
-  color: var(--leaf);
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
 /* 고른 날 — 목록에 펼쳐진 날이 어느 칸인지 */
 .selected {
   background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 2px var(--leaf);
+  box-shadow: inset 0 0 0 2px var(--accent-text);
 }
 
 .selected:hover {
@@ -525,7 +525,7 @@
 
 .iv:hover { background: var(--bg-sunken); }
 .iv:active { background: var(--sunken-hover); }
-.iv:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.iv:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 
 /* 누르면 공고를 알아내는 동안 잠긴다 — 멈춘 게 아니라 가는 중임을 커서로 말한다 */
 .iv:disabled {
@@ -540,7 +540,7 @@
   font-weight: 700;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--leaf);
+  color: var(--accent-text);
   white-space: nowrap;
 }
 
@@ -639,7 +639,7 @@
   }
 
   .selected:hover {
-    background: var(--leaf-strong);
+    background: var(--accent-hover);
   }
 
   .selected .date {

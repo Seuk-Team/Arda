@@ -159,7 +159,7 @@ h1, h2, h3 { text-wrap: balance; }
   white-space: nowrap;
 }
 .badge-open {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
   color: var(--accent-text);
   border: var(--border-w) solid rgba(34, 211, 238, .30);
 }

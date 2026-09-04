@@ -44,13 +44,10 @@
   --accent-fill: #FFFFFF;
   --accent-fill-hover: #E4E9F7;
   --on-accent: #0A1020;
-
-  /* 옛 이름 — --accent 계열로의 rename 은 별도 커밋.
-     sprout = 채움·레일, leaf = 글자·테두리·아웃라인 이었던 역할을 그대로 잇는다 */
-  --sprout: var(--accent);
-  --sprout-soft: rgba(34, 211, 238, .13);
-  --leaf: var(--accent-text);
-  --leaf-strong: #BAE6FD;
+  /* 시안 채움 위의 hover — 한 톤 밝게. 글자가 아니라 배경으로 쓰인다 */
+  --accent-hover: #BAE6FD;
+  /* 시안 워시 — 합격 뱃지 배경·활성 메뉴 판·hover 채움 */
+  --accent-soft: rgba(34, 211, 238, .13);
 
   /* 판단 전(접수·서류·면접) 공용 — "색 없음"이 의미 */
   --neutral: #7D8CA8;

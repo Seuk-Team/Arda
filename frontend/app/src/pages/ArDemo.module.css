@@ -37,7 +37,7 @@
   white-space: nowrap;
   transition: background var(--dur-fast) var(--ease);
 }
-.btn:hover { background: var(--sprout-soft); }
+.btn:hover { background: var(--accent-soft); }
 .btn.on {
   background: var(--accent);
   color: var(--on-accent);

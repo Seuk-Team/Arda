@@ -28,7 +28,7 @@
 }
 
 .seed {
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 .posting {
@@ -84,7 +84,7 @@
 .seq {
   font-size: var(--font-caption);
   font-weight: 700;
-  color: var(--leaf);
+  color: var(--accent-text);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -116,9 +116,9 @@
 }
 
 .answerInput:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
   background: var(--bg-elev);
 }
 

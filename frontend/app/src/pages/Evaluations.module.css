@@ -76,14 +76,14 @@
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 
 /* 어느 행이 패널에 열려 있는지 목록에서 보이게 한다 */
 .cur,
 .cur:hover {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
 }
 
 .name {
@@ -375,9 +375,9 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .actions {
@@ -545,7 +545,7 @@
 
   .scoreBarFill {
     height: 100%;
-    background: var(--sprout);
+    background: var(--accent);
     border-radius: 2px;
   }
 

@@ -119,11 +119,11 @@
   }
 
   .sheetLink[aria-current='page'] {
-    color: var(--leaf);
+    color: var(--accent-text);
   }
 
   .sheetLink[aria-current='page'] svg {
-    color: var(--leaf);
+    color: var(--accent-text);
   }
 
   .sheetLogout {

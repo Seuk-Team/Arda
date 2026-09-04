@@ -68,7 +68,7 @@
 .chev {
   font-size: var(--font-h2);
   line-height: 1;
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 .head {
@@ -158,7 +158,7 @@
 }
 
 .seed {
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 .msgs {
@@ -247,7 +247,7 @@
 
 .msgMe {
   align-self: flex-end;
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
   color: var(--text);
 }
 
@@ -267,13 +267,13 @@
 }
 
 .confirmedCard {
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .confirmedTitle {
   font-size: var(--font-h2);
   font-weight: 700;
-  color: var(--leaf);
+  color: var(--accent-text);
   text-shadow: var(--ts-heading);
   margin: 0;
 }
@@ -315,11 +315,11 @@
 }
 
 .slot:hover {
-  border-color: var(--sprout);
+  border-color: var(--accent);
 }
 
 .slot:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
 }
 
@@ -329,8 +329,8 @@
 }
 
 .slotPicked {
-  border-color: var(--leaf);
-  background: var(--sprout-soft);
+  border-color: var(--accent-text);
+  background: var(--accent-soft);
   font-weight: 700;
 }
 
@@ -381,6 +381,6 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
 }

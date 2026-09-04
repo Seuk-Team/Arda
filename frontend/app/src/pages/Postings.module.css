@@ -129,7 +129,7 @@
 
 .cardSub {
   font-size: var(--font-caption);
-  color: var(--leaf);
+  color: var(--accent-text);
   margin: 0;
 }
 

@@ -28,7 +28,7 @@
 }
 
 .seed {
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 .posting {
@@ -122,7 +122,7 @@
   display: inline-block;
   min-width: 1.5em;
   font-weight: 700;
-  color: var(--leaf);
+  color: var(--accent-text);
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
@@ -162,14 +162,14 @@
 }
 
 .opt:focus-within {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 
 .optOn {
-  background: var(--sprout-soft);
-  border-color: var(--leaf);
-  color: var(--leaf);
+  background: var(--accent-soft);
+  border-color: var(--accent-text);
+  color: var(--accent-text);
   font-weight: 700;
 }
 

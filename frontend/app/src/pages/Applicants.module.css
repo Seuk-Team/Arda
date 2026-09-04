@@ -39,7 +39,7 @@
 
 .search:focus-within {
   background: var(--bg-elev);
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .search input {
@@ -162,11 +162,11 @@
 }
 
 .ddMenu li:hover {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
 }
 
 .ddSel {
-  color: var(--leaf);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -238,11 +238,11 @@
 /* 상세 패널에 열려 있는 행 — 공고의 지원자 화면과 같은 표시 */
 .cur,
 .cur:hover {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 
@@ -272,7 +272,7 @@
 }
 
 .stageAccepted {
-  color: var(--leaf);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -339,7 +339,7 @@
 }
 
 .pageCur:hover:not(:disabled) {
-  background: var(--leaf-strong);
+  background: var(--accent-hover);
 }
 
 /* ── 모바일 툴바 ─────────────────────────────────── */
@@ -370,7 +370,7 @@
 
 .mobileSearch:focus-within {
   background: var(--bg-elev);
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .searchIcon {
@@ -423,9 +423,9 @@
 .pill:hover { background: var(--bg-sunken); }
 
 .pillOn {
-  background: var(--sprout-soft);
-  color: var(--leaf);
-  border-color: var(--sprout);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent);
   font-weight: 700;
 }
 
@@ -461,8 +461,8 @@
 
 .appCard:hover { background: var(--bg-sunken); }
 
-.appCardCur { background: var(--sprout-soft); }
-.appCardCur:hover { background: var(--sprout-soft); }
+.appCardCur { background: var(--accent-soft); }
+.appCardCur:hover { background: var(--accent-soft); }
 
 .appCardTop {
   display: flex;
@@ -488,7 +488,7 @@
 
 .appMeta {
   font-size: var(--font-caption);
-  color: var(--leaf);
+  color: var(--accent-text);
   margin: 0;
   font-variant-numeric: tabular-nums;
 }

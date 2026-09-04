@@ -49,7 +49,7 @@
 
 .back:hover { background: var(--bg-sunken); }
 .back:active { background: var(--sunken-hover); }
-.back:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.back:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .back svg {
   width: 20px;
@@ -87,9 +87,9 @@
 }
 
 .seg:hover { opacity: 0.75; }
-.seg:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.seg:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 /* 고른 단계는 남기고 나머지를 죽인다 — 색을 더 만들지 않고 대비로 표시한다 */
-.segOn { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.segOn { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .flabels {
   display: flex;
@@ -139,7 +139,7 @@
 
 .search:focus-within {
   background: var(--bg-elev);
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .search input {
@@ -176,7 +176,7 @@
 }
 
 .sx:hover { background: var(--bg-sunken); }
-.sx:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.sx:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .sx svg {
   width: 12px;
@@ -215,7 +215,7 @@
   white-space: nowrap;
 }
 
-.ddBtn:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.ddBtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .ddBtn svg {
   width: 12px;
@@ -265,8 +265,8 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.ddMenu li:hover { background: var(--sprout-soft); }
-.ddSel { color: var(--leaf); font-weight: 700; }
+.ddMenu li:hover { background: var(--accent-soft); }
+.ddSel { color: var(--accent-text); font-weight: 700; }
 
 /* 고른 단계를 알려 주고 해제까지 겸한다 (면접 일정 화면의 슬롯 칩과 같은 방식) */
 .chip {
@@ -288,7 +288,7 @@
 }
 
 .chip:hover { background: var(--sunken-hover); }
-.chip:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.chip:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* ── 목록/칸반 토글 ──────────────────────────────────── */
 .vtoggle {
@@ -314,7 +314,7 @@
 }
 
 .vtoggle button:hover:not(:disabled) { background: var(--bg-sunken); }
-.vtoggle button:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.vtoggle button:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 .vtoggle button + button { border-left: var(--border-w) solid var(--border); }
 
 .vtoggle button:disabled {
@@ -323,8 +323,8 @@
 }
 
 .vOn {
-  background: var(--sprout-soft) !important;
-  color: var(--leaf) !important;
+  background: var(--accent-soft) !important;
+  color: var(--accent-text) !important;
   text-shadow: var(--ts-heading);
 }
 
@@ -370,7 +370,7 @@
 }
 
 .item:hover { background: var(--bg); }
-.item:focus-visible { outline: 2px solid var(--leaf); outline-offset: -2px; }
+.item:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
 
 .name {
   font-size: var(--font-body);
@@ -395,7 +395,7 @@
 }
 
 .stageProgress { color: var(--text-sub); white-space: nowrap; }
-.stageAccepted { color: var(--leaf); font-weight: 700; white-space: nowrap; }
+.stageAccepted { color: var(--accent-text); font-weight: 700; white-space: nowrap; }
 .stageRejected { color: var(--danger); font-weight: 700; white-space: nowrap; }
 
 /* loading / empty / error 공용 자리 (§6) */
@@ -435,7 +435,7 @@
 }
 
 .page:hover:not(:disabled) { background: var(--bg-sunken); }
-.page:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.page:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .page:disabled {
   color: var(--text-sub);
@@ -443,10 +443,10 @@
 }
 
 .pageCur {
-  background: var(--sprout-soft);
-  color: var(--leaf);
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-weight: 700;
-  border-color: var(--sprout);
+  border-color: var(--accent);
 }
 
 /* 상세 패널이 열리면 옆에 나란히 (오버레이 아님, §9) */
@@ -471,8 +471,8 @@
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--content-x);
-  background: var(--sprout-soft);
-  border-bottom: var(--border-w) solid var(--sprout);
+  background: var(--accent-soft);
+  border-bottom: var(--border-w) solid var(--accent);
   font-size: var(--font-sm);
   color: var(--text);
 }
@@ -505,7 +505,7 @@
   color: var(--text);
 }
 
-.bulkReason input:focus-visible { outline: 2px solid var(--leaf); outline-offset: 1px; }
+.bulkReason input:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
 
 .bulkErr {
   width: 100%;
@@ -520,7 +520,7 @@
 }
 
 /* 패널에 물려 있는 행 — .vtoggle button.on 과 같은 연두 워시다. 새 색이 아니다 */
-.cur, .cur:hover { background: var(--sprout-soft); }
+.cur, .cur:hover { background: var(--accent-soft); }
 
 /* 일괄 변경 버튼 — 상세 패널의 단계 버튼과 같은 규격 */
 .btnStage,
@@ -540,7 +540,7 @@
 
 .btnStage:hover:not(:disabled) { background: var(--bg-sunken); }
 .btnStage:focus-visible,
-.btnReject:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.btnReject:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
 .btnReject { color: var(--danger); border-color: var(--danger); }

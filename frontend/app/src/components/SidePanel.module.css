@@ -189,7 +189,7 @@
 }
 
 .close:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 
@@ -215,7 +215,7 @@
 }
 
 .closeFloat:hover { background: var(--bg-sunken); }
-.closeFloat:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.closeFloat:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .closeFloat svg {
   width: 18px;
