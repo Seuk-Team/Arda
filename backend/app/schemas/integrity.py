@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AnchorItem(BaseModel):
@@ -40,7 +40,11 @@ class ApplicationIntegrityOut(BaseModel):
 
 
 class PublicationOut(BaseModel):
-    """사슬 머리를 공개 체인에 올린 거래 한 건 (ADR-0028 2단계)."""
+    """사슬 머리를 공개 체인에 올린 기록 한 건 (ADR-0028 2·3단계).
+
+    `network` 로 어디에 올렸는지 갈린다 — `polygon-amoy` 는 탐색기 링크가,
+    `opentimestamps` 는 증명 파일(`proof`)이 근거다.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -56,6 +60,25 @@ class PublicationOut(BaseModel):
     confirmed_at: datetime | None = None
     # 탐색기 링크. 발표에서 이걸 그대로 연다.
     explorer_url: str | None = None
+    # OTS 증명(base64). 폴리곤 행에서는 항상 None.
+    # **이것을 잃어버리면 다시 못 만든다** — 도장을 다시 찍어야 하고 시각이 밀린다.
+    proof: str | None = None
+
+
+class PublicationResultIn(BaseModel):
+    """밖(GitHub Actions)에서 서명·전송한 결과를 되돌려 줄 때 쓰는 본문.
+
+    **서버는 이 값을 검증하지 못한다** — 키가 없어 서명을 확인할 수 없다.
+    그래도 상관없다. `tx_hash` 가 가리키는 체인의 값이 진실이고, 이 기록은
+    "어디를 보면 되는지"를 적어 둔 영수증이다. 거짓으로 적어도 대조하면 드러난다.
+    """
+
+    status: str = Field(pattern="^(pending|confirmed|failed)$")
+    tx_hash: str | None = Field(default=None, max_length=66)
+    block_number: int | None = None
+    from_address: str | None = Field(default=None, max_length=42)
+    proof: str | None = None
+    error: str | None = Field(default=None, max_length=2000)
 
 
 class ChainIntegrityOut(BaseModel):

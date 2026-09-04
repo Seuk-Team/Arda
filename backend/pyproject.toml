@@ -22,6 +22,7 @@ dependencies = [
     "torch>=2.0",
     "pypdf>=6.16.2",
     "web3>=7.0",
+    "opentimestamps-client>=0.7.2",
 ]
 
 # 로컬 STT. 기본 설치에서 뺀 이유: 운영 API 는 t3.micro(RAM 1GiB)라 ctranslate2 까지

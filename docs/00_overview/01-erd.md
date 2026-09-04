@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v2.0 · 2026-09-04** — v2.0: 사슬 머리를 공개 체인에 못 박은 기록 `chain_publications` 추가, `document_anchors` 의 `ots_status`·`ots_proof` **제거**(아무도 쓴 적 없는 칸이고, 열려 있으면 그게 원장의 유일한 구멍이 된다). 이제 `document_anchors` 는 **UPDATE 가 아예 안 되는 표**다. **alembic `0008`** ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 2단계).
+> **상태: 확정 v2.1 · 2026-09-04** — v2.1: `chain_publications.proof` 추가(OpenTimestamps 증명 보관 — 폴리곤은 `tx_hash` 만 있으면 되지만 OTS 는 증명 파일이 근거다) + `(network, chain_hash)` 부분 유일 인덱스로 **같은 머리를 같은 네트워크에 두 번 올리는 것**만 막는다. **alembic `0009`**.
+> v2.0 · 2026-09-04 — v2.0: 사슬 머리를 공개 체인에 못 박은 기록 `chain_publications` 추가, `document_anchors` 의 `ots_status`·`ots_proof` **제거**(아무도 쓴 적 없는 칸이고, 열려 있으면 그게 원장의 유일한 구멍이 된다). 이제 `document_anchors` 는 **UPDATE 가 아예 안 되는 표**다. **alembic `0008`** ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 2단계).
 > v1.9 · 2026-09-04 — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**. 이어서 **alembic `0007`** 이 앱 롤의 권한을 SELECT·INSERT 로 좁힌다 — **`ARDA_APP_DB_ROLE` 환경변수가 없으면 아무것도 하지 않는다**(절차는 [ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "권한 분리 절차").
 > v1.8 · 2026-09-04 — v1.8: 제출물 무결성 앵커 `document_anchors` 1테이블 추가 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). **alembic `0005`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.7 · 2026-09-02 — v1.7: 인적성(사전 성향) 설문 2테이블 `aptitude_sessions`·`aptitude_answers` 추가 ([ADR-0027](../03_decision/0027-인적성-검사.md)). **alembic `0004`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
@@ -211,8 +212,11 @@ erDiagram
 | from_address | varchar(42) | NULL | 보낸 지갑 주소. **개인키는 어디에도 저장하지 않는다** |
 | status | varchar(20) | NOT NULL, CHECK, 기본 `'pending'` | `pending` / `confirmed` / `failed` |
 | error | text | NULL | 실패 사유. 다음 시도의 유일한 단서라 지우지 않는다 |
+| proof | text | NULL | **OTS 증명(base64).** 폴리곤 행에서는 항상 NULL. **잃어버리면 다시 못 만든다** — 도장을 다시 찍어야 하고 시각이 그때로 밀린다 |
 | created_at | timestamptz | NOT NULL | |
 | confirmed_at | timestamptz | NULL | |
+
+**못 박는 곳이 둘이다.** `polygon-amoy` 는 *보여주는* 쪽(탐색기 링크), `opentimestamps` 는 *남기는* 쪽(비트코인, 영구). 같은 사슬 머리라도 **네트워크가 다르면 각각 한 행**이다 — `(network, chain_hash)` 부분 유일 인덱스가 그 단위로 중복만 막는다(실패한 것은 다시 시도해야 하므로 제외).
 
 **올리는 값은 언제나 하나다.** `document_anchors` 의 각 고리가 앞 고리의 해시를 재료로 쓰므로 **머리 하나가 그 앞 전부를 덮는다** — 머클 트리도, 고리마다의 증명도 필요 없다.
 

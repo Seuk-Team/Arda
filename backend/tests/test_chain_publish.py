@@ -117,7 +117,7 @@ class TestPublishHead:
             patch("app.anchoring.chain.publish_hash", return_value=_sent()),
         ):
             anchoring.publish_head(db)
-            with pytest.raises(anchoring.NothingToPublish, match="새 고리가 없습니다"):
+            with pytest.raises(anchoring.NothingToPublish, match="이미 올렸습니다"):
                 anchoring.publish_head(db)
 
     def test_빈_원장은_올릴_것이_없다(self, db: Session):

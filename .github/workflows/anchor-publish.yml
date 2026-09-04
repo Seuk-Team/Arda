@@ -1,0 +1,85 @@
+# 사슬 머리를 공개 체인에 못 박는다 (ADR-0028 2·3단계)
+#
+# **여기서 도는 이유**: 폴리곤 서명에는 지갑 개인키가 필요한데, 그 키를 서버에
+# 두면 서버 셸 접근이 곧 서명 권한이 된다. 인프라 오너 판단으로 키를 Actions
+# secret 에 두기로 했다 (2026-09-04 팀장 검토 Q2·Q3).
+#
+# 덤으로 따라오는 것: 실패하면 Actions 가 알아서 알리고, 감사 로그가 남고,
+# 서버 리소스를 안 쓴다.
+#
+# OTS(비트코인)는 개인키가 없어서 **서버가 직접** 도장을 찍는다. 여기서는
+# API 를 한 번 부르기만 한다.
+#
+# 필요한 secret: ARDA_API_BASE · ARDA_API_TOKEN · CHAIN_RPC_URL ·
+#                CHAIN_PRIVATE_KEY · CHAIN_NETWORK(선택)
+
+name: 무결성 앵커 게시
+
+on:
+  schedule:
+    # 매일 09:10 KST (00:10 UTC). 자정 정각을 피한 이유는 그 시각에 전 세계
+    # cron 이 몰려 GitHub 큐가 밀리기 때문이다.
+    - cron: "10 0 * * *"
+  workflow_dispatch:  # 손으로도 돌릴 수 있게 — 시연 직전에 쓴다
+
+# 겹쳐 돌면 같은 사슬 머리를 두 번 올리려다 한쪽이 409 로 죽는다. 줄을 세운다.
+concurrency:
+  group: anchor-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # 키를 쥐는 잡이라 권한을 최소로 둔다.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: backend/.python-version
+
+      - name: 의존성 설치
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: 폴리곤에 게시
+        working-directory: backend
+        env:
+          ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
+          ARDA_API_TOKEN: ${{ secrets.ARDA_API_TOKEN }}
+          CHAIN_RPC_URL: ${{ secrets.CHAIN_RPC_URL }}
+          CHAIN_PRIVATE_KEY: ${{ secrets.CHAIN_PRIVATE_KEY }}
+          CHAIN_NETWORK: ${{ secrets.CHAIN_NETWORK || 'polygon-amoy' }}
+        run: uv run python scripts/publish_anchor.py
+
+      - name: OpenTimestamps 에 도장 (서버가 찍는다 — 키 불필요)
+        # 폴리곤이 실패해도 이쪽은 돌린다. 둘은 독립이고, 한쪽이 죽었다고
+        # 다른 쪽 증명까지 포기할 이유가 없다.
+        if: always()
+        env:
+          ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
+          ARDA_API_TOKEN: ${{ secrets.ARDA_API_TOKEN }}
+        run: |
+          code=$(curl -s -o /tmp/ots.json -w "%{http_code}" \
+            -X POST "$ARDA_API_BASE/integrity/publish/ots" \
+            -H "Authorization: Bearer $ARDA_API_TOKEN")
+          echo "응답 $code"; cat /tmp/ots.json
+          # 409 = 올릴 것이 없다. 실패가 아니다.
+          if [ "$code" -ge 400 ] && [ "$code" -ne 409 ]; then exit 1; fi
+
+      - name: 확정 안 된 게시 다시 확인
+        # 어제 올린 폴리곤 거래·OTS 증명이 그새 확정됐는지 본다.
+        # OTS 는 비트코인 블록을 기다리므로 보통 다음 날에야 confirmed 가 된다.
+        if: always()
+        env:
+          ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
+          ARDA_API_TOKEN: ${{ secrets.ARDA_API_TOKEN }}
+        run: |
+          curl -s -X POST "$ARDA_API_BASE/integrity/publications/refresh" \
+            -H "Authorization: Bearer $ARDA_API_TOKEN" | head -c 2000
