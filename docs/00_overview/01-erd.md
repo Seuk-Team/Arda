@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.8 · 2026-09-04** — v1.8: 제출물 무결성 앵커 `document_anchors` 1테이블 추가 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). **alembic `0005`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
+> **상태: 확정 v1.9 · 2026-09-04** — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**.
+> v1.8 · 2026-09-04 — v1.8: 제출물 무결성 앵커 `document_anchors` 1테이블 추가 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). **alembic `0005`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.7 · 2026-09-02 — v1.7: 인적성(사전 성향) 설문 2테이블 `aptitude_sessions`·`aptitude_answers` 추가 ([ADR-0027](../03_decision/0027-인적성-검사.md)). **alembic `0004`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.6 · 2026-09-02 — v1.6: AI 면접 3테이블 `interview_sessions`·`interview_turns`·`interview_findings` 추가 ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md)). **alembic `0003`** 으로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.5 · 2026-09-01 — v1.5: 설정 실동작·메일 발송 ([G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md)). `users.is_active` 추가, `email_logs` 에 `subject`·`body`·`actor_kind`·`actor_id` 추가 + `stage` 에 `custom` 허용, 신규 `email_templates`. **기존 DB 는 `backend/scripts/upgrade_settings_mail.sql` 1회성 실행이 필요하다** — `create_all` 은 컬럼을 추가하지 못한다.
@@ -189,7 +190,10 @@ erDiagram
 
 **원본은 여기 없다.** S3 와 `applications.self_intro` 에 그대로 있고 이 표에는 지문만 남는다. 그래서 이 표가 유출돼도 이력서 내용은 새지 않는다.
 
-- **UPDATE·DELETE 를 하지 않는다.** 내용이 바뀌면 새 행을 쌓는 것이 아니라 **검증에서 어긋남으로 드러나는 것**이 목적이다. 재제출처럼 정말 새 문서가 생긴 경우에만 새 `seq` 로 append.
+- **UPDATE·DELETE 를 하지 않는다 — 이제 DB 가 직접 거부한다** (alembic `0006`, 트리거 `trg_document_anchors_append_only`·`trg_document_anchors_no_truncate`). 내용이 바뀌면 새 행을 쌓는 것이 아니라 **검증에서 어긋남으로 드러나는 것**이 목적이다. 재제출처럼 정말 새 문서가 생긴 경우에만 새 `seq` 로 append.
+  - 열려 있는 것은 **`ots_status`·`ots_proof` 두 칸의 UPDATE 뿐**이다. 2단계 타임스탬프가 쓸 자리라 막아 두면 그때 트리거를 걷어내게 되고, 그러면 잠금이 잠금이 아니게 된다
+  - TRUNCATE 는 행 트리거를 타지 않아 **문장 트리거로 따로** 막았다
+  - 새로 만드는 DB 는 `models.py` 의 `after_create` 이벤트가, 이미 있는 DB 는 alembic `0006` 이 같은 트리거를 건다. **한쪽을 고치면 다른 쪽도 고쳐야 한다**
 - 같은 문서를 두 번 앵커하지 않는다 — 파일은 `file_id` UNIQUE 로, 자기소개는 부분 인덱스 `uq_document_anchors_self_intro`(`doc_type='self_intro'` 조건)로 막는다. Postgres 가 NULL 을 서로 다른 값으로 보기 때문에 UNIQUE 하나로는 안 된다.
 - 앵커는 접수 직후 **백그라운드**로 만든다(요약 M2 와 같은 처리). 실패해도 접수는 유효하다 — 앵커 없음은 "증명이 없다"이지 "지원서가 잘못됐다"가 아니다.
 - **막는 것과 못 막는 것**: 제출 뒤 원본이 바뀐 것을 *탐지*한다. 바뀌는 것 자체나, DB 를 통째로 다시 쓸 수 있는 내부자는 못 막는다 — 사슬 전체를 다시 계산하면 앞뒤가 맞기 때문이다. 그 구멍은 `ots_*` 가 채워질 때 메워진다 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "남은 것").

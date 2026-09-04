@@ -12,7 +12,8 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app import anchoring
@@ -192,10 +193,19 @@ class TestChain:
         assert result["length"] == 2
 
     def test_원장_한_줄을_고치면_깨진다(self, db: Session, with_intro: Application):
-        """원본과 앵커를 **같이** 고쳐 개별 검증을 통과시켜도 사슬은 못 속인다."""
+        """원본과 앵커를 **같이** 고쳐 개별 검증을 통과시켜도 사슬은 못 속인다.
+
+        여기서는 **트리거를 끄고** 고친다 — 앱을 통해서는 이제 불가능하고
+        (`TestAppendOnly`), 이 시나리오가 성립하려면 트리거를 끌 수 있는 권한자여야
+        하기 때문이다. ADR-0028 이 "내부자는 못 막는다"고 적어 둔 그 자리를
+        그대로 재현한 것이다.
+        """
         anchoring.anchor_application(db, with_intro.id)
         anchor = db.scalar(select(DocumentAnchor))
 
+        db.execute(
+            text("ALTER TABLE document_anchors DISABLE TRIGGER trg_document_anchors_append_only")
+        )
         with_intro.self_intro = "위조된 자기소개"
         anchor.content_sha256 = anchoring.sha256_text(with_intro.self_intro)
         db.flush()
@@ -209,6 +219,85 @@ class TestChain:
 
     def test_빈_원장은_이어진_것으로_본다(self, db: Session):
         assert anchoring.verify_chain(db)["intact"] is True
+
+
+# ── 추가 전용 잠금 ────────────────────────────────────────────────────
+
+
+class TestAppendOnly:
+    """원장을 DB 가 직접 지킨다 (alembic 0006).
+
+    "고쳐 쓰지 않는다"가 코드의 약속이기만 하면 psql 한 줄이면 끝난다.
+    여기서 보는 것은 **약속이 아니라 DB 가 거부하는가**다.
+    """
+
+    @pytest.fixture()
+    def anchor(self, db: Session, with_intro: Application) -> DocumentAnchor:
+        anchoring.anchor_application(db, with_intro.id)
+        return db.scalar(select(DocumentAnchor))
+
+    def test_지문을_고치면_거부된다(self, db: Session, anchor: DocumentAnchor):
+        with pytest.raises(DBAPIError, match="고쳐 쓸 수 없습니다"):
+            db.execute(
+                text("UPDATE document_anchors SET content_sha256 = :h WHERE id = :i"),
+                {"h": "0" * 64, "i": anchor.id},
+            )
+
+    def test_사슬_고리를_고치면_거부된다(self, db: Session, anchor: DocumentAnchor):
+        with pytest.raises(DBAPIError, match="고쳐 쓸 수 없습니다"):
+            db.execute(
+                text("UPDATE document_anchors SET chain_hash = :h WHERE id = :i"),
+                {"h": "1" * 64, "i": anchor.id},
+            )
+
+    def test_시각을_고치면_거부된다(self, db: Session, anchor: DocumentAnchor):
+        """`anchored_at` 은 chain_hash 의 재료다. 여기가 뚫리면 사슬이 뚫린다.
+
+        `now()` 로 쓰지 않는다 — 트랜잭션 안에서 `now()` 는 트랜잭션 시작 시각이라
+        방금 넣은 값과 같아지고, 트리거는 "안 바뀌었다"로 보고 통과시킨다.
+        (그게 맞는 동작이다. 값이 실제로 달라져야 막을 일이다.)
+        """
+        with pytest.raises(DBAPIError, match="고쳐 쓸 수 없습니다"):
+            db.execute(
+                text(
+                    "UPDATE document_anchors SET anchored_at = anchored_at"
+                    " + interval '1 day' WHERE id = :i"
+                ),
+                {"i": anchor.id},
+            )
+
+    def test_삭제가_거부된다(self, db: Session, anchor: DocumentAnchor):
+        with pytest.raises(DBAPIError, match="삭제할 수 없습니다"):
+            db.execute(
+                text("DELETE FROM document_anchors WHERE id = :i"), {"i": anchor.id}
+            )
+
+    def test_비우기가_거부된다(self, db: Session, anchor: DocumentAnchor):
+        """TRUNCATE 는 행 트리거를 타지 않는다 — 따로 막아야 한다."""
+        with pytest.raises(DBAPIError, match="비울 수 없습니다"):
+            db.execute(text("TRUNCATE document_anchors"))
+
+    def test_ots_칸은_고칠_수_있다(self, db: Session, anchor: DocumentAnchor):
+        """2단계(공개 타임스탬프)가 쓸 자리는 열어 둬야 한다.
+
+        막아 두면 2단계에서 이 트리거를 걷어내게 되고, 그러면 잠금이 잠금이 아니다.
+        """
+        db.execute(
+            text(
+                "UPDATE document_anchors SET ots_status = 'pending', ots_proof = :p"
+                " WHERE id = :i"
+            ),
+            {"p": "증명파일", "i": anchor.id},
+        )
+        db.expire(anchor)
+        assert anchor.ots_status == "pending"
+
+    def test_새_행은_계속_쌓인다(self, db: Session, anchor: DocumentAnchor, resume: File):
+        """잠금이 append 까지 막으면 기능 자체가 죽는다."""
+        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+            made = anchoring.anchor_application(db, anchor.application_id)
+
+        assert [m.doc_type for m in made] == ["resume"]
 
 
 # ── API ───────────────────────────────────────────────────────────────
