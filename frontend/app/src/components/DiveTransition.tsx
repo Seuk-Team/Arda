@@ -14,7 +14,6 @@ import styles from './DiveTransition.module.css'
 
    왜 라우트 밖(App)에 있나: 흰빛이 /login → /dashboard 이동을 건너 살아남아야
    한다. 로그인 화면 안에 두면 언마운트되면서 흰빛도 같이 사라져 딱 끊긴다.
-   MorphNav 가 대시보드→캘린더 전환을 라우트 밖에서 하는 것과 같은 이유다.
 
    값은 상태로 들고 있지 않는다 — 매 프레임 setState 하면 초당 60번 리렌더가
    걸린다. ref 에 두고 wash 의 opacity 와 구독자(캔버스)에게 직접 밀어 넣는다. */
@@ -38,8 +37,7 @@ export function useDive() {
   return useContext(Ctx)
 }
 
-/* 시간은 토큰에서 읽는다 — 여기서 숫자를 새로 만들지 않는다 (05-design §5).
-   MorphNav 가 쓰는 것과 같은 방식이다. */
+/* 시간은 토큰에서 읽는다 — 여기서 숫자를 새로 만들지 않는다 (05-design §5) */
 function cssMs(name: string, fallback: number): number {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   const n = Number.parseFloat(raw)

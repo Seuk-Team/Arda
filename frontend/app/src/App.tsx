@@ -35,8 +35,8 @@ export default function App() {
       <ToastProvider>
       {/* 오른쪽 패널은 한 번에 하나 — 아르와 그날 일정이 같은 자리를 쓴다 */}
       <RightPanelProvider>
-      {/* 로그인 → 대시보드 접속 시퀀스. 흰빛이 화면 교체를 건너 살아남아야 해서
-          라우트 밖에 둔다 (MorphNav 가 Layout 밖인 것과 같은 이유) */}
+      {/* 로그인 → 대시보드 접속 시퀀스. 흰빛이 화면 교체를 건너 살아남아야
+          하므로 라우트 밖에 둔다 */}
       <DiveTransition>
       <Routes>
         {/* 루트는 대시보드로. 비로그인은 RequireAuth 가 /login 으로 보낸다 */}

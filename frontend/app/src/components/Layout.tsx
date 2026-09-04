@@ -3,7 +3,6 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import ArPanel, { type ArMotion } from './ArPanel'
-import MorphNav from './MorphNav'
 import { useRightPanel } from './RightPanel'
 import type { Motion } from './ArViewer'
 import styles from './Layout.module.css'
@@ -40,25 +39,20 @@ export default function Layout() {
   }, [toggle])
 
   return (
-    /* 화면 전환(대시보드 축소판 → 캘린더)은 라우트 밖에서 살아 있어야 한다 —
-       떠나는 화면이 언마운트된 뒤에도 도형이 남아 이어져야 하기 때문 */
-    <MorphNav>
-      <div className={styles.shell}>
-        <Sidebar
-          arOpen={arOpen}
-          arMotion={shownMotion}
-          onToggleAr={toggleAr}
-          onArHover={setArHovered}
-          arButtonRef={arButtonRef}
-        />
-        {/* 전환이 페이드아웃·페이드인 대상으로 잡는 본문 껍데기 */}
-        <main className={styles.main} data-morph-shell="">
-          <Outlet />
-        </main>
-        {/* 2026-09-01 — 사이드바 옆(왼쪽)에서 화면 오른쪽 끝으로 옮겼다 */}
-        <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
-        <BottomNav />
-      </div>
-    </MorphNav>
+    <div className={styles.shell}>
+      <Sidebar
+        arOpen={arOpen}
+        arMotion={shownMotion}
+        onToggleAr={toggleAr}
+        onArHover={setArHovered}
+        arButtonRef={arButtonRef}
+      />
+      <main className={styles.main}>
+        <Outlet />
+      </main>
+      {/* 2026-09-01 — 사이드바 옆(왼쪽)에서 화면 오른쪽 끝으로 옮겼다 */}
+      <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
+      <BottomNav />
+    </div>
   )
 }

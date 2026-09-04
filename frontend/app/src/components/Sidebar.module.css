@@ -62,21 +62,6 @@
   pointer-events: none;
 }
 
-:global(body[data-morph]) .navPill {
-  transition: transform var(--dur-base) var(--ease);
-}
-
-:global(body[data-morph]) .link {
-  transition: color var(--dur-base) var(--ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :global(body[data-morph]) .navPill,
-  :global(body[data-morph]) .link {
-    transition: none;
-  }
-}
-
 /* 메뉴 항목 높이 48px — §2 가 내비 항목 높이로 못박은 값 */
 .link {
   position: relative;
