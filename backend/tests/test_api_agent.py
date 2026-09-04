@@ -574,7 +574,17 @@ class TestSummarizeEdgeCases:
     def test_다른_멤버도_요약을_재생성할_수_있다(
         self, other_member_client: TestClient, application: Application
     ):
-        with patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'):
+        """여기서 보는 것은 **권한**이다 — 백엔드 상태가 결과를 바꾸면 안 된다.
+
+        `get_summary_backend()` 도 같이 mock 한다. 안 하면 키가 없는 환경(CI)에서
+        권한 검사까지 가지 못하고 503 으로 떨어진다.
+        """
+        backend = MagicMock()
+        backend.unavailable_reason.return_value = None
+        with (
+            patch("app.api.agent.get_summary_backend", return_value=backend),
+            patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'),
+        ):
             resp = other_member_client.post(
                 f"/api/v1/agent/applications/{application.id}/summarize"
             )
