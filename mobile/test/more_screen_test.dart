@@ -85,14 +85,22 @@ void main() {
   testWidgets('로그아웃에는 화살표를 달지 않는다 — 이동이 아니라 실행이다', (tester) async {
     await tester.pumpWidget(host());
 
-    // 화살표는 화면을 여는 항목에만 (평가 현황·단계 이력·설정·알림 = 4개)
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(4));
+    // 화살표는 화면을 여는 항목에만 (평가 현황·설정·알림 = 3개)
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
+  });
+
+  testWidgets('단계 이력은 없다 — 죽은 줄이었고 웹에도 없다 (2026-09-03)', (tester) async {
+    await tester.pumpWidget(host());
+
+    // 단계 이력은 지원자 상세에서 *그 사람 것*으로 들어간다.
+    // 여기 있던 줄은 누를 곳이 없었다
+    expect(find.text('단계 이력'), findsNothing);
   });
 
   testWidgets('목록 항목 높이가 터치 타깃 44 를 넘는다 (§9)', (tester) async {
     await tester.pumpWidget(host());
 
-    for (final label in ['평가 현황', '단계 이력', '설정', '알림', '로그아웃']) {
+    for (final label in ['평가 현황', '설정', '알림', '로그아웃']) {
       final row = tester.getSize(
         find
             .ancestor(of: find.text(label), matching: find.byType(InkWell))

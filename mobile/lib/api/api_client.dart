@@ -55,6 +55,11 @@ class ApiClient {
     bool authExpiryOn401 = true,
   }) => _send('PATCH', path, body: body, authExpiryOn401: authExpiryOn401);
 
+  /// 지우기. **서버가 204 로 답한다** — 본문이 없어 [_handle] 이 빈 Map 을
+  /// 돌려주므로 받는 쪽은 아무것도 읽지 않는다. 실패는 그대로 [ApiError] 다
+  /// (공고 삭제의 409 처럼 서버 문구가 그 자리에서 화면에 뜬다).
+  Future<void> delete(String path) => _send('DELETE', path);
+
   /// 목록을 주는 엔드포인트용 — 최상위가 배열이라 [_send] 의 Map 과 다르다.
   Future<List<dynamic>> getList(String path) async {
     final decoded = await _sendRaw('GET', path);
