@@ -12,7 +12,11 @@
 .shape {
   position: fixed;
   transform-origin: top left;
+  /* 목적지 카드가 유리라 도형도 같은 재질이어야 한다 — 불투명하면 착지 순간
+     재질이 바뀌며 튄다 */
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);

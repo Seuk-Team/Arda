@@ -2,6 +2,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import styles from './Sidebar.module.css'
+import BrandMark from './BrandMark'
 import type { Motion } from './ArViewer'
 import { useAuth } from '../auth/AuthContext'
 import { ROLE_LABEL } from '../lib/stage'
@@ -97,6 +98,7 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
   return (
     <aside className={styles.sidebar}>
       <NavLink to="/dashboard" className={styles.logo}>
+        <BrandMark size={26} className={styles.logoMark} />
         Arda
       </NavLink>
 

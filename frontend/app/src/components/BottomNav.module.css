@@ -14,6 +14,8 @@
     height: 60px;
     padding-bottom: env(safe-area-inset-bottom);
     background: var(--sidebar-bg);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
     border-top: var(--border-w) solid var(--sidebar-line);
   }
 
@@ -42,7 +44,7 @@
 
   .tab.active,
   .tab:active {
-    color: var(--leaf);
+    color: var(--accent-text);
   }
 
   /* 홈 탭: 중앙 원형 버튼 */
