@@ -5,7 +5,6 @@
   /* 유리. 셸 크롬이라 본문 카드보다 한 겹 더 가라앉는다 (--bg-chrome) */
   background: var(--sidebar-bg);
   backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
   border-right: var(--border-w) solid var(--sidebar-line);
   display: flex;
   flex-direction: column;

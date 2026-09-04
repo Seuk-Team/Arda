@@ -4,7 +4,6 @@
   /* 사이드바와 같은 유리 — 둘이 셸 크롬 한 벌이라 재질이 갈리면 안 된다 */
   background: var(--bg-chrome);
   backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
   border-bottom: var(--border-w) solid var(--sidebar-line);
   padding: var(--sp-4) var(--content-x);
   display: flex;

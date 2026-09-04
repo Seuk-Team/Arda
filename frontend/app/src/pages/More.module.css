@@ -12,7 +12,6 @@
   gap: var(--sp-4);
   background: var(--bg-elev);
   backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -59,7 +58,6 @@
 .group {
   background: var(--bg-elev);
   backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);

@@ -1,37 +1,86 @@
+/* 로그인 — 배경 노드망 위에 유리 카드 하나.
+   여기만 캔버스가 돈다. 로그인을 지나면 배경은 정지된 오로라로 바뀐다
+   (Layout .shell) — 표와 숫자를 읽는 화면에서 점이 계속 움직이면 방해다. */
 .page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   background: var(--bg);
 }
 
+/* 가장자리를 눌러 가운데로 시선을 모은다. 클릭은 통과시킨다 */
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(140% 120% at 50% 44%, rgba(6, 9, 18, 0) 46%, rgba(3, 5, 11, .60) 100%);
+}
+
+/* 카드가 서는 자리. 인트로가 끝에서 이 판을 띄운다 — opacity·transform 만
+   건드리므로 배치는 안 흔들린다 */
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+}
+
 .card {
-  width: 360px;
-  background: var(--bg-elev);
-  backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-card);
-  box-shadow: var(--sh-card);
-  padding: var(--sp-6);
+  width: 420px;
+  max-width: 100%;
+  padding: var(--sp-7);
+  border-radius: 16px;
+  border: var(--border-w) solid rgba(255, 255, 255, .13);
+  /* 카드 뒤로 망이 비쳐야 "그 안에 떠 있는" 것으로 읽힌다. 다른 화면의 유리보다
+     한 단계 더 투명하다 — 여기는 뒤에 볼 것이 있는 유일한 화면이다 */
+  background: rgba(12, 18, 34, .46);
+  backdrop-filter: blur(26px) saturate(160%);
+  box-shadow: var(--sh-overlay);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-6);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .logo {
-  font-size: var(--font-h1);
-  font-weight: 700;
-  color: var(--text);
-  text-shadow: var(--ts-heading);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
   margin: 0;
+  font-size: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: var(--ts-heading);
   white-space: nowrap;
-  letter-spacing: -0.01em;
 }
 
-.seed {
-  color: var(--leaf);
+/* 마크는 빛이라 발광까지가 그림이다 */
+.logoMark {
+  flex: none;
+  display: block;
+  filter: drop-shadow(0 0 12px rgba(96, 165, 250, .55));
+}
+
+.sub {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
 }
 
 .label {
@@ -40,84 +89,59 @@
   gap: var(--sp-2);
   font-size: var(--font-sm);
   font-weight: 600;
-  color: var(--text);
+  color: rgba(230, 236, 250, .86);
 }
 
 .input {
-  height: 40px;
-  padding: 0 var(--sp-3);
-  border: var(--border-w) solid var(--border);
+  height: 48px;
+  padding: 0 14px;
+  width: 100%;
+  border: var(--border-w) solid rgba(255, 255, 255, .15);
   border-radius: var(--r-ctl);
-  background: var(--bg);
-  transition: border-color var(--dur-fast) var(--ease);
+  background: rgba(255, 255, 255, .05);
+  font-family: var(--sans);
+  font-size: var(--font-body);
+  font-weight: 400;
+  color: #fff;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.input::placeholder {
+  color: rgba(230, 236, 250, .42);
 }
 
 .input:hover {
-  border-color: var(--sunken-hover);
+  border-color: rgba(255, 255, 255, .28);
 }
 
+/* 포커스 링은 흰색이다 — 유리 위에서 시안 링은 뒤의 노드 색에 섞여 안 보인다 */
 .input:focus {
-  outline: 2px solid var(--leaf);
-  outline-offset: 1px;
-  border-color: var(--leaf);
+  outline: none;
+  border-color: rgba(255, 255, 255, .5);
+  background: rgba(255, 255, 255, .09);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .12);
+}
+
+.input:disabled {
+  background: rgba(255, 255, 255, .03);
+  color: var(--text-sub);
+  cursor: not-allowed;
 }
 
 /* 로그인 실패 문구. --danger 는 §1 확정 토큰 */
 .error {
+  margin: 0;
   font-size: var(--font-sm);
   color: var(--danger);
   word-break: keep-all;
 }
 
-.input:disabled {
-  background: var(--bg-sunken);
-  color: var(--text-sub);
-  cursor: not-allowed;
-}
-
-/* ── 모바일 전용 (≤768px) ───────────────────────── */
-.mobileLogoArea {
-  display: none;
-}
-
 @media (max-width: 768px) {
-  .logo {
-    display: none;
-  }
-
-  .mobileLogoArea {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--sp-2);
-    margin-bottom: var(--sp-2);
-  }
-
-  .avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    overflow: hidden;
-    background: var(--bg-elev);
-    box-shadow: 0 0 0 2px var(--sprout);
-  }
-
-  .avatarImg {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .mobileTitle {
-    font-size: var(--font-h1);
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.01em;
-  }
-
-  .sub {
-    font-size: var(--font-sm);
-    color: var(--leaf);
-    margin: 0;
+  .card {
+    padding: var(--sp-6);
+    gap: var(--sp-5);
   }
 }

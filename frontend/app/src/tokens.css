@@ -124,6 +124,10 @@
   --sh-glow: 0 0 18px rgba(34, 211, 238, .14);
   /* 모달 뒤를 덮는 막. 바탕(--bg)보다 더 깊은 먹으로 내려야 유리가 떠 보인다 */
   --scrim: rgba(2, 4, 10, .62);
+  /* 접속 시퀀스의 흰빛 — 어두운 망과 도착 화면 사이의 다리. 순백이 아니라
+     시안 쪽으로 튼 흰색이다: 화면의 모든 빛이 시안 → 블루 계열인데 여기만
+     순백이면 다른 화면에서 온 것처럼 튄다 */
+  --wash: #EAF4FB;
   /* 그레인 — 넓은 어두운 면에 생기는 그라데이션 밴딩을 깨고 재질감을 준다 */
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 
@@ -149,6 +153,9 @@
   --z-modal: 30;
   --z-toast: 40;
   --z-drag: 50;
+  /* 접속 시퀀스의 흰빛. 화면 전체를 덮어 교체 순간을 가리는 것이 목적이라
+     스케일에서 가장 위다 — 이 위에 뜨는 것은 없다 */
+  --z-wash: 60;
 }
 
 @media (prefers-reduced-motion: reduce) {

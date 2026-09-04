@@ -1,0 +1,11 @@
+/* 흰빛 — 어두운 망과 도착 화면 사이의 다리다. 캔버스 위에 DOM 으로 얹고
+   불투명도만 JS 가 몬다: 레이아웃을 안 건드려야 프레임이 안 튄다.
+   평소에는 opacity 0 이고 pointer-events 도 없어 아무것도 가리지 않는다. */
+.wash {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-wash);
+  background: var(--wash);
+  opacity: 0;
+  pointer-events: none;
+}

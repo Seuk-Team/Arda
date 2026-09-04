@@ -21,7 +21,6 @@
     border-radius: var(--r-pill);
     background: var(--bg-chrome);
     backdrop-filter: var(--glass);
-    -webkit-backdrop-filter: var(--glass);
     border: 2px solid var(--accent);
     box-shadow: var(--sh-glow), var(--sh-overlay);
     z-index: var(--z-sticky);

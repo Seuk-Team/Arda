@@ -458,7 +458,6 @@
   border-radius: var(--r-card);
   background: var(--bg-elev);
   backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-overlay);
 }
 

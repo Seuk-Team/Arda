@@ -9,7 +9,6 @@
   flex: none;
   background: var(--bg-elev);
   backdrop-filter: var(--glass);
-  -webkit-backdrop-filter: var(--glass);
   overflow: hidden;
 }
 
