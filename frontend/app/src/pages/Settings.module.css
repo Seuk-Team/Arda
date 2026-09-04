@@ -482,3 +482,44 @@
   }
 }
 
+
+/* ── 로그아웃 (2026-09-04) ────────────────────────────
+   데스크톱의 유일한 로그아웃 진입점. 설명과 버튼을 한 줄에 놓고 버튼을
+   오른쪽 끝으로 민다 — 위의 .formActions 와 같은 방향이라 눈이 한 축을 따라간다. */
+.logoutRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-top: var(--sp-3);
+}
+
+/* 주 동작(저장)과 같은 무게로 보이면 안 된다 — 화면을 떠나는 버튼이라
+   테두리만 있는 조용한 형태로 둔다. 위험한 동작도 아니라 --danger 는 아니다:
+   되돌리는 비용이 다시 로그인 한 번뿐이다. */
+.logoutBtn {
+  flex: none;
+  background: var(--bg-sunken);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.logoutBtn:hover {
+  background: var(--sunken-hover);
+}
+
+@media (max-width: 768px) {
+  /* 좁으면 설명이 눌려 두 줄이 되므로 세로로 쌓고 버튼을 왼쪽에 붙인다
+     (.formActions 의 모바일 규칙과 같은 방향) */
+  .logoutRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-3);
+  }
+
+  /* 손가락으로 누르는 자리라 HIG 최소 44px 을 맞춘다 (05-design §9).
+     전역 .btn 은 40px 이지만 그건 마우스 기준 규격이고, 여기서 굳이 낮출 이유가 없다 */
+  .logoutBtn {
+    min-height: 44px;
+  }
+}
