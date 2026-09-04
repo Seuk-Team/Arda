@@ -1,4 +1,4 @@
-/* 캘린더 축소판 → 전체 화면 확대 전환(MorphNav)은 2026-09-01 에 뺐다.
+/* 캘린더 축소판 → 전체 화면 확대 전환은 2026-09-01 에 뺐고 2026-09-04 에 잔재까지 걷었다.
    축소판을 누르면 그냥 캘린더로 이동한다 — 페이드아웃도 없다. */
 
 .stats {
@@ -942,6 +942,45 @@
   /* 지원자 현황: 전체 링크 위치 이동 (상단 pipeHead → 하단) */
   .pipeCard .pipeHead { display: none; }
   .mobilePipeLink { display: block; }
+
+  /* 지원자 행을 두 줄로 접는다.
+     한 줄일 때 이름(96px 고정)·일정 칩·지원일이 모두 flex:none 이라 줄어들 수
+     없었고, 셋과 간격만 더해도 345px 라 375px 화면에서 카드 밖으로 58px 밀려
+     지원일이 잘렸다. 폭을 다투는 대신 줄을 나눈다 — 정보를 버리지 않는 유일한
+     방법이다(칩과 지원일 중 뭘 지울지는 이 화면이 정할 문제가 아니다).
+
+       [ 이름            공고 ────── ]
+       [ 일정 칩            지원일   ]  */
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    grid-template-areas:
+      "name posting"
+      "chip date";
+    align-items: center;
+    row-gap: var(--sp-1);
+    column-gap: var(--sp-2);
+  }
+
+  /* 고정 96px 을 풀어 준다 — 두 줄이 돼도 이름이 길면 여전히 공고를 밀어낸다 */
+  .rowName {
+    grid-area: name;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .rowPosting { grid-area: posting; }
+
+  /* 아래 줄은 양 끝으로 — 칩은 왼쪽, 지원일은 오른쪽에 붙는다 */
+  .row > .chip {
+    grid-area: chip;
+    justify-self: start;
+  }
+
+  .rowDate {
+    grid-area: date;
+    justify-self: end;
+  }
 
   /* ── 오늘 면접 calCard ──────────────────────── */
 
