@@ -22,7 +22,12 @@ git fetch origin        # 이게 성공하면 끝
 | OpenAPI 스펙 | https://api.seuk.suvisdev.cloud/openapi.json |
 | 공개 지원 링크 | `https://seuk.suvisdev.cloud/apply/<token>` |
 
-## 3. 배포 — 이제 자동이다
+## 3. 브랜치 규칙 + 배포 — 이제 자동이다
+
+**기본 규칙 (2026-09-04 확정): main 직접 푸시 금지 — 브랜치 만들어 PR로
+머지한다.** 승인은 필요 없다(각자 자기 PR 을 바로 머지) — 단 **CI 가
+초록일 때만**. GitHub 이 main 직접 푸시를 막아 주므로 규칙을 외울 필요는
+없고, 브랜치에서 시작하는 습관만 들이면 된다.
 
 - **프론트**: main 머지 → Vercel이 1~2분 내 자동 배포
 - **백엔드**: main 머지 → 서버가 **2분마다 main 을 폴링**해 pull→build→up
