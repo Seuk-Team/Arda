@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
@@ -70,7 +71,8 @@ export default function Settings() {
    admin 전용이라, 이게 없으면 member 에게 설정은 읽기 전용 화면이었다. */
 
 function MyAccount() {
-  const { user, refresh } = useAuth()
+  const { user, refresh, logout } = useAuth()
+  const navigate = useNavigate()
   const { show } = useToast()
   const [name, setName] = useState(user?.name ?? '')
   const [current, setCurrent] = useState('')
@@ -166,6 +168,31 @@ function MyAccount() {
       <div className={styles.formActions}>
         <button type="button" className="btn btn-primary" disabled={!canSave} onClick={save}>
           {saving ? '저장 중…' : '저장'}
+        </button>
+      </div>
+
+      {/* 로그아웃 — 데스크톱의 유일한 진입점이다. 모바일은 더보기(More)가 맡고
+          있었는데 그 화면은 하단 탭으로만 갈 수 있고 하단 탭은 ≤768px 전용이라,
+          PC 사용자는 나갈 방법이 아예 없었다.
+
+          여기 둔 이유: 사이드바 하단 프로필은 05-design §0.5 가 "표시 전용,
+          클릭 진입 없음" 으로 못박았다. 설정은 그 문서가 "내 계정" 을 품는 곳으로
+          정의한 화면이라 규칙과 충돌하지 않는다.
+
+          확인 절차는 두지 않는다 — 되돌리는 비용이 다시 로그인 한 번이라
+          모달을 세울 만한 무게가 아니다. 모바일 쪽과도 같은 동작이다. */}
+      <hr className={styles.divider} />
+
+      <div className={styles.logoutRow}>
+        <p className={styles.note}>
+          이 브라우저에서 로그인 상태를 지웁니다. 서버의 데이터는 그대로입니다.
+        </p>
+        <button
+          type="button"
+          className={`btn ${styles.logoutBtn}`}
+          onClick={() => { logout(); navigate('/login', { replace: true }) }}
+        >
+          로그아웃
         </button>
       </div>
 
