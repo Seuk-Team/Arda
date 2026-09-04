@@ -49,6 +49,11 @@ PROPOSAL_STATUSES = ("proposed", "confirmed", "expired", "canceled")
 # 무결성 앵커가 지문을 뜨는 대상 (ADR-0028). 첨부 2종 + 폼에 직접 쓴 자기소개.
 # `self_intro` 는 파일이 아니라 applications.self_intro 텍스트라 file_id 가 없다.
 DOC_TYPES = FILE_KINDS + ("self_intro",)
+# 공개 체인에 사슬 머리를 올린 거래의 상태 (ADR-0028 2단계).
+#   pending   — 보냈고 블록 확정을 기다린다
+#   confirmed — 블록에 실렸다. 이때부터 우리가 못 되돌린다
+#   failed    — 못 보냈거나 되돌려졌다. `error` 에 사유가 남는다
+PUBLICATION_STATUSES = ("pending", "confirmed", "failed")
 
 # 메일 발송 (G4). email_logs 의 stage 는 단계 5종에 custom 이 하나 더 붙는다 —
 # 수동·에이전트 발송은 단계 이동이 아니라서 STAGES 로는 표현할 값이 없다.
@@ -328,11 +333,9 @@ class DocumentAnchor(Base):
     anchored_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    # 2단계 자리 — 'none' | 'pending' | 'confirmed'
-    ots_status: Mapped[str] = mapped_column(
-        String(20), nullable=False, server_default=text("'none'")
-    )
-    ots_proof: Mapped[str | None] = mapped_column(Text)
+    # 이 표에는 고칠 수 있는 칸이 하나도 없다 (alembic 0008). 공개 체인에 못 박은
+    # 기록은 chain_publications 로 뺐다 — 여기 컬럼을 두면 그 칸이 원장의 유일한
+    # 구멍이 되기 때문이다.
 
     __table_args__ = (
         CheckConstraint(_in("doc_type", DOC_TYPES), name="ck_document_anchors_doc_type"),
@@ -362,16 +365,18 @@ class DocumentAnchor(Base):
 # "고쳐 쓰지 않는다"가 코드의 약속이기만 하면, 앱을 거치지 않는 손(psql·관리도구)
 # 에는 아무 구속력이 없다. DB 가 직접 거부하게 한다.
 #
-# 허용: INSERT · **ots_status/ots_proof 만** 바꾸는 UPDATE (2단계 타임스탬프가 쓸
-#       자리다. 이걸 막으면 2단계에서 트리거를 걷어내야 하고 잠금이 무의미해진다)
-# 거부: DELETE · TRUNCATE · 그 외 모든 컬럼의 UPDATE
+# 허용: INSERT 뿐이다.
+# 거부: UPDATE · DELETE · TRUNCATE — **고칠 수 있는 칸이 하나도 없다** (0008).
+#       0006 에서는 2단계용으로 ots_* 두 칸을 열어 뒀었는데, 공개 체인 기록을
+#       chain_publications 로 빼면서 그 예외가 필요 없어졌다. 예외가 없는 편이
+#       낫다 — 열린 칸 하나가 곧 원장의 유일한 구멍이다.
 #
 # **한계**: 트리거를 끌 수 있는 권한자는 이것도 우회한다. 봉인이 아니라 문턱이다.
-# 진짜 봉인은 우리가 못 고치는 곳에 못 박을 때 생긴다 (ADR-0028 "남은 것").
+# 진짜 봉인은 우리가 못 고치는 곳에 못 박을 때 생긴다 (ADR-0028 2단계).
 #
-# 같은 내용이 alembic `0006` 에도 있다 — 여기는 **새로 만드는 DB**(create_all),
-# 저기는 **이미 있는 DB** 를 위한 것이다. 마이그레이션은 그 시점의 스냅샷이라
-# 여기서 import 하지 않는다. 한쪽을 고치면 다른 쪽도 고쳐야 한다.
+# 같은 내용이 alembic `0006`·`0008` 에도 있다 — 여기는 **새로 만드는 DB**
+# (create_all), 저기는 **이미 있는 DB** 를 위한 것이다. 마이그레이션은 그 시점의
+# 스냅샷이라 여기서 import 하지 않는다. 한쪽을 고치면 다른 쪽도 고쳐야 한다.
 _APPEND_ONLY_FN = DDL("""
 CREATE OR REPLACE FUNCTION document_anchors_append_only() RETURNS trigger AS $$
 BEGIN
@@ -380,21 +385,9 @@ BEGIN
             '무결성 원장은 삭제할 수 없습니다 (document_anchors seq=%%)', OLD.seq
             USING ERRCODE = 'restrict_violation';
     END IF;
-
-    -- ROW(...) IS DISTINCT FROM ROW(...) 로 비교한다. `NEW.x <> OLD.x` 는
-    -- 한쪽이 NULL 이면 결과가 NULL 이 되어 그냥 통과해 버린다.
-    IF ROW(NEW.id, NEW.seq, NEW.application_id, NEW.doc_type, NEW.file_id,
-           NEW.content_sha256, NEW.prev_chain_hash, NEW.chain_hash, NEW.anchored_at)
-       IS DISTINCT FROM
-       ROW(OLD.id, OLD.seq, OLD.application_id, OLD.doc_type, OLD.file_id,
-           OLD.content_sha256, OLD.prev_chain_hash, OLD.chain_hash, OLD.anchored_at)
-    THEN
-        RAISE EXCEPTION
-            '무결성 원장은 고쳐 쓸 수 없습니다 (document_anchors seq=%%). 바꿀 수 있는 것은 ots_status·ots_proof 뿐입니다', OLD.seq
-            USING ERRCODE = 'restrict_violation';
-    END IF;
-
-    RETURN NEW;
+    RAISE EXCEPTION
+        '무결성 원장은 고쳐 쓸 수 없습니다 (document_anchors seq=%%)', OLD.seq
+        USING ERRCODE = 'restrict_violation';
 END;
 $$ LANGUAGE plpgsql;
 """)
@@ -425,6 +418,54 @@ for _ddl in (_APPEND_ONLY_FN, _NO_TRUNCATE_FN, _TRIGGERS):
         DocumentAnchor.__table__,
         "after_create",
         _ddl.execute_if(dialect="postgresql"),
+    )
+
+
+# ── chain_publications — 사슬 머리를 공개 체인에 못 박은 기록 (ADR-0028 2단계) ──
+class ChainPublication(Base):
+    """사슬 머리 하나를 공개 블록체인에 올린 기록. 한 줄이 한 건의 거래다.
+
+    **머리 하나로 그 앞 전체가 덮인다.** `document_anchors` 의 각 고리가 앞
+    고리의 해시를 재료로 쓰기 때문에, seq=20 의 `chain_hash` 는 1~20 전부에 대한
+    약속이다. 그래서 머클 트리도, 고리마다의 증명도 필요 없다 — **올리는 값은
+    언제나 딱 하나**다.
+
+    이 표 자체는 append-only 가 아니다. 보낸 뒤 확정될 때까지 `pending` 이었다가
+    블록에 실리면 `confirmed` 로 바뀌기 때문이다. 그래도 상관없다 — **여기 적힌
+    것이 진실이 아니라, 체인에 실린 것이 진실이다.** 이 표는 "어디를 보면
+    되는지"를 가리키는 영수증일 뿐이고, `tx_hash` 로 누구나 직접 확인한다.
+
+    그래서 이 표를 통째로 위조해도 소용이 없다. 체인의 값과 안 맞으면 그만이다.
+    """
+
+    __tablename__ = "chain_publications"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # 어느 체인인가. 테스트넷과 메인넷을 섞어 놓고 나중에 헷갈리지 않도록 남긴다.
+    network: Mapped[str] = mapped_column(String(30), nullable=False)
+    # 이 거래가 덮는 범위 — 1 부터 이 seq 까지.
+    covered_through_seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # 실제로 체인에 실어 보낸 값 (그 시점 사슬 머리).
+    chain_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    tx_hash: Mapped[str | None] = mapped_column(String(66), unique=True)
+    block_number: Mapped[int | None] = mapped_column(BigInteger)
+    from_address: Mapped[str | None] = mapped_column(String(42))
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'pending'")
+    )
+    # 실패 사유를 지운 채로 두지 않는다 — 왜 못 올렸는지가 다음 시도의 단서다.
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            _in("status", PUBLICATION_STATUSES), name="ck_chain_publications_status"
+        ),
+        UniqueConstraint("tx_hash", name="uq_chain_publications_tx"),
+        Index("ix_chain_publications_covered", "covered_through_seq"),
     )
 
 

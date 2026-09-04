@@ -9,14 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, status as http
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import anchoring
+from app import anchoring, chain
 from app.db import get_db
-from app.deps import get_current_user
-from app.models import Application, DocumentAnchor, File, User
+from app.deps import get_current_user, require_roles
+from app.models import Application, ChainPublication, DocumentAnchor, File, User
 from app.schemas.integrity import (
     AnchorItem,
     ApplicationIntegrityOut,
     ChainIntegrityOut,
+    PublicationOut,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["integrity"])
@@ -120,15 +121,106 @@ def create_anchor(
     return _build(db, application_id)
 
 
+def _publication_out(row: ChainPublication) -> PublicationOut:
+    out = PublicationOut.model_validate(row)
+    if row.tx_hash:
+        out = out.model_copy(
+            update={"explorer_url": chain.explorer_url(row.network, row.tx_hash)}
+        )
+    return out
+
+
 @router.get("/integrity/chain", response_model=ChainIntegrityOut)
 def get_chain(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """원장 전체가 이어지는지 본다.
+    """원장 전체가 이어지는지 + 공개 체인에 못 박혔는지 본다.
 
     개별 문서 검증(`/applications/{id}/integrity`)은 "원본이 바뀌었나"를 보고,
     이쪽은 "**원장 자체가 손대졌나**"를 본다. 둘은 다른 질문이다 — 원본을 바꾸고
     앵커 행까지 같이 고쳐 놓으면 개별 검증은 통과하지만 사슬이 깨진다.
+
+    `published` 까지 있어야 세 번째 질문에 답이 된다 — "**그걸 우리가 아니라
+    누가 확인해 줄 수 있나.**"
     """
-    return ChainIntegrityOut(**anchoring.verify_chain(db))
+    result = anchoring.verify_chain(db)
+
+    last = db.scalar(
+        select(ChainPublication)
+        .where(ChainPublication.status == "confirmed")
+        .order_by(ChainPublication.covered_through_seq.desc())
+        .limit(1)
+    )
+    if last is not None:
+        result["published"] = _publication_out(last)
+        result["unpublished_count"] = max(0, result["length"] - last.covered_through_seq)
+    else:
+        result["unpublished_count"] = result["length"]
+
+    return ChainIntegrityOut(**result)
+
+
+@router.get("/integrity/publications", response_model=list[PublicationOut])
+def list_publications(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """못 박은 기록 목록. 최신순."""
+    rows = db.scalars(
+        select(ChainPublication).order_by(ChainPublication.id.desc()).limit(50)
+    ).all()
+    return [_publication_out(r) for r in rows]
+
+
+@router.post(
+    "/integrity/publish",
+    response_model=PublicationOut,
+    status_code=http.HTTP_201_CREATED,
+)
+def publish(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin")),
+):
+    """지금 사슬 머리를 공개 체인에 올린다. **admin 만.**
+
+    돈(가스)이 나가고 되돌릴 수 없는 바깥 행위라 조회와 같은 권한에 두지 않는다.
+    지금은 테스트넷이라 값이 0 이지만, 메인넷으로 갈아탈 때 권한을 새로 짜는 일이
+    없도록 처음부터 좁혀 둔다.
+
+    상태 코드로 사유를 가른다 — 09/02 에 "왜 안 되는지 모르겠다"로 시간을 쓴 적이
+    있어서다:
+    - **503** 설정이 없다 (`CHAIN_RPC_URL`·`CHAIN_PRIVATE_KEY`)
+    - **409** 올릴 것이 없다 (원장이 비었거나 지난번 이후 새 고리가 없다)
+    - **502** 체인에 보내다 실패했다. 기록은 `failed` 로 남는다
+    """
+    reason = chain.unavailable_reason()
+    if reason:
+        raise HTTPException(
+            http.HTTP_503_SERVICE_UNAVAILABLE, f"체인에 올릴 수 없습니다: {reason}"
+        )
+
+    try:
+        row = anchoring.publish_head(db)
+    except anchoring.NothingToPublish as exc:
+        raise HTTPException(http.HTTP_409_CONFLICT, str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            http.HTTP_502_BAD_GATEWAY,
+            f"체인에 보내지 못했습니다: {type(exc).__name__}",
+        )
+
+    return _publication_out(row)
+
+
+@router.post("/integrity/publications/refresh", response_model=list[PublicationOut])
+def refresh(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """확정을 못 본 거래들을 다시 확인한다.
+
+    보냈는데 영수증을 못 받은 것은 실패가 아니라 **블록이 아직 안 나온 것**이다.
+    여기서 뒤늦게 `confirmed` 로 바뀐다. 바뀐 것만 돌려준다.
+    """
+    return [_publication_out(r) for r in anchoring.refresh_pending(db)]

@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.9 · 2026-09-04** — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**. 이어서 **alembic `0007`** 이 앱 롤의 권한을 SELECT·INSERT 로 좁힌다 — **`ARDA_APP_DB_ROLE` 환경변수가 없으면 아무것도 하지 않는다**(절차는 [ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "권한 분리 절차").
+> **상태: 확정 v2.0 · 2026-09-04** — v2.0: 사슬 머리를 공개 체인에 못 박은 기록 `chain_publications` 추가, `document_anchors` 의 `ots_status`·`ots_proof` **제거**(아무도 쓴 적 없는 칸이고, 열려 있으면 그게 원장의 유일한 구멍이 된다). 이제 `document_anchors` 는 **UPDATE 가 아예 안 되는 표**다. **alembic `0008`** ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 2단계).
+> v1.9 · 2026-09-04 — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**. 이어서 **alembic `0007`** 이 앱 롤의 권한을 SELECT·INSERT 로 좁힌다 — **`ARDA_APP_DB_ROLE` 환경변수가 없으면 아무것도 하지 않는다**(절차는 [ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "권한 분리 절차").
 > v1.8 · 2026-09-04 — v1.8: 제출물 무결성 앵커 `document_anchors` 1테이블 추가 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). **alembic `0005`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.7 · 2026-09-02 — v1.7: 인적성(사전 성향) 설문 2테이블 `aptitude_sessions`·`aptitude_answers` 추가 ([ADR-0027](../03_decision/0027-인적성-검사.md)). **alembic `0004`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.6 · 2026-09-02 — v1.6: AI 면접 3테이블 `interview_sessions`·`interview_turns`·`interview_findings` 추가 ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md)). **alembic `0003`** 으로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
@@ -29,6 +30,7 @@ erDiagram
     applications ||--o{ files : "첨부"
     applications ||--o{ document_anchors : "무결성 앵커"
     files ||--o| document_anchors : "지문"
+    document_anchors ||..o{ chain_publications : "사슬 머리를 공개 체인에"
     applications ||--o{ email_logs : "발송"
     users ||--o{ evaluations : "작성"
     users ||--o{ application_notes : "작성"
@@ -185,18 +187,39 @@ erDiagram
 | prev_chain_hash | varchar(64) | NULL | 앞 고리의 `chain_hash`. 첫 행만 NULL |
 | chain_hash | varchar(64) | NOT NULL, UNIQUE | 앞 고리를 재료로 쓴 이 고리의 지문 — 재료·순서는 `app/anchoring.py` `compute_chain_hash` |
 | anchored_at | timestamptz | NOT NULL | 지문을 뜬 시각. **재료에 들어간다** |
-| ots_status | varchar(20) | NOT NULL, 기본 `'none'` | 2단계(공개 타임스탬프) 자리 — `none`/`pending`/`confirmed` |
-| ots_proof | text | NULL | 2단계 자리. 지금은 항상 NULL |
 
 **원본은 여기 없다.** S3 와 `applications.self_intro` 에 그대로 있고 이 표에는 지문만 남는다. 그래서 이 표가 유출돼도 이력서 내용은 새지 않는다.
 
-- **UPDATE·DELETE 를 하지 않는다 — 이제 DB 가 직접 거부한다** (alembic `0006`, 트리거 `trg_document_anchors_append_only`·`trg_document_anchors_no_truncate`). 내용이 바뀌면 새 행을 쌓는 것이 아니라 **검증에서 어긋남으로 드러나는 것**이 목적이다. 재제출처럼 정말 새 문서가 생긴 경우에만 새 `seq` 로 append.
-  - 열려 있는 것은 **`ots_status`·`ots_proof` 두 칸의 UPDATE 뿐**이다. 2단계 타임스탬프가 쓸 자리라 막아 두면 그때 트리거를 걷어내게 되고, 그러면 잠금이 잠금이 아니게 된다
+- **UPDATE·DELETE 를 하지 않는다 — DB 가 직접 거부한다** (alembic `0006`·`0008`, 트리거 `trg_document_anchors_append_only`·`trg_document_anchors_no_truncate`). 내용이 바뀌면 새 행을 쌓는 것이 아니라 **검증에서 어긋남으로 드러나는 것**이 목적이다. 재제출처럼 정말 새 문서가 생긴 경우에만 새 `seq` 로 append.
+  - **고칠 수 있는 칸이 하나도 없다** (`0008`). `0006` 에서는 2단계용으로 `ots_*` 두 칸을 열어 뒀었는데, 공개 체인 기록을 `chain_publications` 로 빼면서 예외가 필요 없어졌다 — **열린 칸 하나가 곧 원장의 유일한 구멍**이다
   - TRUNCATE 는 행 트리거를 타지 않아 **문장 트리거로 따로** 막았다
-  - 새로 만드는 DB 는 `models.py` 의 `after_create` 이벤트가, 이미 있는 DB 는 alembic `0006` 이 같은 트리거를 건다. **한쪽을 고치면 다른 쪽도 고쳐야 한다**
+  - 새로 만드는 DB 는 `models.py` 의 `after_create` 이벤트가, 이미 있는 DB 는 alembic 이 같은 트리거를 건다. **한쪽을 고치면 다른 쪽도 고쳐야 한다**
 - 같은 문서를 두 번 앵커하지 않는다 — 파일은 `file_id` UNIQUE 로, 자기소개는 부분 인덱스 `uq_document_anchors_self_intro`(`doc_type='self_intro'` 조건)로 막는다. Postgres 가 NULL 을 서로 다른 값으로 보기 때문에 UNIQUE 하나로는 안 된다.
 - 앵커는 접수 직후 **백그라운드**로 만든다(요약 M2 와 같은 처리). 실패해도 접수는 유효하다 — 앵커 없음은 "증명이 없다"이지 "지원서가 잘못됐다"가 아니다.
 - **막는 것과 못 막는 것**: 제출 뒤 원본이 바뀐 것을 *탐지*한다. 바뀌는 것 자체나, DB 를 통째로 다시 쓸 수 있는 내부자는 못 막는다 — 사슬 전체를 다시 계산하면 앞뒤가 맞기 때문이다. 그 구멍은 `ots_*` 가 채워질 때 메워진다 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "남은 것").
+
+## chain_publications — 사슬 머리를 공개 체인에 못 박은 기록 (v2.0)
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| network | varchar(30) | NOT NULL | `polygon-amoy`(테스트넷, 기본) / `polygon-mainnet` |
+| covered_through_seq | bigint | NOT NULL | 이 거래가 덮는 범위 — 1 부터 이 `seq` 까지 |
+| chain_hash | varchar(64) | NOT NULL | 실제로 체인에 실어 보낸 값 (그 시점 사슬 머리) |
+| tx_hash | varchar(66) | NULL, UNIQUE | 거래 해시. 보내기 전·실패면 NULL |
+| block_number | bigint | NULL | 확정된 블록 |
+| from_address | varchar(42) | NULL | 보낸 지갑 주소. **개인키는 어디에도 저장하지 않는다** |
+| status | varchar(20) | NOT NULL, CHECK, 기본 `'pending'` | `pending` / `confirmed` / `failed` |
+| error | text | NULL | 실패 사유. 다음 시도의 유일한 단서라 지우지 않는다 |
+| created_at | timestamptz | NOT NULL | |
+| confirmed_at | timestamptz | NULL | |
+
+**올리는 값은 언제나 하나다.** `document_anchors` 의 각 고리가 앞 고리의 해시를 재료로 쓰므로 **머리 하나가 그 앞 전부를 덮는다** — 머클 트리도, 고리마다의 증명도 필요 없다.
+
+- **이 표는 append-only 가 아니다.** `pending → confirmed` 로 바뀌어야 하기 때문이다. 상관없다 — **여기 적힌 것이 진실이 아니라 체인에 실린 것이 진실**이고, 이 표는 "어디를 보면 되는지"를 가리키는 영수증일 뿐이다. 통째로 위조해도 체인 값과 안 맞으면 그만이다
+- 자기 자신에게 보내는 **0 값 거래의 `data` 칸**에 해시를 넣는다. 스마트 컨트랙트를 배포하지 않는다 — 배포할 것이 없으면 틀릴 것도 없다
+- `CHAIN_RPC_URL`·`CHAIN_PRIVATE_KEY` 가 없으면 **이 기능만 꺼진다.** 접수·앵커·검증은 그대로 돈다
+- ⚠️ 테스트넷은 운영상 리셋될 수 있어 **영구 증명이 아니다** ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 2단계 절)
 
 ## email_logs — 메일 발송 (G1~G3)
 

@@ -277,20 +277,18 @@ class TestAppendOnly:
         with pytest.raises(DBAPIError, match="비울 수 없습니다"):
             db.execute(text("TRUNCATE document_anchors"))
 
-    def test_ots_칸은_고칠_수_있다(self, db: Session, anchor: DocumentAnchor):
-        """2단계(공개 타임스탬프)가 쓸 자리는 열어 둬야 한다.
+    def test_고칠_수_있는_칸이_하나도_없다(self, db: Session, anchor: DocumentAnchor):
+        """0006 에서는 2단계용으로 ots_* 두 칸을 열어 뒀었다.
 
-        막아 두면 2단계에서 이 트리거를 걷어내게 되고, 그러면 잠금이 잠금이 아니다.
+        공개 체인 기록을 `chain_publications` 로 빼면서(0008) 그 예외가 필요
+        없어졌고, 없는 편이 낫다 — **열린 칸 하나가 곧 원장의 유일한 구멍**이다.
+        여기서는 아무 컬럼이나 골라 UPDATE 가 통째로 막히는지 본다.
         """
-        db.execute(
-            text(
-                "UPDATE document_anchors SET ots_status = 'pending', ots_proof = :p"
-                " WHERE id = :i"
-            ),
-            {"p": "증명파일", "i": anchor.id},
-        )
-        db.expire(anchor)
-        assert anchor.ots_status == "pending"
+        with pytest.raises(DBAPIError, match="고쳐 쓸 수 없습니다"):
+            db.execute(
+                text("UPDATE document_anchors SET doc_type = 'resume' WHERE id = :i"),
+                {"i": anchor.id},
+            )
 
     def test_새_행은_계속_쌓인다(self, db: Session, anchor: DocumentAnchor, resume: File):
         """잠금이 append 까지 막으면 기능 자체가 죽는다."""

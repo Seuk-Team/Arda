@@ -24,8 +24,8 @@ from datetime import datetime
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import s3
-from app.models import Application, DocumentAnchor, File
+from app import chain, s3
+from app.models import Application, ChainPublication, DocumentAnchor, File
 
 logger = logging.getLogger(__name__)
 
@@ -290,3 +290,107 @@ def verify_chain(db: Session) -> dict:
 
 def _broken(row: DocumentAnchor, reason: str, length: int) -> dict:
     return {"intact": False, "length": length, "broken_at": row.seq, "reason": reason}
+
+
+# ── 공개 체인에 못 박기 (ADR-0028 2단계) ──────────────────────────────
+
+
+class NothingToPublish(Exception):
+    """올릴 것이 없다. 원장이 비었거나, 머리가 지난번과 같다."""
+
+
+def publish_head(db: Session) -> ChainPublication:
+    """지금 사슬 머리를 공개 체인에 올린다.
+
+    **머리 하나가 그 앞 전부를 덮는다** — 각 고리가 앞 고리의 해시를 재료로
+    쓰기 때문이다. 그래서 매번 값 하나만 보낸다.
+
+    머리가 지난번 올린 것과 같으면 보내지 않는다(`NothingToPublish`). 같은 값을
+    또 올리는 것은 가스만 쓰고 증명력이 하나도 안 는다.
+
+    **행을 먼저 만들고 보낸다.** 반대로 하면 보내는 데 성공하고 기록에 실패했을
+    때 "체인에는 있는데 우리는 모르는 거래"가 생긴다. 그건 나중에 사람이
+    탐색기를 뒤져야 찾을 수 있다.
+    """
+    head = db.scalar(select(DocumentAnchor).order_by(DocumentAnchor.seq.desc()).limit(1))
+    if head is None:
+        raise NothingToPublish("원장이 비어 있습니다")
+
+    last = db.scalar(
+        select(ChainPublication)
+        .where(ChainPublication.status != "failed")
+        .order_by(ChainPublication.covered_through_seq.desc())
+        .limit(1)
+    )
+    if last is not None and last.chain_hash == head.chain_hash:
+        raise NothingToPublish(
+            f"지난번(seq={last.covered_through_seq}) 이후로 새 고리가 없습니다"
+        )
+
+    config = chain.load_config()
+    if config is None:
+        raise RuntimeError(chain.unavailable_reason() or "체인 설정이 없습니다")
+
+    row = ChainPublication(
+        network=config.network,
+        covered_through_seq=head.seq,
+        chain_hash=head.chain_hash,
+        status="pending",
+    )
+    db.add(row)
+    db.commit()
+
+    try:
+        sent = chain.publish_hash(config, head.chain_hash)
+    except Exception as exc:
+        # 사유를 남긴다 — 다음 시도의 유일한 단서다. 개인키는 여기 안 들어간다.
+        row.status = "failed"
+        row.error = f"{type(exc).__name__}: {exc}"[:2000]
+        db.commit()
+        logger.exception("체인 게시 실패 seq=%s", head.seq)
+        raise
+
+    row.tx_hash = sent.tx_hash
+    row.from_address = sent.from_address
+    row.block_number = sent.block_number
+    if sent.confirmed:
+        row.status = "confirmed"
+        row.confirmed_at = db.scalar(select(func.now()))
+    db.commit()
+    return row
+
+
+def refresh_pending(db: Session) -> list[ChainPublication]:
+    """아직 확정을 못 본 거래들을 다시 확인한다.
+
+    보냈지만 영수증을 못 받은 것은 실패가 아니다 — 대개 블록이 아직 안 나온
+    것뿐이다. 여기서 뒤늦게 `confirmed` 로 바뀐다.
+    """
+    config = chain.load_config()
+    if config is None:
+        return []
+
+    pending = db.scalars(
+        select(ChainPublication).where(
+            ChainPublication.status == "pending",
+            ChainPublication.tx_hash.isnot(None),
+        )
+    ).all()
+
+    changed: list[ChainPublication] = []
+    for row in pending:
+        found = chain.fetch_status(config, row.tx_hash)
+        if found is None:
+            continue
+        row.block_number = found.block_number
+        if found.confirmed:
+            row.status = "confirmed"
+            row.confirmed_at = db.scalar(select(func.now()))
+        else:
+            row.status = "failed"
+            row.error = "체인이 거래를 되돌렸습니다 (status=0)"
+        changed.append(row)
+
+    if changed:
+        db.commit()
+    return changed
