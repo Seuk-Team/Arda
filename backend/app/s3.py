@@ -42,7 +42,17 @@ def _client():
             endpoint_url=ENDPOINT,
             config=Config(s3={"addressing_style": "path"}),
         )
-    return boto3.client("s3", region_name=REGION)
+    # region_name 만 주면 botocore 가 presigned URL 을 글로벌 호스트
+    # (bucket.s3.amazonaws.com)로 서명한다. 갓 만든 버킷은 그 호스트가 몇 시간
+    # 동안 307 을 돌려주고, 리다이렉트를 따라가도 서명 리전이 달라
+    # SignatureDoesNotMatch 가 난다(2026-09-04 새 버킷 이전 직후 실측 — 브라우저
+    # 업로드 전면 실패). 리전 엔드포인트를 명시해 처음부터 리전 호스트로 서명한다.
+    return boto3.client(
+        "s3",
+        region_name=REGION,
+        endpoint_url=f"https://s3.{REGION}.amazonaws.com",
+        config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+    )
 
 
 def presign_put(
