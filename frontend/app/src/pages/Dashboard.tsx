@@ -55,10 +55,10 @@ function fmtSlot(iso: string): string {
 /* 공고 카드의 퍼널 레일. 공고의 지원자 화면(PostingApplicants)의 FUNNEL 과 같은
    무채 램프 + 합격 연두 (§1 — 흐름 그래프 한정 허용). 불합격은 대시보드 범위 밖. */
 const RAIL: { stage: Stage; color: string }[] = [
-  { stage: 'applied', color: '#C9CFC3' },
-  { stage: 'screening', color: '#AEB6A8' },
-  { stage: 'interview', color: 'var(--neutral)' },
-  { stage: 'accepted', color: 'var(--sprout)' },
+  { stage: 'applied', color: 'var(--stage-1)' },
+  { stage: 'screening', color: 'var(--stage-2)' },
+  { stage: 'interview', color: 'var(--stage-3)' },
+  { stage: 'accepted', color: 'var(--stage-4)' },
 ]
 
 /* ── 면접 일정 축소판 ─────────────────────────────────────────────

@@ -14,6 +14,7 @@
     height: 60px;
     padding-bottom: env(safe-area-inset-bottom);
     background: var(--sidebar-bg);
+    backdrop-filter: var(--glass);
     border-top: var(--border-w) solid var(--sidebar-line);
   }
 
@@ -42,7 +43,7 @@
 
   .tab.active,
   .tab:active {
-    color: var(--leaf);
+    color: var(--accent-text);
   }
 
   /* 홈 탭: 중앙 원형 버튼 */
@@ -67,10 +68,10 @@
   }
 
   .homeTab.homeActive svg {
-    background: var(--leaf);
-    border-color: var(--leaf);
-    color: #fff;
-    stroke: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    stroke: var(--on-accent);
   }
 
   /* 더보기 시트 */
@@ -86,6 +87,7 @@
   .sheet {
     width: 100%;
     background: var(--bg-elev);
+    backdrop-filter: var(--glass);
     border-top: var(--border-w) solid var(--border);
     border-radius: var(--r-card) var(--r-card) 0 0;
     padding: var(--sp-3) 0 calc(var(--sp-4) + 60px + env(safe-area-inset-bottom));
@@ -117,11 +119,11 @@
   }
 
   .sheetLink[aria-current='page'] {
-    color: var(--leaf);
+    color: var(--accent-text);
   }
 
   .sheetLink[aria-current='page'] svg {
-    color: var(--leaf);
+    color: var(--accent-text);
   }
 
   .sheetLogout {

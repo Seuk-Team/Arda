@@ -2,6 +2,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import styles from './Sidebar.module.css'
+import BrandMark from './BrandMark'
 import type { Motion } from './ArViewer'
 import { useAuth } from '../auth/AuthContext'
 import { ROLE_LABEL } from '../lib/stage'
@@ -79,9 +80,7 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
   /* 목업 상수를 실데이터로 교체. user 가 아직 없으면(부트스트랩 중) 스켈레톤 — §6 */
   const { user } = useAuth()
 
-  /* 활성 표시(흰 판)를 항목이 아니라 별도 레이어로 분리한다. 화면 전환 중에는
-     이 판이 다음 메뉴로 미끄러져 이동한다 (MorphNav 가 body[data-morph] 를 켠 동안만).
-     평소에는 transition 이 없어 지금처럼 즉시 옮겨 붙는다. */
+  /* 활성 표시를 항목이 아니라 별도 레이어로 분리한다 — 판 하나가 옮겨 붙는다 */
   const { pathname } = useLocation()
   const navRef = useRef<HTMLElement>(null)
   const [pill, setPill] = useState<{ y: number; h: number } | null>(null)
@@ -97,6 +96,7 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
   return (
     <aside className={styles.sidebar}>
       <NavLink to="/dashboard" className={styles.logo}>
+        <BrandMark size={26} className={styles.logoMark} />
         Arda
       </NavLink>
 

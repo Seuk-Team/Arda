@@ -26,6 +26,7 @@
 /* ── 평가 대기 큐 ────────────────────────────────── */
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -75,14 +76,14 @@
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 
 /* 어느 행이 패널에 열려 있는지 목록에서 보이게 한다 */
 .cur,
 .cur:hover {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
 }
 
 .name {
@@ -328,6 +329,7 @@
   font-size: var(--font-body);
   font-weight: 600;
   color: var(--text);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
@@ -341,9 +343,9 @@
 }
 
 .rate button[aria-pressed='true'] {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: var(--bg-elev);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
   text-shadow: var(--ts-onfill);
 }
 
@@ -373,9 +375,9 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .actions {
@@ -499,6 +501,7 @@
     font-size: 28px;
     font-weight: 700;
     color: var(--text);
+    font-family: var(--mono);
     font-variant-numeric: tabular-nums;
     line-height: 1;
   }
@@ -528,6 +531,7 @@
     gap: var(--sp-2);
     font-size: var(--font-caption);
     color: var(--text-sub);
+    font-family: var(--mono);
     font-variant-numeric: tabular-nums;
   }
 
@@ -541,7 +545,7 @@
 
   .scoreBarFill {
     height: 100%;
-    background: var(--sprout);
+    background: var(--accent);
     border-radius: 2px;
   }
 

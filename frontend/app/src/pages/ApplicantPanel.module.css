@@ -75,7 +75,7 @@
   white-space: nowrap;
 }
 
-.tone_accepted { color: var(--leaf); background: var(--sprout-soft); }
+.tone_accepted { color: var(--accent-text); background: var(--accent-soft); }
 .tone_rejected { color: var(--danger); background: var(--danger-soft, color-mix(in srgb, var(--danger) 12%, transparent)); }
 
 /* 모바일에서는 mobileNav가 sticky 담당이므로 head는 static */
@@ -103,7 +103,7 @@
 }
 
 .stageProgress { color: var(--text-sub); white-space: nowrap; flex: none; }
-.stageAccepted { color: var(--leaf); font-weight: 700; white-space: nowrap; flex: none; }
+.stageAccepted { color: var(--accent-text); font-weight: 700; white-space: nowrap; flex: none; }
 .stageRejected { color: var(--danger); font-weight: 700; white-space: nowrap; flex: none; }
 
 /* ── 단계 프로그레스 바 ─────────────────────────────── */
@@ -136,7 +136,7 @@
   background: var(--border);
 }
 
-.stepLineDone { background: var(--leaf); }
+.stepLineDone { background: var(--accent); }
 
 .stepDot {
   width: 28px;
@@ -155,15 +155,15 @@
 }
 
 .stepPast {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .stepCur {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .stepLabel {
@@ -172,7 +172,7 @@
   white-space: nowrap;
 }
 
-.stepLabelCur { color: var(--leaf); font-weight: 700; }
+.stepLabelCur { color: var(--accent-text); font-weight: 700; }
 
 /* ── 섹션 헤더 (h2 + 우측 버튼/배지) ─────────────────── */
 .secRow {
@@ -187,7 +187,7 @@
 .btnSm {
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--leaf);
+  color: var(--accent-text);
   background: none;
   border: none;
   padding: 0;
@@ -199,7 +199,7 @@
 .badge {
   font-size: var(--font-caption);
   font-weight: 700;
-  color: var(--leaf);
+  color: var(--accent-text);
   flex: none;
 }
 
@@ -215,16 +215,16 @@
   height: 48px;
   border-radius: var(--r-ctl);
   border: none;
-  background: var(--leaf);
-  color: #fff;
+  background: var(--accent-fill);
+  color: var(--on-accent);
   font-size: var(--font-body);
   font-weight: 700;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
 }
 
-.btnChangeStage:hover { background: var(--leaf-strong, var(--leaf)); }
-.btnChangeStage:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.btnChangeStage:hover { background: var(--accent-fill-hover); }
+.btnChangeStage:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 .stageInline { display: flex; flex-direction: column; gap: var(--sp-3); }
 
@@ -331,7 +331,7 @@
 
 .btnStage:hover:not(:disabled) { background: var(--bg-sunken); }
 .btnStage:focus-visible,
-.btnReject:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.btnReject:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
 .btnReject {
@@ -375,9 +375,9 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .input:disabled { color: var(--text-sub); cursor: not-allowed; }
@@ -410,7 +410,7 @@
 }
 
 .nauthor { font-size: var(--font-sm); font-weight: 600; color: var(--text); }
-.ndate { font-size: var(--font-caption); color: var(--text-sub); font-variant-numeric: tabular-nums; }
+.ndate { font-size: var(--font-caption); color: var(--text-sub); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 .nbody {
   font-size: var(--font-sm);
@@ -457,6 +457,7 @@
   padding: var(--sp-6);
   border-radius: var(--r-card);
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
   box-shadow: var(--sh-overlay);
 }
 
@@ -504,7 +505,7 @@
 }
 
 .fileItem:hover:not(:disabled) {
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .fileItem:disabled {
@@ -551,7 +552,7 @@
   flex: 1;
 }
 
-.ivStatusDone { color: var(--leaf); }
+.ivStatusDone { color: var(--accent-text); }
 
 .ivCopy {
   height: 36px;
@@ -576,12 +577,12 @@
   background: var(--bg-elev);
   font-size: var(--font-caption);
   font-weight: 600;
-  color: var(--leaf);
+  color: var(--accent-text);
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
 }
-.ivExpand:hover { background: var(--sprout-soft); }
+.ivExpand:hover { background: var(--accent-soft); }
 
 .ivTurns {
   display: flex;
@@ -625,12 +626,13 @@
   min-width: 32px;
 }
 
-.mailSent { color: var(--leaf); }
+.mailSent { color: var(--accent-text); }
 .mailFailed { color: var(--danger); }
 
 .mailLogDate {
   color: var(--text-sub);
   flex: none;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -656,6 +658,7 @@
 .historyDate {
   flex: none;
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   min-width: 40px;
 }

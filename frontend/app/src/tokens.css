@@ -1,31 +1,84 @@
 :root {
-  /* ── 색 (05-design §1 확정) ────────────────────────────── */
-  --bg: #F4F7F0;
-  --bg-elev: #FFFFFF;
-  --bg-sunken: #EBF0E5;
-  --sunken-hover: #DCE3D4;
-  --sidebar-bg: #C7E49B;
-  --sidebar-line: #A8CD6E;
+  /* ── 색 (05-design §1 — 2026-09-04 다크 개정) ─────────────
+     라이트 새싹 팔레트를 딥 네트워크 다크로 뒤집었다. 기준 시안: 딥네트워크 초안.
 
-  --text: #1B2117;
-  --text-sub: #5C6654;
+     가장 큰 변화는 색이 아니라 재질이다. 면이 더 이상 불투명한 흰 판이 아니라
+     유리다 — 배경(노드망·오로라)이 화면 전체에서 비쳐 보여야 하기 때문. 패널이
+     화면의 90%를 덮는 구조라, 불투명하게 두면 배경이 여백에만 토막으로 남는다. */
 
-  --border: #DCE3D4;
-  --border-soft: #EAEFE4;
+  /* 바탕. 이 위에 오로라 4겹이 깔린다 (Layout .shell) */
+  --bg: #070B14;
+  /* 카드·패널의 얼굴 — 유리. 알파가 있어야 뒤가 비친다 */
+  --bg-elev: rgba(13, 19, 34, .62);
+  /* 셸 크롬(사이드바·머리띠): 본문 카드보다 한 겹 더 가라앉는다 */
+  --bg-chrome: rgba(9, 13, 24, .66);
+  /* 인풋·트랙·줄무늬. 라이트에선 아래로 팠지만 다크에선 위로 올린다 —
+     어두운 바탕을 더 어둡게 하면 그냥 구멍이 된다 */
+  --bg-sunken: rgba(255, 255, 255, .055);
+  --sunken-hover: rgba(255, 255, 255, .10);
+  --sidebar-bg: var(--bg-chrome);
+  --sidebar-line: rgba(255, 255, 255, .09);
+
+  /* 유리의 재질. 채도를 같이 올려야 뒤의 오로라가 회색이 아니라 색으로 읽힌다 */
+  --glass: blur(30px) saturate(150%);
+  /* 유리 윗면에 닿는 빛. 다크에서 면을 띄우는 것은 그림자가 아니라 이 한 줄이다 */
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, .06);
+
+  --text: #F2F5FB;
+  --text-sub: #9AA7C0;
+
+  --border: rgba(255, 255, 255, .12);
+  --border-soft: rgba(255, 255, 255, .07);
   --border-w: 1px;
 
-  --sprout: #8CC63F;
-  --sprout-soft: #EFF7E2;
-  --leaf: #3A6B21;
-  --leaf-strong: #2C5218;
-  --neutral: #8A9284;
-  --danger: #A9503C;
-  --danger-soft: #F7ECE8;
-  --ai: #A9702A;
-  --ai-soft: #FBF2E5;
+  /* ── 강조: 시안 → 블루 → 바이올렛 ──────────────────────
+     배경 노드망이 쓰는 팔레트를 그대로 UI 로 가져온다 — 앞뒤가 같은 재질이어야
+     로고·배경·강조가 한 화면으로 읽힌다 */
+  --accent: #22D3EE;
+  --accent-blue: #60A5FA;
+  --accent-violet: #A78BFA;
+  /* 어두운 바탕에서 #22D3EE 는 글자로 쓰기엔 탁하다 — 글자·테두리는 한 톤 밝게 */
+  --accent-text: #7DD3FC;
+  /* 주 동작 채움. 시안의 CTA 는 네온이 아니라 흰 판이다 — 네온이 이미 배경에
+     깔려 있어서 버튼까지 빛나면 무엇이 동작인지 안 읽힌다 */
+  --accent-fill: #FFFFFF;
+  --accent-fill-hover: #E4E9F7;
+  --on-accent: #0A1020;
+  /* 시안 채움 위의 hover — 한 톤 밝게. 글자가 아니라 배경으로 쓰인다 */
+  --accent-hover: #BAE6FD;
+  /* 시안 워시 — 합격 뱃지 배경·활성 메뉴 판·hover 채움 */
+  --accent-soft: rgba(34, 211, 238, .13);
 
-  /* ── 타이포 (05-design §2 확정) ────────────────────────── */
-  --sans: "IBM Plex Sans KR", system-ui, "Malgun Gothic", sans-serif;
+  /* 판단 전(접수·서류·면접) 공용 — "색 없음"이 의미 */
+  --neutral: #7D8CA8;
+  /* 불합격·실패. 다크에서 벽돌색(#A9503C)은 바탕에 먹혀 안 읽힌다 — 살구로 올렸다 */
+  --danger: #F0A38F;
+  --danger-soft: rgba(240, 163, 143, .13);
+  /* 합격·성공 */
+  --ok: #34D399;
+  --ok-soft: rgba(52, 211, 153, .13);
+  --ok-text: #6EE7B7;
+  /* 주의·만료 임박 */
+  --warn: #FBBF24;
+  --warn-text: #FCD34D;
+  /* AI 생성물 표시. 점선 테두리 + 앰버 — 사람이 쓴 것과 구분되는 유일한 자리 */
+  --ai: #FCD34D;
+  --ai-soft: rgba(169, 112, 42, .20);
+  --ai-line: #A9702A;
+
+  /* 단계 램프 — 판단 전 3단은 무채로 어두운 데서 밝은 데로 가고, 합격만 색이
+     붙는다. 4단이 각자 다른 색이면 어느 쪽이 앞인지 안 읽힌다 (§1 구분용 색) */
+  --stage-1: #46536E;
+  --stage-2: #5E6E8E;
+  --stage-3: #7D8CA8;
+  --stage-4: var(--ok);
+
+  /* ── 타이포 (05-design §2 — 2026-09-04 개정) ──────────────
+     본문은 Pretendard Variable. 숫자만 JetBrains Mono 로 뺀다 — 계기판은 자리
+     폭이 고정돼야 값이 갱신될 때 흔들리지 않는다. 한글에는 이 폰트에 글리프가
+     없어 자동으로 Pretendard 로 떨어지므로 섞어 써도 안전하다. */
+  --sans: "Pretendard Variable", Pretendard, -apple-system, system-ui, "Malgun Gothic", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Pretendard Variable", monospace;
   --font-display: 26px;
   --font-h1: 22px;
   --font-h2: 18px;
@@ -33,6 +86,9 @@
   --font-sm: 14px;
   --font-caption: 12px;
   --font-num: 14px;
+  /* 블록 머리의 작은 라벨(파이프라인·오늘 면접…). 자간을 벌려 제목과 구분한다 */
+  --font-cap: 11px;
+  --ls-cap: .10em;
 
   /* ── 간격 (05-design §3 확정, 4px 배수) ────────────────── */
   --sp-1: 4px;
@@ -51,24 +107,41 @@
      폭도 하나다 (05-design §0.5 "오른쪽 패널 한 자리", §3 동종 요소 동일 규격) */
   --right-panel-w: 360px;
 
-  /* ── 테두리·radius·그림자 (05-design §4 확정) ──────────── */
+  /* ── 테두리·radius·그림자 (05-design §4 — 2026-09-04 개정) ──
+     radius 를 8px 에서 4px 로 좁혔다. 유리 + 얇은 선 + 모서리 틱으로 가는 계기판
+     쪽 언어라, 라운드가 크면 물러 보인다. */
   --r-ctl: 6px;
-  --r-card: 8px;
+  --r-card: 4px;
+  --r-row: 3px;
   --r-pill: 999px;
-  --sh-card: 0 1px 2px rgba(27,33,23,.06), 0 1px 1px rgba(27,33,23,.04);
-  --sh-overlay: 0 8px 28px rgba(27,33,23,.14), 0 2px 6px rgba(27,33,23,.06);
-  /* 모달 뒤를 덮는 막. 그림자와 같은 먹색 계열(--text 의 rgb)을 쓴다 —
-     §1 "비슷한 색을 구분 목적으로 여러 개 두지 않는다" (G4 에서 추가) */
-  --scrim: rgba(27, 33, 23, .32);
+  /* 다크에서는 먹색 그림자가 안 보인다 — 면을 띄우는 일은 테두리와 윗면 빛이 한다 */
+  --sh-card: var(--glass-inset);
+  --sh-overlay: 0 32px 80px rgba(2, 4, 10, .62), inset 0 1px 0 rgba(255, 255, 255, .15);
+  /* 활성 상태에만 붙이는 발광. 넓게 쓰면 화면이 번져 위계가 사라진다 */
+  --sh-glow: 0 0 18px rgba(34, 211, 238, .14);
+  /* 모달 뒤를 덮는 막. 바탕(--bg)보다 더 깊은 먹으로 내려야 유리가 떠 보인다 */
+  --scrim: rgba(2, 4, 10, .62);
+  /* 접속 시퀀스의 흰빛 — 어두운 망과 도착 화면 사이의 다리. 순백이 아니라
+     시안 쪽으로 튼 흰색이다: 화면의 모든 빛이 시안 → 블루 계열인데 여기만
+     순백이면 다른 화면에서 온 것처럼 튄다 */
+  --wash: #EAF4FB;
+  /* 그레인 — 넓은 어두운 면에 생기는 그라데이션 밴딩을 깨고 재질감을 준다 */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 
-  /* ── 텍스트 그림자 (05-design §2 확정) ─────────────────── */
-  --ts-heading: 0 1px 0 rgba(27,33,23,.34);
-  --ts-onfill: 0 1px 0 rgba(0,0,0,.62);
+  /* ── 텍스트 그림자 (05-design §2) ──────────────────────── */
+  --ts-heading: 0 1px 0 rgba(0, 0, 0, .62);
+  /* 흰 채움 위의 어두운 글자에는 그림자를 얹지 않는다 — 탁해지기만 한다 */
+  --ts-onfill: none;
 
-  /* ── 모션 (05-design §5 확정) ──────────────────────────── */
+  /* ── 모션 (05-design §5) ───────────────────────────────── */
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
+  /* 로그인 다이브 전용. 응답을 기다리는 동안 파고드는 속도(--dur-dive)와,
+     응답이 온 뒤 착지까지의 고정 비용(--dur-land)이다. 착지가 이보다 짧으면
+     전환이 눈에 안 읽힌다 */
+  --dur-dive: 1600ms;
+  --dur-land: 280ms;
   --ease: cubic-bezier(.2, 0, 0, 1);
 
   /* ── 레이어 (05-design §8 확정) ────────────────────────── */
@@ -77,6 +150,9 @@
   --z-modal: 30;
   --z-toast: 40;
   --z-drag: 50;
+  /* 접속 시퀀스의 흰빛. 화면 전체를 덮어 교체 순간을 가리는 것이 목적이라
+     스케일에서 가장 위다 — 이 위에 뜨는 것은 없다 */
+  --z-wash: 60;
 }
 
 @media (prefers-reduced-motion: reduce) {

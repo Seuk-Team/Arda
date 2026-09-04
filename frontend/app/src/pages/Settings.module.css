@@ -45,8 +45,8 @@
 }
 
 .tabs button[aria-selected='true'] {
-  color: var(--leaf);
-  border-bottom-color: var(--leaf);
+  color: var(--accent-text);
+  border-bottom-color: var(--accent-text);
 }
 
 /* ── 폼 ──────────────────────────────────────────── */
@@ -86,9 +86,9 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .input:disabled,
@@ -119,9 +119,9 @@
 }
 
 .textarea:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .textarea:disabled {
@@ -180,6 +180,7 @@
 /* ── 사용자 표 ───────────────────────────────────── */
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -228,12 +229,12 @@
 }
 
 .admin {
-  color: var(--leaf);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
 .on {
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 .off {
@@ -277,7 +278,7 @@
 
 .stageOn {
   background: var(--bg-elev);
-  color: var(--leaf);
+  color: var(--accent-text);
   font-weight: 700;
   box-shadow: inset 0 0 0 var(--border-w) var(--border);
 }
@@ -310,9 +311,9 @@
   }
 
   .stageOn {
-    background: var(--sprout-soft);
-    color: var(--leaf);
-    border-color: var(--sprout);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border-color: var(--accent);
     box-shadow: none;
   }
 }
@@ -466,8 +467,8 @@
 }
 
 .badgeOn {
-  background: var(--sprout-soft);
-  color: var(--leaf);
+  background: var(--accent-soft);
+  color: var(--accent-text);
 }
 
 @media (max-width: 768px) {

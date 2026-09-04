@@ -15,6 +15,7 @@
   max-width: 100%;
   padding: var(--sp-6);
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -38,7 +39,7 @@
 }
 
 .seed {
-  color: var(--leaf);
+  color: var(--accent-text);
 }
 
 .title {
@@ -120,9 +121,9 @@
 
 .input:focus,
 .textarea:focus {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 1px;
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .input:disabled,
@@ -168,7 +169,7 @@
 }
 
 .fileInput:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 
@@ -210,7 +211,7 @@
 .progFill {
   display: block;
   height: 100%;
-  background: var(--leaf);
+  background: var(--accent);
   border-radius: 2px;
   transition: width var(--dur-fast) linear;
 }

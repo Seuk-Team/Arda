@@ -23,8 +23,8 @@
 
 /* 성공은 연두 워시, 실패는 적갈 — §1 이 정한 판단 색 그대로다 */
 .ok {
-  background: var(--sprout-soft);
-  border-color: var(--sprout);
+  background: var(--accent-soft);
+  border-color: var(--accent);
   color: var(--text);
 }
 

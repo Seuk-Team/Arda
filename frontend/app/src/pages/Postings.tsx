@@ -25,10 +25,10 @@ function deadlineText(p: Posting): string {
 }
 
 const STAGES = [
-  { key: 'applied',   label: '접수', color: '#C9CFC3' },
-  { key: 'screening', label: '서류', color: '#AEB6A8' },
-  { key: 'interview', label: '면접', color: 'var(--neutral)' },
-  { key: 'accepted',  label: '합격', color: 'var(--sprout)' },
+  { key: 'applied',   label: '접수', color: 'var(--stage-1)' },
+  { key: 'screening', label: '서류', color: 'var(--stage-2)' },
+  { key: 'interview', label: '면접', color: 'var(--stage-3)' },
+  { key: 'accepted',  label: '합격', color: 'var(--stage-4)' },
 ]
 
 const NARROW_MQ = '(max-width: 768px)'
