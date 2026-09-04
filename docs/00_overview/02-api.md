@@ -152,17 +152,22 @@
 | GET | /applications/{id}/integrity | 제출물이 제출 당시 그대로인지 | **볼 때마다 원본을 다시 읽어 지문을 새로 뜬다.** 첨부가 있으면 S3 를 읽으므로 **목록에서 N 번 부를 API 가 아니다** — 상세에서 한 번 |
 | POST | /applications/{id}/integrity/anchor | 앵커가 없는 제출물의 지문을 뜬다 (백필) | ADR-0028 이전 접수분용. **이미 앵커된 것은 건드리지 않는다** — 여러 번 눌러도 사슬이 안 부푼다 |
 | GET | /integrity/chain | 원장 전체가 이어지는지 + **공개 체인 게시 상태** | `{intact, length, broken_at, reason, published, unpublished_count}`. 처음 깨진 자리에서 멈춘다 |
-| POST | /integrity/publish | 사슬 머리를 공개 체인에 올린다 | **admin 전용** — 되돌릴 수 없는 바깥 행위. **503** 설정 없음 · **409** 올릴 것 없음 · **502** 전송 실패 |
+| POST | /integrity/publish | 폴리곤에 직접 올린다 | **admin 전용.** ⚠️ **과도기·로컬 전용** — 운영에서는 GitHub Actions 가 서명한다(아래). 서버에 `CHAIN_PRIVATE_KEY` 가 있을 때만 동작. **503** 설정 없음 · **409** 올릴 것 없음 · **502** 전송 실패 |
+| POST | /integrity/publish/ots | OpenTimestamps(비트코인)에 도장 | **admin 전용.** **개인키가 없어서 서버가 직접 돈다.** 응답은 대개 `pending` — 비트코인 블록에 실리기까지 몇 시간이 정상 |
+| POST | /integrity/publications/start | 게시할 자리를 잡고 **올릴 값**을 알려준다 | **admin 전용.** 쿼리 `network`. GitHub Actions 가 부른다 — 서버는 서명하지 않는다. **409** 올릴 것 없음 |
+| POST | /integrity/publications/{id}/result | 밖에서 서명·전송한 결과를 기록 | **admin 전용.** 본문 `{status, tx_hash?, block_number?, from_address?, proof?, error?}`. **서버는 이 값을 검증하지 못한다** — 체인의 값이 진실이고 이건 영수증이다. 없는 id 는 404 |
 | GET | /integrity/publications | 못 박은 기록 목록 (최신 50) | `explorer_url` 포함 — 발표에서 이 링크를 연다 |
-| POST | /integrity/publications/refresh | 확정 못 본 거래 재확인 | 보냈는데 영수증을 못 받은 것은 실패가 아니라 블록이 아직 안 나온 것. 바뀐 것만 돌려준다 |
+| POST | /integrity/publications/refresh | 확정 못 본 게시 재확인 | 폴리곤은 영수증 재조회, OTS 는 캘린더 재질의. **못 받은 것은 실패가 아니라 아직인 것.** 바뀐 것만 돌려준다 |
 
 - `verdict` 는 넷이다: `ok` · `mismatch`(**바뀌었다**) · `unreadable`(원본을 못 읽는다) · `none`(**앵커가 없다**). `none` 을 `ok` 와 섞지 않는다 — "깨끗하다"가 아니라 "증명할 근거가 없다"다
 - 항목이 여럿이면 **나쁜 쪽이 이긴다** — 하나라도 어긋나면 전체가 `mismatch`
 - 개별 검증과 사슬 검증은 **다른 질문**이다. 원본을 바꾸고 앵커 행까지 같이 고쳐 놓으면 개별은 통과하지만 사슬이 깨진다
 - 앵커 생성은 접수 시 **백그라운드**다 — 지원자를 제출 버튼 앞에 세워 두지 않는다. 실패해도 접수는 유효
 - ⚠️ **사후 앵커(백필)는 "이 시각에 이 내용이었다"까지만** 증명한다. 접수 시점의 내용이었다는 증명이 아니다
-- **공개 체인(폴리곤 테스트넷)에 올리는 값은 사슬 머리 하나뿐**이다 — 각 고리가 앞 고리를 재료로 쓰므로 머리 하나가 그 앞을 전부 덮는다. 원본·개인정보는 아무것도 안 나간다
-- `CHAIN_RPC_URL`·`CHAIN_PRIVATE_KEY` 가 없으면 **게시 기능만 꺼진다** — 접수·앵커·검증은 그대로 돈다
+- **공개 체인에 올리는 값은 사슬 머리 하나뿐**이다 — 각 고리가 앞 고리를 재료로 쓰므로 머리 하나가 그 앞을 전부 덮는다. 원본·개인정보는 아무것도 안 나간다
+- **못 박는 곳이 둘이다**: `polygon-amoy`(보여주는 쪽 — 탐색기 링크)와 `opentimestamps`(남기는 쪽 — 비트코인, 영구). **같은 머리라도 네트워크가 다르면 각각 올린다**
+- **서명 위치가 갈린다**: 폴리곤은 개인키가 필요해 **GitHub Actions 가** 서명한다(서버에 키를 두지 않는다 — ADR-0028). OTS 는 키가 없어 **서버가 직접** 찍는다
+- `CHAIN_RPC_URL`·`CHAIN_PRIVATE_KEY` 가 없으면 **폴리곤 게시만 꺼진다** — OTS·접수·앵커·검증은 그대로 돈다
 - `unpublished_count` 는 마지막 게시 이후 쌓인 고리 수다. **그만큼이 아직 외부 증명이 없는 구간**이다
 
 ## 메모 (담당자 서술형 — 기능 번호 미지정)
