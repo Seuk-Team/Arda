@@ -17,10 +17,21 @@ import styles from './LoginIntro.module.css'
    끝낸다. prefers-reduced-motion 이면 아예 돌지 않는다 (05-design §5). */
 
 const SEEN_KEY = 'arda-intro-seen'
+/* 들어오기 전 한 박자. 이게 없으면 마운트와 등장이 겹쳐 "들어가자마자 이미 떠
+   있는" 것처럼 보인다 — 슥 들어오는 동작 자체가 안 읽힌다. 이 동안 화면에는
+   배경 망만 있고, 끝 무렵 감광이 먼저 시작돼 무언가 올 것을 예고한다. */
+const LEAD_IN = 620
 const T_END = 3600      /* 카드 등장이 3592ms 에 끝난다 — 그 뒤에 닫아야 안 튄다 */
 const SEUK_IN = 672     /* 진입 이징 길이 */
-const SEUK_BEAT = 190   /* 줄 사이 간격 */
+/* 줄 사이 간격 — 진입과 퇴장을 따로 둔다.
+   퇴장(190ms)은 가속 곡선이라 짧아도 "후-둑"이 읽히지만, 진입은 감속 곡선이라
+   같은 간격이면 두 줄이 거의 함께 도착해 한 덩어리로 보인다. 그래서 진입만
+   벌린다 — 워드마크가 자리를 잡을 즈음 카피가 뒤따라 붙는다. */
+const ENTER_BEAT = 330
+const LEAVE_BEAT = 190
 const CARD_AT = 2920    /* 로그인 카드가 떠오르기 시작하는 시각 */
+/* 감광은 글자보다 살짝 먼저 걸린다 — 배경이 눌리는 것이 곧 예고다 */
+const DIM_AT = LEAD_IN - 360
 
 function clamp01(v: number) { return v < 0 ? 0 : v > 1 ? 1 : v }
 
@@ -83,40 +94,51 @@ export default function LoginIntro({ stageRef, sceneRef, onDone }: Props) {
 
     const step = () => {
       const t = performance.now() - t0
+      /* 시퀀스 시각. LEAD_IN 동안은 음수라 아무것도 들어오지 않는다 —
+         그 사이 화면에는 배경 망만 있다 */
+      const ts = t - LEAD_IN
 
       /* 두 덩어리가 연달아 들어왔다 연달아 빠진다 */
       const PASS: [HTMLElement | null, number, number, number][] = [
         [wordRef.current, 0, 2350, 460],
-        [copyRef.current, SEUK_BEAT, 2350 + SEUK_BEAT, 380],
+        [copyRef.current, ENTER_BEAT, 2350 + LEAVE_BEAT, 380],
       ]
       for (const [el, enter, leave, dist] of PASS) {
         if (el === null) continue
         let o = 0, dx = 0
-        if (t >= enter && t < leave) {
-          const e = ease(clamp01((t - enter) / SEUK_IN))
+        if (ts >= enter && ts < leave) {
+          const e = ease(clamp01((ts - enter) / SEUK_IN))
           o = e
           dx = -dist * (1 - e)
-        } else if (t >= leave) {
-          let q = clamp01((t - leave) / 640)
+        } else if (ts >= leave) {
+          let q = clamp01((ts - leave) / 640)
           q = q * q
           o = 1 - q
           dx = (dist + 60) * q
+        } else {
+          /* 아직 대기 중 — 출발 자리에 세워 둔다. 여기서 opacity 0 을 확실히
+             박아 두지 않으면 첫 프레임에 제자리에서 깜빡 보인다 */
+          dx = -dist
         }
         el.style.opacity = String(o)
         el.style.transform = `translateX(${Math.round(dx)}px)`
       }
 
-      /* 배경 망 감광 — 인트로가 시작할 때 눌리고 마지막 덩어리가 빠질 때 되살아난다 */
-      sceneRef.current?.setIntro({ w: ease(clamp01(t / 600)), out: clamp01((t - 2540) / 640) })
+      /* 배경 망 감광 — 글자보다 먼저 눌려 무언가 올 것을 예고하고,
+         마지막 덩어리가 빠질 때 되살아난다 */
+      sceneRef.current?.setIntro({
+        w: ease(clamp01((t - DIM_AT) / 600)),
+        out: clamp01((ts - 2540) / 640),
+      })
 
       /* 로그인 카드도 같은 문법 — 왼쪽에서 슥. 가운데 카드라 이동 거리는 짧게 */
-      if (t >= CARD_AT && stage !== null) {
-        const e = ease(clamp01((t - CARD_AT) / SEUK_IN))
+      if (ts >= CARD_AT && stage !== null) {
+        const e = ease(clamp01((ts - CARD_AT) / SEUK_IN))
         stage.style.opacity = String(e)
         stage.style.transform = `translateX(${(-72 * (1 - e)).toFixed(2)}px) scale(${(0.96 + 0.04 * e).toFixed(4)})`
       }
 
-      if (t < T_END) rafRef.current = requestAnimationFrame(step)
+      if (ts < T_END) rafRef.current = requestAnimationFrame(step)
       else finish.current()
     }
     rafRef.current = requestAnimationFrame(step)
