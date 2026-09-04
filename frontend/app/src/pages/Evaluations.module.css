@@ -26,6 +26,8 @@
 /* ── 평가 대기 큐 ────────────────────────────────── */
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -328,6 +330,7 @@
   font-size: var(--font-body);
   font-weight: 600;
   color: var(--text);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
@@ -499,6 +502,7 @@
     font-size: 28px;
     font-weight: 700;
     color: var(--text);
+    font-family: var(--mono);
     font-variant-numeric: tabular-nums;
     line-height: 1;
   }
@@ -528,6 +532,7 @@
     gap: var(--sp-2);
     font-size: var(--font-caption);
     color: var(--text-sub);
+    font-family: var(--mono);
     font-variant-numeric: tabular-nums;
   }
 

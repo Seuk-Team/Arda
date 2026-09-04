@@ -10,6 +10,8 @@
 
 .stat {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -26,6 +28,7 @@
 .statVal {
   font-size: var(--font-display);
   font-weight: 700;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   text-shadow: var(--ts-heading);
@@ -41,6 +44,8 @@
 
 .card {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -107,6 +112,7 @@
   flex: 1;
   font-size: var(--font-h2);
   font-weight: 700;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   text-shadow: var(--ts-heading);
@@ -168,6 +174,7 @@
   border-radius: var(--r-pill);
   font-size: var(--font-num);
   font-weight: 600;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
@@ -382,6 +389,7 @@
 
 .groupCount {
   font-size: var(--font-caption);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
@@ -441,6 +449,7 @@
 .rowDate {
   flex: none;
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
@@ -650,6 +659,7 @@
 
 .countItem b {
   font-weight: 600;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
@@ -694,7 +704,31 @@
 
 .stats    { grid-column: 1 / -1; grid-row: 1; }
 .calCard  { grid-column: 1;      grid-row: 2; }
-.pipeCard { grid-column: 1 / -1; grid-row: 3; }
+.pipeCard { grid-column: 1 / -1; grid-row: 3; position: relative; }
+
+/* 모서리 틱 — 시안의 계기판 장식. 위쪽 두 귀퉁이만 찍는다: 네 귀퉁이를 다
+   두르면 카드가 액자가 되고, 안의 표·숫자보다 테두리가 먼저 읽힌다.
+   대시보드의 머리 블록 하나에만 붙여 "여기가 이 화면의 요약"이라는 표시로 쓴다. */
+.pipeCard::before,
+.pipeCard::after {
+  content: '';
+  position: absolute;
+  top: calc(-1 * var(--border-w));
+  width: 10px;
+  height: 10px;
+  border-top: var(--border-w) solid rgba(150, 190, 240, .55);
+  pointer-events: none;
+}
+
+.pipeCard::before {
+  left: calc(-1 * var(--border-w));
+  border-left: var(--border-w) solid rgba(150, 190, 240, .55);
+}
+
+.pipeCard::after {
+  right: calc(-1 * var(--border-w));
+  border-right: var(--border-w) solid rgba(150, 190, 240, .55);
+}
 .postingCol { grid-column: 2;    grid-row: 2; }
 
 /* 1100px 이하: 1열, postingCol은 calCard 바로 아래 (기존 topGrid 1열 동작 유지) */
@@ -768,6 +802,8 @@
     justify-content: space-between;
     gap: var(--sp-3);
     background: var(--bg-elev);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
     border: var(--border-w) solid var(--border);
     border-radius: var(--r-card);
     box-shadow: var(--sh-card);
@@ -790,6 +826,7 @@
   .mobileReviewVal {
     font-size: var(--font-display);
     font-weight: 700;
+    font-family: var(--mono);
     font-variant-numeric: tabular-nums;
     color: var(--text);
     text-shadow: var(--ts-heading);
@@ -837,6 +874,7 @@
   .mobilePipeCnt {
     font-size: var(--font-h2);
     font-weight: 700;
+    font-family: var(--mono);
     font-variant-numeric: tabular-nums;
     color: var(--text-sub);
     text-shadow: var(--ts-heading);
@@ -874,6 +912,8 @@
   .postingCol .postingList {
     display: block;
     background: var(--bg-elev);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
     border: var(--border-w) solid var(--border);
     border-radius: var(--r-card);
     box-shadow: var(--sh-card);

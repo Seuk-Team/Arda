@@ -17,6 +17,7 @@
 .meta {
   margin-left: auto;
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
@@ -187,6 +188,8 @@
 
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -260,6 +263,7 @@
 
 .num {
   text-align: center;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -294,6 +298,7 @@
   border-top: var(--border-w) solid var(--border);
   font-size: var(--font-sm);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -437,6 +442,7 @@
 .countLine {
   font-size: var(--font-sm);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   margin: 0 calc(var(--content-x) - var(--sp-3));
 }

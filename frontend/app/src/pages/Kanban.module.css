@@ -43,6 +43,7 @@
 .colCount {
   margin-left: auto;
   font-size: var(--font-sm);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
 }
@@ -83,6 +84,7 @@
   margin-top: var(--sp-1);
   font-size: var(--font-caption);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 

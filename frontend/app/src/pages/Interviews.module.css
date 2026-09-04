@@ -48,12 +48,14 @@
   font-size: var(--font-h2);
   font-weight: 700;
   text-shadow: var(--ts-heading);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .dayCount {
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
@@ -124,6 +126,7 @@
   border-top: var(--border-w) solid var(--border-soft);
   font-size: var(--font-caption);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -280,6 +283,8 @@
    나머지는 +N건으로 접는다 — 그날 목록(아래 테이블)이 펼치는 자리다. */
 .calPanel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -357,6 +362,7 @@
   border-radius: var(--r-pill);
   font-size: var(--font-num);
   font-weight: 600;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
@@ -399,6 +405,7 @@
 
 .chipTime {
   flex: none;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
 }
@@ -439,6 +446,7 @@
   border-radius: var(--r-pill);
   background: var(--bg-sunken);
   font-size: var(--font-caption);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   display: inline-flex;
@@ -531,6 +539,7 @@
   align-self: center;
   font-size: var(--font-body);
   font-weight: 700;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--leaf);
   white-space: nowrap;
@@ -649,6 +658,8 @@
   .narrowList {
     margin-top: var(--sp-4);
     background: var(--bg-elev);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
     border: var(--border-w) solid var(--border);
     border-radius: var(--r-card);
     overflow: hidden;

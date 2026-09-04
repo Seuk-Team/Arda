@@ -336,6 +336,7 @@
 
 .num {
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

@@ -410,7 +410,7 @@
 }
 
 .nauthor { font-size: var(--font-sm); font-weight: 600; color: var(--text); }
-.ndate { font-size: var(--font-caption); color: var(--text-sub); font-variant-numeric: tabular-nums; }
+.ndate { font-size: var(--font-caption); color: var(--text-sub); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 .nbody {
   font-size: var(--font-sm);
@@ -457,6 +457,8 @@
   padding: var(--sp-6);
   border-radius: var(--r-card);
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   box-shadow: var(--sh-overlay);
 }
 
@@ -631,6 +633,7 @@
 .mailLogDate {
   color: var(--text-sub);
   flex: none;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -656,6 +659,7 @@
 .historyDate {
   flex: none;
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   min-width: 40px;
 }

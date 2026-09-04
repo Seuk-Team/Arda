@@ -1,6 +1,8 @@
 /* mockup-postings.html 의 .tpanel / .thead / .trow-item 규격 (§12-1 시안 복제) */
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -62,6 +64,7 @@
 
 .num {
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;

@@ -39,6 +39,8 @@
 
 .card {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -122,6 +124,7 @@
   min-width: 1.5em;
   font-weight: 700;
   color: var(--leaf);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -143,6 +146,7 @@
   background: var(--bg-sunken);
   color: var(--text-sub);
   font-size: var(--font-body);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   user-select: none;
@@ -174,6 +178,7 @@
   font-size: var(--font-sm);
   color: var(--text-sub);
   margin: 0;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 

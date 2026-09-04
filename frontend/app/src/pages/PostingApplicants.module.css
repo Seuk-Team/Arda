@@ -63,6 +63,7 @@
 
 .meta {
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
@@ -104,6 +105,7 @@
 }
 
 .flabel b {
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   font-weight: 600;
@@ -329,6 +331,8 @@
 /* ── 표 ──────────────────────────────────────────────── */
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -386,6 +390,7 @@
 
 .num {
   text-align: center;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -411,6 +416,7 @@
   padding: var(--sp-4) var(--sp-6);
   font-size: var(--font-sm);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -570,5 +576,6 @@
   margin: var(--sp-2) 0 0;
   font-size: var(--font-sm);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }

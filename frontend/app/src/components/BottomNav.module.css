@@ -88,6 +88,8 @@
   .sheet {
     width: 100%;
     background: var(--bg-elev);
+    backdrop-filter: var(--glass);
+    -webkit-backdrop-filter: var(--glass);
     border-top: var(--border-w) solid var(--border);
     border-radius: var(--r-card) var(--r-card) 0 0;
     padding: var(--sp-3) 0 calc(var(--sp-4) + 60px + env(safe-area-inset-bottom));
