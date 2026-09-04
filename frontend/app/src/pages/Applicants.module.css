@@ -327,9 +327,9 @@
 }
 
 .pageCur {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: var(--bg-elev);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
   font-weight: 600;
   text-shadow: var(--ts-onfill);
 }

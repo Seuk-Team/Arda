@@ -22,8 +22,8 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: var(--sprout);
-  color: var(--bg-elev);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: var(--font-h2);
   font-weight: 700;
   display: flex;

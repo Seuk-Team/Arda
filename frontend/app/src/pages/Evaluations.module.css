@@ -341,9 +341,9 @@
 }
 
 .rate button[aria-pressed='true'] {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: var(--bg-elev);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
   text-shadow: var(--ts-onfill);
 }
 

@@ -38,9 +38,9 @@
 }
 .btn:hover { background: var(--sprout-soft); }
 .btn.on {
-  background: var(--leaf);
-  color: var(--bg-elev);
-  border-color: var(--leaf);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
   text-shadow: var(--ts-onfill);
 }
 .row {

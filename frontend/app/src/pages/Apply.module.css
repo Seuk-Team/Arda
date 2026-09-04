@@ -210,7 +210,7 @@
 .progFill {
   display: block;
   height: 100%;
-  background: var(--leaf);
+  background: var(--accent);
   border-radius: 2px;
   transition: width var(--dur-fast) linear;
 }

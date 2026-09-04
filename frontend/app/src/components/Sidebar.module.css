@@ -90,12 +90,14 @@
 }
 
 .link:hover {
-  background: rgba(58, 107, 33, 0.1);
+  background: var(--bg-sunken);
 }
 
+/* 눌린 상태는 hover 보다 한 톤 더 올라온다. 다크에서는 --bg-elev(유리)로는
+   눌린 것이 안 보인다 — 어두운 바탕 위에 어두운 유리라 차이가 없다 */
 .link:active {
-  background: var(--bg-elev);
-  color: var(--leaf);
+  background: var(--sunken-hover);
+  color: var(--accent-text);
 }
 
 /* 굵은 글씨·글자 그림자 없음 — 강조는 배경과 색으로만 한다.

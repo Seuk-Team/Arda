@@ -67,10 +67,10 @@
   }
 
   .homeTab.homeActive svg {
-    background: var(--leaf);
-    border-color: var(--leaf);
-    color: #fff;
-    stroke: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    stroke: var(--on-accent);
   }
 
   /* 더보기 시트 */

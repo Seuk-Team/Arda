@@ -187,7 +187,7 @@
 }
 
 /* 오늘은 날짜 알약이 이미 연두라 점도 같은 계열로 맞춘다 */
-.stripToday .stripDot { background: var(--leaf); }
+.stripToday .stripDot { background: var(--accent); }
 
 .stripToday .stripDate {
   background: var(--sprout-soft);
@@ -811,8 +811,8 @@
     height: 40px;
     padding: 0 var(--sp-4);
     border-radius: var(--r-ctl);
-    background: var(--leaf);
-    color: #fff;
+    background: var(--accent-fill);
+    color: var(--on-accent);
     font-size: var(--font-sm);
     font-weight: 600;
     white-space: nowrap;

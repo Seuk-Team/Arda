@@ -136,7 +136,7 @@
   background: var(--border);
 }
 
-.stepLineDone { background: var(--leaf); }
+.stepLineDone { background: var(--accent); }
 
 .stepDot {
   width: 28px;
@@ -155,15 +155,15 @@
 }
 
 .stepPast {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .stepCur {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .stepLabel {
@@ -215,15 +215,15 @@
   height: 48px;
   border-radius: var(--r-ctl);
   border: none;
-  background: var(--leaf);
-  color: #fff;
+  background: var(--accent-fill);
+  color: var(--on-accent);
   font-size: var(--font-body);
   font-weight: 700;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
 }
 
-.btnChangeStage:hover { background: var(--leaf-strong, var(--leaf)); }
+.btnChangeStage:hover { background: var(--accent-fill-hover); }
 .btnChangeStage:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
 
 .stageInline { display: flex; flex-direction: column; gap: var(--sp-3); }

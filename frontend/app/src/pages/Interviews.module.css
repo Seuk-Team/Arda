@@ -450,12 +450,12 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--leaf);
+  background: var(--accent);
   flex: none;
 }
 
 .selected .dot {
-  background: #fff;
+  background: var(--text);
 }
 
 /* 그 달에 면접이 없을 때 (§6 empty) */
@@ -626,23 +626,23 @@
 
   /* 선택된 날: 진초록 채운 배경 */
   .selected {
-    background: var(--leaf);
+    background: var(--accent);
     box-shadow: none;
   }
 
   .selected:hover {
-    background: var(--leaf-strong, var(--leaf));
+    background: var(--leaf-strong);
   }
 
   .selected .date {
     background: transparent;
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 700;
   }
 
   .selected .count {
-    background: rgba(255, 255, 255, 0.25);
-    color: #fff;
+    background: rgba(10, 16, 32, 0.22);
+    color: var(--on-accent);
   }
 
   /* 인라인 면접 목록 */

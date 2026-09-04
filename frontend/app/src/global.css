@@ -1,4 +1,9 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap");
+/* 본문 Pretendard Variable + 숫자 JetBrains Mono (05-design §2 — 2026-09-04 개정).
+   IBM Plex Sans KR 단일에서 2종으로 늘렸다. 표·계기판의 숫자가 갱신될 때 자리 폭이
+   흔들리지 않아야 해서 숫자만 고정폭으로 뺀 것이고, 한글은 이 폰트에 글리프가 없어
+   자동으로 Pretendard 로 떨어진다. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap");
 @import "./tokens.css";
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; }
@@ -11,6 +16,14 @@
 html,
 body {
   overflow-x: hidden;
+}
+
+/* 다크에서 바탕색을 html 에도 준다 — body 만 칠하면 스크롤 바운스 구간과
+   브라우저 오버스크롤 영역이 흰색으로 번쩍인다 */
+html {
+  background: var(--bg);
+  /* 스크롤바·폼 컨트롤 등 브라우저가 그리는 것들을 다크로 (§4) */
+  color-scheme: dark;
 }
 
 body {
@@ -44,7 +57,7 @@ input[type='checkbox'] {
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: var(--leaf);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -53,7 +66,7 @@ a { color: inherit; text-decoration: none; }
 h1, h2, h3 { text-wrap: balance; }
 
 :focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
   border-radius: var(--r-ctl);
 }
@@ -66,6 +79,36 @@ h1, h2, h3 { text-wrap: balance; }
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--sp-5) var(--content-x);
+}
+
+/* ── 숫자 ────────────────────────────────────────
+   표·카드의 수치에 붙인다. 고정폭 + tabular-nums 라 값이 바뀌어도 자리가 안 밀린다 */
+.n {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ── 블록 머리 라벨 ──────────────────────────────
+   카드 위쪽의 작은 제목(파이프라인·오늘 면접…). 자간을 벌려 본문 제목과 구분한다 */
+.cap {
+  font-size: var(--font-cap);
+  font-weight: 600;
+  letter-spacing: var(--ls-cap);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* ── 유리 면 ─────────────────────────────────────
+   카드·패널이 공유하는 재질. 배경(오로라·노드망)이 뒤에서 비쳐야 화면이 한 장으로
+   읽힌다. blur 는 비싼 속성이라 카드 껍데기까지만 걸고 그 안의 행에는 걸지 않는다. */
+.glass {
+  background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  -webkit-backdrop-filter: var(--glass);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
 }
 
 /* ── 공통 유틸 ──────────────────────────────────── */
@@ -82,24 +125,28 @@ h1, h2, h3 { text-wrap: balance; }
   transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .btn:active { transform: translateY(1px); }
+/* 주 동작은 흰 판 + 어두운 글자다. 네온이 이미 배경에 깔려 있어서 버튼까지
+   빛나면 무엇이 동작인지 안 읽힌다 — 다크에서 가장 센 것은 흰 면이다 */
 .btn-primary {
-  background: var(--leaf);
-  color: var(--bg-elev);
+  background: var(--accent-fill);
+  color: var(--on-accent);
   text-shadow: var(--ts-onfill);
 }
-.btn-primary:hover { background: var(--leaf-strong); }
+.btn-primary:hover { background: var(--accent-fill-hover); }
 .btn-primary:disabled {
-  background: #C7D0BC;
-  color: var(--text-sub);
+  background: rgba(255, 255, 255, .2);
+  /* 시안의 .cta:disabled 는 글자 알파가 .5 였는데 이 바탕에서 대비 3.6 이라
+     읽히지 않는다. 비활성이라는 것은 알파 .62 로도 충분히 읽히고 대비는 4.7 이 된다 */
+  color: rgba(230, 236, 250, .62);
   text-shadow: none;
   cursor: not-allowed;
 }
 .btn-secondary {
-  background: var(--bg-elev);
+  background: var(--bg-sunken);
   color: var(--text);
   border-color: var(--border);
 }
-.btn-secondary:hover { background: var(--bg-sunken); }
+.btn-secondary:hover { background: var(--sunken-hover); }
 
 /* ── 뱃지 ──────────────────────────────────────── */
 .badge {
@@ -114,8 +161,8 @@ h1, h2, h3 { text-wrap: balance; }
 }
 .badge-open {
   background: var(--sprout-soft);
-  color: var(--leaf);
-  border: var(--border-w) solid var(--sprout);
+  color: var(--accent-text);
+  border: var(--border-w) solid rgba(34, 211, 238, .30);
 }
 .badge-closed {
   background: var(--bg-sunken);
@@ -125,7 +172,7 @@ h1, h2, h3 { text-wrap: balance; }
 
 /* ── 단계 색 ─────────────────────────────────────── */
 .stage-progress { color: var(--text-sub); }
-.stage-accepted { color: var(--leaf); font-weight: 700; }
+.stage-accepted { color: var(--ok-text); font-weight: 700; }
 .stage-rejected { color: var(--danger); font-weight: 700; }
 
 /* 화면에는 없고 보조기기에만 읽히는 라벨 (§10) */
