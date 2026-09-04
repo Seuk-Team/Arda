@@ -108,7 +108,7 @@ app.add_middleware(RequestContextMiddleware)
 #
 # 순서 주의: 이 미들웨어가 **배포된 뒤에** rewrite 를 지워야 한다. 먼저 지우면
 # 브라우저 직접 호출이 preflight 에서 막혀 운영이 죽는다.
-_DEFAULT_ORIGINS = "https://arda.seuk.cloud,https://arda-nu.vercel.app,http://localhost:5173"
+_DEFAULT_ORIGINS = "https://seuk.suvisdev.cloud,https://arda-teal.vercel.app,http://localhost:5173"
 CORS_ORIGINS = [
     o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()
 ]

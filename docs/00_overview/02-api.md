@@ -4,7 +4,7 @@
 
 - 접두사: `/api/v1`
 - 인증: JWT Bearer. **공개**로 표시된 것 외에는 전부 로그인 필요.
-- **CORS (2026-09-01 추가)**: 브라우저가 API 를 **직접** 부른다. 허용 출처는 `CORS_ORIGINS` 환경변수(쉼표 구분, 기본 `https://arda.seuk.cloud,https://arda-nu.vercel.app,http://localhost:5173`). 쿠키를 안 쓰므로 `allow_credentials` 는 꺼져 있고 토큰은 `Authorization` 헤더로만 간다. **이 전까지는 CORS 가 없어서 `frontend/app/vercel.json` 의 rewrite 로 /api 를 우회시켰다** — 그 구조에서는 지원자 자소서를 포함한 모든 요청이 제3자(Vercel) 서버를 통과했다. rewrite 제거는 **이 미들웨어가 배포된 뒤에** 해야 한다(먼저 지우면 preflight 에서 막힌다).
+- **CORS (2026-09-01 추가)**: 브라우저가 API 를 **직접** 부른다. 허용 출처는 `CORS_ORIGINS` 환경변수(쉼표 구분, 기본 `https://seuk.suvisdev.cloud,https://arda-teal.vercel.app,http://localhost:5173`). 쿠키를 안 쓰므로 `allow_credentials` 는 꺼져 있고 토큰은 `Authorization` 헤더로만 간다. **이 전까지는 CORS 가 없어서 `frontend/app/vercel.json` 의 rewrite 로 /api 를 우회시켰다** — 그 구조에서는 지원자 자소서를 포함한 모든 요청이 제3자(Vercel) 서버를 통과했다. rewrite 제거는 **이 미들웨어가 배포된 뒤에** 해야 한다(먼저 지우면 preflight 에서 막힌다).
 - 권한: **`admin` · `member` 2종** ([ADR-0017](../03_decision/0017-등급-이분화.md)). 위계가 아니다 — 아래 넷을 뺀 모든 조회·조작에서 둘은 동일하다.
   - **조회는 로그인만 하면 전부 허용.** 옛 A3(면접관은 배정된 지원서만 조회)는 폐지됐다.
   - **admin 전용**: ① 면접관 배정/해제 ② 계정 생성 ③ 메일 템플릿 ④ **남의** 가용 시간 등록·삭제.
