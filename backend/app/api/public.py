@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app import mail
 from app.agent.summarizer import generate_summary_bg
+from app.anchoring import anchor_application_bg
 from app.api.files import _extract_ext, _validate_upload
 from app.api.postings import auto_close
 from app.db import get_db
@@ -163,5 +164,10 @@ def submit(posting_id: int, body: ApplicationCreate, bg: BackgroundTasks, db: Se
 
     # M2: AI 요약 생성 (비동기). ANTHROPIC_API_KEY 미설정이면 조용히 건너뛴다.
     bg.add_task(generate_summary_bg, row.id)
+
+    # ADR-0028: 제출물 무결성 앵커 (비동기). 지문을 뜨려면 S3 에서 파일을 읽어야
+    # 해서, 지원자를 제출 버튼 앞에 세워 두지 않는다. 실패해도 접수는 유효하다 —
+    # 앵커가 없는 것은 "증명이 없다"이지 "지원서가 잘못됐다"가 아니다.
+    bg.add_task(anchor_application_bg, row.id)
 
     return ApplicationOut.model_validate(row)

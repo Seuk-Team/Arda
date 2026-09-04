@@ -44,6 +44,9 @@ APPLICATION_SOURCES = ("form", "manual")
 FILE_KINDS = ("resume", "cover_letter")
 EMAIL_STATUSES = ("queued", "sent", "failed")
 PROPOSAL_STATUSES = ("proposed", "confirmed", "expired", "canceled")
+# 무결성 앵커가 지문을 뜨는 대상 (ADR-0028). 첨부 2종 + 폼에 직접 쓴 자기소개.
+# `self_intro` 는 파일이 아니라 applications.self_intro 텍스트라 file_id 가 없다.
+DOC_TYPES = FILE_KINDS + ("self_intro",)
 
 # 메일 발송 (G4). email_logs 의 stage 는 단계 5종에 custom 이 하나 더 붙는다 —
 # 수동·에이전트 발송은 단계 이동이 아니라서 STAGES 로는 표현할 값이 없다.
@@ -280,6 +283,76 @@ class File(Base):
     )
 
     __table_args__ = (CheckConstraint(_in("kind", FILE_KINDS), name="ck_files_kind"),)
+
+
+# ── document_anchors — 제출물 무결성 앵커 (ADR-0028) ──────────────────
+class DocumentAnchor(Base):
+    """제출 시점의 이력서·자소서 지문(SHA-256)을 한 줄씩 쌓는 append-only 원장.
+
+    **이 표의 목적은 위조를 막는 것이 아니라 드러나게 하는 것이다.** 원본은 S3 와
+    `applications.self_intro` 에 그대로 있고, 여기에는 지문만 남는다. 나중에 원본이
+    바뀌면 지문이 안 맞으므로 "바뀌었다"가 증명된다.
+
+    행끼리 사슬로 묶인다 — `chain_hash` 는 **앞 행의 `chain_hash` 를 재료로 쓴다**
+    (`anchoring.compute_chain_hash`). 그래서 가운데 한 줄만 조용히 고쳐 쓸 수 없다.
+    뒤따르는 모든 행의 `chain_hash` 가 동시에 어긋나기 때문이다. 공책의 각 장에
+    앞장의 지문을 베껴 적어 두는 것과 같다 — 한 장을 찢으면 다음 장이 안 맞는다.
+
+    **UPDATE·DELETE 를 하지 않는다.** 내용이 바뀌었으면 새 행을 쌓지도 않는다 —
+    검증에서 어긋남으로 드러나는 것이 목적이기 때문이다. 재제출처럼 정말 새
+    문서가 생긴 경우에만 새 `seq` 로 append 한다.
+
+    `ots_*` 는 2단계(공개 타임스탬프)를 위해 비워 둔 자리다 — 지금은 우리 DB 안의
+    사슬이라 "우리가 언제 봤다"까지만 증명한다. 제3자 증명은 이 컬럼들이 채워질 때
+    생긴다. ADR-0028 "남은 것" 절.
+    """
+
+    __tablename__ = "document_anchors"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # 사슬에서의 자리. 1부터 빈틈없이 올라간다 — 빠진 번호가 있으면 그 자체가 사고다.
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
+    application_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("applications.id"), nullable=False
+    )
+    doc_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 첨부일 때만 채운다. self_intro 는 파일이 아니라 NULL.
+    file_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("files.id"))
+    # 원본 내용 자체의 지문. 파일은 S3 객체 바이트, 자기소개는 UTF-8 바이트.
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 사슬의 첫 행만 NULL. 그 외에는 앞 행의 chain_hash 와 같아야 한다.
+    prev_chain_hash: Mapped[str | None] = mapped_column(String(64))
+    chain_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    anchored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # 2단계 자리 — 'none' | 'pending' | 'confirmed'
+    ots_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'none'")
+    )
+    ots_proof: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        CheckConstraint(_in("doc_type", DOC_TYPES), name="ck_document_anchors_doc_type"),
+        # 파일은 file_id 가 있고 자기소개는 없다. 뒤집힌 행이 들어오면 검증이
+        # 조용히 건너뛰게 되므로 DB 에서 막는다.
+        CheckConstraint(
+            "(doc_type = 'self_intro') = (file_id IS NULL)",
+            name="ck_document_anchors_file_id",
+        ),
+        # 같은 문서를 두 번 앵커하지 않는다 — 재실행(백필·재시도)이 사슬을 부풀리면
+        # 안 된다. 파일은 file_id 로 유일하다.
+        UniqueConstraint("file_id", name="uq_document_anchors_file"),
+        # 자기소개는 file_id 가 NULL 이라 위 제약이 안 걸린다(Postgres 는 NULL 을
+        # 서로 다른 값으로 본다). 지원서당 하나로 부분 인덱스에서 따로 막는다.
+        Index(
+            "uq_document_anchors_self_intro",
+            "application_id",
+            unique=True,
+            postgresql_where=text("doc_type = 'self_intro'"),
+        ),
+        Index("ix_document_anchors_application", "application_id", "doc_type"),
+    )
 
 
 # ── email_logs — 메일 발송 (G1~G3) ───────────────────────────────────
