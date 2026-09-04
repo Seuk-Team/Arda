@@ -40,6 +40,7 @@ dev = [
     # 여기 없으면 `uv run --with alembic` 로 매번 최신을 받아 쓰게 되고, 그러면
     # **버전이 아무 데도 안 박혀 사람마다 다른 alembic 으로 같은 리비전을 돌린다.**
     "alembic>=1.13",
+    "pytest-timeout>=2.3",
 ]
 
 [tool.uv]
@@ -59,3 +60,9 @@ torch = [
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.pytest.ini_options]
+# hang 을 침묵 대신 실패로 바꾼다 — 2026-09-04 로컬에서 Docker Desktop 이 죽어
+# DB connect 대기로 pytest 가 24분간 조용히 멈춘 사고의 재발 방지. 타임아웃이
+# 걸리면 어떤 테스트가 어디서 기다렸는지 스택과 함께 실패로 드러난다.
+timeout = 60
