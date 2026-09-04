@@ -14,6 +14,9 @@ import '../widgets/applicant_card.dart';
 import '../widgets/posting_header.dart';
 import '../widgets/search_field.dart';
 import '../widgets/stage_tabs.dart';
+// 공고 수정 화면이 돌려주는 삭제 표시([PostingDeleted]) 하나 때문에 부른다 —
+// 화면끼리는 경로 이름으로만 오가지만, 돌아오는 값의 타입은 만든 쪽에 있다
+import 'posting_form_screen.dart';
 
 /// 한 공고의 지원자 리스트. 공고 리스트에서 공고를 골라 들어온다.
 ///
@@ -62,15 +65,24 @@ class _ApplicantsScreenState extends State<ApplicantsScreen> {
 
   /// 공고 수정 — 상단 바의 [✎] (2026-09-03).
   Future<void> _editPosting() async {
-    final saved = await Navigator.pushNamed(
+    final result = await Navigator.pushNamed(
       context,
       Routes.postingEdit,
       arguments: _posting,
     );
-    if (saved is! JobPosting || !mounted) return;
+    if (!mounted) return;
+
+    // 지웠으면 이 화면도 닫는다 — 없어진 공고의 지원자 목록이다. 목록에는
+    // `true` 로 알려 다시 받게 한다: 그대로 두면 사라진 공고 카드가 남는다
+    if (result is PostingDeleted) {
+      Navigator.pop(context, true);
+      return;
+    }
+
+    if (result is! JobPosting) return;
 
     setState(() {
-      _posting = saved;
+      _posting = result;
       _postingChanged = true;
     });
   }

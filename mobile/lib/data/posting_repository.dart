@@ -142,6 +142,20 @@ class PostingRepository {
     return JobPostingJson.fromJson(json);
   }
 
+  /// 공고를 지운다 — `DELETE /postings/{id}` (2026-09-03).
+  ///
+  /// **지원서가 딸린 공고는 서버가 409 로 막는다**
+  /// (`backend/app/api/postings.py`: "지원서 N건이 있는 공고는 삭제할 수
+  /// 없습니다. 먼저 공고를 마감하세요."). `applications.job_posting_id` 에
+  /// ondelete 규칙이 없어 함께 지우려면 스키마 변경이라, 서버가 지우는 대신
+  /// 막는 쪽을 골랐다.
+  ///
+  /// **앱이 미리 세어 막지 않는다.** 화면이 들고 있는 인원은 받아 온 시점의
+  /// 값이라, 그 사이에 지원자가 들어오면 앱은 "지울 수 있다" 고 보여 주고
+  /// 서버는 막는다. 세는 쪽을 하나로 두고 서버 문구를 그대로 띄운다 —
+  /// 몇 건이 걸렸는지까지 알려 주므로 앱이 지어낼 문구보다 정확하다.
+  Future<void> delete(int id) => _client.delete(Endpoints.posting(id));
+
   /// `2026-09-17` — 서버가 `format: date` 로 받는다. 화면 표기(`2026.09.17`,
   /// [formatDate])와 다르므로 섞어 쓰지 않는다
   static String _apiDate(DateTime d) =>

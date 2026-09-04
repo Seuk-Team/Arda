@@ -7,6 +7,10 @@
 /// 이름·역할 라벨·이니셜 아바타를 실데이터로 그린다. **클릭 진입은 두지 않는다**:
 /// 설정은 내비에 이미 항목이 있어 두 번째 진입점이 필요 없다."
 /// → 프로필 카드는 누를 수 없다. 사진도 없다(users 에 사진 컬럼이 없다).
+///
+/// **'단계 이력' 은 뺐다 (2026-09-03).** 누를 곳이 없는 죽은 줄이었다 — 단계
+/// 이력은 지원자 상세에서 *그 사람 것*으로 들어가고, 전체를 모아 보는 화면은
+/// 웹에도 없다(`More.tsx` 는 평가 현황·설정·알림 셋뿐).
 library;
 
 import 'package:flutter/material.dart';
@@ -43,7 +47,6 @@ class MoreScreen extends StatelessWidget {
               badge: reviewCount ?? mockReviewQueueCount,
               onTap: () => Navigator.pushNamed(context, Routes.evaluationQueue),
             ),
-            const _Item(icon: Icons.history, label: '단계 이력'),
           ],
         ),
         const SizedBox(height: AppSpace.s4),
@@ -223,7 +226,7 @@ class _Item extends StatelessWidget {
 
   final VoidCallback? onTap;
 
-  /// 누를 곳이 생긴 항목만 연결한다. 설정·단계 이력·알림은 아직 화면이 없다
+  /// 누를 곳이 생긴 항목만 연결한다. 알림은 아직 화면이 없다
 
   @override
   Widget build(BuildContext context) {

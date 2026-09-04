@@ -28,6 +28,7 @@ class FakePostingRepository implements PostingRepository {
     this.delay = Duration.zero,
     this.createError,
     this.createDelay = Duration.zero,
+    this.deleteError,
   });
 
   /// 안 주면 목데이터 그대로
@@ -61,6 +62,13 @@ class FakePostingRepository implements PostingRepository {
 
   /// 마감일을 실제로 보냈는가 — 안 보내는 것과 `null` 을 보내는 것이 다르다
   bool? updatedChangeDeadline;
+
+  /// 삭제로 보낸 id (2026-09-03). null 이면 삭제를 안 불렀다 —
+  /// 확인 시트를 취소했을 때 이게 null 인지로 본다
+  int? deletedId;
+
+  /// 주면 삭제가 이걸로 실패한다 — 지원자 있는 공고의 409
+  final Object? deleteError;
 
   @override
   Future<List<PostingWithCounts>> list() async {
@@ -126,6 +134,14 @@ class FakePostingRepository implements PostingRepository {
                 .firstOrNull
                 ?.deadline,
     );
+  }
+
+  @override
+  Future<void> delete(int id) async {
+    deletedId = id;
+
+    if (createDelay > Duration.zero) await Future<void>.delayed(createDelay);
+    if (deleteError != null) throw deleteError!;
   }
 
   @override
