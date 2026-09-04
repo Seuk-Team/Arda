@@ -1,6 +1,6 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v1.9 · 2026-09-04** — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**.
+> **상태: 확정 v1.9 · 2026-09-04** — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**. 이어서 **alembic `0007`** 이 앱 롤의 권한을 SELECT·INSERT 로 좁힌다 — **`ARDA_APP_DB_ROLE` 환경변수가 없으면 아무것도 하지 않는다**(절차는 [ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "권한 분리 절차").
 > v1.8 · 2026-09-04 — v1.8: 제출물 무결성 앵커 `document_anchors` 1테이블 추가 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). **alembic `0005`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.7 · 2026-09-02 — v1.7: 인적성(사전 성향) 설문 2테이블 `aptitude_sessions`·`aptitude_answers` 추가 ([ADR-0027](../03_decision/0027-인적성-검사.md)). **alembic `0004`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
 > v1.6 · 2026-09-02 — v1.6: AI 면접 3테이블 `interview_sessions`·`interview_turns`·`interview_findings` 추가 ([ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md)). **alembic `0003`** 으로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
