@@ -73,3 +73,19 @@ def presign_get(key: str, expires: int = EXPIRES_IN) -> str:
         Params={"Bucket": BUCKET, "Key": key},
         ExpiresIn=expires,
     )
+
+
+def read_object(key: str) -> bytes:
+    """객체 본문을 서버로 읽어 온다 (ADR-0028 무결성 앵커 전용).
+
+    **이 모듈의 원칙("파일 본문은 서버를 지나가지 않는다")의 유일한 예외다.**
+    지문을 뜨려면 바이트를 봐야 하고, 그건 브라우저에 시킬 수 없다 — 지원자가
+    낸 지문을 그대로 믿으면 지문 자체를 위조하면 그만이라 아무것도 증명하지
+    못한다. 서버가 직접 읽어야 하는 이유가 그것이다.
+
+    업로드 상한이 10MB(`files.MAX_BYTES`)라 통째로 메모리에 올린다. 상한이
+    커지면 여기부터 스트리밍으로 바꿔야 한다.
+
+    사용자 요청 경로에서 부르지 않는다 — 백그라운드 앵커·검증에서만 쓴다.
+    """
+    return _client().get_object(Bucket=BUCKET, Key=key)["Body"].read()

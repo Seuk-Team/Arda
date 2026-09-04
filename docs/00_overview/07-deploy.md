@@ -2,15 +2,27 @@
 
 > **작성**: 2026-08-27 bestcow (인프라) · W2 실배포 1차 완료분. 변경은 인프라 도메인 소관. **2026-09-02 작성자 이탈** — 서버·AWS 를 만질 수 있는 사람은 woojeongalex(IAM `arda-ops`)뿐이다. 인계 요약은 [09-handover.md](09-handover.md).
 
+> **⚠️ 2026-09-04 인프라 이전 완료 — 서버·주소가 전부 바뀌었다.** 옛 팀
+> AWS(이탈자 명의)에서 suvisdev 개인 AWS(서울)로 이전했다. 새 구성:
+> EC2 `arda-api`(t3.small, Ubuntu 24.04, Elastic IP) + Caddy 직결,
+> S3 `arda-resumes-seuk`, SQS `arda-mail`, SES `no-reply@seuk.suvisdev.cloud`
+> (샌드박스 해제 신청 중 — 그때까지 `MAIL_DRY_RUN=1`). IAM 은 콘솔
+> `suvisdev`(관리)·`arda-viewers` 그룹(팀 열람)·`arda-server`(서버 키)로 분리.
+> **배포는 자동이다**: 서버가 2분마다 main 을 보고 새 커밋이면
+> pull→build→up 한다(`/home/ubuntu/deploy-arda.sh`, systemd
+> `arda-deploy.timer`, 로그 `~/deploy.log`). 즉 main 머지 = 몇 분 내 반영.
+> 서버 SSH·AWS 접근은 suvisdev 소관. 아래 본문의 옛 주소·EC2 Instance
+> Connect·옛 계정 IAM 서술은 과거 기록으로만 남긴다.
+
 ## 주소 (전 팀원 공통)
 
 | 무엇 | URL | 비고 |
 |---|---|---|
-| **API** | https://api.arda.seuk.cloud | Swagger는 `/docs`. HTTPS만 — 8000 직접 접근은 막혀 있다 |
-| **프론트** | https://arda-nu.vercel.app | main 머지 → 1~2분 내 자동 재배포. 커스텀 도메인 `arda.seuk.cloud` 검증 마무리 중 |
-| 공개 지원 링크 | `https://arda.seuk.cloud/apply/<token>` | 서버 `PUBLIC_APP_BASE_URL` 기준으로 생성 (B6) |
+| **API** | https://api.seuk.suvisdev.cloud | Swagger는 `/docs`. HTTPS만 — 8000 직접 접근은 막혀 있다 |
+| **프론트** | https://seuk.suvisdev.cloud | main 머지 → 1~2분 내 자동 재배포. 커스텀 도메인 `arda.seuk.cloud` 검증 마무리 중 |
+| 공개 지원 링크 | `https://seuk.suvisdev.cloud/apply/<token>` | 서버 `PUBLIC_APP_BASE_URL` 기준으로 생성 (B6) |
 
-**프론트·앱의 API 베이스 주소는 `https://api.arda.seuk.cloud`다** — W3 연동 때 이 값을 쓴다. HTTPS라 mixed content·Flutter 예외 설정 문제 없음.
+**프론트·앱의 API 베이스 주소는 `https://api.seuk.suvisdev.cloud`다** — W3 연동 때 이 값을 쓴다. HTTPS라 mixed content·Flutter 예외 설정 문제 없음.
 
 ## 운영 서버 계정 (중요)
 

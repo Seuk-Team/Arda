@@ -30,3 +30,17 @@
 - 도메인 `seuk.cloud` (가비아) — 프로젝트 끝날 때까지 두겠습니다
 
 상세는 [ADR-0025](../03_decision/0025-운영-권한-이관.md), [07-deploy 2026-09-02 절](07-deploy.md), 커밋 이력.
+
+
+---
+
+# 2026-09-04 — suvisdev 인프라 이전 (2차)
+
+## 바뀐 것
+
+- **AWS 전체 이전**: 옛 팀 계정 → suvisdev 개인 계정(서울). EC2 `arda-api`(t3.small) + Elastic IP, S3 `arda-resumes-seuk`, SQS `arda-mail`, SES 도메인 `seuk.suvisdev.cloud`
+- **주소**: 프론트 https://seuk.suvisdev.cloud · API https://api.seuk.suvisdev.cloud
+- **저장소**: `Seuk-Team/Arda` 가 정본 (구 `Team-Seuk/Arda` 는 삭제 예정)
+- **배포 자동화**: 서버가 2분마다 main 폴링 → pull·build·up. "배포해달라" 요청 불필요
+- **DB**: 빈 상태에서 새로 구축. 옛 서버 데이터(과정용)는 이관하지 않음
+- **권한**: 서버 SSH·AWS 관리 suvisdev / 팀원은 IAM `arda-viewers`(콘솔 열람) / 서버 `.env` 키는 `arda-server`(권한 축소)
