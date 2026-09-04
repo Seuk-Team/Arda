@@ -36,6 +36,11 @@ _TEST_SAFE_SWITCHES = (
     "OLLAMA_SUMMARY_MODEL",
     "OLLAMA_NUM_PREDICT",
     "OLLAMA_KEEP_ALIVE",
+    # 2026-09-04 추가: 로컬 `.env` 에 이 키가 있으면 백엔드가 "사용 가능"으로
+    # 보이지만 CI 에는 없어 503 으로 갈린다. 이 갈림 때문에 로컬 초록·CI 빨강
+    # 사고가 났다 (d4580e2 로 사후 복구). 여기서 빈 값으로 선점해 로컬·CI
+    # 동작을 맞춘다. 실제 키가 필요한 테스트는 `patch.dict` 로 자체 세팅.
+    "ANTHROPIC_API_KEY",
 )
 for _key in _TEST_SAFE_SWITCHES:
     os.environ[_key] = ""

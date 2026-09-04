@@ -62,6 +62,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
 # ── 서버·인증 fixture ─────────────────────────────────────────────
 
 DEFAULT_BASE = "http://localhost:8000"
+# `ollama-test` 는 역사적 이름 (2026-08 로컬 sLLM 검증 때 만든 관리자 계정) 이지만
+# 서버 백엔드(anthropic/ollama) 와 무관한 그냥 로컬 관리자 계정이다. 계정 이름을
+# 갈아엎으면 시드·기존 세팅에서 하네스가 로그인 못 하므로 유지한다. 다른 계정으로
+# 돌리고 싶으면 `REGRESSION_EMAIL`·`REGRESSION_PASSWORD` env 로 override.
 DEFAULT_EMAIL = "ollama-test@example.com"
 DEFAULT_PASSWORD = "testpass123"
 
@@ -70,6 +74,41 @@ DEFAULT_PASSWORD = "testpass123"
 def base_url() -> str:
     """실 백엔드 주소. env 로 override 가능."""
     return os.environ.get("REGRESSION_BASE_URL", DEFAULT_BASE)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _guard_anthropic_backend() -> None:
+    """Anthropic 백엔드로 뜬 서버에 하네스가 실호출하면 30~55회 API 콜이 나가 과금된다.
+
+    하네스 기본 실행은 **로컬 Ollama 모드 전제**. 판정 규칙:
+    - `backend/.env` 의 `AGENT_CHAT_BACKEND` 가 `ollama` → 통과
+    - 비어있거나 `anthropic` → skip (환경 변수 `REGRESSION_ALLOW_ANTHROPIC=1` 로 옵트인)
+
+    Anthropic Haiku 로 기준선을 재측정하려면 명시적으로 옵트인해야 한다:
+        REGRESSION_ALLOW_ANTHROPIC=1 uv run pytest -m regression tests/prompt_regression -q
+
+    감지 자체가 API 콜을 쓰지 않도록 `.env` 를 직접 읽는다 (서버 프로세스가 이 `.env`
+    를 로드했다는 로컬 개발 전제). 다른 방식(1회 프로브)은 anthropic 이면 그것도
+    과금되므로 채택하지 않는다.
+    """
+    if os.environ.get("REGRESSION_ALLOW_ANTHROPIC"):
+        return
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    backend_value = ""
+    if env_path.exists():
+        for raw in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            if key.strip() == "AGENT_CHAT_BACKEND":
+                backend_value = val.strip().strip('"').strip("'").lower()
+                break
+    if backend_value != "ollama":
+        pytest.skip(
+            f"하네스 기본은 Ollama — 지금 AGENT_CHAT_BACKEND={backend_value or '<빈 값=anthropic>'}. "
+            "Anthropic 로 정말 재고 싶으면 REGRESSION_ALLOW_ANTHROPIC=1 로 재실행."
+        )
 
 
 @pytest.fixture(scope="session")

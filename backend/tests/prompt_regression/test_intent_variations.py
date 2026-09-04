@@ -50,6 +50,8 @@ VARIATIONS: list[tuple[str, str, str, str, str | None, str | None]] = [
     ("N7", "name", "서지호님 이력 알려줘",             "name_search", "서지호", None),
     ("N8", "name", "임서연 좀 찾아봐",                 "name_search", "임서연", None),
     # change_stage (확인 카드까지만 — 실행 안 함)
+    # C1 의 "옴겨줘" 는 의도적 오타 — 오타 관대성 테스트. 다른 케이스는 정타로 두어
+    # 오타 하나만으로도 라우팅이 무너지는지를 격리해서 본다.
     ("C1", "change", "김도현씨 최종합격 단계로 옴겨줘",  "change_stage", "김도현", "accepted"),
     ("C2", "change", "김도현 면접으로 넘겨줘",          "change_stage", "김도현", "interview"),
     ("C3", "change", "곽민재를 불합격 처리해줘",        "change_stage", "곽민재", "rejected"),
