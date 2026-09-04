@@ -22,7 +22,15 @@ def _backend(text: str, unavailable: str | None = None):
     return b
 
 
-def _run(text: str, cover_letter: str = "FastAPI로 재작성해 820ms → 240ms 로 줄였습니다."):
+# 인용 검증이 걸리므로, 테스트가 쓰는 주장은 이 자소서 안에 있어야 한다.
+COVER = (
+    "FastAPI로 재작성해 820ms → 240ms 로 줄였습니다. "
+    "주장 0 주장 1 주장 2 주장 3 주장 4 주장 5 주장 6 주장 7 주장 8 "
+    "질문 없음 질문 있음 주장"
+)
+
+
+def _run(text: str, cover_letter: str = COVER):
     with patch("app.agent.backends.get_summary_backend", return_value=_backend(text)):
         return generate_probes(cover_letter)
 
@@ -103,3 +111,32 @@ class TestNormalize:
     def test_모르는_유형은_기타로(self):
         payload = {"claims": [{"claim": "주장", "type": "느낌", "questions": ["질문"]}]}
         assert _run(json.dumps(payload, ensure_ascii=False))[0]["type"] == "기타"
+
+
+class TestQuoteMustExist:
+    """인용은 자소서에서 찾을 수 있어야 한다 — 못 찾으면 대조가 성립하지 않는다."""
+
+    def _one(self, claim: str, cover: str = COVER):
+        payload = {"claims": [{"claim": claim, "type": "수치", "questions": ["왜요?"]}]}
+        return _run(json.dumps(payload, ensure_ascii=False), cover)
+
+    def test_원문에_없으면_버린다(self):
+        """실제로 모델이 '목록이'를 '목lists이'로 깨뜨린 적이 있다."""
+        assert self._one("목lists이 멈췄습니다", "데이터가 1만 행을 넘자 목록이 멈췄습니다") == []
+
+    def test_원문에_있으면_남긴다(self):
+        assert len(self._one("목록이 멈췄습니다", "데이터가 1만 행을 넘자 목록이 멈췄습니다")) == 1
+
+    def test_줄바꿈이_단어를_갈라도_통과한다(self):
+        """PDF 추출은 단어 한가운데서 줄을 바꾼다 — 공백을 지우고 대조한다."""
+        cover = "평균 응답이 820ms였고 월말에는 3초를 넘겼습니\n다."
+        assert len(self._one("월말에는 3초를 넘겼습니다", cover)) == 1
+
+    def test_끝의_마침표는_눈감아_준다(self):
+        """모델이 인용 끝에 마침표를 붙이는 일이 흔하다. 그것까지 버릴 이유는 없다."""
+        assert len(self._one("목록이 멈췄습니다.", "데이터가 1만 행을 넘자 목록이 멈췄습니다")) == 1
+
+    def test_굽은_따옴표와_곧은_따옴표를_같게_본다(self):
+        """자소서는 굽은 따옴표를 쓰는데 모델이 곧은 것으로 바꿔 오는 일이 있다."""
+        cover = "반년 넘게 “가끔 나는 일”로 남아 있었습니다"
+        assert len(self._one('"가끔 나는 일"로 남아 있었습니다', cover)) == 1
