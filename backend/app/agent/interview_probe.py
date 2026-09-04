@@ -45,6 +45,23 @@ _PROBE_SCHEMA = {
 }
 
 
+def cover_letter_of(app) -> str:
+    """지원서의 자기소개서 — 폼에 쓴 것과 올린 파일을 합친다.
+
+    요약(summarizer)이 쓰는 조합과 같되 자기소개서만 본다. 이력서·공고 요건은
+    질문을 만드는 데 쓰지 않는다 — **확인할 주장은 지원자가 쓴 문장에서만** 나와야
+    원문을 인용할 수 있다.
+    """
+    from app.agent.extractor import extract_text
+
+    file_text = None
+    for f in app.files:
+        if f.kind == "cover_letter":
+            file_text = extract_text(f)
+            break
+    return "\n\n".join(p for p in (app.self_intro, file_text) if p)
+
+
 def generate_probes(cover_letter_text: str) -> list[dict] | None:
     """자기소개서에서 주장과 꼬리 질문을 뽑는다.
 
