@@ -393,7 +393,7 @@ class _Average extends StatelessWidget {
                     avg?.toStringAsFixed(1) ?? '—',
                     // 시안은 40dp 를 제안했으나 05-design §2 스케일(26 이하)에
                     // 없는 값이라 display 로 뒀다. 40 을 쓰려면 토큰 추가가
-                    // 필요하다(§0-1, 팀장 승인) — 시안도 "확인 필요"로 표시했다
+                    // 필요하다(§0-1, 프론트 오너 판단) — 시안도 "확인 필요"로 표시했다
                     style: const TextStyle(
                       fontFamily: AppType.fontFamily,
                       fontSize: AppType.display,
