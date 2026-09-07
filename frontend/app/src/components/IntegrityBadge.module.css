@@ -1,0 +1,152 @@
+/* 제출물 무결성 배지 (ADR-0028).
+   ApplicantPanel 의 .sec 규격을 따른다 — 같은 패널 안의 다른 절과 같은 모습이어야
+   한 화면으로 읽힌다 (05-design §3 동종 요소 동일 규격). */
+.sec {
+  padding: var(--sp-5) 0;
+  border-bottom: var(--border-w) solid var(--border-soft);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+.sec h2 {
+  margin: 0;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+/* 배지는 색만으로 뜻을 나르지 않는다 — 글자가 항상 같이 있다 (05-design §1).
+   네 상태가 서로 다른 말을 하므로 색도 넷이다 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: none;
+}
+
+/* 제출 당시와 같다 */
+.ok {
+  background: rgba(52, 211, 153, .12);
+  color: var(--ok-text);
+  border: var(--border-w) solid rgba(52, 211, 153, .35);
+}
+
+/* 바뀌었다 */
+.bad {
+  background: rgba(240, 163, 143, .12);
+  color: var(--danger);
+  border: var(--border-w) solid rgba(240, 163, 143, .40);
+}
+
+/* 확인을 못 했다 — '바뀌었다'와 갈라야 한다 */
+.warn {
+  background: rgba(251, 191, 36, .13);
+  color: var(--warn-text);
+  border: var(--border-w) solid rgba(251, 191, 36, .35);
+}
+
+/* 대조할 지문이 없다. **초록으로 칠하면 안 된다** — '깨끗하다'가 아니라
+   '증명할 근거가 없다'이고, 초록은 우리가 보증하지 않는 것을 보증하는 것처럼 보인다 */
+.none {
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  border: var(--border-w) solid var(--border);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.chain {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.chain a {
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.state {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+.toggle {
+  margin-top: var(--sp-3);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--font-sm);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: var(--r-ctl);
+}
+
+.list {
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.itemName {
+  font-size: var(--font-sm);
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 사유는 줄바꿈을 허용한다 — 자르면 왜 못 읽었는지가 사라진다 */
+.reason {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  word-break: keep-all;
+}

@@ -2,8 +2,10 @@
 import { api } from './client'
 import type {
   ApplicationDetail,
+  ApplicationIntegrity,
   AssignedApplications,
   BulkStageOut,
+  Publication,
   Note,
   Posting,
   Interview,
@@ -125,6 +127,20 @@ export const schedules = {
   /* 최신 일정 제안 상태 — 대시보드·상세 패널 칩 용도. 제안이 없으면 404 */
   latest: (applicationId: number, signal?: AbortSignal) =>
     api.get<ScheduleStatus>(`/applications/${applicationId}/schedule-proposals`, { signal }),
+}
+
+export const integrity = {
+  /* 지원자 하나의 제출물 무결성 (ADR-0028).
+     **목록 화면에서 부르지 않는다** — 볼 때마다 S3 에서 원본을 다시 읽어
+     지문을 새로 뜬다. 20명 목록에서 부르면 S3 를 20번 읽는다.
+     상세에서 한 번 부르는 자리다. */
+  get: (applicationId: number, signal?: AbortSignal) =>
+    api.get<ApplicationIntegrity>(`/applications/${applicationId}/integrity`, { signal }),
+
+  /* 사슬 머리를 공개 체인에 올린 기록 — 지원자별이 아니라 전체 사슬에 대한 것.
+     covered_through_seq 보다 seq 가 작거나 같은 고리가 이미 체인에 올라가 있다. */
+  publications: (signal?: AbortSignal) =>
+    api.get<Publication[]>('/integrity/publications', { signal }),
 }
 
 export const notes = {

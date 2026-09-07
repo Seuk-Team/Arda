@@ -9,8 +9,10 @@ import type {
   AgentChatResponse,
   ApplicationDetail,
   ApplicationListItem,
+  ApplicationIntegrity,
   AssignedApplications,
   Evaluation,
+  Publication,
   Interview,
   Note,
   Posting,
@@ -233,6 +235,72 @@ export function mockResponse(method: string, path: string, query: Query = {}): u
   if (appDetail) {
     const a = APPS.find((x) => x.id === Number(appDetail[1]))
     return a === undefined ? undefined : serve(detail(a))
+  }
+
+  /* 사슬 머리를 공개 체인에 올린 기록. 확정 1건 + 대기 1건 —
+     화면이 확정된 것만 근거로 삼는지 보려면 대기 행이 하나 있어야 한다 */
+  if (path === '/integrity/publications') {
+    return serve([
+      {
+        id: 1, network: 'ethereum-sepolia', covered_through_seq: 30,
+        chain_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        tx_hash: '0xf3e19e5a8de49c1398f6d8b2dc5be4f8b58724c59518c0f60cb90f88fbe6c0c0',
+        block_number: 11651695, status: 'confirmed', error: null,
+        created_at: at(-1, 9), confirmed_at: at(-1, 9),
+        explorer_url: 'https://sepolia.etherscan.io/tx/0xf3e19e5a8de49c1398f6d8b2dc5be4f8b58724c59518c0f60cb90f88fbe6c0c0',
+        proof: null,
+      },
+      {
+        id: 2, network: 'opentimestamps', covered_through_seq: 30,
+        chain_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        tx_hash: null, block_number: null, status: 'pending', error: null,
+        created_at: at(-1, 9), confirmed_at: null,
+        explorer_url: null, proof: null,
+      },
+    ] satisfies Publication[])
+  }
+
+  /* 지원자 하나의 무결성. 네 판정이 다 나오게 id 로 갈라 둔다 —
+     하나만 있으면 화면에서 나머지 셋을 못 본다 */
+  const integ = path.match(/^\/applications\/(\d+)\/integrity$/)
+  if (integ) {
+    const id = Number(integ[1])
+    const anchor = (seq: number, doc_type: string, filename: string | null,
+                    status: 'ok' | 'mismatch' | 'unreadable', reason: string | null) => ({
+      seq, doc_type, file_id: filename ? seq : null, filename,
+      content_sha256: 'c0ffee'.repeat(10).slice(0, 64),
+      chain_hash: 'deadbeef'.repeat(8),
+      anchored_at: at(-6, 10), status, reason,
+    })
+    /* 110 백서준 = ADR-0028 이전 접수 → 앵커 자체가 없다 */
+    if (id === 110) {
+      return serve({ application_id: id, anchored: false, verdict: 'none', items: [] } satisfies ApplicationIntegrity)
+    }
+    if (id === 103) {
+      return serve({
+        application_id: id, anchored: true, verdict: 'mismatch',
+        items: [
+          anchor(11, 'resume', '한지우_이력서.pdf', 'mismatch', '지문이 접수 시와 다릅니다'),
+          anchor(12, 'self_intro', null, 'ok', null),
+        ],
+      } satisfies ApplicationIntegrity)
+    }
+    if (id === 106) {
+      return serve({
+        application_id: id, anchored: true, verdict: 'unreadable',
+        items: [
+          anchor(17, 'resume', '김도현_이력서.pdf', 'unreadable', '원본을 읽지 못했습니다 (NoSuchKey)'),
+          anchor(18, 'self_intro', null, 'ok', null),
+        ],
+      } satisfies ApplicationIntegrity)
+    }
+    return serve({
+      application_id: id, anchored: true, verdict: 'ok',
+      items: [
+        anchor(1, 'resume', '이력서.pdf', 'ok', null),
+        anchor(2, 'self_intro', null, 'ok', null),
+      ],
+    } satisfies ApplicationIntegrity)
   }
 
   if (path === '/users') {
