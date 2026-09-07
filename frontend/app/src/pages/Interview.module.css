@@ -139,6 +139,96 @@
   margin: 0;
 }
 
+/* 진행 보조 — 아르가 앞 답변을 듣고 건네는 말 (ADR-0026 결정 4).
+
+   **경고처럼 보이면 안 된다.** 빨강·느낌표·아이콘을 쓰지 않고 아르의 다른 말과
+   같은 톤으로 둔다. 지원자가 "감시당하고 있다"고 느끼는 순간 이 기능은 역효과다.
+   왼쪽 선만 accent 로 둬서 "아르가 하는 말"이라는 것만 표시한다. */
+.pacing {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--accent-text);
+  background: var(--accent-soft);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* 녹음 */
+.recorder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.recorderHint {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.recording {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 녹음 중 점. 빨강을 쓰는 유일한 자리다 — 여기서는 "지금 켜져 있다"는
+   사실 표시라 오히려 분명해야 한다. */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: blink var(--dur-slow) var(--ease) infinite alternate;
+}
+
+@keyframes blink {
+  from { opacity: 1; }
+  to { opacity: 0.25; }
+}
+
+.recorderActions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+/* 음성 ↔ 텍스트 전환. 버튼이 아니라 링크처럼 둔다 — 주된 행동이 아니다. */
+.switchMode {
+  align-self: center;
+  background: none;
+  border: none;
+  padding: var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.switchMode:hover {
+  color: var(--text);
+}
+
+.switchMode:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: var(--r-ctl);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot { animation: none; }
+}
+
 /* 스켈레톤 (05-design §6) */
 .skeleton {
   height: 20px;
