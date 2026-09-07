@@ -21,6 +21,9 @@ dependencies = [
     # 프로젝트가 직접 선언한 의존에만 적용되므로 여기 명시한다.
     "torch>=2.0",
     "pypdf>=6.16.2",
+    # 배포가 컨테이너 안에서 이행을 돌린다(2026-09-04, 이슈 #17). 그래서 운영
+    # 이미지에도 있어야 한다 — dev 그룹에 두면 `--no-dev` 에서 빠져 이행이 불가능하다.
+    "alembic>=1.13",
     "web3>=7.0",
     "opentimestamps-client>=0.7.2",
 ]
@@ -36,11 +39,6 @@ local = [
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    # 스키마 마이그레이션 도구(5941ae7). 런타임 의존이 아니라서 dev 그룹이다 —
-    # 운영 이미지는 `uv sync --frozen --no-dev` 라 들어가지 않는다(backend/Dockerfile).
-    # 여기 없으면 `uv run --with alembic` 로 매번 최신을 받아 쓰게 되고, 그러면
-    # **버전이 아무 데도 안 박혀 사람마다 다른 alembic 으로 같은 리비전을 돌린다.**
-    "alembic>=1.13",
     "pytest-timeout>=2.3",
 ]
 
