@@ -12,7 +12,9 @@
 }
 
 .title {
-  flex: 1;
+  /* 늘어나지 않는다 — 늘어나면 옆에 붙는 meta 가 오른쪽 끝으로 밀린다.
+     대신 줄어들기는 한다(긴 제목은 말줄임) */
+  flex: 0 1 auto;
   min-width: 0;
   font-size: var(--font-display);
   font-weight: 700;
@@ -23,6 +25,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1 1 auto;
+  min-width: var(--sp-2);
 }
 
 .actions {
