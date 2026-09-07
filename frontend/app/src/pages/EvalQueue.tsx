@@ -57,6 +57,12 @@ export function QueueRow({
   const { item, mine, others, days, split } = row
   const stale = mine === null && days > STALE_DAYS
 
+  /* 내 평가를 맨 앞에 둔다 — 이 줄에서 내가 어디 서 있는지가 먼저다.
+     아바타는 셋까지, 나머지는 +n (열 폭이 고정이라 넘치면 줄이 밀린다) */
+  const all = [...(mine ? [mine] : []), ...others]
+  const shown = all.slice(0, 3)
+  const rest = all.length - shown.length
+
   return (
     <div
       className={`${styles.item} ${current ? styles.cur : ''}`}
@@ -84,25 +90,24 @@ export function QueueRow({
         {stale && <span className={`${styles.badge} ${styles.badgeHot}`}>{days}일 경과</span>}
       </span>
 
+      {/* 아무도 안 냈으면 빈 칸으로 둔다 — 오른쪽 점수 칸이 이미 '미착수'라고
+          말하고 있어, 여기 '평가 없음'을 또 쓰면 같은 말을 두 번 한다 */}
       <span className={styles.avatars}>
-        {others.length === 0 && mine === null ? (
-          <span className={styles.noEval}>평가 없음</span>
-        ) : (
-          [...(mine ? [mine] : []), ...others].map((e) => {
-            const nm = users.get(e.evaluator_id)?.name ?? '?'
-            const av = avatarOf(nm)
-            return (
-              <span
-                key={e.id}
-                className={styles.avatar}
-                style={{ background: av.bg, color: av.fg }}
-                title={`${nm} · ${e.score}점`}
-              >
-                {av.ini}
-              </span>
-            )
-          })
-        )}
+        {shown.map((e) => {
+          const nm = users.get(e.evaluator_id)?.name ?? '?'
+          const av = avatarOf(nm)
+          return (
+            <span
+              key={e.id}
+              className={styles.avatar}
+              style={{ background: av.bg, color: av.fg }}
+              title={`${nm} · ${e.score}점`}
+            >
+              {av.ini}
+            </span>
+          )
+        })}
+        {rest > 0 && <span className={styles.more}>+{rest}</span>}
       </span>
 
       <span className={styles.scoreBox}>
