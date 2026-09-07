@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import interview_pacing
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import (
@@ -31,6 +32,7 @@ from app.schemas.interview import (
     AnswerRequest,
     ConsentRequest,
     InterviewPublicOut,
+    PacingHintOut,
     QuestionsSet,
     SessionCreate,
     SessionDetailOut,
@@ -337,9 +339,33 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
             HTTPStatus.CONFLICT, "답변할 질문이 없습니다 — 면접을 종료해 주세요"
         )
 
+    # 앞서 답한 것들 — 진행 보조가 "연속으로 짧은지"를 보는 데 쓴다.
+    # 저장 전에 읽어야 이번 답변이 안 섞인다.
+    earlier = [
+        t.transcript
+        for t in db.scalars(
+            select(InterviewTurn)
+            .where(
+                InterviewTurn.session_id == session.id,
+                InterviewTurn.transcript.is_not(None),
+            )
+            .order_by(InterviewTurn.seq)
+        ).all()
+    ]
+
     turn.transcript = body.transcript
     db.commit()
-    return get_interview_public(token, db)
+
+    out = get_interview_public(token, db)
+
+    # 진행 보조 (ADR-0026 결정 4). **저장하지 않는다** — 이 응답에만 실린다.
+    # 점수가 아니라 다음에 할 행동 한 문장이고, 평가로 가는 길이 없다.
+    hint = interview_pacing.suggest(body.transcript, earlier)
+    if hint is None:
+        return out
+    return out.model_copy(
+        update={"pacing": PacingHintOut(action=hint.action, message=hint.message)}
+    )
 
 
 @router.post("/public/interview/{token}/finish", response_model=InterviewPublicOut)
