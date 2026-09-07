@@ -38,7 +38,7 @@
 
 ## 바뀐 것
 
-- **AWS 전체 이전**: 옛 팀 계정 → suvisdev 개인 계정(서울). EC2 `arda-api`(t3.small) + Elastic IP, S3 `arda-resumes-seuk`, SQS `arda-mail`, SES 도메인 `seuk.suvisdev.cloud`
+- **AWS 전체 이전**: 옛 팀 계정 → suvisdev 개인 계정(서울). EC2 `arda-api`(t3.small → 2026-09-07 t3.medium) + Elastic IP, S3 `arda-resumes-seuk`, SQS `arda-mail`, SES 도메인 `seuk.suvisdev.cloud`
 - **주소**: 프론트 https://seuk.suvisdev.cloud · API https://api.seuk.suvisdev.cloud
 - **저장소**: `Seuk-Team/Arda` 가 정본 (구 `Team-Seuk/Arda` 는 삭제 예정)
 - **배포 자동화**: 서버가 2분마다 main 폴링 → pull·build·up. "배포해달라" 요청 불필요

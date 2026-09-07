@@ -4,7 +4,7 @@
 
 > **⚠️ 2026-09-04 인프라 이전 완료 — 서버·주소가 전부 바뀌었다.** 옛 팀
 > AWS(이탈자 명의)에서 suvisdev 개인 AWS(서울)로 이전했다. 새 구성:
-> EC2 `arda-api`(t3.small, Ubuntu 24.04, Elastic IP) + Caddy 직결,
+> EC2 `arda-api`(**t3.medium** — 2026-09-07 t3.small 에서 올림, 4GB; Ubuntu 24.04, 29GB 디스크, Elastic IP) + Caddy 직결,
 > S3 `arda-resumes-seuk`, SQS `arda-mail`, SES `no-reply@seuk.suvisdev.cloud`
 > (샌드박스 해제 신청 중 — 그때까지 `MAIL_DRY_RUN=1`). IAM 은 콘솔
 > `suvisdev`(관리)·`arda-viewers` 그룹(팀 열람)·`arda-server`(서버 키)로 분리.
@@ -39,8 +39,9 @@
 메일: api → SQS 큐 → worker → SES (샌드박스 — 해제 신청 08/27 거절, 검증된 수신자만 발송 가능)
 ```
 
-- EC2: 서울, t3.micro + 스왑 2G, 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
-- 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구.
+- EC2: 서울, **t3.medium(4GB) + 스왑 2G, 디스크 29GB** (2026-09-07 — 거짓말 탐지 서비스가 분석 1건에 574MiB 를 써서 t3.small 2GB 로는 api·worker 와 같이 못 돈다. 월 +$17. 이전: t3.small ← t3.micro), 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
+- 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구. 거짓말 탐지 `lie-detection` 컨테이너(Caddy `/ai/*`, CPU 모델·GPU 불필요)는 PR #42 로 같은 EC2 에 붙는다.
+- **2026-09-07 운영 장치 요약**: 자동 CD(2분 폴링 + alembic + 이미지·빌드 캐시 prune) · 컨테이너 로그 상한 · DB 매일 S3 백업 · CloudWatch 경보 3개(디스크·백업·API) → SNS 메일 · `~/status.sh` 계기판. 각 절은 아래.
 - 서버 compose는 `docker-compose.prod.yml`(로컬 개발용 루트 compose와 별개 — --reload 없음, DB 포트 비공개).
 - **S3 버킷 CORS (2026-08-31 설정)**: 이력서는 브라우저에서 S3 로 직행하는데, 버킷에 CORS 규칙이 **없어서 브라우저 업로드가 막혀 있었다.** 아래를 넣어 풀었다.
 

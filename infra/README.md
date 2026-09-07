@@ -9,6 +9,7 @@
 - `cloudwatch-alarms.yml` — 위 지표의 알람 3개 CloudFormation 템플릿. 콘솔에서 파일 업로드 한 번으로 생성·삭제 (2026-09-07).
 - `server-status.sh` — 서버 상태 한 화면(디스크·컨테이너·배포·백업·헬스). 읽기만. 서버 `~/status.sh` 로 복사해 주 1회 본다 (2026-09-07).
 - `backup-arda-db.sh` — 운영 DB 매일 백업 → S3 `arda-db-backups-seuk` (2026-09-07). 서버 `~/backup-arda-db.sh` 로 복사해 cron 이 돈다. 설치·복원은 07-deploy "DB 백업" 절.
-- AWS: EC2(api·워커) · S3(이력서) · SES(메일) · SQS(메일 큐). 권한 모델은 07-deploy "주의" 절.
+- AWS: EC2 `arda-api` t3.medium(api·워커·db·caddy, 2026-09-07 ↑) · S3(이력서 · DB 백업) · SES(메일) · SQS(메일 큐) · CloudWatch/SNS(경보). 권한 모델은 07-deploy "주의" 절.
+- **예산 총 $400 · 2026-10-27 까지.** GPU(g4dn.xlarge)는 켜고 끄기 전제 — 24시간이면 월 ≈$470 로 초과.
 - K8s는 쓰지 않는다 ([ADR-0001](../docs/03_decision/0001-k8s-제외.md)).
 - 시크릿은 서버 `.env` — repo 에 커밋 금지. `.env.example` 은 `backend/`.

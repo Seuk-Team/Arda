@@ -58,6 +58,6 @@ gzip -t "$OUT"
 aws s3 cp "$OUT" "s3://${BACKUP_BUCKET}/db/${FILE}" --only-show-errors
 log "업로드 완료 s3://${BACKUP_BUCKET}/db/${FILE} (${SIZE}B)"
 
-# 로컬은 최근 N개만 남긴다 — 19GB 디스크다 (09/01 디스크 고갈 전력)
+# 로컬은 최근 N개만 남긴다 — 29GB 디스크다 (09/01 디스크 고갈 전력)
 ls -1t "${LOCAL_DIR}"/arda-*.sql.gz 2>/dev/null | tail -n +"$((KEEP_LOCAL + 1))" | xargs -r rm -f
 log "끝"
