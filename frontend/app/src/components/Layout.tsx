@@ -76,8 +76,9 @@ export default function Layout() {
           <ArViewer className={styles.arView} motion={shownMotion} track={arHovered} />
         </Suspense>
       </button>
-      {/* 단축키 안내 — 아르 옆에 조용히. ⌘K 는 ADR-0009 가 정한 진입점이다 */}
-      <span className={`n ${styles.arHint}`} aria-hidden="true">{AR_HINT}</span>
+      {/* 단축키 안내 — 아르 옆에 조용히. ⌘K 는 ADR-0009 가 정한 진입점이다.
+          열려 있는 동안은 감춘다: 여는 방법을 알려 주는 글자라 이미 열렸으면 할 말이 없다 */}
+      {!arOpen && <span className={`n ${styles.arHint}`} aria-hidden="true">{AR_HINT}</span>}
       {/* 2026-09-01 — 사이드바 옆(왼쪽)에서 화면 오른쪽 끝으로 옮겼다 */}
       <ArPanel open={arOpen} onClose={closeAr} onMotion={onMotion} triggerRef={arButtonRef} />
       <BottomNav />
