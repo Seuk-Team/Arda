@@ -39,13 +39,6 @@ const ICONS: Record<string, ReactNode> = {
     </>
   ),
   evaluations: <path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z" />,
-  /* 접기 손잡이 — 판 하나에 심지. 방향은 CSS 가 뒤집지 않고 path 를 갈아 끼운다 */
-  rail: (
-    <>
-      <rect x="3.5" y="4" width="17" height="16" rx="2" />
-      <path d="M9.5 4v16" />
-    </>
-  ),
 }
 
 /* 접힘 상태는 새로고침해도 남아야 한다 — 매번 다시 접는 건 설정이 아니라 사고다 */
@@ -117,17 +110,21 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* 접기 — 내비 바로 아래. 접힌 폭에서도 같은 자리에 남아야 다시 펼 수 있다 */}
+      {/* 접기 손잡이 — 사이드바 오른쪽 경계에 붙는다. 내비 목록 안에 두면
+          목적지가 아닌 것이 목적지처럼 서서 메뉴가 지저분해진다.
+          평소엔 안 보이다가 사이드바·경계에 커서를 올리면 나타난다. */}
       <button
         type="button"
-        className={styles.railToggle}
+        className={styles.handle}
         onClick={() => setCollapsed((v) => !v)}
         aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
         title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
         aria-expanded={!collapsed}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">{ICONS.rail}</svg>
-        <span className={styles.linkText}>접기</span>
+        {/* 갈매기 하나. 접힌 쪽을 가리킨다 — 누르면 어디로 가는지가 모양이다 */}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} />
+        </svg>
       </button>
 
       {/* 내비가 바닥까지 밀리지 않게 남은 자리를 먹는다 — 아르가 있던 칸이다 */}

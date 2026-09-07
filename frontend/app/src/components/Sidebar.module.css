@@ -1,5 +1,6 @@
 ﻿/* mockup.html 사이드바 규격을 그대로 옮긴다 (§12-1 시안 복제) */
 .sidebar {
+  position: relative;
   width: var(--sidebar-w);
   flex: none;
   /* 접었다 펴는 동안 본문이 같이 움직인다 — 폭만 흐르게 하고 안쪽은 즉시 바뀐다 */
@@ -144,52 +145,72 @@
   padding: 0;
 }
 
-.rail .link,
-.rail .railToggle {
+.rail .link {
   justify-content: center;
   gap: 0;
   padding: 0;
 }
 
-/* 접기 손잡이는 메뉴 항목과 같은 규격을 쓴다 — 눌러야 하는 것들의 높이가
-   제각각이면 세로줄이 무너진다 */
-.railToggle {
+/* ── 접기 손잡이 ──────────────────────────────────
+   내비 목록 안이 아니라 사이드바 오른쪽 경계에 붙는다. 목록 안에 두면
+   목적지가 아닌 것이 목적지처럼 서서 메뉴가 지저분해진다.
+   평소엔 안 보이고 사이드바에 커서를 올리면 뜬다 — 늘 떠 있으면 결국
+   같은 소음이다. 세로 가운데가 아니라 위쪽 1/3 에 둔다: 눈이 로고에서
+   메뉴로 내려오는 길목이라 찾을 때 먼저 걸린다. */
+.handle {
+  position: absolute;
+  top: 132px;
+  right: calc(var(--border-w) * -1);
+  transform: translateX(50%);
+  width: 22px;
+  height: 40px;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
-  min-height: 48px;
-  margin-top: var(--sp-1);
-  padding: 0 var(--sp-3);
-  border: 0;
+  justify-content: center;
+  border: var(--border-w) solid var(--sidebar-line);
   border-radius: var(--r-ctl);
-  background: transparent;
-  font-size: var(--font-body);
-  font-weight: 500;
+  background: var(--bg-chrome);
+  backdrop-filter: var(--glass);
   color: var(--text-sub);
-  white-space: nowrap;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
+  opacity: 0;
+  z-index: var(--z-sticky);
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 
-.railToggle svg {
-  width: 20px;
-  height: 20px;
-  flex: none;
+.handle svg {
+  width: 14px;
+  height: 14px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 1.8;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.railToggle:hover {
-  background: var(--bg-sunken);
+/* 사이드바 어디든 커서가 올라오면 손잡이가 뜬다 — 22px 짜리 띠를 정확히
+   겨냥해야만 보이면 없는 것과 같다 */
+.sidebar:hover .handle,
+.handle:focus-visible {
+  opacity: 1;
 }
 
-.railToggle:focus-visible {
-  outline: 2px solid var(--accent-text);
-  outline-offset: -2px;
+.handle:hover {
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
+
+.handle:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* 손가락으로는 hover 가 없다. 좁은 화면에서는 사이드바 자체가 숨으므로
+   손잡이도 같이 사라진다 (아래 미디어 쿼리) */
 
 @media (prefers-reduced-motion: reduce) {
   .sidebar { transition: none; }
