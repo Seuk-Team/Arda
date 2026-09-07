@@ -145,7 +145,10 @@
    이름·상태 / 배지 / 평가자 / 점수 / 버튼 */
 .item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto 84px 64px;
+  /* 배지·아바타를 auto 로 두면 내용 길이대로 폭이 달라져 행마다 열이
+     어긋난다 — 다섯 줄이 계단처럼 보였다 (2026-09-07). 전부 고정 폭으로
+     묶어 세로줄을 세운다. */
+  grid-template-columns: minmax(0, 1fr) 84px 84px 76px 60px;
   align-items: center;
   gap: var(--sp-3);
   min-height: 60px;
@@ -194,10 +197,13 @@
   text-overflow: ellipsis;
 }
 
-/* 배지는 색만으로 뜻을 나르지 않는다 — 글자가 항상 같이 있다 (§1) */
+/* 배지는 색만으로 뜻을 나르지 않는다 — 글자가 항상 같이 있다 (§1).
+   오른쪽 정렬 — 배지가 없는 행이 많아서, 왼쪽에 붙이면 있는 행만 튀어나온다 */
 .badges {
   display: flex;
+  justify-content: flex-end;
   gap: var(--sp-1);
+  min-width: 0;
 }
 
 .badge {
@@ -225,25 +231,32 @@
 
 .avatars {
   display: flex;
+  justify-content: flex-end;
   gap: 3px;
+  min-width: 0;
 }
 
 .avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   flex: none;
   border-radius: 50%;
   font-size: var(--font-caption);
   font-weight: 700;
 }
 
-.noEval {
+/* 평가자가 셋을 넘으면 아바타가 열을 넘친다. 셋까지만 그리고 나머지는 수로 */
+.more {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding-left: 3px;
+  font-family: var(--mono);
   font-size: var(--font-caption);
   color: var(--text-sub);
-  white-space: nowrap;
 }
 
 .scoreBox {
@@ -256,7 +269,7 @@
 .score {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: var(--font-h2);
+  font-size: var(--font-body);
   font-weight: 700;
   white-space: nowrap;
 }
