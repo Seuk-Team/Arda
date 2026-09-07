@@ -1,0 +1,9 @@
+/* 화면 전체를 덮는 배경. 카드·인트로가 이 위에 선다 */
+.net {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+}

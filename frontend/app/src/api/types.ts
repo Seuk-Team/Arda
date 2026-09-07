@@ -123,6 +123,16 @@ export interface StageHistoryItem {
   created_at: string
 }
 
+/* 평가 한 건 (backend EvaluationOut). 상세 응답이 배열로 함께 준다 —
+   평가자별 점수가 있어야 '누가 냈나'와 '의견이 갈렸나'를 알 수 있다 */
+export interface Evaluation {
+  id: number
+  evaluator_id: number
+  score: number
+  comment: string | null
+  created_at: string
+}
+
 export interface ApplicationDetail {
   id: number
   job_posting_id: number
@@ -138,6 +148,7 @@ export interface ApplicationDetail {
   created_at: string
   avg_score: number | null
   eval_count?: number
+  evaluations?: Evaluation[]
   files?: FileOut[]
   stage_history?: StageHistoryItem[]
 }
@@ -246,6 +257,14 @@ export interface AgentConfirmResponse {
 
 /* ── AI 면접 (public/interview) ───────────────────────────────────── */
 
+/* 면접 진행 보조 (ADR-0026 결정 4). **판정이 아니라 제안이다.**
+   점수·확률이 없고 서버에 저장되지도 않는다 — 답변을 낸 그 응답에만 실려 온다.
+   `action` 은 늘어날 수 있으므로 **모르는 값은 무시한다.** */
+export interface PacingHint {
+  action: string
+  message: string
+}
+
 export interface InterviewPublic {
   status: 'pending' | 'in_progress' | 'done' | 'expired'
   applicant_name: string
@@ -254,6 +273,16 @@ export interface InterviewPublic {
   consent_required: boolean
   current_question: string | null
   question_seq: number | null
+  /* 답변 직후에만 온다. 조회(GET)에는 항상 null */
+  pacing: PacingHint | null
+}
+
+/* 답변 음성 업로드용 서명 URL. 이력서 업로드와 다른 경로다 —
+   그쪽은 토큰 없이 누구나 부를 수 있어서 음성 형식을 얹지 않았다. */
+export interface InterviewAudioUpload {
+  upload_url: string
+  s3_key: string
+  expires_in: number
 }
 
 export interface InterviewSession {
@@ -286,6 +315,53 @@ export interface InterviewFinding {
 export interface InterviewSessionDetail extends InterviewSession {
   turns: InterviewTurn[]
   findings: InterviewFinding[]
+}
+
+/* ── 제출물 무결성 (ADR-0028) ─────────────────────────────────────
+   "위조 방지"가 아니라 **위조 검출**이다. DB 를 고치는 건 누구도 막을 수
+   없고, 달라지는 건 고친 사실이 드러난다는 점이다 — 문구를 그렇게 쓴다. */
+
+/* 고리 하나 + 지금 원본과 맞춰 본 결과 */
+export interface IntegrityItem {
+  seq: number
+  doc_type: string
+  file_id: number | null
+  filename: string | null
+  content_sha256: string
+  chain_hash: string
+  anchored_at: string
+  status: 'ok' | 'mismatch' | 'unreadable'
+  reason: string | null
+}
+
+/* verdict 는 항목들을 한 줄로 요약한 것 — 나쁜 쪽이 이긴다.
+   `none` 은 "깨끗하다"가 아니라 **"증명할 근거가 없다"** 이므로 ok 와 섞지 않는다.
+   ADR-0028 이전에 접수된 지원서가 여기 해당한다. */
+export type IntegrityVerdict = 'ok' | 'mismatch' | 'unreadable' | 'none'
+
+export interface ApplicationIntegrity {
+  application_id: number
+  anchored: boolean
+  verdict: IntegrityVerdict
+  items: IntegrityItem[]
+}
+
+/* 사슬 머리를 공개 체인에 올린 기록.
+   explorer_url 은 **서버가 골라 준다** — 네트워크마다 탐색기가 달라서
+   프론트에서 주소를 조립하면 안 된다. */
+export interface Publication {
+  id: number
+  network: string
+  covered_through_seq: number
+  chain_hash: string
+  tx_hash: string | null
+  block_number: number | null
+  status: 'pending' | 'confirmed' | 'failed'
+  error: string | null
+  created_at: string
+  confirmed_at: string | null
+  explorer_url: string | null
+  proof: string | null
 }
 
 /* ── 인적성(사전 성향) 설문 (ADR-0027) ───────────────────────────── */

@@ -1,0 +1,100 @@
+/* 인트로는 화면을 덮지만 Skip 말고는 아무것도 안 받는다 */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 세 줄이 하나로 쌓인 덩어리다 — 각자 무대를 넘겨받는 게 아니라 위에서부터
+   후두둑 차례로 들어와 함께 선다. 플렉스 컬럼이라 translateX 는 배치를 안 건드린다. */
+.stack {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(760px, calc(100vw - 96px));
+  text-align: center;
+  word-break: keep-all;
+}
+
+/* 워드마크 — 그냥 글씨다. 배경 망이 유기적으로 빛나는 앞에 또렷한 타입이 서야
+   둘 다 산다. 크롬(금속)은 명암 밴딩으로 읽히므로, 글자 잉크가 박스의
+   0.155~0.851 을 차지하는 것에 맞춰 어두운 띠를 52% 에 둔다. */
+.wordmark {
+  opacity: 0;
+  white-space: nowrap;
+  font-size: clamp(64px, 12vw, 152px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  background: linear-gradient(180deg,
+    #C9D8EC 0%, #FFFFFF 33%, #93A9C6 46%, #63799B 52%,
+    #B9CCE4 60%, #FFFFFF 80%, #8497B4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 26px rgba(190, 215, 245, .32));
+}
+
+/* 소제목 + 설명은 한 세트 — 같이 들어오고 같이 빠진다 */
+.copy {
+  opacity: 0;
+  margin-top: 22px;
+}
+
+.slogan {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.45;
+  color: #E4EDFF;
+  text-shadow: 0 0 28px rgba(125, 211, 252, .5), 0 0 64px rgba(96, 165, 250, .28);
+}
+
+.subcopy {
+  margin-top: 14px;
+  font-size: var(--font-body);
+  font-weight: 400;
+  line-height: 1.75;
+  color: #A8BCDC;
+  text-shadow: 0 0 22px rgba(96, 165, 250, .22);
+}
+
+/* 매번 나오면 통행세다 — 빠져나갈 문을 늘 열어 둔다 */
+.skip {
+  position: absolute;
+  top: var(--sp-5);
+  right: var(--sp-5);
+  pointer-events: auto;
+  height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .06);
+  color: #CBD5E6;
+  font-family: var(--sans);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.skip:hover {
+  background: rgba(255, 255, 255, .14);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .slogan { font-size: var(--font-h2); }
+  .subcopy { font-size: var(--font-sm); }
+}

@@ -24,7 +24,7 @@ from datetime import datetime
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import chain, s3
+from app import chain, ots, s3
 from app.models import Application, ChainPublication, DocumentAnchor, File
 
 logger = logging.getLogger(__name__)
@@ -292,62 +292,153 @@ def _broken(row: DocumentAnchor, reason: str, length: int) -> dict:
     return {"intact": False, "length": length, "broken_at": row.seq, "reason": reason}
 
 
-# ── 공개 체인에 못 박기 (ADR-0028 2단계) ──────────────────────────────
+
+# ── 공개 체인에 못 박기 (ADR-0028 2·3단계) ────────────────────────────
+#
+# **못 박는 곳이 둘이다.** 폴리곤은 보여주는 쪽, OpenTimestamps 는 남기는 쪽.
+# 올리는 값은 양쪽 다 **사슬 머리 하나**로 같아서 보내는 곳만 갈린다.
+#
+# 서명 위치도 갈린다:
+#   폴리곤 — 개인키가 필요하다. 서버에 키를 두지 않기로 해서(팀장 검토 Q2)
+#            **GitHub Actions 가 서명·전송하고 결과만 여기로 기록**한다
+#            (`start_publication` → `record_result`).
+#   OTS    — 개인키가 없다. 서버에서 그냥 돌린다 (`publish_ots`).
 
 
 class NothingToPublish(Exception):
-    """올릴 것이 없다. 원장이 비었거나, 머리가 지난번과 같다."""
+    """올릴 것이 없다. 원장이 비었거나, 그 네트워크에 이미 올린 머리다."""
 
 
-def publish_head(db: Session) -> ChainPublication:
-    """지금 사슬 머리를 공개 체인에 올린다.
+def current_head(db: Session) -> DocumentAnchor | None:
+    """지금 사슬 머리. **이 하나가 그 앞 전부를 덮는다.**"""
+    return db.scalar(select(DocumentAnchor).order_by(DocumentAnchor.seq.desc()).limit(1))
 
-    **머리 하나가 그 앞 전부를 덮는다** — 각 고리가 앞 고리의 해시를 재료로
-    쓰기 때문이다. 그래서 매번 값 하나만 보낸다.
 
-    머리가 지난번 올린 것과 같으면 보내지 않는다(`NothingToPublish`). 같은 값을
-    또 올리는 것은 가스만 쓰고 증명력이 하나도 안 는다.
-
-    **행을 먼저 만들고 보낸다.** 반대로 하면 보내는 데 성공하고 기록에 실패했을
-    때 "체인에는 있는데 우리는 모르는 거래"가 생긴다. 그건 나중에 사람이
-    탐색기를 뒤져야 찾을 수 있다.
-    """
-    head = db.scalar(select(DocumentAnchor).order_by(DocumentAnchor.seq.desc()).limit(1))
+def _head_or_raise(db: Session, network: str) -> DocumentAnchor:
+    head = current_head(db)
     if head is None:
         raise NothingToPublish("원장이 비어 있습니다")
 
-    last = db.scalar(
-        select(ChainPublication)
-        .where(ChainPublication.status != "failed")
-        .order_by(ChainPublication.covered_through_seq.desc())
-        .limit(1)
-    )
-    if last is not None and last.chain_hash == head.chain_hash:
-        raise NothingToPublish(
-            f"지난번(seq={last.covered_through_seq}) 이후로 새 고리가 없습니다"
+    already = db.scalar(
+        select(ChainPublication).where(
+            ChainPublication.network == network,
+            ChainPublication.chain_hash == head.chain_hash,
+            ChainPublication.status != "failed",
         )
+    )
+    if already is not None:
+        raise NothingToPublish(
+            f"{network} 에는 이미 올렸습니다 (seq={already.covered_through_seq})"
+        )
+    return head
 
-    config = chain.load_config()
-    if config is None:
-        raise RuntimeError(chain.unavailable_reason() or "체인 설정이 없습니다")
 
+def start_publication(db: Session, network: str) -> ChainPublication:
+    """게시할 자리를 먼저 잡는다. **보내기 전에 행을 만든다.**
+
+    반대로 하면 보내는 데 성공하고 기록에 실패했을 때 "체인에는 있는데 우리는
+    모르는 거래"가 생긴다. 그건 나중에 사람이 탐색기를 뒤져야 찾는다.
+
+    GitHub Actions 경로에서는 이걸 API 로 받아 가고, 서명·전송을 마친 뒤
+    `record_result` 로 결과를 되돌려 준다.
+    """
+    head = _head_or_raise(db, network)
     row = ChainPublication(
-        network=config.network,
+        network=network,
         covered_through_seq=head.seq,
         chain_hash=head.chain_hash,
         status="pending",
     )
     db.add(row)
     db.commit()
+    return row
 
+
+def record_result(
+    db: Session,
+    publication_id: int,
+    *,
+    status: str,
+    tx_hash: str | None = None,
+    block_number: int | None = None,
+    from_address: str | None = None,
+    proof: str | None = None,
+    error: str | None = None,
+) -> ChainPublication:
+    """밖에서 서명·전송한 결과를 기록한다 (GitHub Actions 경로).
+
+    **서버는 여기서 아무것도 검증하지 못한다** — 키가 없어 서명을 확인할 수
+    없기 때문이다. 그래도 상관없다. `tx_hash` 가 가리키는 체인의 값이 진실이고,
+    이 표는 "어디를 보면 되는지"를 적어 둔 영수증일 뿐이다. 거짓으로 적어 넣어도
+    탐색기에서 대조하면 드러난다.
+    """
+    row = db.get(ChainPublication, publication_id)
+    if row is None:
+        raise LookupError(f"게시 기록 {publication_id} 이 없습니다")
+
+    row.status = status
+    if tx_hash is not None:
+        row.tx_hash = tx_hash
+    if block_number is not None:
+        row.block_number = block_number
+    if from_address is not None:
+        row.from_address = from_address
+    if proof is not None:
+        row.proof = proof
+    if error is not None:
+        row.error = error[:2000]
+    if status == "confirmed":
+        row.confirmed_at = db.scalar(select(func.now()))
+    db.commit()
+    return row
+
+
+def publish_ots(db: Session) -> ChainPublication:
+    """사슬 머리를 OpenTimestamps 에 도장 찍는다. **서버에서 직접 돈다.**
+
+    개인키가 없어서 가능하다 — 캘린더에 해시만 던지고 증명을 받아 온다.
+    돌아온 증명은 아직 `pending` 이다(비트코인 블록에 안 실림). 몇 시간 뒤
+    `refresh_pending` 이 갱신해 `confirmed` 로 바꾼다.
+    """
+    row = start_publication(db, ots.NETWORK)
     try:
-        sent = chain.publish_hash(config, head.chain_hash)
+        proof = ots.stamp(row.chain_hash)
     except Exception as exc:
-        # 사유를 남긴다 — 다음 시도의 유일한 단서다. 개인키는 여기 안 들어간다.
         row.status = "failed"
         row.error = f"{type(exc).__name__}: {exc}"[:2000]
         db.commit()
-        logger.exception("체인 게시 실패 seq=%s", head.seq)
+        logger.exception("OTS 도장 실패 seq=%s", row.covered_through_seq)
+        raise
+
+    row.proof = proof
+    # 도장은 찍혔지만 비트코인 확정은 아직이다. 여기서 confirmed 로 적으면
+    # 우리가 가진 것보다 강한 주장을 하게 된다.
+    row.status = "confirmed" if ots.is_confirmed(proof) else "pending"
+    if row.status == "confirmed":
+        row.confirmed_at = db.scalar(select(func.now()))
+    db.commit()
+    return row
+
+
+def publish_head(db: Session) -> ChainPublication:
+    """폴리곤에 직접 게시한다 — **과도기·로컬 전용 경로.**
+
+    운영에서는 GitHub Actions 가 서명한다(팀장 검토 Q2). 이 함수는 서버에
+    `CHAIN_PRIVATE_KEY` 가 있을 때만 동작하고, 없으면 설정 오류로 막힌다.
+    로컬에서 흐름을 끝까지 돌려 보거나 이관 전 과도기에 쓴다.
+    """
+    config = chain.load_config()
+    if config is None:
+        raise RuntimeError(chain.unavailable_reason() or "체인 설정이 없습니다")
+
+    row = start_publication(db, config.network)
+    try:
+        sent = chain.publish_hash(config, row.chain_hash)
+    except Exception as exc:
+        row.status = "failed"
+        row.error = f"{type(exc).__name__}: {exc}"[:2000]
+        db.commit()
+        logger.exception("체인 게시 실패 seq=%s", row.covered_through_seq)
         raise
 
     row.tx_hash = sent.tx_hash
@@ -361,35 +452,51 @@ def publish_head(db: Session) -> ChainPublication:
 
 
 def refresh_pending(db: Session) -> list[ChainPublication]:
-    """아직 확정을 못 본 거래들을 다시 확인한다.
+    """확정을 못 본 게시를 다시 확인한다. 네트워크마다 확인 방법이 다르다.
 
-    보냈지만 영수증을 못 받은 것은 실패가 아니다 — 대개 블록이 아직 안 나온
-    것뿐이다. 여기서 뒤늦게 `confirmed` 로 바뀐다.
+    - 폴리곤: 거래 영수증을 다시 조회한다 (`chain.fetch_status`)
+    - OTS: 캘린더에 다시 물어 증명을 갱신한다 (`ots.upgrade`)
+
+    **보냈는데 확정을 못 본 것은 실패가 아니다.** 폴리곤은 블록이 아직 안 나온
+    것이고, OTS 는 몇 시간이 정상이다.
     """
-    config = chain.load_config()
-    if config is None:
-        return []
-
     pending = db.scalars(
-        select(ChainPublication).where(
-            ChainPublication.status == "pending",
-            ChainPublication.tx_hash.isnot(None),
-        )
+        select(ChainPublication).where(ChainPublication.status == "pending")
     ).all()
 
     changed: list[ChainPublication] = []
     for row in pending:
-        found = chain.fetch_status(config, row.tx_hash)
-        if found is None:
-            continue
-        row.block_number = found.block_number
-        if found.confirmed:
-            row.status = "confirmed"
-            row.confirmed_at = db.scalar(select(func.now()))
-        else:
-            row.status = "failed"
-            row.error = "체인이 거래를 되돌렸습니다 (status=0)"
-        changed.append(row)
+        try:
+            if row.network == ots.NETWORK:
+                if not row.proof:
+                    continue
+                proof, confirmed = ots.upgrade(row.proof)
+                if proof == row.proof and not confirmed:
+                    continue  # 아직. 다음 번에 다시 본다
+                row.proof = proof
+                if confirmed:
+                    row.status = "confirmed"
+                    row.block_number = ots.bitcoin_height(proof)
+                    row.confirmed_at = db.scalar(select(func.now()))
+                changed.append(row)
+            else:
+                config = chain.load_config()
+                if config is None or not row.tx_hash:
+                    continue
+                found = chain.fetch_status(config, row.tx_hash)
+                if found is None:
+                    continue
+                row.block_number = found.block_number
+                if found.confirmed:
+                    row.status = "confirmed"
+                    row.confirmed_at = db.scalar(select(func.now()))
+                else:
+                    row.status = "failed"
+                    row.error = "체인이 거래를 되돌렸습니다 (status=0)"
+                changed.append(row)
+        except Exception:
+            # 한 건이 실패해도 나머지는 확인한다.
+            logger.exception("게시 상태 갱신 실패 id=%s", row.id)
 
     if changed:
         db.commit()

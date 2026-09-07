@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import PageHead from '../components/PageHead'
 import { useRightPanel } from '../components/RightPanel'
 import { ApiError } from '../api/client'
-import { applications, assignments, evaluations, postings as postingsApi } from '../api/endpoints'
-import type { ApplicationDetail, Posting } from '../api/types'
+import {
+  applications,
+  assignments,
+  evaluations,
+  postings as postingsApi,
+  users as usersApi,
+} from '../api/endpoints'
+import type { Posting, UserItem } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
-import { STAGE_LABEL, careerText, fmtDate } from '../lib/stage'
+import { STAGE_LABEL, careerText } from '../lib/stage'
+import { QueueRow, Rail } from './EvalQueue'
+import { buildGroups, buildRows, type QueueItem } from '../lib/evalQueue'
 import styles from './Evaluations.module.css'
 
 /* 내게 배정된 평가 대기 큐 + 우측 평가 패널 (05-design §0.5).
@@ -16,12 +24,11 @@ import styles from './Evaluations.module.css'
    담아서 지켜진다. 그래도 서버가 403 을 주면 그대로 보여 준다(§6).
 
    큐는 GET /interviewers/{me}/applications 가 준다. 그 응답은 배정 관계만 담아서
-   (application_id·배정일) 이름·공고를 알 수 없다 — 지원자마다 상세를 한 번 더 부른다. */
-interface QueueItem {
-  applicationId: number
-  assignedAt: string
-  detail: ApplicationDetail
-}
+   (application_id·배정일) 이름·공고를 알 수 없다 — 지원자마다 상세를 한 번 더 부른다.
+
+   목록을 공고로 나눠 왼쪽 레일에서 고른다 (2026-09-07). 회사에 공고가 하나뿐일
+   리는 없는데 전부 한 줄로 늘어놓으면 어느 공고 건인지 매번 읽어야 한다.
+   줄 그리기는 EvalQueue.tsx 가 맡는다 — 여기는 데이터만 모은다. */
 
 /* 403 은 "배정이 풀렸다"는 뜻이다 — 서버 문구만으로는 무엇을 해야 할지 모른다.
    조용히 삼키지 않고 사유를 붙여 보여 준다. */
@@ -37,6 +44,9 @@ export default function Evaluations() {
 
   const [queue, setQueue] = useState<QueueItem[] | null>(null)
   const [postingMap, setPostingMap] = useState<Map<number, Posting>>(new Map())
+  /* 평가자 이름 — 상세는 evaluator_id 만 준다. 조회는 전원에게 열려 있다 (ADR-0017) */
+  const [userMap, setUserMap] = useState<Map<number, UserItem>>(new Map())
+  const [sel, setSel] = useState<number | 'all'>('all')
   const [error, setError] = useState<string | null>(null)
 
   const [openId, setOpenId] = useState<number | null>(null)
@@ -58,6 +68,12 @@ export default function Evaluations() {
       .then((list) => setPostingMap(new Map(list.map((p) => [p.id, p]))))
       .catch(() => {
         /* 공고 이름을 못 받아도 큐는 보여 준다 */
+      })
+    usersApi
+      .list(ac.signal)
+      .then((res) => setUserMap(new Map(res.items.map((u) => [u.id, u]))))
+      .catch(() => {
+        /* 이름을 못 받으면 아바타가 '?' 로 뜬다. 목록 자체는 막지 않는다 */
       })
     return () => ac.abort()
   }, [])
@@ -137,6 +153,16 @@ export default function Evaluations() {
     }
   }
 
+  /* 줄에 필요한 값(내 평가 유무·의견 갈림·경과)은 상세에서 파생된다 —
+     따로 상태로 두면 큐가 바뀔 때 둘이 어긋난다 */
+  const rows = useMemo(
+    () => buildRows(queue ?? [], postingMap, user?.id ?? -1),
+    [queue, postingMap, user?.id],
+  )
+  const groups = useMemo(() => buildGroups(rows), [rows])
+  const shown = sel === 'all' ? rows : rows.filter((r) => r.postingId === sel)
+  const pending = rows.filter((r) => r.mine === null).length
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') close()
@@ -152,38 +178,27 @@ export default function Evaluations() {
       <div className={styles.col}>
       <PageHead
         title="평가 현황"
-        actions={<span className={styles.meta}>평가 대기 {queue?.length ?? 0}명</span>}
+        actions={<span className={styles.meta}>내가 안 낸 평가 {pending}건 / 배정 {rows.length}건</span>}
       />
 
-        <main className="page-content">
-          <div className={styles.panel}>
-            <div className={`${styles.row} ${styles.thead}`}>
-              <span>이름</span>
-              <span>공고</span>
-              <span>단계</span>
-              <span className={styles.num}>배정일</span>
-            </div>
+        {/* 레일이 없으면 두 열짜리 격자가 목록을 레일 자리(236px)로 밀어 넣는다 —
+            배정이 0건일 때 빈 카드가 좁고 길쭉하게 섰다 (2026-09-07) */}
+        <main className={`page-content ${styles.page} ${rows.length === 0 ? styles.pageBare : ''}`}>
+          {rows.length > 0 && <Rail groups={groups} selected={sel} onSelect={setSel} />}
 
-            {queue?.map((a) => (
-              <div
-                key={a.applicationId}
-                className={`${styles.row} ${styles.item} ${a.applicationId === openId ? styles.cur : ''}`}
-                tabIndex={0}
-                aria-current={a.applicationId === openId ? 'true' : undefined}
-                onClick={() => open(a)}
-              >
-                <span className={styles.name}>{a.detail.name}</span>
-                <span className={styles.posting}>
-                  {postingMap.get(a.detail.job_posting_id)?.title ?? '—'}
-                </span>
-                {/* 판단 전이라 색 없이 라벨로만 (§1) */}
-                <span className={styles.stage}>{STAGE_LABEL[a.detail.current_stage]}</span>
-                <span className={styles.num}>{fmtDate(a.assignedAt)}</span>
-              </div>
+          <div className={styles.panel}>
+            {shown.map((r) => (
+              <QueueRow
+                key={r.item.applicationId}
+                row={r}
+                users={userMap}
+                current={r.item.applicationId === openId}
+                onOpen={() => open(r.item)}
+              />
             ))}
 
             {error === null && queue === null && (
-              [0, 1, 2].map((i) => <div key={i} className={`${styles.row} ${styles.skelRow}`} />)
+              [0, 1, 2].map((i) => <div key={i} className={styles.skelRow} />)
             )}
             {error === null && queue?.length === 0 && (
               <div className={styles.emptyState} role="status">

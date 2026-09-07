@@ -139,6 +139,92 @@ class TestSummarize:
         assert resp.status_code == 401
 
 
+# ── /interview-probes ───────────────────────────────────────
+
+
+class TestInterviewProbes:
+    """POST /api/v1/agent/applications/{id}/interview-probes"""
+
+    def _available_backend(self):
+        backend = MagicMock()
+        backend.unavailable_reason.return_value = None
+        return backend
+
+    _CLAIMS = [
+        {
+            "claim": "응답이 820ms에서 240ms로 줄었습니다",
+            "type": "수치",
+            "questions": ["어디가 병목이었어요?", "어떻게 측정했어요?"],
+        }
+    ]
+
+    def _post(self, client, application, *, claims=_CLAIMS, backend=None):
+        with (
+            patch(
+                "app.api.agent.get_summary_backend",
+                return_value=backend or self._available_backend(),
+            ),
+            patch("app.api.agent.generate_probes", return_value=claims),
+        ):
+            return client.post(
+                f"/api/v1/agent/applications/{application.id}/interview-probes"
+            )
+
+    def test_주장과_질문을_돌려준다(
+        self, client: TestClient, db, application: Application
+    ):
+        application.self_intro = "응답이 820ms에서 240ms로 줄었습니다"
+        db.flush()
+        resp = self._post(client, application)
+        assert resp.status_code == 200
+        claims = resp.json()["claims"]
+        assert claims[0]["type"] == "수치"
+        assert len(claims[0]["questions"]) == 2
+
+    def test_자기소개서가_없으면_422(
+        self, client: TestClient, application: Application
+    ):
+        """모델을 부르기 전에 끝난다 — 뽑을 원문이 없으면 토큰을 쓰지 않는다."""
+        resp = self._post(client, application)
+        assert resp.status_code == 422
+        assert "자기소개서" in resp.json()["message"]
+
+    def test_빈_목록도_200(self, client: TestClient, db, application: Application):
+        """감상·다짐만 쓴 자기소개서. 실패가 아니라 '뽑을 게 없음' 이다."""
+        application.self_intro = "좋은 개발자가 되고 싶습니다"
+        db.flush()
+        resp = self._post(client, application, claims=[])
+        assert resp.status_code == 200
+        assert resp.json()["claims"] == []
+
+    def test_백엔드_불가는_503(self, client: TestClient, db, application: Application):
+        """키 미설정이 '생성 실패' 로 둔갑하면 원인이 안 보인다."""
+        application.self_intro = "응답이 820ms에서 240ms로 줄었습니다"
+        db.flush()
+        backend = MagicMock()
+        backend.unavailable_reason.return_value = "ANTHROPIC_API_KEY 미설정"
+        resp = self._post(client, application, backend=backend)
+        assert resp.status_code == 503
+        assert "ANTHROPIC_API_KEY" in resp.json()["message"]
+
+    def test_생성_실패는_422(self, client: TestClient, db, application: Application):
+        application.self_intro = "응답이 820ms에서 240ms로 줄었습니다"
+        db.flush()
+        resp = self._post(client, application, claims=None)
+        assert resp.status_code == 422
+
+    def test_없는_지원자는_404(self, client: TestClient):
+        with patch("app.api.agent.generate_probes"):
+            resp = client.post("/api/v1/agent/applications/999999/interview-probes")
+        assert resp.status_code == 404
+
+    def test_unauth_rejected(self, unauth_client: TestClient, application: Application):
+        resp = unauth_client.post(
+            f"/api/v1/agent/applications/{application.id}/interview-probes"
+        )
+        assert resp.status_code == 401
+
+
 # ── /chat ───────────────────────────────────────────────────
 
 
@@ -246,9 +332,13 @@ class TestDirectHandlerStageRule:
     def test_skip_forward_offers_next_stage_card(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
         from app.api.agent import _handle_direct
-        # fixture 의 김도현은 applied. interview 로 두 칸 건너뛰기 요청.
+        # fixture 지원자는 applied. interview 로 두 칸 건너뛰기 요청.
+        # 이름은 fixture 에서 가져온다 — 리터럴로 적으면 시드 더미와 겹쳐
+        # "여러 명이 있어요" 로 빠진다 (conftest 의 `application` 주석 참고).
         intent = DirectAction(
-            "change_stage", {"_name_lookup": "김도현", "to_stage": "interview"}, is_write=True,
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "interview"},
+            is_write=True,
         )
         resp = _handle_direct(intent, db, admin_user)
         assert "먼저" in resp.reply and "서류 검토" in resp.reply
@@ -262,7 +352,9 @@ class TestDirectHandlerStageRule:
         from app.agent.intent_router import DirectAction
         from app.api.agent import _handle_direct
         intent = DirectAction(
-            "change_stage", {"_name_lookup": "김도현", "to_stage": "screening"}, is_write=True,
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "screening"},
+            is_write=True,
         )
         resp = _handle_direct(intent, db, admin_user)
         assert resp.reply == ""
@@ -272,7 +364,9 @@ class TestDirectHandlerStageRule:
         from app.agent.intent_router import DirectAction
         from app.api.agent import _handle_direct
         intent = DirectAction(
-            "change_stage", {"_name_lookup": "김도현", "to_stage": "applied"}, is_write=True,
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "applied"},
+            is_write=True,
         )
         resp = _handle_direct(intent, db, admin_user)
         assert "이미" in resp.reply and resp.pending_action is None

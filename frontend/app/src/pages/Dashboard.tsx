@@ -2,78 +2,47 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { ApiError } from '../api/client'
-import { applications, assignments, postings as postingsApi, schedules } from '../api/endpoints'
-import type { ApplicationListItem, Interview, Posting, ScheduleStatus, Stage } from '../api/types'
-import { STAGE_LABEL, fmtDate } from '../lib/stage'
+import { assignments, postings as postingsApi, schedules } from '../api/endpoints'
+import type { Interview, Posting, Stage } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import styles from './Dashboard.module.css'
 
-/* ── 지원자 현황 (리스트 ↔ 칸반) ─────────────────────────────────
-   면접 일정·전형 현황 두 카드를 지원자 단위 데이터 하나로 합쳤다 (2026-08-31).
-   두 뷰는 같은 데이터의 다른 모양일 뿐이다 — 숫자가 어긋나면 버그다.
-   불합격은 대시보드에서 뺀다: 여기는 "지금 움직이는 사람"의 요약이고,
-   불합격 목록은 통합검색에서 필터로 본다. */
-const PIPE_STAGES: { stage: Stage; pass?: boolean }[] = [
-  { stage: 'applied' },
-  { stage: 'screening' },
-  { stage: 'interview' },
-  { stage: 'accepted', pass: true },
+/* ── 대시보드 = 현황판 ────────────────────────────────────────────
+   지원자 목록은 여기서 뺐다 (2026-09-07). 사람을 훑는 일은 '지원자' 탭이
+   이미 하고, 대시보드는 "회사가 지금 어떻게 돌아가나"에만 답한다.
+   위에서 아래로 얼마나 → 어디가 → 언제 순이다.
+
+   부르는 API 는 셋뿐이고 전부 이미 열려 있다:
+     GET /postings                      → status · d_day · stage_counts
+     GET /schedules?from&to             → 확정 면접
+     GET /interviewers/{me}/applications → 내 배정 수
+   백엔드 변경 없음. */
+
+/* 심사 중 3단. 같은 색상의 밝기 계단이라 이 순서가 곧 단계다 (05-design §1).
+   합격·불합격은 여기 넣지 않는다 — 아래 DONE 참고. */
+const LIVE: { stage: Stage; label: string; color: string }[] = [
+  { stage: 'applied', label: '접수', color: 'var(--stage-1)' },
+  { stage: 'screening', label: '서류', color: 'var(--stage-2)' },
+  { stage: 'interview', label: '면접', color: 'var(--stage-3)' },
 ]
 
-/* 단계당 표시 인원. 대시보드는 요약이라 전부 그리지 않는다 — 넘치면 "외 n명 →" */
-const GROUP_LIMIT = 5
-
-interface PipeGroup {
-  stage: Stage
-  pass?: boolean
-  total: number
-  items: ApplicationListItem[]
-}
-
-interface DashboardData {
-  reviewWaiting: number
-  openPostings: Posting[]
-  /* 행에 공고명을 붙일 때 쓴다. 목록 API 가 id 만 주므로 여기서 잇는다 */
-  postingTitles: Record<number, string>
-  pipe: PipeGroup[]
-  /* 면접 단계 표시 인원의 일정 상태. 제안이 없으면 null (404) */
-  schedules: Record<number, ScheduleStatus | null>
-}
-
-/* 면접은 한국에서 열린다 — 지원자 페이지(Schedule.tsx)와 같은 이유로 KST 고정 */
-const slotFmt = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short',
-  hour: '2-digit', minute: '2-digit', hour12: false,
-})
-
-function fmtSlot(iso: string): string {
-  const parts = slotFmt.formatToParts(new Date(iso))
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
-  return `${get('month')}.${get('day')} (${get('weekday')}) ${get('hour')}:${get('minute')}`
-}
-
-/* 공고 카드의 퍼널 레일. 공고의 지원자 화면(PostingApplicants)의 FUNNEL 과 같은
-   무채 램프 + 합격 연두 (§1 — 흐름 그래프 한정 허용). 불합격은 대시보드 범위 밖. */
-const RAIL: { stage: Stage; color: string }[] = [
-  { stage: 'applied', color: '#C9CFC3' },
-  { stage: 'screening', color: '#AEB6A8' },
-  { stage: 'interview', color: 'var(--neutral)' },
-  { stage: 'accepted', color: 'var(--sprout)' },
+/* 심사가 끝난 두 갈래. 막대를 그리지 않는다 —
+   한번 되면 영원히 쌓이는 누적값이라 심사 중 세 칸과 같은 자를 쓰면
+   시간이 갈수록 앞 세 칸이 실오라기가 된다. 견줄 대상이 아니다.
+   덤으로 --ok 와 --danger 는 적록색약에서 ΔE 3.5 라 나란히 두면 경계가 안 보인다. */
+const DONE: { stage: Stage; label: string; color: string }[] = [
+  { stage: 'accepted', label: '합격', color: 'var(--ok-text)' },
+  { stage: 'rejected', label: '불합격', color: 'var(--danger)' },
 ]
 
-/* ── 면접 일정 축소판 ─────────────────────────────────────────────
-   캘린더 화면(Interviews.tsx)과 같은 소스(GET /schedules)를 같은 규칙으로 읽는다 —
-   확정된 일정만, 주 시작은 일요일(국내 관행), 칸 배정은 KST 기준.
-   여기서 등록·수정은 없다. 넘치는 건 캘린더 화면이 받는다. */
-const DOW = ['일', '월', '화', '수', '목', '금', '토']
+/* 표에 싣는 진행 중 공고 수. 넘치면 잘라내고 "외 n개" 를 단다 —
+   스크롤을 만들면 현황판이 목록이 된다 */
+const TABLE_LIMIT = 6
 
-/* 목록에 그리는 최대 건수. 대시보드는 요약이라 하루치를 다 펴지 않는다 */
-const CAL_LIMIT = 4
-
+/* 면접은 한국에서 열린다 — 캘린더 화면(Interviews.tsx)과 같은 규칙 */
 const timeFmt = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false,
 })
-
 const dayFmt = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
 })
@@ -83,25 +52,9 @@ function hhmm(iso: string): string {
 }
 
 function isoDayKey(iso: string): string {
-  const parts = dayFmt.formatToParts(new Date(iso))
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
-  return `${get('year')}-${get('month')}-${get('day')}`
-}
-
-function startOfToday(): Date {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d)
-  x.setDate(x.getDate() + n)
-  return x
-}
-
-function startOfWeek(d: Date): Date {
-  return addDays(d, -d.getDay())
+  const p = dayFmt.formatToParts(new Date(iso))
+  const g = (t: string) => p.find((x) => x.type === t)?.value ?? ''
+  return `${g('year')}-${g('month')}-${g('day')}`
 }
 
 function dayKey(d: Date): string {
@@ -110,79 +63,69 @@ function dayKey(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
-function fmtMonth(d: Date): string {
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setDate(x.getDate() + n)
+  return x
+}
+
+/* 주 시작은 일요일 — 캘린더 화면이 이미 그렇게 잡고 있다(국내 관행).
+   여기서만 월요일로 두면 같은 주가 두 화면에서 다르게 보인다. */
+const DOW = ['일', '월', '화', '수', '목', '금', '토']
+
+function startOfWeek(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return addDays(x, -x.getDay())
+}
+
+/* d_day 는 서버가 응답 시점에 계산해 준다(PostingOut.d_day) — 양수가 남은 일수다.
+   음수(마감 지남)는 진행 중 공고에는 안 나온다: 백엔드가 조회할 때 자동으로
+   닫는다(postings.py _expire). 그래도 방어적으로 그려 둔다. */
+function ddayOf(v: number | null): { text: string; tone: string } {
+  if (v === null) return { text: '상시', tone: styles.ddayCalm }
+  if (v < 0) return { text: `D+${-v}`, tone: styles.ddayHot }
+  if (v === 0) return { text: 'D-DAY', tone: styles.ddayHot }
+  if (v <= 3) return { text: `D-${v}`, tone: styles.ddayWarn }
+  return { text: `D-${v}`, tone: styles.ddayCalm }
+}
+
+interface Data {
+  /* 나에게 배정된 지원자 수. assignments.mine().count 는 배정 전체라
+     내가 이미 평가한 건도 들어간다 — 그래서 '리뷰 대기'가 아니라 '배정'이다 */
+  mine: number
+  open: Posting[]
+  /* 이번 주 확정 면접. mine 을 안 붙였으므로 회사 전체다 (ADR-0017) */
+  week: Interview[]
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [rails, setRails] = useState<Record<number, number[]>>({})
+  const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [view, setView] = useState<'list' | 'kanban'>('list')
 
   useEffect(() => {
     if (!user) return
     const ac = new AbortController()
-    setError(null)
 
-    async function load(userId: number) {
-      const [assigned, allPostings, pipe] = await Promise.all([
-        assignments.mine(userId, ac.signal),
-        postingsApi.list(ac.signal),
-        Promise.all(
-          PIPE_STAGES.map(async (p): Promise<PipeGroup> => {
-            const res = await applications.search(
-              { stage: p.stage, limit: GROUP_LIMIT, with_total: true },
-              ac.signal,
-            )
-            return { ...p, total: res.total ?? res.items.length, items: res.items }
-          }),
-        ),
-      ])
+    const from = startOfWeek(new Date())
+    const to = addDays(from, 7)
 
-      /* 면접 단계 표시 인원만 일정 상태를 묻는다 (최대 GROUP_LIMIT 번).
-         404 = 아직 제안이 없다 — 에러가 아니라 "일정 없음" 상태다 */
-      const ivItems = pipe.find((g) => g.stage === 'interview')?.items ?? []
-      const schedulePairs = await Promise.all(
-        ivItems.map(async (a) => {
-          try {
-            return [a.id, await schedules.latest(a.id, ac.signal)] as const
-          } catch (err) {
-            if (err instanceof ApiError && err.code === 'NOT_FOUND') return [a.id, null] as const
-            throw err
-          }
-        }),
-      )
-
-      const open = allPostings.filter((p) => p.status === 'open')
-      return {
-        data: {
-          reviewWaiting: assigned.count,
-          openPostings: open,
-          postingTitles: Object.fromEntries(allPostings.map((p) => [p.id, p.title])),
-          pipe,
-          schedules: Object.fromEntries(schedulePairs),
-        },
-        open,
-      }
-    }
-
-    load(user.id)
-      .then(({ data, open }) => {
-        setData(data)
-        /* 공고 레일은 공고 수 × 3 호출이라 본 블록 뒤에 따로 채운다 —
-           레일이 늦어도 지원자 현황은 먼저 뜬다 */
-        return Promise.all(
-          open.map(async (p) => {
-            const counts = await Promise.all(
-              RAIL.map((r) => applications.countByStage(r.stage, p.id, ac.signal)),
-            )
-            return [p.id, counts] as const
-          }),
-        ).then((pairs) => setRails(Object.fromEntries(pairs)))
+    Promise.all([
+      assignments.mine(user.id, ac.signal),
+      postingsApi.list(ac.signal),
+      schedules.interviews({ from: from.toISOString(), to: to.toISOString() }, ac.signal),
+    ])
+      .then(([assigned, all, ivs]) => {
+        setError(null)
+        setData({
+          mine: assigned.count,
+          /* 진행 중 공고만 싣는다. 마감·초안의 지원자는 더 이상 움직이지 않아서
+             현황에 섞으면 숫자만 부푼다 */
+          open: all.filter((p) => p.status === 'open'),
+          week: ivs.items,
+        })
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return
@@ -193,378 +136,298 @@ export default function Dashboard() {
     return () => ac.abort()
   }, [user])
 
-  /* 축소판이 보는 날. 주(스트립)는 이 날에서 파생된다 — 상태를 둘로 두면 어긋난다 */
-  const [calSel, setCalSel] = useState(startOfToday)
-  const [ivs, setIvs] = useState<Interview[] | null>(null)
-  const [ivError, setIvError] = useState<string | null>(null)
-
-  const calWeek = useMemo(() => startOfWeek(calSel), [calSel])
-
-  useEffect(() => {
-    const ac = new AbortController()
-    setIvs(null)
-
-    schedules
-      .interviews({ from: calWeek.toISOString(), to: addDays(calWeek, 7).toISOString() }, ac.signal)
-      .then((res) => { setIvs(res.items); setIvError(null) })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return
-        if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
-        setIvs([])
-        setIvError(err instanceof ApiError ? err.message : '면접 일정을 불러오지 못했습니다')
-      })
-
-    return () => ac.abort()
-  }, [calWeek])
-
-  const calByDay = useMemo(() => {
-    const map = new Map<string, Interview[]>()
-    for (const iv of ivs ?? []) {
-      const bucket = map.get(isoDayKey(iv.start_at))
-      if (bucket) bucket.push(iv)
-      else map.set(isoDayKey(iv.start_at), [iv])
+  /* ── 회사 합계 — 아래 표의 롤업이다. 두 블록의 합은 항상 같아야 한다 ── */
+  const totals = useMemo(() => {
+    const sum = (s: Stage) =>
+      (data?.open ?? []).reduce((t, p) => t + (p.stage_counts?.[s] ?? 0), 0)
+    const live = LIVE.map((x) => ({ ...x, n: sum(x.stage) }))
+    const done = DONE.map((x) => ({ ...x, n: sum(x.stage) }))
+    /* 막대는 심사 중 세 칸끼리만 견준다 */
+    const max = Math.max(...live.map((x) => x.n), 1)
+    return {
+      live: live.map((x) => ({ ...x, pct: `${Math.round((x.n / max) * 100)}%` })),
+      done,
     }
-    for (const bucket of map.values()) bucket.sort((a, b) => a.start_at.localeCompare(b.start_at))
-    return map
-  }, [ivs])
+  }, [data])
 
-  const calDays = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(calWeek, i)),
-    [calWeek],
-  )
-  const calItems = calByDay.get(dayKey(calSel)) ?? []
-  const todayKey = dayKey(startOfToday())
-  const mobileCalDate = `${calSel.getFullYear()}.${String(calSel.getMonth() + 1).padStart(2, '0')}.${String(calSel.getDate()).padStart(2, '0')}`
+  /* ── 공고별 — 막대 길이를 공고끼리 하나의 자에 맞춘다.
+       각 공고를 100% 로 채우면 34명짜리와 5명짜리가 같은 길이가 되어 비교가 죽는다 ── */
+  const rows = useMemo(() => {
+    const list = (data?.open ?? []).map((p) => {
+      const c = p.stage_counts ?? {}
+      const live = LIVE.map((x) => c[x.stage] ?? 0)
+      return {
+        p,
+        live,
+        liveSum: live.reduce((a, b) => a + b, 0),
+        accepted: c.accepted ?? 0,
+        rejected: c.rejected ?? 0,
+        total: p.application_count,
+      }
+    })
+    const max = Math.max(...list.map((r) => r.liveSum), 1)
+    return list.map((r) => ({ ...r, width: `${Math.round((r.liveSum / max) * 100)}%` }))
+  }, [data])
 
-  /* 축소판 → 캘린더 화면. 2026-09-01 확대 전환을 뺐다 — 그냥 이동한다.
-     보고 있던 날짜를 ?date= 로 넘기면 캘린더가 그 날을 고른 채 우측 패널을 연다 —
-     축소판에서 4건까지 보다가 넘어가는 것이라 같은 목록이 이어져야 한다. */
-  function goCalendar(withDay = false) {
-    navigate(withDay ? `/calendar?date=${dayKey(calSel)}` : '/calendar')
-  }
-
-  /* 카드 안 빈자리를 눌러도 캘린더로 간다. 카드 안의 조작(주 이동·날짜 선택)은 제자리 */
-  function onCalCardClick(e: React.MouseEvent<HTMLElement>) {
-    if (e.target instanceof Element && e.target.closest('button, a') !== null) return
-    goCalendar()
-  }
-
-  const interviewTotal = data?.pipe.find((g) => g.stage === 'interview')?.total
-
-  const stats = [
-    { label: '내 리뷰 대기', value: data?.reviewWaiting, unit: '명' },
-    { label: '면접 진행', value: interviewTotal, unit: '명' },
-    { label: '진행중 공고', value: data?.openPostings.length, unit: '개' },
-  ]
-
-  /* 행·카드는 그 공고의 지원자 화면으로 간다 (05-design §0.5 진입점) */
-  const goPosting = (a: ApplicationListItem) => navigate(`/postings/${a.job_posting_id}`)
-
-  function scheduleChip(a: ApplicationListItem) {
-    if (a.current_stage !== 'interview' || data === null) return null
-    const s = data.schedules[a.id]
-    if (s === undefined) return null
-    if (s !== null && s.status === 'confirmed' && s.confirmed_slot !== null) {
-      return <span className={`${styles.chip} ${styles.chipConfirmed}`}>{fmtSlot(s.confirmed_slot.start_at)}</span>
+  /* ── 이번 주 면접 — 요일별 확정 건수. 지금 백엔드로 그릴 수 있는 유일한 시계열 ── */
+  const week = useMemo(() => {
+    const from = startOfWeek(new Date())
+    const counts = new Map<string, number>()
+    for (const iv of data?.week ?? []) {
+      const k = isoDayKey(iv.start_at)
+      counts.set(k, (counts.get(k) ?? 0) + 1)
     }
-    if (s !== null && s.status === 'proposed') {
-      return <span className={`${styles.chip} ${styles.chipNeutral}`}>일정 제안 중</span>
-    }
-    if (s !== null && s.status === 'expired') {
-      return <span className={`${styles.chip} ${styles.chipNeutral}`}>제안 만료</span>
-    }
-    return <span className={`${styles.chip} ${styles.chipNeutral}`}>일정 없음</span>
-  }
+    const todayKey = dayKey(new Date())
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = addDays(from, i)
+      const k = dayKey(d)
+      return { key: k, dow: DOW[d.getDay()], n: counts.get(k) ?? 0, today: k === todayKey }
+    })
+    const max = Math.max(...days.map((d) => d.n), 1)
+    /* 0 건인 날은 막대를 그리지 않는다 — 높이 0 짜리를 억지로 남기면
+       "아주 적음" 으로 읽힌다. 없는 것과 적은 것은 다르다 */
+    return days.map((d) => ({ ...d, h: d.n === 0 ? 0 : Math.round((d.n / max) * 100) }))
+  }, [data])
+
+  const today = useMemo(() => {
+    const k = dayKey(new Date())
+    return (data?.week ?? [])
+      .filter((iv) => isoDayKey(iv.start_at) === k)
+      .sort((a, b) => a.start_at.localeCompare(b.start_at))
+  }, [data])
+
+  const shown = rows.slice(0, TABLE_LIMIT)
+  const hidden = rows.length - shown.length
 
   return (
     <>
-      <PageHead title="대시보드" />
+      <PageHead
+        title="대시보드"
+        meta={
+          <div className={styles.meta}>
+            {/* 이 화면에서 유일하게 '나' 인 숫자라 앞에 세우고 선으로 회사 숫자와 가른다 */}
+            <Link to="/evaluations" className={styles.mine}>
+              <span className={styles.metaLabel}>내 배정</span>
+              <b className={styles.metaVal}>{data?.mine ?? '—'}</b>
+              <span className={styles.metaUnit}>명</span>
+            </Link>
+            <span className={styles.metaBar} aria-hidden="true" />
+            <span className={styles.metaItem}>
+              <span className={styles.metaLabel}>진행 중 공고</span>
+              <b className={styles.metaVal}>{data?.open.length ?? '—'}</b>
+              <span className={styles.metaUnit}>개</span>
+            </span>
+            <span className={styles.metaItem}>
+              <span className={styles.metaLabel}>이번 주 면접</span>
+              <b className={styles.metaVal}>{data?.week.length ?? '—'}</b>
+              <span className={styles.metaUnit}>건</span>
+            </span>
+          </div>
+        }
+      />
+
       <main className={`page-content ${styles.page}`}>
         {error !== null && <p className={styles.state} role="alert">{error}</p>}
 
-        <div className={styles.stats}>
-          {stats.map((s) => (
-            <div key={s.label} className={styles.stat}>
-              <div className={styles.statLabel}>{s.label}</div>
-              <div className={styles.statVal}>
-                {s.value ?? '—'}<span className={styles.statUnit}>{s.unit}</span>
+        {/* 좁은 화면 전용 — 제목 띠의 요약 숫자가 폰 폭에 안 들어가 감춰진다.
+            그중 '내 배정' 만 여기로 내린다: 나머지 둘은 아래 카드가 이미 말한다 */}
+        <Link to="/evaluations" className={styles.mobileMine}>
+          <span className={styles.mobileMineLabel}>내 배정</span>
+          <b className={styles.mobileMineVal}>{data?.mine ?? '—'}<span className={styles.metaUnit}>명</span></b>
+          <span className={styles.mobileMineGo}>평가하러 가기 →</span>
+        </Link>
+
+        {/* ── 1. 전체 현황 ───────────────────────────────────── */}
+        <section className={styles.card} aria-labelledby="dash-total">
+          <div className={styles.cardHead}>
+            <h2 id="dash-total" className={styles.cap}>전체 현황</h2>
+          </div>
+
+          <div className={styles.totals}>
+            {totals.live.map((t) => (
+              <div key={t.stage} className={styles.tot}>
+                <span className={styles.totLabel}>
+                  <span className={styles.dot} style={{ background: t.color }} />
+                  {t.label}
+                </span>
+                <span className={styles.totVal}>
+                  {data === null ? '—' : t.n}<span className={styles.totUnit}>명</span>
+                </span>
+                <span className={styles.totTrack}>
+                  <span className={styles.totBar} style={{ width: t.pct, background: t.color }} />
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* ── 면접 일정 축소판 — 누르면 캘린더 화면으로 이어진다 ────────── */}
-        <section
-          className={`${styles.card} ${styles.calCard}`}
-          onClick={onCalCardClick}
-        >
-          <div className={styles.calHead}>
-            <h2 className={styles.calTitle}>캘린더</h2>
-            <span className={styles.calMonth}>{fmtMonth(calSel)}</span>
-            <span className={styles.mobileCalTitle}>오늘 면접</span>
-            <span className={styles.mobileCalMeta}>{mobileCalDate} · {calItems.length}건</span>
-            <Link
-              to="/calendar"
-              className={styles.go}
-              onClick={(e) => {
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
-                e.preventDefault()
-                goCalendar()
-              }}
-            >
-              캘린더 →
-            </Link>
-          </div>
-
-          <div className={styles.dow} aria-hidden="true">
-            {DOW.map((d) => <span key={d} className={styles.dowCell}>{d}</span>)}
-          </div>
-
-          <div className={styles.strip}>
-            {calDays.map((d) => {
-              const key = dayKey(d)
-              const n = calByDay.get(key)?.length ?? 0
-              const cls = [
-                styles.stripCell,
-                key === todayKey ? styles.stripToday : '',
-                key === dayKey(calSel) ? styles.stripSel : '',
-              ].filter(Boolean).join(' ')
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={cls}
-                  aria-pressed={key === dayKey(calSel)}
-                  aria-current={key === todayKey ? 'date' : undefined}
-                  aria-label={`${key.replaceAll('-', '.')} ${DOW[d.getDay()]}요일, ${n ? `면접 ${n}건` : '면접 없음'}`}
-                  onClick={() => setCalSel(d)}
-                >
-                  <span className={styles.stripDate}>{d.getDate()}</span>
-                  {/* 면접이 잡힌 날 표식. 건수는 aria-label 과 아래 목록이 말한다 */}
-                  {n > 0 && <span className={styles.stripDot} aria-hidden="true" />}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className={styles.calList}>
-            {ivError !== null && <p className={styles.calState} role="alert">{ivError}</p>}
-
-            {ivError === null && ivs === null && [0, 1, 2].map((i) => (
-              <span key={i} className={styles.calSkel} />
             ))}
 
-            {ivError === null && ivs !== null && calItems.length === 0 && (
-              <p className={styles.calState}>이 날짜에 잡힌 면접이 없습니다. 확정된 일정만 표시됩니다.</p>
-            )}
+            {/* 심사가 끝난 사람은 파이프라인 밖이다. 그냥 이으면 "5단계" 로 읽힌다 */}
+            <span className={styles.totSplit} aria-hidden="true" />
 
-            {calItems.length > 0 && (
-              /* 컬럼 머리 — 캘린더 화면의 그날 목록과 같은 구성(시각·지원자·공고·면접관) */
-              <div className={styles.calCols} aria-hidden="true">
-                <span className={styles.calTime}>시각</span>
-                <span className={styles.calName}>지원자</span>
-                <span className={styles.calPosting}>공고</span>
-                <span className={styles.calWho}>면접관</span>
+            {totals.done.map((t) => (
+              <div key={t.stage} className={styles.tot}>
+                <span className={styles.totLabel} style={{ color: t.color }}>
+                  <span className={styles.dot} style={{ background: t.color }} />
+                  {t.label}
+                </span>
+                <span className={styles.totVal} style={{ color: t.color }}>
+                  {data === null ? '—' : t.n}<span className={styles.totUnit}>명</span>
+                </span>
+                {/* 막대 없음 — 위 DONE 주석 참고. 자리는 남겨 세 칸과 밑선을 맞춘다 */}
+                <span className={styles.totCum}>누적</span>
               </div>
-            )}
-
-            {/* 행을 누르면 캘린더에서 그 날 목록이 이어서 열린다 (2026-09-01) */}
-            {calItems.slice(0, CAL_LIMIT).map((iv) => (
-              <button
-                key={iv.proposal_id}
-                type="button"
-                className={styles.calRow}
-                onClick={() => goCalendar(true)}
-              >
-                <span className={styles.calTime}>{hhmm(iv.start_at)}</span>
-                <span className={styles.calName}>{iv.applicant_name}</span>
-                <span className={styles.calPosting}>{iv.posting_title}</span>
-                <span className={styles.calWho}>{iv.interviewer_name}</span>
-              </button>
             ))}
-
-            {calItems.length > CAL_LIMIT && (
-              <button type="button" className={styles.moreLink} onClick={() => goCalendar(true)}>
-                외 {calItems.length - CAL_LIMIT}건 →
-              </button>
-            )}
-            <button type="button" className={`${styles.moreLink} ${styles.mobileCalLink}`} onClick={() => goCalendar()}>
-              캘린더 →
-            </button>
           </div>
         </section>
 
-        {/* 모바일 전용: 내 리뷰 대기 카드 */}
-        <div className={styles.mobileReview}>
-          <div className={styles.mobileReviewInfo}>
-            <p className={styles.mobileReviewLabel}>내 리뷰 대기</p>
-            <p className={styles.mobileReviewVal}>
-              {data?.reviewWaiting ?? 0}<span className={styles.mobileReviewUnit}>명</span>
-            </p>
-          </div>
-          <Link to="/evaluations" className={styles.mobileReviewBtn}>평가하러 가기 →</Link>
-        </div>
-
-        <div className={`${styles.card} ${styles.pipeCard}`}>
-          {data !== null && (
-            <div className={styles.mobilePipeTop}>
-              <span className={styles.mobilePipeTitle}>지원자 현황</span>
-              <span className={styles.mobilePipeCnt}>{data.pipe.reduce((a, g) => a + g.total, 0)}명</span>
-            </div>
-          )}
-          {data !== null && data.pipe.reduce((a, g) => a + g.total, 0) > 0 && (
-            <div
-              className={styles.mobilePipeBar}
-              style={{ gridTemplateColumns: data.pipe.map(g => `minmax(4px, ${g.total || 0.1}fr)`).join(' ') }}
-            >
-              {RAIL.map(r => (
-                <div key={r.stage} className={styles.railSeg} style={{ background: r.color }} />
-              ))}
-            </div>
-          )}
-          <div className={styles.pipeHead}>
-            <div className={styles.vtoggle} role="group" aria-label="보기 방식">
-              <button
-                type="button"
-                className={view === 'list' ? styles.vOn : undefined}
-                aria-pressed={view === 'list'}
-                onClick={() => setView('list')}
-              >
-                리스트
-              </button>
-              <button
-                type="button"
-                className={view === 'kanban' ? styles.vOn : undefined}
-                aria-pressed={view === 'kanban'}
-                onClick={() => setView('kanban')}
-              >
-                칸반
-              </button>
-            </div>
-            <Link to="/applicants" className={styles.go}>전체 지원자 →</Link>
+        {/* ── 2. 공고별 현황 ─────────────────────────────────── */}
+        <section className={styles.card} aria-labelledby="dash-postings">
+          <div className={styles.cardHead}>
+            <h2 id="dash-postings" className={styles.cap}>공고별 현황</h2>
+            <Link to="/postings" className={styles.go}>공고 전체 →</Link>
           </div>
 
           {data === null && error === null && <p className={styles.state}>불러오는 중…</p>}
+          {data !== null && rows.length === 0 && (
+            <p className={styles.state}>진행 중인 공고가 없습니다.</p>
+          )}
 
-          {data !== null && (
-            <>
-              {/* 모바일(≤768px)은 칸반 금지(05-design §9) — CSS 가 칸반을 숨기고
-                  리스트를 다시 보여주므로 두 뷰를 모두 그려 둔다 */}
-              <div className={view === 'kanban' ? styles.listHiddenOnDesktop : undefined}>
-                {data.pipe.map((g) => (
-                  <div key={g.stage} className={styles.group}>
-                    <div className={styles.groupHead}>
-                      <span className={g.pass ? `${styles.dot} ${styles.dotPass}` : styles.dot} />
-                      <span className={g.pass ? `${styles.groupLabel} ${styles.groupLabelPass}` : styles.groupLabel}>
-                        {STAGE_LABEL[g.stage]}
-                      </span>
-                      <span className={styles.groupCount}>{g.total}명</span>
-                    </div>
-                    {g.items.map((a) => (
-                      <button key={a.id} type="button" className={styles.row} onClick={() => goPosting(a)}>
-                        <span className={styles.rowName}>{a.name}</span>
-                        <span className={styles.rowPosting}>{data.postingTitles[a.job_posting_id] ?? ''}</span>
-                        {scheduleChip(a)}
-                        <span className={styles.rowDate}>{fmtDate(a.created_at)}</span>
-                      </button>
-                    ))}
-                    {g.items.length === 0 && <p className={styles.groupEmpty}>없음</p>}
-                    {g.total > g.items.length && (
-                      <button type="button" className={styles.moreLink} onClick={() => navigate('/applicants')}>
-                        외 {g.total - g.items.length}명 →
-                      </button>
-                    )}
-                  </div>
+          {shown.length > 0 && (
+            <div className={styles.table} role="table">
+              <div className={`${styles.tr} ${styles.th}`} role="row">
+                <span role="columnheader">공고</span>
+                <span role="columnheader" className={styles.right}>마감</span>
+                <span role="columnheader">심사 중 — 어디에 쌓였나</span>
+                {/* 색 점이 곧 범례다 — 막대 옆에 범례를 또 달지 않는다 */}
+                {LIVE.map((x) => (
+                  <span key={x.stage} role="columnheader" className={styles.right}>
+                    <span className={styles.dot} style={{ background: x.color }} />
+                    {x.label}
+                  </span>
                 ))}
+                {DONE.map((x) => (
+                  <span key={x.stage} role="columnheader" className={styles.right} style={{ color: x.color }}>
+                    {x.label}
+                  </span>
+                ))}
+                <span role="columnheader" className={styles.right}>총</span>
               </div>
 
-              {view === 'kanban' && (
-                <div className={styles.board}>
-                  {data.pipe.map((g) => (
-                    <div key={g.stage} className={styles.col}>
-                      <div className={styles.groupHead}>
-                        <span className={g.pass ? `${styles.dot} ${styles.dotPass}` : styles.dot} />
-                        <span className={g.pass ? `${styles.groupLabel} ${styles.groupLabelPass}` : styles.groupLabel}>
-                          {STAGE_LABEL[g.stage]}
-                        </span>
-                        <span className={styles.groupCount}>{g.total}</span>
-                      </div>
-                      {g.items.map((a) => (
-                        <button key={a.id} type="button" className={styles.kcard} onClick={() => goPosting(a)}>
-                          <span className={styles.kcardName}>{a.name}</span>
-                          <span className={styles.kcardPosting}>{data.postingTitles[a.job_posting_id] ?? ''}</span>
-                          {scheduleChip(a)}
-                        </button>
-                      ))}
-                      {g.items.length === 0 && <p className={styles.groupEmpty}>없음</p>}
-                      {g.total > g.items.length && (
-                        <button type="button" className={styles.colMore} onClick={() => navigate('/applicants')}>
-                          외 {g.total - g.items.length}명 →
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-          <Link to="/applicants" className={`${styles.moreLink} ${styles.mobilePipeLink}`}>전체 지원자 →</Link>
-        </div>
-
-        {/* 진행중 공고 — 데스크탑: calCard 옆 오른쪽 열; 모바일: 파이프 아래 */}
-        <div className={styles.postingCol}>
-          <div className={styles.mobilePostingTitle}>
-            <span>진행중 공고</span>
-            {data !== null && <span className={styles.mobilePostingCount}>{data.openPostings.length}개</span>}
-          </div>
-          {data === null && error === null && <p className={`${styles.card} ${styles.state}`}>불러오는 중…</p>}
-          {data !== null && data.openPostings.length === 0 && (
-            <p className={`${styles.card} ${styles.state}`}>진행중인 공고가 없습니다.</p>
-          )}
-          <div className={styles.postingList}>
-            {data?.openPostings.map((p) => {
-              const counts = rails[p.id] ?? RAIL.map(() => 0)
-              const total = counts.reduce((a, b) => a + b, 0)
-              const cols = counts.map((n) => `minmax(6px, ${n}fr)`).join(' ')
-              return (
-                <button
-                  key={p.id}
-                  className={`${styles.card} ${styles.postingCard}`}
-                  onClick={() => navigate(`/postings/${p.id}`)}
-                >
-                  <div className={styles.postingTop}>
-                    <span className={styles.postingName}>{p.title}</span>
-                    {(rails[p.id] !== undefined || p.d_day !== null) && (
-                      <span className={styles.postingDday}>
-                        {[
-                          rails[p.id] !== undefined ? `총 ${total}명` : null,
-                          p.d_day === null ? null : p.d_day >= 0 ? `D-${p.d_day}` : `D+${-p.d_day}`,
-                        ].filter(Boolean).join(' · ')}
+              {shown.map((r) => {
+                const dd = ddayOf(r.p.d_day)
+                return (
+                  <button
+                    key={r.p.id}
+                    type="button"
+                    className={styles.tr}
+                    role="row"
+                    onClick={() => navigate(`/postings/${r.p.id}`)}
+                  >
+                    <span className={styles.pname} role="cell">{r.p.title}</span>
+                    <span className={`${styles.right} ${styles.dday} ${dd.tone}`} role="cell">{dd.text}</span>
+                    <span className={styles.track} role="cell">
+                      {/* 칸 사이 2px 은 배경색 틈 — 램프가 밝기 계단이라 틈이 없으면 경계가 뭉갠다 */}
+                      <span className={styles.fill} style={{ width: r.width }}>
+                        {LIVE.map((x, i) =>
+                          r.live[i] > 0 ? (
+                            <span key={x.stage} style={{ flex: r.live[i], background: x.color }} />
+                          ) : null,
+                        )}
                       </span>
-                    )}
-                  </div>
-                  <div className={styles.postingRail} style={{ gridTemplateColumns: cols }}>
-                    {RAIL.map((r) => (
-                      <div key={r.stage} className={styles.railSeg} style={{ background: r.color }} />
-                    ))}
-                  </div>
-                  <div className={styles.postingCounts}>
-                    {RAIL.map((r, i) => (
+                    </span>
+                    {/* data-label 은 좁은 화면에서 열 이름 줄이 사라진 뒤 ::before 로 되살아난다 —
+                        이름표 없는 숫자는 어느 단계인지 알 수 없어 표가 아니라 낙서가 된다 */}
+                    {r.live.map((n, i) => (
                       <span
-                        key={r.stage}
-                        className={`${styles.countItem} ${r.stage === 'accepted' ? styles.countPass : ''}`}
+                        key={LIVE[i].stage}
+                        className={`${styles.num} ${n === 0 ? styles.zero : ''}`}
+                        data-label={LIVE[i].label}
+                        role="cell"
                       >
-                        <span className={styles.countDot} style={{ background: r.color }} />
-                        {STAGE_LABEL[r.stage]} <b>{counts[i]}</b>
+                        {n}
                       </span>
                     ))}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </div>
+                    <span
+                      className={`${styles.num} ${r.accepted === 0 ? styles.zero : ''}`}
+                      style={r.accepted === 0 ? undefined : { color: 'var(--ok-text)' }}
+                      data-label="합격"
+                      role="cell"
+                    >
+                      {r.accepted}
+                    </span>
+                    <span
+                      className={`${styles.num} ${r.rejected === 0 ? styles.zero : ''}`}
+                      style={r.rejected === 0 ? undefined : { color: 'var(--danger)' }}
+                      data-label="불합격"
+                      role="cell"
+                    >
+                      {r.rejected}
+                    </span>
+                    <span className={`${styles.num} ${styles.numTotal}`} data-label="총" role="cell">{r.total}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
+          {hidden > 0 && (
+            <Link to="/postings" className={styles.moreLink}>외 {hidden}개 →</Link>
+          )}
+        </section>
+
+        {/* ── 3. 면접 ────────────────────────────────────────── */}
+        <div className={styles.duo}>
+          <section className={styles.card} aria-labelledby="dash-week">
+            <div className={styles.cardHead}>
+              <h2 id="dash-week" className={styles.cap}>이번 주 면접</h2>
+              <p className={styles.note}>확정된 것만 · {data?.week.length ?? 0}건</p>
+              <Link to="/calendar" className={styles.go}>캘린더 →</Link>
+            </div>
+
+            <div className={styles.chart}>
+              {week.map((d) => (
+                <div key={d.key} className={styles.col}>
+                  <span className={`${styles.colVal} ${d.n === 0 ? styles.zero : ''} ${d.today ? styles.colToday : ''}`}>
+                    {d.n}
+                  </span>
+                  <span className={styles.colBarBox}>
+                    <span
+                      className={`${styles.colBar} ${d.today ? styles.colBarToday : ''}`}
+                      style={{ height: `${d.h}%` }}
+                    />
+                  </span>
+                  <span className={`${styles.colDow} ${d.today ? styles.colToday : ''}`}>{d.dow}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.card} aria-labelledby="dash-today">
+            <div className={styles.cardHead}>
+              <h2 id="dash-today" className={styles.cap}>오늘 면접</h2>
+              <p className={`${styles.note} ${styles.noteOn}`}>{today.length}건</p>
+            </div>
+
+            {data !== null && today.length === 0 && (
+              <p className={styles.state}>오늘 잡힌 면접이 없습니다. 확정된 일정만 표시됩니다.</p>
+            )}
+
+            <div className={styles.ivList}>
+              {today.map((iv, i) => (
+                <button
+                  key={iv.proposal_id}
+                  type="button"
+                  className={styles.iv}
+                  onClick={() => navigate('/calendar')}
+                >
+                  {/* 다음 차례 한 건만 강조한다. 넷 다 강조하면 강조가 아니다 */}
+                  <span className={`${styles.ivTime} ${i === 0 ? styles.ivNext : ''}`}>{hhmm(iv.start_at)}</span>
+                  <span className={styles.ivName}>{iv.applicant_name}</span>
+                  <span className={styles.ivPosting}>{iv.posting_title}</span>
+                  <span className={styles.ivWho}>{iv.interviewer_name}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
       </main>
     </>
   )

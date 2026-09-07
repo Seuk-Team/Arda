@@ -1,18 +1,8 @@
-﻿import { Suspense, lazy, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+﻿import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import styles from './Sidebar.module.css'
-import type { Motion } from './ArViewer'
-import { useAuth } from '../auth/AuthContext'
-import { ROLE_LABEL } from '../lib/stage'
-
-/* three.js 가 초기 번들의 대부분이었다. 아르는 전 화면 사이드바에 상주하지만
-   첫 페인트에 필요한 건 아니라 별도 청크로 뺀다 — 타입만 정적으로 가져온다. */
-const ArViewer = lazy(() => import('./ArViewer'))
-
-/* 맥은 ⌘, 나머지는 Ctrl. 라벨에만 쓰므로 userAgent 로 충분하다. */
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
-const AR_HINT = IS_MAC ? '⌘K' : 'Ctrl+K'
+import BrandMark from './BrandMark'
 
 /* 아이콘은 mockup.html 사이드바에서 그대로 옮겼다 (§12-1 시안 복제).
    stroke·크기는 CSS 가 잡으므로 path 만 담는다. */
@@ -49,13 +39,10 @@ const ICONS: Record<string, ReactNode> = {
     </>
   ),
   evaluations: <path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z" />,
-  settings: (
-    <>
-      <circle cx="12" cy="12" r="3.2" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" />
-    </>
-  ),
 }
+
+/* 접힘 상태는 새로고침해도 남아야 한다 — 매번 다시 접는 건 설정이 아니라 사고다 */
+const RAIL_KEY = 'arda.sidebar.collapsed'
 
 const NAV = [
   { to: '/dashboard', label: '대시보드', icon: 'dashboard' },
@@ -63,41 +50,44 @@ const NAV = [
   { to: '/applicants', label: '지원자', icon: 'applicants' },
   { to: '/calendar', label: '캘린더', icon: 'calendar' },
   { to: '/evaluations', label: '평가 현황', icon: 'evaluations' },
-  { to: '/settings', label: '설정', icon: 'settings' },
+  /* 설정은 우측 상단 계정 메뉴로 옮겼다 (2026-09-05) — 내비에는 일하는 화면만
+     남긴다. 개인 설정 하나가 업무 화면들 사이에 껴 있던 것이 어색했다. */
 ] as const
 
-interface Props {
-  /* 아르 패널 열림 여부 — 정사각형 버튼의 눌린 상태를 이걸로 그린다 */
-  arOpen: boolean
-  arMotion: Motion
-  onToggleAr: () => void
-  onArHover: (hovered: boolean) => void
-  arButtonRef: RefObject<HTMLButtonElement | null>
-}
-
-export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arButtonRef }: Props) {
-  /* 목업 상수를 실데이터로 교체. user 가 아직 없으면(부트스트랩 중) 스켈레톤 — §6 */
-  const { user } = useAuth()
-
-  /* 활성 표시(흰 판)를 항목이 아니라 별도 레이어로 분리한다. 화면 전환 중에는
-     이 판이 다음 메뉴로 미끄러져 이동한다 (MorphNav 가 body[data-morph] 를 켠 동안만).
-     평소에는 transition 이 없어 지금처럼 즉시 옮겨 붙는다. */
+/* 아르는 사이드바를 떠나 화면 우하단 도크로 갔다 (2026-09-07, Layout).
+   접힌 폭 64px 에서는 정사각형이 48px 로 뭉개졌고, 접기 손잡이·내비와
+   같은 좁은 열을 두고 다퉜다. 떠 있으면 폭에 안 매인다. */
+export default function Sidebar() {
+  /* 활성 표시를 항목이 아니라 별도 레이어로 분리한다 — 판 하나가 옮겨 붙는다 */
   const { pathname } = useLocation()
   const navRef = useRef<HTMLElement>(null)
-  const [pill, setPill] = useState<{ y: number; h: number } | null>(null)
-  /* 아르 칸에 커서·포커스가 올라와 있는 동안만 아르가 커서를 따라본다.
-     onArHover 는 모션(listen)용이라 Layout 이 갖고 있고, 이건 뷰어에만 필요해 여기 둔다. */
-  const [arHover, setArHover] = useState(false)
 
+  /* 접힘. localStorage 를 못 읽는 환경(사파리 프라이빗 등)에서도 죽지 않게 감싼다 */
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(RAIL_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(RAIL_KEY, collapsed ? '1' : '0')
+    } catch {
+      /* 저장 못 해도 이번 세션 동안은 접힌 채로 쓴다 */
+    }
+  }, [collapsed])
+  const [pill, setPill] = useState<{ y: number; h: number } | null>(null)
   useLayoutEffect(() => {
     const on = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
     setPill(on ? { y: on.offsetTop, h: on.offsetHeight } : null)
   }, [pathname])
 
   return (
-    <aside className={styles.sidebar}>
-      <NavLink to="/dashboard" className={styles.logo}>
-        Arda
+    <aside className={`${styles.sidebar} ${collapsed ? styles.rail : ''}`}>
+      <NavLink to="/dashboard" className={styles.logo} title="대시보드">
+        <BrandMark size={26} className={styles.logoMark} />
+        <span className={styles.logoText}>Arda</span>
       </NavLink>
 
       <nav className={styles.nav} ref={navRef}>
@@ -115,56 +105,31 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
             className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">{ICONS[item.icon]}</svg>
-            {item.label}
+            <span className={styles.linkText}>{item.label}</span>
           </NavLink>
         ))}
       </nav>
 
-      {/* 아르 상주 슬롯 — 정사각형 전체가 에이전트 패널 토글 버튼이다 (ADR-0009 개정). */}
+      {/* 접기 손잡이 — 사이드바 오른쪽 경계에 붙는다. 내비 목록 안에 두면
+          목적지가 아닌 것이 목적지처럼 서서 메뉴가 지저분해진다.
+          평소엔 안 보이다가 사이드바·경계에 커서를 올리면 나타난다. */}
       <button
-        ref={arButtonRef}
         type="button"
-        className={styles.arSlot}
-        onClick={onToggleAr}
-        onMouseEnter={() => { onArHover(true); setArHover(true) }}
-        onMouseLeave={() => { onArHover(false); setArHover(false) }}
-        onFocus={() => { onArHover(true); setArHover(true) }}
-        onBlur={() => { onArHover(false); setArHover(false) }}
-        aria-label={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
-        title={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
-        aria-expanded={arOpen}
-        aria-controls="ar-panel"
+        className={styles.handle}
+        onClick={() => setCollapsed((v) => !v)}
+        aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        aria-expanded={!collapsed}
       >
-        {/* 폴백은 같은 크기의 빈 칸 — 청크가 늦게 와도 정사각형이 흔들리지 않는다 */}
-        <Suspense fallback={<span className={styles.arView} />}>
-          {/* 커서가 이 칸 위에 있을 때만 따라본다. 벗어나면 정면으로 돌아온다 */}
-          <ArViewer className={styles.arView} motion={arMotion} track={arHover} />
-        </Suspense>
+        {/* 갈매기 하나. 접힌 쪽을 가리킨다 — 누르면 어디로 가는지가 모양이다 */}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d={collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} />
+        </svg>
       </button>
 
-      {/* 표시 전용 — 클릭 진입은 두지 않는다 (팀장 결정 2026-08-31) */}
-      <div className={styles.me}>
-        {user ? (
-          <>
-            <div className={styles.meText}>
-              <div className={styles.meName}>{user.name}</div>
-              <div className={styles.meRole}>{ROLE_LABEL[user.role]}</div>
-            </div>
-            <div className={styles.avatar} aria-hidden="true">
-              {user.name.charAt(0)}
-            </div>
-          </>
-        ) : (
-          /* 부트스트랩 중이거나 사용자를 못 받은 상태. 목업 이름을 대신 쓰지 않는다. */
-          <>
-            <div className={styles.meText}>
-              <div className={`${styles.meName} ${styles.skel}`} />
-              <div className={`${styles.meRole} ${styles.skel} ${styles.skelShort}`} />
-            </div>
-            <div className={`${styles.avatar} ${styles.skel}`} />
-          </>
-        )}
-      </div>
+      {/* 내비가 바닥까지 밀리지 않게 남은 자리를 먹는다 — 아르가 있던 칸이다 */}
+      <span className={styles.grow} aria-hidden="true" />
+
     </aside>
   )
 }

@@ -17,6 +17,7 @@
 .meta {
   margin-left: auto;
   font-size: var(--font-num);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   color: var(--text-sub);
   white-space: nowrap;
@@ -38,7 +39,7 @@
 
 .search:focus-within {
   background: var(--bg-elev);
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .search input {
@@ -161,11 +162,11 @@
 }
 
 .ddMenu li:hover {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
 }
 
 .ddSel {
-  color: var(--leaf);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -187,6 +188,7 @@
 
 .panel {
   background: var(--bg-elev);
+  backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
@@ -236,11 +238,11 @@
 /* 상세 패널에 열려 있는 행 — 공고의 지원자 화면과 같은 표시 */
 .cur,
 .cur:hover {
-  background: var(--sprout-soft);
+  background: var(--accent-soft);
 }
 
 .item:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: -2px;
 }
 
@@ -260,6 +262,7 @@
 
 .num {
   text-align: center;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -269,7 +272,7 @@
 }
 
 .stageAccepted {
-  color: var(--leaf);
+  color: var(--accent-text);
   font-weight: 700;
 }
 
@@ -294,6 +297,7 @@
   border-top: var(--border-w) solid var(--border);
   font-size: var(--font-sm);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -327,15 +331,15 @@
 }
 
 .pageCur {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: var(--bg-elev);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
   font-weight: 600;
   text-shadow: var(--ts-onfill);
 }
 
 .pageCur:hover:not(:disabled) {
-  background: var(--leaf-strong);
+  background: var(--accent-hover);
 }
 
 /* ── 모바일 툴바 ─────────────────────────────────── */
@@ -366,7 +370,7 @@
 
 .mobileSearch:focus-within {
   background: var(--bg-elev);
-  border-color: var(--leaf);
+  border-color: var(--accent-text);
 }
 
 .searchIcon {
@@ -419,9 +423,9 @@
 .pill:hover { background: var(--bg-sunken); }
 
 .pillOn {
-  background: var(--sprout-soft);
-  color: var(--leaf);
-  border-color: var(--sprout);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent);
   font-weight: 700;
 }
 
@@ -437,6 +441,7 @@
 .countLine {
   font-size: var(--font-sm);
   color: var(--text-sub);
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   margin: 0 calc(var(--content-x) - var(--sp-3));
 }
@@ -456,8 +461,8 @@
 
 .appCard:hover { background: var(--bg-sunken); }
 
-.appCardCur { background: var(--sprout-soft); }
-.appCardCur:hover { background: var(--sprout-soft); }
+.appCardCur { background: var(--accent-soft); }
+.appCardCur:hover { background: var(--accent-soft); }
 
 .appCardTop {
   display: flex;
@@ -483,7 +488,7 @@
 
 .appMeta {
   font-size: var(--font-caption);
-  color: var(--leaf);
+  color: var(--accent-text);
   margin: 0;
   font-variant-numeric: tabular-nums;
 }

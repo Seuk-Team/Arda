@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SessionCreate(BaseModel):
@@ -68,6 +68,18 @@ class SessionDetailOut(SessionOut):
     findings: list[FindingOut] = []
 
 
+class PacingHintOut(BaseModel):
+    """진행 보조 제안 하나 (ADR-0026 결정 4).
+
+    **판정이 아니라 제안이다.** 점수·확률·등급에 해당하는 값이 없고, DB 에도
+    남지 않는다 — 답변을 저장한 그 응답에만 실려 나간다. 규칙은
+    `app/interview_pacing.py` 에 모여 있다.
+    """
+
+    action: str  # follow_up | offer_break | rephrase
+    message: str
+
+
 class InterviewPublicOut(BaseModel):
     """지원자용. **토큰과 URL 을 되돌려주지 않는다** — 이미 가진 사람만 본다.
 
@@ -83,6 +95,9 @@ class InterviewPublicOut(BaseModel):
     # 진행 중일 때 현재 질문. pending 이면 None
     current_question: str | None = None
     question_seq: int | None = None
+    # 답변을 낸 직후에만 붙는다. 조회(GET)에는 항상 None —
+    # 지원자가 새로고침할 때마다 같은 말을 반복하지 않게.
+    pacing: PacingHintOut | None = None
 
 
 class ConsentRequest(BaseModel):
@@ -101,11 +116,41 @@ class QuestionsSet(BaseModel):
     questions: list[str] = Field(min_length=1, max_length=20)
 
 
-class AnswerRequest(BaseModel):
-    """답변 제출.
+class AudioUploadRequest(BaseModel):
+    """답변 음성 업로드 URL 요청 (설계 §5-4).
 
-    지금은 텍스트만 받는다. 음성 업로드 → STT 는 설계 §5 의 4번에서 붙이고,
-    그때 `audio_s3_key` 가 여기 더해진다.
+    이력서 업로드(`/public/files/presign-upload`)와 **다른 경로**다. 그쪽은
+    토큰 없이 누구나 부를 수 있어서, 거기에 음성 형식을 얹으면 아무나 우리
+    버킷에 미디어를 올릴 수 있게 된다. 여기는 **진행 중인 면접 토큰**이 있어야
+    발급된다.
     """
 
-    transcript: str = Field(min_length=1)
+    filename: str = Field(min_length=1, max_length=200)
+    content_type: str = Field(min_length=1, max_length=100)
+    size_bytes: int = Field(gt=0)
+
+
+class AudioUploadResponse(BaseModel):
+    upload_url: str
+    s3_key: str
+    expires_in: int
+
+
+class AnswerRequest(BaseModel):
+    """답변 제출. **텍스트 또는 음성 하나**를 보낸다.
+
+    - `transcript` — 텍스트로 바로 답한다
+    - `audio_s3_key` — 음성을 올린 뒤 그 키를 준다. 서버가 읽어 전사한다 (§5-4)
+
+    **둘 다 보내면 거절한다.** 어느 쪽을 진짜 답으로 볼지 서버가 고르게 두면,
+    보낸 쪽은 자기가 낸 답이 저장됐다고 믿는데 실제로는 다른 것이 저장될 수 있다.
+    """
+
+    transcript: str | None = Field(default=None, min_length=1)
+    audio_s3_key: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> "AnswerRequest":
+        if bool(self.transcript) == bool(self.audio_s3_key):
+            raise ValueError("transcript 와 audio_s3_key 중 하나만 보내야 합니다")
+        return self

@@ -20,6 +20,7 @@ void main() {
   createTests();
   editTests();
   editPlumbingTests();
+  deleteTests();
 
   Widget host(PostingRepository repo) => MaterialApp(
     home: Scaffold(body: PostingsScreen(repository: repo)),
@@ -495,6 +496,176 @@ void editPlumbingTests() {
 
       // 공고를 안 건드렸으면 목록이 다시 받을 이유가 없다
       expect(popped, false);
+    });
+  });
+}
+
+/// 공고 삭제 (2026-09-03) — `DELETE /postings/{id}`.
+///
+/// 되돌릴 수 없는 동작이라 **확인 시트를 거치는지**가 이 묶음의 핵심이다.
+/// 지원자가 딸린 공고는 서버가 409 로 막는다 — 앱은 그 문구를 그대로 띄운다.
+void deleteTests() {
+  final existing = JobPosting(
+    id: 7,
+    title: '백엔드 개발자 (신입)',
+    status: PostingStatus.open,
+    deadline: DateTime.now().add(const Duration(days: 30)),
+  );
+
+  /// 폼을 띄우고 [삭제] 가 보이는 데까지 스크롤한다.
+  ///
+  /// `find.byType(Scrollable).last` 를 쓰면 TextField 안쪽 스크롤을 집는다 —
+  /// [ensureVisible] 로 위젯을 직접 지정한다.
+  Future<void> openEdit(WidgetTester tester, FakePostingRepository repo) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (c) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.push(
+                c,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PostingFormScreen(posting: existing, repository: repo),
+                ),
+              ),
+              child: const Text('열기'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tapDelete(WidgetTester tester) async {
+    await tester.ensureVisible(find.text('공고 삭제'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('공고 삭제'));
+    await tester.pumpAndSettle();
+  }
+
+  group('공고 삭제', () {
+    testWidgets('등록 화면에는 없다 — 지울 것이 아직 없다', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PostingFormScreen(repository: FakePostingRepository()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('공고 삭제'), findsNothing);
+    });
+
+    testWidgets('한 번 눌러서는 안 지운다 — 확인 시트가 뜬다', (tester) async {
+      final repo = FakePostingRepository();
+      await openEdit(tester, repo);
+      await tapDelete(tester);
+
+      // 무엇이 지워지는지 이름이 시트에 있다
+      expect(find.text('${existing.title} 삭제'), findsOneWidget);
+      expect(find.textContaining('되돌릴 수 없습니다'), findsOneWidget);
+      // 아직 아무것도 안 나갔다
+      expect(repo.deletedId, isNull);
+    });
+
+    testWidgets('취소하면 아무 일도 안 일어난다', (tester) async {
+      final repo = FakePostingRepository();
+      await openEdit(tester, repo);
+      await tapDelete(tester);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '취소'));
+      await tester.pumpAndSettle();
+
+      expect(repo.deletedId, isNull);
+      expect(find.byType(PostingFormScreen), findsOneWidget);
+    });
+
+    testWidgets('확인하면 지우고 화면을 닫는다', (tester) async {
+      final repo = FakePostingRepository();
+      await openEdit(tester, repo);
+      await tapDelete(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, '삭제'));
+      await tester.pumpAndSettle();
+
+      expect(repo.deletedId, existing.id);
+      expect(find.byType(PostingFormScreen), findsNothing);
+      expect(find.textContaining('공고를 삭제했습니다'), findsOneWidget);
+    });
+
+    testWidgets('지원자가 있으면 서버 문구를 그대로 띄우고 화면을 안 닫는다', (tester) async {
+      final repo = FakePostingRepository(
+        // backend/app/api/postings.py 가 실제로 돌려주는 문구
+        deleteError: const ServerError(
+          409,
+          '지원서 3건이 있는 공고는 삭제할 수 없습니다. 먼저 공고를 마감하세요.',
+        ),
+      );
+      await openEdit(tester, repo);
+      await tapDelete(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, '삭제'));
+      await tester.pumpAndSettle();
+
+      // 앱이 지어낸 문구가 아니라 서버가 센 숫자가 그대로 나와야 한다
+      expect(find.textContaining('지원서 3건'), findsOneWidget);
+      expect(find.byType(PostingFormScreen), findsOneWidget);
+    });
+
+    testWidgets('지우면 그 공고의 지원자 화면도 함께 닫힌다', (tester) async {
+      final postingRepo = FakePostingRepository();
+      Object? popped;
+
+      await tester.pumpWidget(
+        RepositoryScope(
+          repositories: Repositories(
+            postings: postingRepo,
+            applicants: FakeApplicantRepository(),
+          ),
+          child: MaterialApp(
+            home: Builder(
+              builder: (c) => Scaffold(
+                body: TextButton(
+                  onPressed: () async {
+                    popped = await Navigator.push(
+                      c,
+                      MaterialPageRoute(
+                        builder: (_) => ApplicantsScreen(
+                          posting: existing,
+                          repository: FakeApplicantRepository(),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('열기'),
+                ),
+              ),
+            ),
+            onGenerateRoute: (settings) => MaterialPageRoute(
+              settings: settings,
+              builder: (_) => PostingFormScreen(
+                posting: settings.arguments! as JobPosting,
+                repository: postingRepo,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('열기'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.bySemanticsLabel('공고 수정'));
+      await tester.pumpAndSettle();
+      await tapDelete(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '삭제'));
+      await tester.pumpAndSettle();
+
+      // 없어진 공고의 지원자 목록이 남아 있으면 안 된다
+      expect(find.byType(ApplicantsScreen), findsNothing);
+      // 목록에게는 "바뀌었다" 로 알린다 — 사라진 카드를 지우게 해야 한다
+      expect(popped, true);
     });
   });
 }

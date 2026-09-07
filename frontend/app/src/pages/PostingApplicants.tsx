@@ -27,11 +27,11 @@ const TONE_CLASS = {
 
 /* 퍼널 순서·색. 색은 판단에만 (§1) — 진행 중은 무채 3단, 합격만 연두, 불합격만 적갈 */
 const FUNNEL: { stage: Stage; color: string }[] = [
-  { stage: 'applied', color: '#C9CFC3' },
-  { stage: 'screening', color: '#AEB6A8' },
-  { stage: 'interview', color: '#8A9284' },
-  { stage: 'accepted', color: '#8CC63F' },
-  { stage: 'rejected', color: '#A9503C' },
+  { stage: 'applied', color: 'var(--stage-1)' },
+  { stage: 'screening', color: 'var(--stage-2)' },
+  { stage: 'interview', color: 'var(--stage-3)' },
+  { stage: 'accepted', color: 'var(--stage-4)' },
+  { stage: 'rejected', color: 'var(--danger)' },
 ]
 
 export default function PostingApplicants() {

@@ -361,8 +361,7 @@ export default function Interviews() {
 
       {error !== null && <p className={styles.empty} role="alert">{error}</p>}
 
-      {/* data-morph-target — 대시보드 축소판이 확장돼 앉는 자리 (MorphNav) */}
-      <div className={styles.calPanel} data-morph-target="calendar">
+      <div className={styles.calPanel}>
         <div className={styles.dow} aria-hidden="true">
           {DOW.map((d) => <span key={d} className={styles.dowCell}>{d}</span>)}
         </div>

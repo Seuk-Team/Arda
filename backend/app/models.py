@@ -455,6 +455,9 @@ class ChainPublication(Base):
     )
     # 실패 사유를 지운 채로 두지 않는다 — 왜 못 올렸는지가 다음 시도의 단서다.
     error: Mapped[str | None] = mapped_column(Text)
+    # OTS 증명(base64). 폴리곤 행에서는 항상 NULL.
+    # **잃어버리면 다시 못 만든다** — 도장을 다시 찍어야 하고 시각이 밀린다.
+    proof: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -466,6 +469,16 @@ class ChainPublication(Base):
         ),
         UniqueConstraint("tx_hash", name="uq_chain_publications_tx"),
         Index("ix_chain_publications_covered", "covered_through_seq"),
+        # 같은 사슬 머리를 같은 네트워크에 두 번 올리지 않는다. 폴리곤과 OTS 는
+        # 서로 다른 행이라 network 를 포함해야 한다 — 빼면 한쪽만 올라간다.
+        # 실패한 것은 다시 시도해야 하므로 제외한다.
+        Index(
+            "uq_chain_publications_network_hash",
+            "network",
+            "chain_hash",
+            unique=True,
+            postgresql_where=text("status <> 'failed'"),
+        ),
     )
 
 

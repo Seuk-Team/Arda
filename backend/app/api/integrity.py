@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status as http
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import anchoring, chain
+from app import anchoring, chain, ots
 from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import Application, ChainPublication, DocumentAnchor, File, User
@@ -18,6 +18,7 @@ from app.schemas.integrity import (
     ApplicationIntegrityOut,
     ChainIntegrityOut,
     PublicationOut,
+    PublicationResultIn,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["integrity"])
@@ -122,12 +123,19 @@ def create_anchor(
 
 
 def _publication_out(row: ChainPublication) -> PublicationOut:
+    """게시 기록 하나를 응답 모양으로. 탐색기 링크는 네트워크마다 다르다."""
     out = PublicationOut.model_validate(row)
-    if row.tx_hash:
-        out = out.model_copy(
-            update={"explorer_url": chain.explorer_url(row.network, row.tx_hash)}
-        )
-    return out
+    url = None
+    if row.network == ots.NETWORK:
+        # OTS 는 거래가 아니라 **비트코인 블록**을 가리킨다. 확정 전에는 링크가 없다.
+        if row.proof:
+            try:
+                url = ots.explorer_url(row.proof)
+            except Exception:  # 증명이 깨져 있어도 목록 조회가 죽으면 안 된다
+                url = None
+    elif row.tx_hash:
+        url = chain.explorer_url(row.network, row.tx_hash)
+    return out.model_copy(update={"explorer_url": url})
 
 
 @router.get("/integrity/chain", response_model=ChainIntegrityOut)
@@ -210,6 +218,91 @@ def publish(
             f"체인에 보내지 못했습니다: {type(exc).__name__}",
         )
 
+    return _publication_out(row)
+
+
+@router.post(
+    "/integrity/publish/ots",
+    response_model=PublicationOut,
+    status_code=http.HTTP_201_CREATED,
+)
+def publish_ots(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin")),
+):
+    """사슬 머리를 OpenTimestamps(비트코인)에 도장 찍는다. **admin 만.**
+
+    **폴리곤과 달리 개인키가 없어서 서버에서 직접 돈다.** 캘린더에 해시만 던지고
+    증명을 받아 오기 때문이다 — 그래서 키를 밖으로 빼야 하는 이유(팀장 검토 Q2)가
+    여기에는 해당하지 않는다.
+
+    돌아온 증명은 대개 **`pending`** 이다. 비트코인 블록에 아직 안 실렸다는 뜻이고
+    몇 시간이 정상이다. `POST /integrity/publications/refresh` 가 나중에 갱신한다.
+    여기서 바로 `confirmed` 로 적으면 우리가 가진 것보다 강한 주장이 된다.
+    """
+    try:
+        row = anchoring.publish_ots(db)
+    except anchoring.NothingToPublish as exc:
+        raise HTTPException(http.HTTP_409_CONFLICT, str(exc))
+    except Exception as exc:
+        raise HTTPException(
+            http.HTTP_502_BAD_GATEWAY,
+            f"OTS 도장을 찍지 못했습니다: {type(exc).__name__}",
+        )
+    return _publication_out(row)
+
+
+@router.post(
+    "/integrity/publications/start",
+    response_model=PublicationOut,
+    status_code=http.HTTP_201_CREATED,
+)
+def start_publication(
+    network: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin")),
+):
+    """게시할 자리를 잡고 **무엇을 올려야 하는지** 알려준다 (GitHub Actions 용).
+
+    폴리곤 서명은 서버가 하지 않는다 — 개인키를 서버에 두지 않기로 했다
+    (팀장 검토 Q2). 대신 Actions 가 이 경로로 **사슬 머리와 게시 id** 를 받아
+    가서 스스로 서명·전송하고, `POST .../{id}/result` 로 결과를 되돌려 준다.
+
+    **행을 먼저 만든다.** 보낸 뒤에 기록하면, 보내는 데 성공하고 기록에 실패했을
+    때 "체인에는 있는데 우리는 모르는 거래"가 생긴다.
+
+    올릴 것이 없으면 **409** 다 — 원장이 비었거나 그 네트워크에 이미 올린 머리다.
+    """
+    try:
+        row = anchoring.start_publication(db, network)
+    except anchoring.NothingToPublish as exc:
+        raise HTTPException(http.HTTP_409_CONFLICT, str(exc))
+    return _publication_out(row)
+
+
+@router.post(
+    "/integrity/publications/{publication_id}/result",
+    response_model=PublicationOut,
+)
+def record_result(
+    publication_id: int,
+    body: PublicationResultIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles("admin")),
+):
+    """밖에서 서명·전송한 결과를 기록한다 (GitHub Actions 용).
+
+    **서버는 이 값을 검증하지 못한다.** 키가 없어 서명을 확인할 수 없기
+    때문이다. 그래도 상관없다 — `tx_hash` 가 가리키는 체인의 값이 진실이고,
+    이 기록은 "어디를 보면 되는지"를 적어 둔 영수증이다. 거짓으로 적어 넣어도
+    탐색기에서 대조하면 드러난다.
+    """
+    try:
+        row = anchoring.record_result(
+            db, publication_id, **body.model_dump(exclude_none=True)
+        )
+    except LookupError as exc:
+        raise HTTPException(http.HTTP_404_NOT_FOUND, str(exc))
     return _publication_out(row)
 
 

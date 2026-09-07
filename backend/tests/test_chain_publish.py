@@ -117,7 +117,7 @@ class TestPublishHead:
             patch("app.anchoring.chain.publish_hash", return_value=_sent()),
         ):
             anchoring.publish_head(db)
-            with pytest.raises(anchoring.NothingToPublish, match="새 고리가 없습니다"):
+            with pytest.raises(anchoring.NothingToPublish, match="이미 올렸습니다"):
                 anchoring.publish_head(db)
 
     def test_빈_원장은_올릴_것이_없다(self, db: Session):
@@ -340,3 +340,42 @@ class TestConfig:
         assert amoy.is_testnet is True
         assert main.is_testnet is False
         assert chain.DEFAULT_NETWORK == "polygon-amoy"  # 기본이 테스트넷이어야 한다
+
+    def test_explorer_url_covers_sepolia(self):
+        """운영이 Sepolia 로 옮겨도(2026-09-07) 발표에서 열 링크가 나와야 한다."""
+        from app import chain
+
+        assert chain.explorer_url("ethereum-sepolia", "0xab") == "https://sepolia.etherscan.io/tx/0xab"
+        assert chain.explorer_url("base-sepolia", "0xab") == "https://sepolia.basescan.org/tx/0xab"
+        assert chain.explorer_url("unknown-net", "0xab") is None
+
+
+class TestNetworkLabelMatchesChain:
+    """이름표(`CHAIN_NETWORK`)와 RPC 가 물린 체인이 같은지 (2026-09-07).
+
+    둘은 서로를 모르는 별개의 설정이라 어긋날 수 있다. 어긋나면 거래는 성공하는데
+    **기록이 틀린다** — 탐색기 링크가 죽고 DB 에 다른 체인 이름이 남는다.
+    """
+
+    def test_같으면_통과한다(self):
+        from app import chain
+
+        chain.check_network("ethereum-sepolia", 11155111)  # 예외가 안 나면 통과
+
+    def test_어긋나면_보내기_전에_멈춘다(self):
+        """운영이 Sepolia 인데 CHAIN_NETWORK secret 이 비어 기본값으로 떨어진 경우."""
+        from app import chain
+
+        with pytest.raises(chain.NetworkMismatch) as exc:
+            chain.check_network("polygon-amoy", 11155111)
+
+        # 사유에 양쪽 값이 다 있어야 어느 쪽을 고칠지 안다
+        assert "polygon-amoy" in str(exc.value)
+        assert "11155111" in str(exc.value)
+        assert "ethereum-sepolia" in str(exc.value)
+
+    def test_모르는_이름은_막지_않는다(self):
+        """새 체인을 붙일 때 이 표를 먼저 고치라고 강요하지 않는다."""
+        from app import chain
+
+        chain.check_network("some-new-chain", 999999)

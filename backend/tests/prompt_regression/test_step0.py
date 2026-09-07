@@ -1,7 +1,9 @@
-"""Step 0 회귀 하네스 — 로컬 sLLM 채팅 시나리오 10개.
+"""Step 0 회귀 하네스 — 아르 채팅 시나리오 10개.
 
 2026-09-02 실측(Step 0 지도 3벌: 원본·C0·C0+Guard) 을 자동화한 것.
-Guard 도입 후 성공률 10/10 · 평균 15초 상태가 회귀 기준선.
+**Ollama qwen3:4b 기준** Guard 도입 후 성공률 10/10 · 평균 15초 상태가 회귀 기준선.
+Anthropic Haiku 로 재는 것도 같은 스크립트로 되지만, 기본은 Ollama — conftest 의
+`_guard_anthropic_backend` 가 anthropic 백엔드면 자동 skip 한다 (토큰 절약).
 
 **호출 규칙**:
 - test 자체는 최소만 assert (fallback 아니면 통과) — 회귀 하네스는 "이거 되냐"
@@ -60,7 +62,13 @@ def chain() -> dict:
 
 @pytest.fixture(scope="module", autouse=True)
 def _kim_dohyun_baseline(reset_stage):
-    """3a→4a 가 실제로 김도현(id=1) 을 screening→interview 로 바꾸므로 전후 리셋."""
+    """3a→4a 가 실제로 김도현(id=1) 을 screening→interview 로 바꾸므로 전후 리셋.
+
+    **이 파일 한정** (module scope autouse). `test_intent_variations` 에는 이 fixture
+    가 없다 — 거기서는 change_stage 가 확인 카드까지만 만들고 실행 안 하므로 리셋
+    자체가 불요다. 새 파일이 실제로 stage 를 바꾼다면 그 파일에도 별도 baseline 를
+    걸 것.
+    """
     reset_stage(1, "screening")
     yield
     reset_stage(1, "screening")

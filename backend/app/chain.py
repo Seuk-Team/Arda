@@ -23,7 +23,7 @@
 
 - `CHAIN_RPC_URL`     — 폴리곤 RPC 주소
 - `CHAIN_PRIVATE_KEY` — 서명용 개인키. **테스트넷 전용 지갑의 것만 넣는다**
-- `CHAIN_NETWORK`     — 기록용 이름 (기본 `polygon-amoy`)
+- `CHAIN_NETWORK`     — 기록용 이름 (기본 `polygon-amoy`, 운영은 `ethereum-sepolia` — 2026-09-07)
 
 **개인키를 코드·로그·응답 어디에도 남기지 않는다.** 이 모듈은 개인키에서 뽑은
 주소만 밖으로 낸다. 테스트넷 키라 값이 없지만, 습관이 무너지면 메인넷으로
@@ -39,6 +39,47 @@ logger = logging.getLogger(__name__)
 # 기본값은 폴리곤 테스트넷(Amoy)이다. 메인넷을 기본으로 두지 않는다 —
 # 설정을 덜 한 채 배포했을 때 진짜 돈이 나가는 쪽으로 기울면 안 된다.
 DEFAULT_NETWORK = "polygon-amoy"
+
+# 네트워크 이름 → **체인이 스스로 말하는 id**.
+#
+# `CHAIN_NETWORK` 는 우리가 붙이는 이름표일 뿐이고, 실제로 어느 체인에 보내는지는
+# `CHAIN_RPC_URL` 이 정한다. 둘은 서로를 모른다 — 그래서 어긋날 수 있다.
+#
+# 어긋나면 조용히 **틀린 증거**가 남는다: 2026-09-07 운영이 Sepolia 로 옮겼는데
+# `CHAIN_NETWORK` secret 이 비면 이름표는 기본값 `polygon-amoy` 로 떨어진다.
+# 거래는 Sepolia 에 잘 실리지만 DB 에는 폴리곤이라고 적히고, 탐색기 링크는
+# polygonscan 을 가리켜 **아무것도 안 나온다.** 증거를 파는 시스템에서
+# 틀린 증거를 남기는 것이 가장 나쁘다 — 보내기 전에 멈춘다.
+CHAIN_IDS = {
+    "polygon-amoy": 80002,
+    "polygon-mainnet": 137,
+    "ethereum-sepolia": 11155111,
+    "base-sepolia": 84532,
+}
+
+
+class NetworkMismatch(RuntimeError):
+    """이름표와 실제 체인이 다르다. 보내기 전에 멈춘다."""
+
+
+def check_network(network: str, chain_id: int) -> None:
+    """이름표가 가리키는 체인과 RPC 가 물려 있는 체인이 같은지 본다.
+
+    **모르는 이름은 통과시킨다.** 새 체인을 붙일 때 이 표를 먼저 고치라고
+    강요하면, 정작 급할 때 코드를 못 올린다. 아는 이름만 검사한다 —
+    모르는 이름은 어차피 `explorer_url` 이 None 을 돌려줘서 링크가 안 생긴다.
+    """
+    expected = CHAIN_IDS.get(network)
+    if expected is None or expected == chain_id:
+        return
+    known = {v: k for k, v in CHAIN_IDS.items()}
+    actual_name = known.get(chain_id, "모르는 체인")
+    raise NetworkMismatch(
+        f"CHAIN_NETWORK={network}(chain id {expected}) 인데 "
+        f"CHAIN_RPC_URL 이 물린 곳은 chain id {chain_id}({actual_name}) 다. "
+        "둘 중 하나가 틀렸다 — 이대로 보내면 탐색기 링크가 죽고 DB 에 "
+        "틀린 체인 이름이 남는다."
+    )
 
 # 거래 하나가 쓸 수 있는 가스 상한. data 32바이트짜리 단순 전송이라 21,000 +
 # 데이터 비용이면 끝나지만, 체인마다 계산이 조금씩 달라 여유를 둔다.
@@ -126,6 +167,12 @@ def publish_hash(config: ChainConfig, chain_hash: str) -> SentTx:
     from web3 import Web3
 
     w3 = Web3(Web3.HTTPProvider(config.rpc_url))
+
+    # 서명하기 전에 이름표와 실제 체인이 같은지 본다. 어긋난 채로 보내면
+    # 거래는 성공하는데 기록이 틀린다 — 되돌릴 수 없는 쪽으로 조용히 간다.
+    chain_id = w3.eth.chain_id
+    check_network(config.network, chain_id)
+
     account = _account_address(config)
 
     tx = {
@@ -134,7 +181,7 @@ def publish_hash(config: ChainConfig, chain_hash: str) -> SentTx:
         "value": 0,
         "nonce": w3.eth.get_transaction_count(account),
         "gas": GAS_LIMIT,
-        "chainId": w3.eth.chain_id,
+        "chainId": chain_id,
         # 해시 64자를 그대로 바이트로 넣는다. 탐색기에서 읽힌다.
         "data": "0x" + chain_hash,
     }
@@ -192,6 +239,11 @@ def explorer_url(network: str, tx_hash: str) -> str | None:
     bases = {
         "polygon-amoy": "https://amoy.polygonscan.com/tx/",
         "polygon-mainnet": "https://polygonscan.com/tx/",
+        # 2026-09-07: Amoy faucet 이 전부 메인넷 잔액을 요구해 막혀서 운영은
+        # Sepolia 로 옮겼다 (ADR-0028 2단계 개정). 코드는 체인을 가리지 않는다 —
+        # chain id 는 RPC 에서 읽고, 여기는 발표에서 열 링크만 고른다.
+        "ethereum-sepolia": "https://sepolia.etherscan.io/tx/",
+        "base-sepolia": "https://sepolia.basescan.org/tx/",
     }
     base = bases.get(network)
     return base + tx_hash if base else None

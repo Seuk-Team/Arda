@@ -9,13 +9,17 @@ import type {
   AgentChatResponse,
   ApplicationDetail,
   ApplicationListItem,
+  ApplicationIntegrity,
   AssignedApplications,
+  Evaluation,
+  Publication,
   Interview,
   Note,
   Posting,
   ScheduleStatus,
   SearchResult,
   Stage,
+  UserItem,
   TokenResponse,
   User,
 } from './types'
@@ -137,7 +141,33 @@ function searchApps(query: Query): SearchResult {
   }
 }
 
+/* 로컬 사용자. DEV_USER(id 0)가 '나' 다 — 평가 화면이 내 평가와 남의 평가를
+   갈라 그려서, 남이 최소 한 명은 있어야 화면이 제 모습으로 보인다 */
+const USERS: UserItem[] = [
+  { id: 0, name: '개발', email: 'dev@local', role: 'admin', is_active: true, created_at: at(-90, 9) },
+  { id: 1, name: '유하늘', email: 'sky@example.com', role: 'member', is_active: true, created_at: at(-80, 9) },
+  { id: 2, name: '장보라', email: 'bora@example.com', role: 'member', is_active: true, created_at: at(-70, 9) },
+]
+
+/* 지원자별 평가. 평가 화면의 상태 네 가지가 다 나오게 짰다:
+     103 아무도 안 냄(오래 묵음) · 106 남만 냄 · 107 의견 갈림 · 108 완료 */
+const EVALS: Record<number, Evaluation[]> = {
+  106: [{ id: 1, evaluator_id: 1, score: 4, comment: null, created_at: at(-1, 14) }],
+  107: [
+    { id: 2, evaluator_id: 0, score: 5, comment: '설계 질문에 답이 깊었습니다.', created_at: at(-1, 11) },
+    { id: 3, evaluator_id: 1, score: 2, comment: '협업 경험이 얕아 보입니다.', created_at: at(-1, 15) },
+  ],
+  108: [
+    { id: 4, evaluator_id: 0, score: 4, comment: null, created_at: at(-2, 10) },
+    { id: 5, evaluator_id: 1, score: 5, comment: null, created_at: at(-2, 16) },
+  ],
+}
+
 function detail(a: ApplicationListItem): ApplicationDetail {
+  const evaluations = EVALS[a.id] ?? []
+  const avg = evaluations.length === 0
+    ? null
+    : Math.round((evaluations.reduce((t, e) => t + e.score, 0) / evaluations.length) * 10) / 10
   return {
     ...a,
     phone: '010-0000-0000',
@@ -145,6 +175,9 @@ function detail(a: ApplicationListItem): ApplicationDetail {
     skills: ['TypeScript', 'React'],
     self_intro: '(로컬 목 데이터) 자기소개서 본문입니다.',
     ai_summary: '(로컬 목 데이터) 공고 요건과의 적합 지점 요약입니다.',
+    evaluations,
+    eval_count: evaluations.length,
+    avg_score: avg,
   }
 }
 
@@ -204,13 +237,88 @@ export function mockResponse(method: string, path: string, query: Query = {}): u
     return a === undefined ? undefined : serve(detail(a))
   }
 
+  /* 사슬 머리를 공개 체인에 올린 기록. 확정 1건 + 대기 1건 —
+     화면이 확정된 것만 근거로 삼는지 보려면 대기 행이 하나 있어야 한다 */
+  if (path === '/integrity/publications') {
+    return serve([
+      {
+        id: 1, network: 'ethereum-sepolia', covered_through_seq: 30,
+        chain_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        tx_hash: '0xf3e19e5a8de49c1398f6d8b2dc5be4f8b58724c59518c0f60cb90f88fbe6c0c0',
+        block_number: 11651695, status: 'confirmed', error: null,
+        created_at: at(-1, 9), confirmed_at: at(-1, 9),
+        explorer_url: 'https://sepolia.etherscan.io/tx/0xf3e19e5a8de49c1398f6d8b2dc5be4f8b58724c59518c0f60cb90f88fbe6c0c0',
+        proof: null,
+      },
+      {
+        id: 2, network: 'opentimestamps', covered_through_seq: 30,
+        chain_hash: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+        tx_hash: null, block_number: null, status: 'pending', error: null,
+        created_at: at(-1, 9), confirmed_at: null,
+        explorer_url: null, proof: null,
+      },
+    ] satisfies Publication[])
+  }
+
+  /* 지원자 하나의 무결성. 네 판정이 다 나오게 id 로 갈라 둔다 —
+     하나만 있으면 화면에서 나머지 셋을 못 본다 */
+  const integ = path.match(/^\/applications\/(\d+)\/integrity$/)
+  if (integ) {
+    const id = Number(integ[1])
+    const anchor = (seq: number, doc_type: string, filename: string | null,
+                    status: 'ok' | 'mismatch' | 'unreadable', reason: string | null) => ({
+      seq, doc_type, file_id: filename ? seq : null, filename,
+      content_sha256: 'c0ffee'.repeat(10).slice(0, 64),
+      chain_hash: 'deadbeef'.repeat(8),
+      anchored_at: at(-6, 10), status, reason,
+    })
+    /* 110 백서준 = ADR-0028 이전 접수 → 앵커 자체가 없다 */
+    if (id === 110) {
+      return serve({ application_id: id, anchored: false, verdict: 'none', items: [] } satisfies ApplicationIntegrity)
+    }
+    if (id === 103) {
+      return serve({
+        application_id: id, anchored: true, verdict: 'mismatch',
+        items: [
+          anchor(11, 'resume', '한지우_이력서.pdf', 'mismatch', '지문이 접수 시와 다릅니다'),
+          anchor(12, 'self_intro', null, 'ok', null),
+        ],
+      } satisfies ApplicationIntegrity)
+    }
+    if (id === 106) {
+      return serve({
+        application_id: id, anchored: true, verdict: 'unreadable',
+        items: [
+          anchor(17, 'resume', '김도현_이력서.pdf', 'unreadable', '원본을 읽지 못했습니다 (NoSuchKey)'),
+          anchor(18, 'self_intro', null, 'ok', null),
+        ],
+      } satisfies ApplicationIntegrity)
+    }
+    return serve({
+      application_id: id, anchored: true, verdict: 'ok',
+      items: [
+        anchor(1, 'resume', '이력서.pdf', 'ok', null),
+        anchor(2, 'self_intro', null, 'ok', null),
+      ],
+    } satisfies ApplicationIntegrity)
+  }
+
+  if (path === '/users') {
+    return serve({ items: USERS, count: USERS.length })
+  }
+
+  /* 두 공고에 걸쳐 배정한다 — 평가 화면 왼쪽 공고 레일이 한 줄만 나오면
+     고르는 화면인지 알 수 없다 */
   if (/^\/interviewers\/\d+\/applications$/.test(path)) {
     return serve({
       assignments: [
-        { id: 1, application_id: 106, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
-        { id: 2, application_id: 109, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
+        { id: 1, application_id: 103, interviewer_id: 0, assigned_by: 0, created_at: at(-5, 9) },
+        { id: 2, application_id: 107, interviewer_id: 0, assigned_by: 0, created_at: at(-2, 9) },
+        { id: 3, application_id: 108, interviewer_id: 0, assigned_by: 0, created_at: at(-2, 9) },
+        { id: 4, application_id: 106, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
+        { id: 5, application_id: 109, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
       ],
-      count: 2,
+      count: 5,
     } satisfies AssignedApplications)
   }
 

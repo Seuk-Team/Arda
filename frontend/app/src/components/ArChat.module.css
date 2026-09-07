@@ -179,7 +179,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid var(--border);
-  border-top-color: var(--leaf);
+  border-top-color: var(--accent-text);
   border-radius: var(--r-pill);
 }
 

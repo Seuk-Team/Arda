@@ -25,7 +25,7 @@ import sys
 import urllib.error
 import urllib.request
 
-DEFAULT_BASE = "https://api.arda.seuk.cloud"
+DEFAULT_BASE = "https://api.seuk.suvisdev.cloud"  # 2026-09-04 인프라 이전 후 정본. 옛 api.arda.seuk.cloud 는 전 팀장 명의
 
 # 02-api.md 에서 **공개**로 표시된 것. 그 외 GET 은 전부 401 이어야 한다.
 # 공개 엔드포인트가 이 접두사 밖에 새로 생기면 여기에 추가한다.

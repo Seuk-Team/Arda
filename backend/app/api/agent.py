@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.agent.backends import get_summary_backend
 from app.agent.entity_resolver import resolve_entities
 from app.agent.intent_router import DirectAction, classify
+from app.agent.interview_probe import cover_letter_of, generate_probes
 from app.agent.prompts import render
 from app.agent.runtime import _describe_action, run_agent
 from app.agent.summarizer import generate_summary
@@ -127,6 +128,66 @@ def regenerate_summary(
         )
 
     return SummaryOut(summary=summary, model=app.ai_summary_model)
+
+
+class ProbeClaim(BaseModel):
+    claim: str
+    type: str
+    questions: list[str]
+
+
+class ProbesOut(BaseModel):
+    claims: list[ProbeClaim]
+
+
+@router.post(
+    "/applications/{application_id}/interview-probes",
+    response_model=ProbesOut,
+)
+def interview_probes(
+    application_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """자기소개서에서 확인할 주장과 면접 꼬리 질문을 뽑는다 (AI면접 설계 §5-5).
+
+    **저장하지 않는다.** 부를 때마다 새로 만든다 — 아직 화면도 붙지 않았고,
+    저장 위치(`interview_turns`)는 면접 세션이 있을 때 정해진다. 재생성이
+    사람 손에 달려 있다는 점은 요약과 같다(ADR-0011 §3-4).
+
+    **참·거짓을 판정하지 않는다.** 질문만 돌려주고 대조는 면접관이 한다
+    (ADR-0003 · ADR-0026 결정 3).
+    """
+    app = db.get(Application, application_id)
+    if app is None:
+        raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
+
+    # 요약과 같은 이유로 여기서 먼저 본다 — 이 검사를 빼면 키 미설정이
+    # "생성 실패(422)" 로 둔갑해 원인이 안 보인다
+    reason = get_summary_backend().unavailable_reason()
+    if reason:
+        raise HTTPException(
+            http.HTTP_503_SERVICE_UNAVAILABLE,
+            f"질문 생성 백엔드를 사용할 수 없습니다: {reason}",
+        )
+
+    cover = cover_letter_of(app)
+    if not cover.strip():
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_ENTITY,
+            "자기소개서가 없어 확인할 주장을 뽑을 수 없습니다",
+        )
+
+    claims = generate_probes(cover)
+    if claims is None:
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_ENTITY,
+            "질문 생성에 실패했습니다. LLM 응답을 처리하지 못했습니다 — 잠시 후 다시 시도해 주세요.",
+        )
+
+    # 빈 목록은 실패가 아니다 — 감상·다짐만 쓴 자기소개서가 있고,
+    # 그때 억지로 뽑은 질문은 면접관에게 해롭다
+    return ProbesOut(claims=[ProbeClaim(**c) for c in claims])
 
 
 @router.post("/chat", response_model=ChatResponse)

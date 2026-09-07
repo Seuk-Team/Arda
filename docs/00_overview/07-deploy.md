@@ -4,7 +4,7 @@
 
 > **⚠️ 2026-09-04 인프라 이전 완료 — 서버·주소가 전부 바뀌었다.** 옛 팀
 > AWS(이탈자 명의)에서 suvisdev 개인 AWS(서울)로 이전했다. 새 구성:
-> EC2 `arda-api`(t3.small, Ubuntu 24.04, Elastic IP) + Caddy 직결,
+> EC2 `arda-api`(**t3.medium** — 2026-09-07 t3.small 에서 올림, 4GB; Ubuntu 24.04, 29GB 디스크, Elastic IP) + Caddy 직결,
 > S3 `arda-resumes-seuk`, SQS `arda-mail`, SES `no-reply@seuk.suvisdev.cloud`
 > (샌드박스 해제 신청 중 — 그때까지 `MAIL_DRY_RUN=1`). IAM 은 콘솔
 > `suvisdev`(관리)·`arda-viewers` 그룹(팀 열람)·`arda-server`(서버 키)로 분리.
@@ -19,7 +19,7 @@
 | 무엇 | URL | 비고 |
 |---|---|---|
 | **API** | https://api.seuk.suvisdev.cloud | Swagger는 `/docs`. HTTPS만 — 8000 직접 접근은 막혀 있다 |
-| **프론트** | https://seuk.suvisdev.cloud | main 머지 → 1~2분 내 자동 재배포. 커스텀 도메인 `arda.seuk.cloud` 검증 마무리 중 |
+| **프론트** | https://seuk.suvisdev.cloud | main 머지 → 1~2분 내 자동 재배포. 옛 `arda.seuk.cloud` · `api.arda.seuk.cloud` 는 전 팀장 명의 인프라에 아직 떠 있지만 정본이 아니다 — 저장소 기본값은 2026-09-07 에 전부 새 주소로 맞췼다 |
 | 공개 지원 링크 | `https://seuk.suvisdev.cloud/apply/<token>` | 서버 `PUBLIC_APP_BASE_URL` 기준으로 생성 (B6) |
 
 **프론트·앱의 API 베이스 주소는 `https://api.seuk.suvisdev.cloud`다** — W3 연동 때 이 값을 쓴다. HTTPS라 mixed content·Flutter 예외 설정 문제 없음.
@@ -39,8 +39,9 @@
 메일: api → SQS 큐 → worker → SES (샌드박스 — 해제 신청 08/27 거절, 검증된 수신자만 발송 가능)
 ```
 
-- EC2: 서울, t3.micro + 스왑 2G, 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
-- 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구.
+- EC2: 서울, **t3.medium(4GB) + 스왑 2G, 디스크 29GB** (2026-09-07 — 거짓말 탐지 서비스가 분석 1건에 574MiB 를 써서 t3.small 2GB 로는 api·worker 와 같이 못 돈다. 월 +$17. 이전: t3.small ← t3.micro), 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
+- 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구. 거짓말 탐지 `lie-detection` 컨테이너(Caddy `/ai/*`, CPU 모델·GPU 불필요)는 PR #42 로 같은 EC2 에 붙는다.
+- **2026-09-07 운영 장치 요약**: 자동 CD(2분 폴링 + alembic + 이미지·빌드 캐시 prune) · 컨테이너 로그 상한 · DB 매일 S3 백업 · CloudWatch 경보 3개(디스크·백업·API) → SNS 메일 · `~/status.sh` 계기판. 각 절은 아래.
 - 서버 compose는 `docker-compose.prod.yml`(로컬 개발용 루트 compose와 별개 — --reload 없음, DB 포트 비공개).
 - **S3 버킷 CORS (2026-08-31 설정)**: 이력서는 브라우저에서 S3 로 직행하는데, 버킷에 CORS 규칙이 **없어서 브라우저 업로드가 막혀 있었다.** 아래를 넣어 풀었다.
 
@@ -120,11 +121,75 @@ API 전체가 안 뜬 것**이다.
 
 **서버 `.env` 에 `MAIL_REPLY_TO=seukathon@gmail.com`** (2026-09-01 설정). Reply-To 는 SES 검증 대상이 아니라 실제 수신 가능한 메일함이면 된다. **비우면 아르·시스템 발송의 회신이 증발한다** — 문구가 전부 "이 메일에 회신해 주시기 바랍니다"라고 말하기 때문이다. 합격·불합격은 주체와 무관하게 사람 이름으로 서명한다(설계 근거는 [G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md) 결정 6~8).
 
-## 재배포 (현재는 수동 — IAM `arda-ops` 권한자, 2026-09-02 부터 woojeongalex)
+## 재배포 — 자동 (2026-09-04 부터)
 
-main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. **CI/CD(J4, main 머지 시 자동 배포)는 W3에 이 절차를 대체한다.** 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
+**main 머지가 곧 배포다.** 서버의 systemd 타이머 `arda-deploy.timer` 가 2분마다 `main` 을 보고, 새 커밋이면 `/home/ubuntu/deploy-arda.sh` 가 pull → build → **`alembic upgrade head`** → up 을 순서대로 돈다(`set -euo pipefail` — 이행이 실패하면 배포가 거기서 멈추고 기존 컨테이너는 계속 산다). 로그는 `~/deploy.log`.
+
+- alembic 단계는 2026-09-04 에 넣었다 — 0009 컬럼이 DB 에 없어 `/integrity/*` 가 500 났던 사고 뒤. 이미지가 스스로 이행할 수 있게 된 것(PR #20, alembic 을 운영 의존으로)은 그 다음이다.
+- 손으로 돌려야 하면 서버 관리자(suvisdev)가 `bash ~/deploy-arda.sh`. 시연 직전에는 `sudo systemctl stop arda-deploy.timer` 로 배포를 잠시 멈출 수 있다([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 검토 Q6).
+- 프론트는 Vercel 이 main 머지 후 1~2분 내 자동 배포.
+
+### 과거 절차 (2026-09-04 이전, 기록용)
+
+main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
 
 **scp 없이 (2026-09-02 부터)**: 레포가 공개라 서버가 직접 받는다 — `~/arda` 에서 `curl -sL https://github.com/Team-Seuk/Arda/archive/<sha>.tar.gz -o /tmp/arda.tgz && tar xzf /tmp/arda.tgz --strip-components=1 -C ~/arda && echo <sha> > DEPLOYED_COMMIT`, 그 뒤 `build` → `up -d` 를 **나눠서**. `docker-compose.prod.yml`·`Caddyfile` 은 레포에 없어 tar 가 덮지 않는다 — 원본은 [infra/](../../infra/) 에 회수해 뒀다(2026-09-02). 서버 것과 다르면 서버가 진실이고 infra/ 를 고친다.
+
+## DB 백업 — 매일 S3 로 (2026-09-07 도입)
+
+**왜**: EC2 한 대, EBS 볼륨 하나다. 인스턴스 사고 한 번이면 지원자 개인정보와 무결성 원장이 같이 사라진다. `chain_publications.proof`(OTS 증명)는 잃으면 다시 못 만든다([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). 08/31 에 손으로 한 번 뜬 것 외에 백업이 없었다.
+
+**무엇**: [infra/backup-arda-db.sh](../../infra/backup-arda-db.sh) 가 매일 **04:00 KST**(cron `0 19 * * *` UTC) 에 `pg_dump | gzip` → `s3://arda-db-backups-seuk/db/arda-<UTC시각>.sql.gz`. 로컬 `~/backups/` 에는 최근 3개만. S3 수명주기로 **30일 뒤 자동 삭제**. 로그 `~/backup.log`.
+
+**권한 모델**: 서버 IAM 유저 `arda-server` 는 백업 버킷에 **`PutObject` 만** 있다(읽기·삭제 없음). 서버가 털려도 백업을 지우거나 내려받지 못한다. 버킷은 퍼블릭 차단·SSE-S3 암호화. 복원은 관리자(suvisdev 콘솔/로컬)만.
+
+**서버 설치 (1회, suvisdev)**:
+```bash
+sudo snap install aws-cli --classic     # Ubuntu 24.04 apt 에는 awscli 가 없다 (2026-09-07 실측)
+curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/backup-arda-db.sh -o ~/backup-arda-db.sh && chmod +x ~/backup-arda-db.sh
+~/backup-arda-db.sh                         # 손으로 한 번 — S3 에 파일 생기는지 확인
+( crontab -l 2>/dev/null; echo '0 19 * * * /home/ubuntu/backup-arda-db.sh >> /home/ubuntu/backup.log 2>&1' ) | crontab -
+```
+
+**복원** (관리자 PC 또는 서버, 예: 2026-09-10 것으로):
+```bash
+aws s3 cp s3://arda-db-backups-seuk/db/arda-20260910T190001Z.sql.gz /tmp/restore.sql.gz
+# 새 DB 에 넣는다 — 기존 arda 를 덮지 않는다. 확인 뒤 이름을 바꾸는 쪽이 안전하다
+docker compose -f ~/arda/docker-compose.prod.yml exec -T db psql -U postgres -c 'CREATE DATABASE arda_restore'
+gunzip -c /tmp/restore.sql.gz | docker compose -f ~/arda/docker-compose.prod.yml exec -T db psql -U postgres -d arda_restore
+```
+그 뒤 `alembic current` 로 리비전이 맞는지 보고, 맞으면 `.env` 의 DB 이름을 바꾸거나 `ALTER DATABASE ... RENAME` 으로 교체한다. **복원 리허설을 한 번은 해 봐야 백업이 진짜다** — W4 중간 점검 항목.
+
+**확인 습관**: 매주 한 번 서버에서 `~/status.sh` ([infra/server-status.sh](../../infra/server-status.sh)) — 디스크·컨테이너·마지막 배포·마지막 백업·헬스가 한 화면에 나온다. 백업 줄에 어제 날짜 `업로드 완료` 가 있으면 된다. 없으면 `~/backup.log`.
+
+```bash
+curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-status.sh -o ~/status.sh && chmod +x ~/status.sh   # 1회
+~/status.sh
+```
+
+**디스크가 차지 않게 하는 장치 (2026-09-07 정리)**: 배포 스크립트가 배포 끝마다 옛 이미지와 3GB 넘는 빌드 캐시를 지운다(`docker image prune` · `docker builder prune --keep-storage 3g`). 컨테이너 로그는 compose 에서 서비스당 20MB × 3 상한. 이 둘이 없던 09/07 이전엔 빌드 캐시 12GB 가 쌓여 있었다.
+
+## 모니터링·경보 — 사람이 안 봐도 되게 (2026-09-07 도입)
+
+**왜**: 앵커 cron 이 이틀 죽었는데 아무도 못 봤다(09/05~06). "주 1회 `~/status.sh`" 는 까먹는다. 넘으면 메일이 오게 한다.
+
+**구조**: 서버 cron 이 10분마다 [infra/push-metrics.sh](../../infra/push-metrics.sh) 로 숫자 3개를 CloudWatch 에 보낸다(네임스페이스 `Arda`, 차원 `Host=arda-api`). 알람 3개가 SNS 주제 `arda-alerts` 로 메일을 쏜다. 에이전트 없음 — 이미 있는 aws-cli 만 쓴다. **비용 0** — CloudWatch 상시 무료 구간(사용자 지정 지표 10개·알람 10개·API 100만 건/월) 안이고 SNS 메일도 월 1,000통까지 무료.
+
+| 지표 | 뜻 | 알람 조건 | 누락 데이터 |
+|---|---|---|---|
+| `DiskUsedPercent` | `/` 사용률 | **≥ 85** (1회) | 무시 |
+| `BackupAgeHours` | 마지막 백업 파일 나이(시간) | **≥ 30** (1회) — 하루 1회인데 빠졌다 | 무시 |
+| `ApiHealthy` | `localhost:8000/health` 가 ok 면 1 | **< 1** (2회 연속 = 20분) | **경보로 취급** — 인스턴스가 통째로 죽어 숫자가 안 와도 울린다 |
+
+**설정 (1회, suvisdev 콘솔)**:
+1. IAM → 사용자 `arda-server` → 인라인 정책 `arda-metrics-write`: `cloudwatch:PutMetricData` 허용 (Resource `*` — 이 API 는 리소스 단위 제한이 없다. `cloudwatch:namespace` 조건으로 `Arda` 만 허용)
+2. SNS → 주제 생성(표준) `arda-alerts` → 구독 생성(이메일, 수택 주소) → **받은 확인 메일의 링크 클릭** (안 누르면 알람이 울려도 메일이 안 온다)
+3. 알람 3개는 **[infra/cloudwatch-alarms.yml](../../infra/cloudwatch-alarms.yml) 을 CloudFormation 에 올린다** (클릭 30번 대신 파일 1개): CloudFormation → 스택 생성 → 템플릿 파일 업로드 → 스택 이름 `arda-alarms` → 파라미터 `AlertTopicArn` 에 SNS 주제 ARN. 지우려면 스택 삭제. 손으로 만들 거면: 지표 `Arda` › `Host`, 기간 10분, 통계 최댓값(`ApiHealthy` 는 최솟값), `ApiHealthy` 만 "누락 데이터 처리: 잘못됨(breaching)"
+4. 서버: 스크립트 받고 cron 등록 — [push-metrics.sh](../../infra/push-metrics.sh) 머리 주석 두 줄
+
+**확인**: 등록 10~15분 뒤 CloudWatch → 지표 → `Arda` 에 3개가 보이면 된다. `~/metrics.log` 에 `disk=..% backup_age=..h api=1` 이 10분마다 찍힌다. **알람 테스트**: `sudo systemctl stop arda-deploy.timer` 가 아니라 `docker compose -f ~/arda/docker-compose.prod.yml stop api` 로 20분 뒤 메일이 오는지 한 번 본 뒤 `start api`. 시연 직전엔 하지 말 것.
+
+**밖에서 찌르는 확인은 아직 없다**: 위 셋은 서버 안에서 잰다. DNS·TLS·Caddy 가 죽어 밖에서만 안 되는 경우는 못 잡는다. 필요해지면 GitHub Actions cron 이 15분마다 `https://api.seuk.suvisdev.cloud/health` 를 부르는 워크플로(앵커 실패 알림 #25 와 같은 패턴)를 추가한다.
 
 ## 1회성 DB 이행
 

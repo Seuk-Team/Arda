@@ -13,6 +13,12 @@
 ///
 /// **웹에는 둘 다 없다** — `Postings.tsx` 의 `[+]` 는 핸들러가 없고, 수정 화면도
 /// 없다. 공고를 만들고 고칠 수 있는 곳은 지금 앱뿐이다(2026-09-03).
+///
+/// **삭제도 여기에 있다 (2026-09-03).** `DELETE /postings/{id}` 는 배포돼 있는데
+/// 웹에도 앱에도 부르는 곳이 없어, 잘못 만든 공고를 지울 방법이 아무 데도 없었다.
+/// 고칠 대상이 이미 떠 있는 이 화면이 그 자리다 — 맨 아래, 저장과 떨어뜨려 둔다.
+/// **지원서가 딸린 공고는 서버가 409 로 막으므로** 여기서 지울 수 있는 것은
+/// 사실상 아무도 지원하지 않은 공고뿐이다([PostingRepository.delete]).
 library;
 
 import 'package:flutter/material.dart';
@@ -26,6 +32,15 @@ import '../models/job_posting.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
 import '../widgets/app_top_bar.dart';
+
+/// 삭제하고 나갈 때 돌려주는 것. 저장은 [JobPosting] 을 돌려주므로 둘이 섞이지
+/// 않는다 — 부른 쪽(지원자 화면)은 이게 오면 **자기도 닫는다**: 없어진 공고의
+/// 지원자 목록이 남아 있을 이유가 없다.
+class PostingDeleted {
+  const PostingDeleted(this.id);
+
+  final int id;
+}
 
 class PostingFormScreen extends StatefulWidget {
   const PostingFormScreen({super.key, this.posting, this.repository});
@@ -50,6 +65,10 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
 
   /// 보내는 중 — 버튼을 잠근다. 두 번 누르면 공고가 두 개 생긴다
   bool _sending = false;
+
+  /// 지우는 중 — 저장 버튼까지 함께 잠근다. 지우는 도중에 저장이 나가면
+  /// 이미 없는 공고를 고치려는 요청이 된다
+  bool _deleting = false;
 
   /// 비워 두면 상시 채용이다 — ERD `job_postings.deadline` 이 NULL 가능
   DateTime? _deadline;
@@ -84,7 +103,8 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
     super.dispose();
   }
 
-  bool get _canSubmit => _title.text.trim().isNotEmpty && !_sending;
+  bool get _canSubmit =>
+      _title.text.trim().isNotEmpty && !_sending && !_deleting;
 
   Future<void> _pickDeadline() async {
     final now = DateTime.now();
@@ -149,6 +169,46 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
       if (!mounted) return;
       // 화면을 닫지 않는다. 닫으면 적어 둔 것이 다 사라진다
       setState(() => _sending = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  /// 삭제 — 확인 시트를 거쳐야 한다.
+  ///
+  /// **[보내기] 한 번으로는 안 지운다.** 메일과 같은 부류(되돌릴 수 없다)라
+  /// 같은 방식으로 막는다. 시트는 한 번이다: 서버가 지원자 있는 공고를 이미
+  /// 막고 있어 여기서 지워지는 것은 아무도 지원하지 않은 공고뿐이고, 그 이상
+  /// 되묻는 것은 취소를 유도할 뿐 사고를 더 막지 못한다.
+  Future<void> _delete() async {
+    final posting = widget.posting;
+    if (posting == null) return;
+
+    final confirmed = await showPostingDeleteSheet(
+      context,
+      title: posting.title,
+    );
+    if (confirmed != true || !mounted) return;
+
+    // 화면이 닫힌 뒤에도 토스트는 띄워야 한다 — 닫히기 전에 잡아 둔다
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    setState(() => _deleting = true);
+
+    try {
+      await _repo.delete(posting.id);
+      if (!mounted) return;
+
+      // 저장과 달리 공고를 돌려줄 수 없다 — 없어졌다는 것만 알린다
+      navigator.pop(PostingDeleted(posting.id));
+      messenger.showSnackBar(
+        SnackBar(content: Text('${posting.title} — 공고를 삭제했습니다')),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      // 지원서가 딸린 공고면 여기로 온다(409). 몇 건이 걸렸는지와 "먼저
+      // 마감하세요" 까지 서버 문구에 들어 있어 그대로 띄우는 것이 가장 정확하다
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
@@ -219,6 +279,13 @@ class _PostingFormScreenState extends State<PostingFormScreen> {
                     ],
                   ),
                 ),
+
+                // 등록 화면에는 지울 것이 없다
+                if (_editing)
+                  _DeleteBlock(
+                    busy: _deleting,
+                    onDelete: _sending ? null : _delete,
+                  ),
               ],
             ),
           ),
@@ -493,4 +560,154 @@ class _SubmitBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 삭제 — 폼 **맨 아래**, 저장 바 바깥.
+///
+/// 저장 바에 나란히 두지 않는다: 같은 줄에 있으면 손가락이 스쳐 눌린다.
+/// 스크롤을 끝까지 내려야 나오는 자리가 "여기서 끝" 이라는 뜻도 된다.
+///
+/// 05-design §1 — 적갈은 판단에만. 되돌릴 수 없다는 것이 그 판단이라 글자·테두리에
+/// 쓰되 **채우지는 않는다**: 채운 적갈은 시트의 마지막 버튼 몫이다.
+class _DeleteBlock extends StatelessWidget {
+  const _DeleteBlock({required this.busy, required this.onDelete});
+
+  final bool busy;
+
+  /// null 이면 잠긴다 — 저장이 나가는 중
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpace.s3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Divider(color: AppColors.borderSoft, height: AppSpace.s6),
+          SizedBox(
+            height: AppLayout.minTouchTarget,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                side: const BorderSide(
+                  color: AppColors.danger,
+                  width: AppShape.borderW,
+                ),
+              ),
+              onPressed: busy ? null : onDelete,
+              child: busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.danger,
+                      ),
+                    )
+                  : const Text('공고 삭제'),
+            ),
+          ),
+          const SizedBox(height: AppSpace.s2),
+          const Text(
+            // 눌러 보고 409 를 받기 전에 알려 준다. 세는 것은 서버지만,
+            // 규칙 자체는 미리 적어 둘 수 있다
+            '지원자가 있는 공고는 지울 수 없다. 그때는 상태를 마감으로 바꾼다.',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              height: 1.5,
+              color: AppColors.textSub,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 삭제 확인 — 메일 발송 시트와 같은 부류의 마지막 문이다.
+///
+/// 무엇이 지워지는지 **공고명을 적는다**: 목록에서 잘못 눌러 들어왔을 때
+/// 이름이 화면에 없으면 걸러지지 않는다(메일 시트에 받는 사람 이름을 적은 것과
+/// 같은 이유). 지원자 수는 적지 않는다 — 이 화면이 들고 있지 않은 값이고,
+/// 지어내 적으면 틀린 숫자로 사람을 안심시킨다.
+Future<bool?> showPostingDeleteSheet(
+  BuildContext context, {
+  required String title,
+}) {
+  return showModalBottomSheet<bool>(
+    context: context,
+    backgroundColor: AppColors.bgElev,
+    showDragHandle: true,
+    // 단계 변경·메일 시트와 같은 모양 — 위 모서리만 둥글다
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: AppShape.rCard),
+    ),
+    builder: (sheetContext) => SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpace.s5,
+          0,
+          AppSpace.s5,
+          AppSpace.s5,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$title 삭제',
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.h2,
+                fontWeight: FontWeight.w700,
+                color: AppColors.text,
+                shadows: AppTextShadow.heading,
+              ),
+            ),
+            const SizedBox(height: AppSpace.s1),
+            const Text(
+              '이 공고를 지웁니다. 되돌릴 수 없습니다.',
+              style: TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.sm,
+                height: 1.5,
+                color: AppColors.danger,
+              ),
+            ),
+            const SizedBox(height: AppSpace.s4),
+
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: AppLayout.minTouchTarget,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      child: const Text('취소'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.s3),
+                Expanded(
+                  child: SizedBox(
+                    height: AppLayout.minTouchTarget,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                      ),
+                      onPressed: () => Navigator.pop(sheetContext, true),
+                      child: const Text('삭제'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

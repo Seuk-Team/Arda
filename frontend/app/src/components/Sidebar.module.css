@@ -1,35 +1,60 @@
 ﻿/* mockup.html 사이드바 규격을 그대로 옮긴다 (§12-1 시안 복제) */
 .sidebar {
+  position: relative;
+  /* 손잡이가 경계 밖으로 절반 삐져나오는데, 사이드바가 backdrop-filter 로
+     쌓임 맥락을 만들면서 z-index 가 없어 제목 띠(--z-sticky)가 그 절반을
+     덮었다 — 손잡이가 반쪽만 보였다 (2026-09-07). 셸 크롬이 본문 띠보다
+     위에 있어야 한다. */
+  z-index: var(--z-dropdown);
   width: var(--sidebar-w);
   flex: none;
+  /* 접었다 펴는 동안 본문이 같이 움직인다 — 폭만 흐르게 하고 안쪽은 즉시 바뀐다 */
+  transition: width var(--dur-base) var(--ease);
+  /* 유리. 셸 크롬이라 본문 카드보다 한 겹 더 가라앉는다 (--bg-chrome) */
   background: var(--sidebar-bg);
+  backdrop-filter: var(--glass);
   border-right: var(--border-w) solid var(--sidebar-line);
   display: flex;
   flex-direction: column;
-  padding: var(--sp-4) var(--sp-2) 0;
+  /* 위 여백은 로고 띠가 대신 잡는다 — 로고를 제목 띠와 같은 높이에 세우려면
+     여기서 밀어 두면 안 된다 */
+  padding: 0 var(--sp-2);
 }
 
+/* 제목 띠(PageHead)와 같은 96px 칸 안에서 세로 가운데 — 로고와 화면 제목의
+   눈높이가 맞는다. 전에는 위 여백 16px + 글자 높이라 15px 높이 떠 있었다 */
 .logo {
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   align-self: flex-start;
+  height: 96px;
+  flex: none;
   font-size: var(--font-h1);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text);
+  letter-spacing: -0.02em;
+  color: #fff;
   text-shadow: var(--ts-heading);
   white-space: nowrap;
   padding: 0 var(--sp-3);
   border-radius: var(--r-ctl);
 }
 
+/* 마크는 빛이라 발광까지가 그림이다 — 평평하게 두면 유리 위에 스티커로 앉는다 */
+.logoMark {
+  flex: none;
+  display: block;
+  filter: drop-shadow(0 0 9px rgba(96, 165, 250, .55));
+}
+
 .logo:focus-visible {
-  outline: 2px solid var(--leaf);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
 }
 
 .nav {
   position: relative;
-  margin-top: var(--sp-6);
+  margin-top: var(--sp-2);
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
@@ -37,29 +62,18 @@
 
 /* 활성 표시 판. 항목 배경이 아니라 이 한 장이 옮겨 다닌다 — 화면 전환 때
    메뉴가 "이동"해야 하기 때문(팀장 지시). 평소엔 transition 이 없어 즉시 붙는다. */
+/* 라이트에선 흰 판이었다. 다크에서 흰 판은 너무 세서 메뉴가 아니라 버튼으로
+   읽히므로, 시안 워시 + 왼쪽 심지 + 발광으로 바꿨다 (시안의 활성 항목). */
 .navPill {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
   border-radius: var(--r-ctl);
-  background: var(--bg-elev);
+  background: var(--accent-soft);
+  border: var(--border-w) solid rgba(34, 211, 238, .30);
+  box-shadow: inset 2px 0 0 var(--accent), var(--sh-glow);
   pointer-events: none;
-}
-
-:global(body[data-morph]) .navPill {
-  transition: transform var(--dur-base) var(--ease);
-}
-
-:global(body[data-morph]) .link {
-  transition: color var(--dur-base) var(--ease);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :global(body[data-morph]) .navPill,
-  :global(body[data-morph]) .link {
-    transition: none;
-  }
 }
 
 /* 메뉴 항목 높이 48px — §2 가 내비 항목 높이로 못박은 값 */
@@ -73,7 +87,8 @@
   border-radius: var(--r-ctl);
   font-size: var(--font-body);
   font-weight: 500;
-  color: var(--text);
+  /* 비활성은 한 단계 내린다 — 다크에서 전부 흰 글씨면 활성이 안 도드라진다 */
+  color: var(--text-sub);
   white-space: nowrap;
   transition: background var(--dur-fast) var(--ease);
 }
@@ -90,121 +105,131 @@
 }
 
 .link:hover {
-  background: rgba(58, 107, 33, 0.1);
+  background: var(--bg-sunken);
 }
 
+/* 눌린 상태는 hover 보다 한 톤 더 올라온다. 다크에서는 --bg-elev(유리)로는
+   눌린 것이 안 보인다 — 어두운 바탕 위에 어두운 유리라 차이가 없다 */
 .link:active {
-  background: var(--bg-elev);
-  color: var(--leaf);
+  background: var(--sunken-hover);
+  color: var(--accent-text);
 }
 
 /* 굵은 글씨·글자 그림자 없음 — 강조는 배경과 색으로만 한다.
    .link 가 이미 font-weight 500 이라 :active 에서도 굵어지지 않는다.
    배경(흰 판)은 .navPill 이 대신 그린다 — 전환 때 미끄러져 이동해야 해서. */
+/* 활성은 흰 글씨. 굵기는 건드리지 않는다 — 글자 폭이 바뀌면 화면 전환 중
+   .navPill 이 미끄러지는 동안 항목이 같이 흔들린다 (위 morph 주석과 같은 이유) */
 .active {
-  color: var(--leaf);
+  color: #fff;
 }
 
-/* ── 아르 상주 슬롯 ─────────────────────────────
-   바닥으로 미는 역할을 .me 가 아니라 이쪽이 맡는다 (목업과 동일).
-   사이드바 폭(216) 안쪽 좌우 패딩(--sp-2 ×2)을 뺀 정사각형이 통째로 버튼이다. */
-.arSlot {
-  margin: auto 0 var(--sp-2);
-  width: 100%;
-  aspect-ratio: 1;
+.active svg {
+  stroke: var(--accent);
+}
+
+/* 아르는 화면 우하단 도크로 갔다 (2026-09-07, Layout.module.css).
+   내비가 바닥까지 늘어지지 않게 남은 자리는 이 빈 칸이 먹는다. */
+.grow {
+  flex: 1;
+}
+
+/* 프로필은 우측 상단 계정 메뉴(AccountMenu)로 옮겼다 (2026-09-05) */
+
+/* ── 접힌 폭 ──────────────────────────────────────
+   글자만 감추고 항목 높이(48px)와 아이콘 크기는 그대로 둔다 —
+   접었을 때 다른 화면처럼 보이면 같은 메뉴로 안 읽힌다 (05-design §2). */
+.rail {
+  width: var(--rail-w);
+  padding-left: var(--sp-1);
+  padding-right: var(--sp-1);
+}
+
+/* 글자는 자리를 통째로 비운다. visibility 로 숨기면 폭이 남아 아이콘이 밀린다 */
+.rail .logoText,
+.rail .linkText {
+  display: none;
+}
+
+.rail .logo {
+  align-self: center;
   padding: 0;
-  overflow: hidden;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--sidebar-line);
-  border-radius: var(--r-card);
-  cursor: pointer;
-  transition:
-    border-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
 }
 
-.arSlot:hover {
-  box-shadow: var(--sh-card);
+.rail .link {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
 }
 
-.arSlot:focus-visible {
-  outline: 2px solid var(--leaf);
-  outline-offset: 2px;
-}
-
-/* 패널이 열려 있는 동안 눌린 상태.
-   2026-09-01 — --leaf 는 연두 사이드바 위에서 1px 짙은 잎초록이라 검은 선으로 읽혔고,
-   그렇다고 바탕을 --sprout-soft 로 깔면 3D 캔버스가 투명이라 아르가 뜬 것처럼 흐려진다.
-   바탕은 흰색 그대로 두고 테두리만 한 단계 밝은 --sprout 으로 굵힌다. */
-.arSlot[aria-expanded='true'] {
-  border-color: var(--sprout);
-  box-shadow: var(--sh-card);
-}
-
-.arView {
-  width: 100%;
-  height: 100%;
-}
-
-/* ── 프로필 ──────────────────────────────────────── */
-.me {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border-top: var(--border-w) solid var(--sidebar-line);
-  white-space: nowrap;
-}
-
-.meText {
-  min-width: 0;
-}
-
-.meName {
-  font-size: var(--font-body);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.meRole {
-  font-size: var(--font-sm);
-  color: var(--leaf);
-  margin-top: var(--sp-1);
-}
-
-.avatar {
-  width: 44px;
+/* ── 접기 손잡이 ──────────────────────────────────
+   내비 목록 안이 아니라 사이드바 오른쪽 경계에 붙는다. 목록 안에 두면
+   목적지가 아닌 것이 목적지처럼 서서 메뉴가 지저분해진다.
+   평소엔 안 보이고 사이드바에 커서를 올리면 뜬다 — 늘 떠 있으면 결국
+   같은 소음이다.
+   세로 위치는 제목 띠(PageHead 96px)의 한가운데에 맞춘다 — 로고·화면 제목·
+   손잡이가 한 줄에 서서 위쪽이 정리된다. 28 = 48(띠 중앙) - 20(손잡이 반). */
+.handle {
+  position: absolute;
+  top: 28px;
+  right: calc(var(--border-w) * -1);
+  transform: translateX(50%);
+  width: 24px;
   height: 44px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--sidebar-line);
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-h2);
-  font-weight: 700;
-  color: var(--leaf);
-}
-
-/* 로딩·비로그인 자리 표시. 목업 문자열 대신 빈 블록을 둔다 (§6) */
-.skel {
-  width: 88px;
-  height: 1em;
   border-radius: var(--r-ctl);
-  background: var(--bg-elev);
-  opacity: 0.55;
+  /* 어두운 셸 위에 어두운 알약이라, 나타나도 안 보였다 (2026-09-07).
+     테두리와 그림자가 경계를 만들고 갈매기는 본문 밝기로 올린다 —
+     --sidebar-line(.09) · --text-sub 로는 떠 있어도 안 읽힌다. */
+  border: var(--border-w) solid rgba(255, 255, 255, .24);
+  background: linear-gradient(var(--bg-elev), var(--bg-elev)), var(--bg);
+  box-shadow: 0 2px 10px rgba(2, 4, 10, .55);
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  z-index: var(--z-sticky);
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 
-.skelShort {
-  width: 56px;
+.handle svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.avatar.skel {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+/* 사이드바 어디든 커서가 올라오면 손잡이가 뜬다 — 22px 짜리 띠를 정확히
+   겨냥해야만 보이면 없는 것과 같다 */
+.sidebar:hover .handle,
+.handle:focus-visible {
+  opacity: 1;
+}
+
+.handle:hover {
+  color: var(--on-accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+}
+
+.handle:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* 손가락으로는 hover 가 없다. 좁은 화면에서는 사이드바 자체가 숨으므로
+   손잡이도 같이 사라진다 (아래 미디어 쿼리) */
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
 }
 
 @media (max-width: 768px) {

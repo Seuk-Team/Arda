@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -329,6 +330,51 @@ class TestAnswer:
         assert res.json()["question_seq"] == 2
         assert res.json()["current_question"] == "질문2"
 
+    def test_텍스트와_음성을_같이_보내면_422(self, public, running):
+        """어느 쪽이 진짜 답인지 서버가 고르게 두지 않는다."""
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer",
+            json={"transcript": "네", "audio_s3_key": _AUDIO_KEY},
+        )
+        assert res.status_code == 422
+
+    def test_둘_다_안_보내면_422(self, public, running):
+        res = public.post("/api/v1/public/interview/tok-test/answer", json={})
+        assert res.status_code == 422
+
+    def test_짧게_답하면_진행_보조가_같이_온다(self, public, db: Session, running):
+        """ADR-0026 결정 4 — 판정이 아니라 다음에 할 행동 한 문장."""
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "네"}
+        )
+        assert res.status_code == 200
+        pacing = res.json()["pacing"]
+        assert pacing["action"] == "follow_up"
+        assert pacing["message"]
+
+    def test_충분히_답하면_진행_보조가_없다(self, public, db: Session, running):
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer",
+            json={"transcript": "결제 정산 API 를 맡아 응답 시간을 절반으로 줄였습니다"},
+        )
+        assert res.json()["pacing"] is None
+
+    def test_진행_보조는_저장되지_않는다(self, public, db: Session, running):
+        """평가로 새는 길을 아예 안 만든다 — 답변 응답에만 실리고 끝이다."""
+        public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "네"}
+        )
+        # 다시 조회하면 없다. 새로고침할 때마다 같은 말을 반복하지 않는다.
+        assert public.get("/api/v1/public/interview/tok-test").json()["pacing"] is None
+
+        turn = db.scalars(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == running.id)
+            .order_by(InterviewTurn.seq)
+        ).first()
+        # 저장된 것은 전사뿐 — 신호를 적어 두는 칸이 없다
+        assert turn.transcript == "네"
+
     def test_답_안_한_가장_앞_질문에_붙는다(self, public, db: Session, running):
         """마지막 질문을 보면 안 된다 — 3개 중 1번만 답했을 때 3번을 내주게 된다."""
         public.post(
@@ -406,3 +452,214 @@ class TestFinish:
 
         assert public.post("/api/v1/public/interview/tok-test/finish").status_code == 200
         assert public.post("/api/v1/public/interview/tok-test/finish").status_code == 200
+
+
+# 발급 경로가 만드는 모양. 테스트에서 손으로 적을 일이 많아 상수로 둔다.
+_AUDIO_KEY = "interviews/11111111-2222-3333-4444-555555555555/answer.webm"
+
+
+def _stt_result(text: str = "결제 정산 API 를 맡아 응답 시간을 절반으로 줄였습니다"):
+    """`app.agent.stt.transcribe` 의 반환 계약 그대로."""
+    return {
+        "raw": text,
+        "resolved": text + " (해석됨)",
+        "duration_ms": 900,
+        "audio_duration_sec": 12.5,
+        "cost_usd": 0.00125,
+    }
+
+
+class TestAnswerAudio:
+    """음성 답변 → 전사 (설계 §5-4).
+
+    **오디오를 실제로 전사하지 않는다.** `stt.transcribe` 를 mock 한다 — 테스트가
+    외부 API 를 부르면 CI 에서 돈이 나가고 키가 없으면 무작위로 깨진다.
+    """
+
+    @pytest.fixture()
+    def running(self, db: Session, application: Application, admin_user: User):
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        db.add(InterviewTurn(session_id=s.id, seq=1, question="질문1"))
+        db.commit()
+        return s
+
+    def test_음성을_주면_전사해서_길이와_비용까지_적는다(
+        self, public, db: Session, running
+    ):
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=_stt_result()) as mock_stt,
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+
+        assert res.status_code == 200
+        mock_stt.assert_called_once()
+
+        turn = db.scalars(
+            select(InterviewTurn).where(InterviewTurn.session_id == running.id)
+        ).first()
+        db.refresh(turn)
+        assert turn.transcript.startswith("결제 정산 API")
+        assert float(turn.audio_duration_sec) == 12.5
+        assert float(turn.stt_cost_usd) == 0.00125
+        assert turn.audio_s3_key == _AUDIO_KEY
+
+    def test_다듬은_문장이_아니라_원문을_저장한다(self, public, db: Session, running):
+        """대조에서 **원문으로 인용**되는 자리다 (ADR-0026 결정 3)."""
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=_stt_result()),
+        ):
+            public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+
+        turn = db.scalars(
+            select(InterviewTurn).where(InterviewTurn.session_id == running.id)
+        ).first()
+        db.refresh(turn)
+        assert "(해석됨)" not in turn.transcript
+
+    def test_말이_느리면_진행_보조가_질문을_바꾸자고_한다(self, public, running):
+        """`audio_duration_sec` 이 진행 보조까지 실제로 전달되는지 (배선 확인)."""
+        slow = _stt_result()
+        slow["audio_duration_sec"] = 40.0  # 같은 문장을 40초에 = 아주 느리다
+
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=slow),
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+
+        assert res.json()["pacing"]["action"] == "rephrase"
+
+    def test_보통_속도면_진행_보조가_없다(self, public, running):
+        """24자를 12.5초 = 1.9자/초. 중간에 한두 번 생각하며 말한 평범한 답변이다."""
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=_stt_result()),
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+        assert res.json()["pacing"] is None
+
+    def test_남의_이력서_키는_거절한다(self, public, db: Session, running):
+        """서버가 S3 를 대신 읽어 주는 경로다 — 키를 믿으면 그대로 유출이다."""
+        with patch("app.s3.read_object") as mock_read:
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={
+                    "audio_s3_key": "applications/"
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/resume.pdf"
+                },
+            )
+        assert res.status_code == 422
+        mock_read.assert_not_called()  # 읽어 보지도 않는다
+
+    def test_전사에_실패하면_아무것도_저장하지_않는다(
+        self, public, db: Session, running
+    ):
+        """반쯤 저장하면 답을 못 한 채로 다음 질문으로 넘어간다."""
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", side_effect=RuntimeError("STT 죽음")),
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+
+        assert res.status_code == 502
+        turn = db.scalars(
+            select(InterviewTurn).where(InterviewTurn.session_id == running.id)
+        ).first()
+        db.refresh(turn)
+        assert turn.transcript is None
+        assert turn.audio_duration_sec is None
+        # 같은 질문이 그대로 보여야 다시 답할 수 있다
+        assert public.get("/api/v1/public/interview/tok-test").json()["question_seq"] == 1
+
+    def test_말이_안_담긴_녹음은_422(self, public, db: Session, running):
+        """빈 문자열을 넣으면 '답한 질문'이 되어 다음으로 넘어간다."""
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=_stt_result("   ")),
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+        assert res.status_code == 422
+
+
+class TestAudioUploadUrl:
+    """답변 음성 업로드 URL — 이력서 경로와 나눠 뒀다."""
+
+    @pytest.fixture()
+    def running(self, db: Session, application: Application, admin_user: User):
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        db.commit()
+        return s
+
+    def test_음성_형식이면_발급된다(self, public, running):
+        with patch("app.s3.presign_put", return_value="https://s3.example/put"):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/audio-upload-url",
+                json={
+                    "filename": "answer.webm",
+                    "content_type": "audio/webm;codecs=opus",
+                    "size_bytes": 500_000,
+                },
+            )
+        assert res.status_code == 200
+        # 키는 서버가 만든다 — 클라이언트가 경로를 고르면 임의 위치 쓰기가 된다
+        assert res.json()["s3_key"].startswith("interviews/")
+        assert res.json()["s3_key"].endswith("/answer.webm")
+
+    def test_이력서_형식은_거절한다(self, public, running):
+        """음성 목록에 pdf 를 얹지 않았다 — 쓰이는 곳이 다르면 목록도 따로다."""
+        res = public.post(
+            "/api/v1/public/interview/tok-test/audio-upload-url",
+            json={
+                "filename": "resume.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": 500_000,
+            },
+        )
+        assert res.status_code == 422
+
+    def test_시작_전에는_발급하지_않는다(
+        self, public, db: Session, application: Application, admin_user: User
+    ):
+        _session(db, application, admin_user, status="pending")
+        db.commit()
+        res = public.post(
+            "/api/v1/public/interview/tok-test/audio-upload-url",
+            json={
+                "filename": "answer.webm",
+                "content_type": "audio/webm",
+                "size_bytes": 100,
+            },
+        )
+        assert res.status_code == 409
