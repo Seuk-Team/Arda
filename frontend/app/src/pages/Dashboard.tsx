@@ -226,7 +226,7 @@ export default function Dashboard() {
         }
       />
 
-      <main className="page-content">
+      <main className={`page-content ${styles.page}`}>
         {error !== null && <p className={styles.state} role="alert">{error}</p>}
 
         {/* 좁은 화면 전용 — 제목 띠의 요약 숫자가 폰 폭에 안 들어가 감춰진다.
@@ -241,10 +241,6 @@ export default function Dashboard() {
         <section className={styles.card} aria-labelledby="dash-total">
           <div className={styles.cardHead}>
             <h2 id="dash-total" className={styles.cap}>전체 현황</h2>
-            <p className={styles.note}>
-              진행 중 공고 {data?.open.length ?? 0}개 합계 — 지금 각 단계에 서 있는 사람 수입니다,
-              통과율이 아닙니다
-            </p>
           </div>
 
           <div className={styles.totals}>
@@ -286,10 +282,6 @@ export default function Dashboard() {
         <section className={styles.card} aria-labelledby="dash-postings">
           <div className={styles.cardHead}>
             <h2 id="dash-postings" className={styles.cap}>공고별 현황</h2>
-            <p className={styles.note}>
-              막대는 심사 중인 사람이 어느 단계에 쌓였는지입니다
-              {hidden > 0 && ` · 진행 중 ${rows.length}개 중 ${shown.length}개`}
-            </p>
             <Link to="/postings" className={styles.go}>공고 전체 →</Link>
           </div>
 
