@@ -183,7 +183,7 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 **설정 (1회, suvisdev 콘솔)**:
 1. IAM → 사용자 `arda-server` → 인라인 정책 `arda-metrics-write`: `cloudwatch:PutMetricData` 허용 (Resource `*` — 이 API 는 리소스 단위 제한이 없다. `cloudwatch:namespace` 조건으로 `Arda` 만 허용)
 2. SNS → 주제 생성(표준) `arda-alerts` → 구독 생성(이메일, 수택 주소) → **받은 확인 메일의 링크 클릭** (안 누르면 알람이 울려도 메일이 안 온다)
-3. CloudWatch → 경보 → 경보 생성 → 지표 선택 `Arda` › `Host` › 위 표대로 3개. 기간 10분, 통계 최댓값(`ApiHealthy` 는 최솟값). 작업: 경보 상태일 때 `arda-alerts`. `ApiHealthy` 만 "누락 데이터 처리: 잘못됨(breaching)"
+3. 알람 3개는 **[infra/cloudwatch-alarms.yml](../../infra/cloudwatch-alarms.yml) 을 CloudFormation 에 올린다** (클릭 30번 대신 파일 1개): CloudFormation → 스택 생성 → 템플릿 파일 업로드 → 스택 이름 `arda-alarms` → 파라미터 `AlertTopicArn` 에 SNS 주제 ARN. 지우려면 스택 삭제. 손으로 만들 거면: 지표 `Arda` › `Host`, 기간 10분, 통계 최댓값(`ApiHealthy` 는 최솟값), `ApiHealthy` 만 "누락 데이터 처리: 잘못됨(breaching)"
 4. 서버: 스크립트 받고 cron 등록 — [push-metrics.sh](../../infra/push-metrics.sh) 머리 주석 두 줄
 
 **확인**: 등록 10~15분 뒤 CloudWatch → 지표 → `Arda` 에 3개가 보이면 된다. `~/metrics.log` 에 `disk=..% backup_age=..h api=1` 이 10분마다 찍힌다. **알람 테스트**: `sudo systemctl stop arda-deploy.timer` 가 아니라 `docker compose -f ~/arda/docker-compose.prod.yml stop api` 로 20분 뒤 메일이 오는지 한 번 본 뒤 `start api`. 시연 직전엔 하지 말 것.

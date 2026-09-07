@@ -1,0 +1,81 @@
+# CloudWatch 알람 3개 — 콘솔에서 30번 클릭하는 대신 이 파일 하나를 올린다 (2026-09-07, 인프라 오너).
+#
+# 짝: infra/push-metrics.sh 가 10분마다 보내는 지표(네임스페이스 Arda, Host=arda-api).
+# 설명·조건 근거는 docs/00_overview/07-deploy.md "모니터링·경보" 절.
+#
+# 올리는 법 (콘솔): CloudFormation → 스택 생성 → "새 리소스 사용(표준)" → 템플릿 파일 업로드
+#   → 이 파일 → 스택 이름 arda-alarms → 파라미터 AlertTopicArn 에 SNS 주제 ARN
+#   (arn:aws:sns:ap-northeast-2:<계정>:arda-alerts) → 다음 → 다음 → 스택 생성.
+# 비용 0 — 알람 10개까지 상시 무료. 지우고 싶으면 스택 삭제 한 번.
+#
+# 주의: 서버 cron 이 돌기 전에 올리면 ApiHealthy 알람은 "데이터 없음 = 경보" 설정 때문에
+# 첫 20분 안에 메일 한 통이 온다. 서버 cron 을 먼저 걸고 10분 뒤 올리면 안 온다.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Arda 운영 서버 경보 — 디스크·백업 나이·API 헬스 (push-metrics.sh 짝)
+
+Parameters:
+  AlertTopicArn:
+    Type: String
+    Description: 메일을 받을 SNS 주제 ARN (arda-alerts)
+  HostName:
+    Type: String
+    Default: arda-api
+    Description: push-metrics.sh 의 Host 차원 값
+
+Resources:
+  DiskHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: arda-disk-high
+      AlarmDescription: "/ 사용률 85% 이상. status.sh 로 확인 — 배포 스크립트의 prune 이 안 돌았거나 로그·백업이 쌓였다"
+      Namespace: Arda
+      MetricName: DiskUsedPercent
+      Dimensions: [{ Name: Host, Value: !Ref HostName }]
+      Statistic: Maximum
+      Period: 600
+      EvaluationPeriods: 1
+      Threshold: 85
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: ignore
+      AlarmActions: [!Ref AlertTopicArn]
+      OKActions: [!Ref AlertTopicArn]
+
+  BackupStale:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: arda-backup-stale
+      AlarmDescription: "마지막 DB 백업이 30시간 넘음 — 매일 04:00 cron 이 빠졌다. ~/backup.log 확인"
+      Namespace: Arda
+      MetricName: BackupAgeHours
+      Dimensions: [{ Name: Host, Value: !Ref HostName }]
+      Statistic: Maximum
+      Period: 600
+      EvaluationPeriods: 1
+      Threshold: 30
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: ignore
+      AlarmActions: [!Ref AlertTopicArn]
+      OKActions: [!Ref AlertTopicArn]
+
+  ApiDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: arda-api-down
+      AlarmDescription: "API /health 가 20분 연속 실패 — 또는 인스턴스가 통째로 죽어 지표가 안 온다. docker compose logs api"
+      Namespace: Arda
+      MetricName: ApiHealthy
+      Dimensions: [{ Name: Host, Value: !Ref HostName }]
+      Statistic: Minimum
+      Period: 600
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      # 숫자가 안 오는 것 = 서버가 죽은 것. 무시하면 가장 큰 장애를 놓친다.
+      TreatMissingData: breaching
+      AlarmActions: [!Ref AlertTopicArn]
+      OKActions: [!Ref AlertTopicArn]
+
+Outputs:
+  Alarms:
+    Value: !Join [", ", [!Ref DiskHigh, !Ref BackupStale, !Ref ApiDown]]
