@@ -10,8 +10,13 @@
 # OTS(비트코인)는 개인키가 없어서 **서버가 직접** 도장을 찍는다. 여기서는
 # API 를 한 번 부르기만 한다.
 #
-# 필요한 secret: ARDA_API_BASE · ARDA_API_TOKEN · CHAIN_RPC_URL ·
-#                CHAIN_PRIVATE_KEY · CHAIN_NETWORK(선택)
+# 토큰은 secret 에 두지 않는다. JWT 만료가 12시간(`app/security.py` 의
+# JWT_EXPIRES_MINUTES)인데 이 잡은 하루 한 번 돈다 — 토큰을 박아 두면 첫날만
+# 성공하고 다음 날부터 매일 401 이다. 대신 봇 전용 admin 계정으로 **매번 로그인**
+# 해서 그날 토큰을 받는다 (2026-09-07 인프라 오너).
+#
+# 필요한 secret: ARDA_API_BASE · ARDA_ADMIN_EMAIL · ARDA_ADMIN_PASSWORD ·
+#                CHAIN_RPC_URL · CHAIN_PRIVATE_KEY · CHAIN_NETWORK(선택)
 
 name: 무결성 앵커 게시
 
@@ -36,6 +41,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 로그인 — 그날 쓸 토큰을 받는다
+        # 봇 계정은 admin 이어야 한다 — 아래 integrity 경로가 전부 admin 전용이다.
+        # 토큰은 add-mask 로 로그에서 가린 뒤 GITHUB_ENV 에 실어 다음 단계들이 쓴다.
+        # 응답 본문은 실패했을 때만 찍는다 — 성공 응답에는 토큰이 들어 있다.
+        env:
+          ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
+          ARDA_ADMIN_EMAIL: ${{ secrets.ARDA_ADMIN_EMAIL }}
+          ARDA_ADMIN_PASSWORD: ${{ secrets.ARDA_ADMIN_PASSWORD }}
+        run: |
+          body=$(jq -cn --arg e "$ARDA_ADMIN_EMAIL" --arg p "$ARDA_ADMIN_PASSWORD" \
+            '{email: $e, password: $p}')
+          code=$(curl -s -o /tmp/login.json -w "%{http_code}" \
+            -X POST "$ARDA_API_BASE/auth/login" \
+            -H "Content-Type: application/json" --data "$body")
+          if [ "$code" != "200" ]; then
+            echo "로그인 실패: HTTP $code"; cat /tmp/login.json; exit 1
+          fi
+          token=$(jq -r '.access_token // empty' /tmp/login.json)
+          rm -f /tmp/login.json
+          if [ -z "$token" ]; then echo "응답에 access_token 이 없다"; exit 1; fi
+          echo "::add-mask::$token"
+          echo "ARDA_API_TOKEN=$token" >> "$GITHUB_ENV"
+
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
@@ -52,7 +80,7 @@ jobs:
         working-directory: backend
         env:
           ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
-          ARDA_API_TOKEN: ${{ secrets.ARDA_API_TOKEN }}
+          ARDA_API_TOKEN: ${{ env.ARDA_API_TOKEN }}   # 로그인 단계가 넣어 준다
           CHAIN_RPC_URL: ${{ secrets.CHAIN_RPC_URL }}
           CHAIN_PRIVATE_KEY: ${{ secrets.CHAIN_PRIVATE_KEY }}
           CHAIN_NETWORK: ${{ secrets.CHAIN_NETWORK || 'polygon-amoy' }}
@@ -61,10 +89,10 @@ jobs:
       - name: OpenTimestamps 에 도장 (서버가 찍는다 — 키 불필요)
         # 폴리곤이 실패해도 이쪽은 돌린다. 둘은 독립이고, 한쪽이 죽었다고
         # 다른 쪽 증명까지 포기할 이유가 없다.
-        if: always()
+        if: always() && env.ARDA_API_TOKEN != ''
         env:
           ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
-          ARDA_API_TOKEN: ${{ secrets.ARDA_API_TOKEN }}
+          ARDA_API_TOKEN: ${{ env.ARDA_API_TOKEN }}   # 로그인 단계가 넣어 준다
         run: |
           code=$(curl -s -o /tmp/ots.json -w "%{http_code}" \
             -X POST "$ARDA_API_BASE/integrity/publish/ots" \
@@ -76,10 +104,10 @@ jobs:
       - name: 확정 안 된 게시 다시 확인
         # 어제 올린 폴리곤 거래·OTS 증명이 그새 확정됐는지 본다.
         # OTS 는 비트코인 블록을 기다리므로 보통 다음 날에야 confirmed 가 된다.
-        if: always()
+        if: always() && env.ARDA_API_TOKEN != ''
         env:
           ARDA_API_BASE: ${{ secrets.ARDA_API_BASE }}
-          ARDA_API_TOKEN: ${{ secrets.ARDA_API_TOKEN }}
+          ARDA_API_TOKEN: ${{ env.ARDA_API_TOKEN }}   # 로그인 단계가 넣어 준다
         run: |
           curl -s -X POST "$ARDA_API_BASE/integrity/publications/refresh" \
             -H "Authorization: Bearer $ARDA_API_TOKEN" | head -c 2000

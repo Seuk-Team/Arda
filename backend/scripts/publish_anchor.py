@@ -21,10 +21,11 @@
 `publications/start` 로 자리를 먼저 잡고 시작한다. 전송에 실패하면 그 행을
 `failed` 로 닫는다 — 조용히 사라지면 다음에 왜 안 됐는지 알 수 없다.
 
-## 필요한 것 (전부 Actions secret)
+## 필요한 것 (환경변수 — 토큰 빼고 전부 Actions secret)
 
     ARDA_API_BASE      https://api.seuk.suvisdev.cloud/api/v1
-    ARDA_API_TOKEN     admin JWT
+    ARDA_API_TOKEN     admin JWT — **secret 이 아니다.** 만료가 12시간이라 워크플로의
+                       로그인 단계가 매번 새로 받아 넣어 준다 (anchor-publish.yml)
     CHAIN_RPC_URL      https://polygon-amoy-bor-rpc.publicnode.com
     CHAIN_PRIVATE_KEY  테스트넷 전용 지갑 개인키
     CHAIN_NETWORK      polygon-amoy (기본값)
