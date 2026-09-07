@@ -243,6 +243,7 @@ erDiagram
 | actor_id | bigint | FK → users.id | `human`·`agent` 일 때의 사람. **`agent` 는 도구를 승인한 사람**이다 (아르는 users 행이 없고, 책임 주체는 승인자다). `system` 이면 NULL |
 | retry_count | smallint | NOT NULL, default 0 | |
 | sent_at | timestamptz | | |
+| provider_message_id | varchar(255) | | SES 가 준 MessageId (2026-09-07, 리비전 `0011`). **`status='sent'` 는 "SES 가 받아줬다"까지만 뜻한다** — 받은 뒤 반송될 수도 있고, `MAIL_DRY_RUN` 이 켜져 있으면 SES 를 아예 안 부르고도 `sent` 가 된다. **`sent` 인데 이 값이 NULL 이면 실제로는 안 나간 것**이다. 전에는 로그로만 갖고 있었는데, "보냈다는데 안 왔다"가 실제로 왔을 때 **서버 셸이 없는 사람은 확인할 방법이 없었다** |
 | created_at | timestamptz | NOT NULL | |
 
 흐름: 단계 변경 → 이 레코드 생성 + SQS 발행 → 워커가 SES 발송 → status 갱신. 실패 시 재시도(G3), 상한 초과 시 `failed`.

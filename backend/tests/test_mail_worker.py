@@ -257,3 +257,54 @@ class TestHandleBranch:
         db.flush()
         worker.handle(db, log.id)
         assert calls == []
+
+
+class TestProviderMessageId:
+    """SES MessageId 를 행에 남긴다 (2026-09-07).
+
+    **`status='sent'` 는 "SES 가 받아줬다"까지만 뜻한다.** `MAIL_DRY_RUN` 이면
+    SES 를 아예 안 부르고도 sent 가 되고, 받은 뒤 반송될 수도 있다. 그래서
+    "보냈다는데 안 왔다"를 확인하려면 이 값이 있어야 한다 — 로그로만 갖고
+    있었더니 서버 셸이 없는 사람은 확인할 방법이 없었다.
+    """
+
+    def _log(self, db, application):
+        log = mail.create_log(
+            db,
+            application_id=application.id,
+            to_email=application.email,
+            stage="applied",
+        )
+        db.flush()
+        return log
+
+    def test_MessageId_를_행에_남긴다(self, db, monkeypatch, application):
+        monkeypatch.setattr(
+            worker,
+            "_send_via_ses",
+            lambda *a, **k: "0100018f-ses-message-id",
+        )
+        log = self._log(db, application)
+        worker.handle(db, log.id)
+
+        assert log.status == "sent"
+        assert log.provider_message_id == "0100018f-ses-message-id"
+
+    def test_DRY_RUN_이면_sent_인데_MessageId_가_없다(
+        self, db, monkeypatch, application
+    ):
+        """이 조합 자체가 '실제로는 안 나갔다' 는 표시다."""
+        monkeypatch.setattr(worker, "_send_via_ses", lambda *a, **k: None)
+        log = self._log(db, application)
+        worker.handle(db, log.id)
+
+        assert log.status == "sent"
+        assert log.provider_message_id is None
+
+    def test_DRY_RUN_은_SES_를_부르지_않고_None_을_돌려준다(self, monkeypatch):
+        monkeypatch.setattr(worker, "DRY_RUN", True)
+        called = []
+        monkeypatch.setattr(worker, "_ses", lambda: called.append(1))
+
+        assert worker._send_via_ses("a@b.c", "제목", "본문") is None
+        assert called == []  # SES 를 만들지도 않는다
