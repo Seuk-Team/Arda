@@ -70,6 +70,31 @@ def _head_pose_proxy(lm):
     return (nose_x - center_x) / face_w
 
 
+def face_row(frame):
+    """BGR 프레임 한 장 → 얼굴 특징 7개. 얼굴이 없으면 None.
+
+    영상 파일과 실시간 스트림이 **같은 값을 보게** 하려고 한 곳에 둔다.
+    두 경로가 따로 계산하면 같은 사람이 매체에 따라 다른 신호를 내게 된다.
+    """
+    h, w = frame.shape[:2]
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+    result = _face_landmarker.detect(mp_image)
+    if not result.face_landmarks:
+        return None
+
+    lm = _lm_to_xy(result.face_landmarks[0], w, h)
+    return [
+        _ear(lm, _LEFT_EYE),
+        _ear(lm, _RIGHT_EYE),
+        _mar(lm),
+        _brow_height(lm, _LEFT_BROW,  _LEFT_EYE),
+        _brow_height(lm, _RIGHT_BROW, _RIGHT_EYE),
+        abs(_ear(lm, _LEFT_EYE) - _ear(lm, _RIGHT_EYE)),
+        _head_pose_proxy(lm),
+    ]
+
+
 def extract_visual(video_path, max_frames=300):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
@@ -85,25 +110,10 @@ def extract_visual(video_path, max_frames=300):
         if frame_idx % 3 != 0:
             continue
 
-        h, w = frame.shape[:2]
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = _face_landmarker.detect(mp_image)
-
-        if not result.face_landmarks:
+        row = face_row(frame)
+        if row is None:
             continue
-
-        lm = _lm_to_xy(result.face_landmarks[0], w, h)
-
-        rows.append([
-            _ear(lm, _LEFT_EYE),
-            _ear(lm, _RIGHT_EYE),
-            _mar(lm),
-            _brow_height(lm, _LEFT_BROW,  _LEFT_EYE),
-            _brow_height(lm, _RIGHT_BROW, _RIGHT_EYE),
-            abs(_ear(lm, _LEFT_EYE) - _ear(lm, _RIGHT_EYE)),
-            _head_pose_proxy(lm),
-        ])
+        rows.append(row)
         timestamps.append(frame_idx / fps)
 
     cap.release()
