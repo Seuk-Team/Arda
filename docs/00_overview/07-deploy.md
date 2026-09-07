@@ -159,7 +159,14 @@ gunzip -c /tmp/restore.sql.gz | docker compose -f ~/arda/docker-compose.prod.yml
 ```
 그 뒤 `alembic current` 로 리비전이 맞는지 보고, 맞으면 `.env` 의 DB 이름을 바꾸거나 `ALTER DATABASE ... RENAME` 으로 교체한다. **복원 리허설을 한 번은 해 봐야 백업이 진짜다** — W4 중간 점검 항목.
 
-**확인 습관**: 매주 한 번 콘솔에서 `arda-db-backups-seuk/db/` 에 어제 날짜 파일이 있는지. 없으면 `~/backup.log`.
+**확인 습관**: 매주 한 번 서버에서 `~/status.sh` ([infra/server-status.sh](../../infra/server-status.sh)) — 디스크·컨테이너·마지막 배포·마지막 백업·헬스가 한 화면에 나온다. 백업 줄에 어제 날짜 `업로드 완료` 가 있으면 된다. 없으면 `~/backup.log`.
+
+```bash
+curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-status.sh -o ~/status.sh && chmod +x ~/status.sh   # 1회
+~/status.sh
+```
+
+**디스크가 차지 않게 하는 장치 (2026-09-07 정리)**: 배포 스크립트가 배포 끝마다 옛 이미지와 3GB 넘는 빌드 캐시를 지운다(`docker image prune` · `docker builder prune --keep-storage 3g`). 컨테이너 로그는 compose 에서 서비스당 20MB × 3 상한. 이 둘이 없던 09/07 이전엔 빌드 캐시 12GB 가 쌓여 있었다.
 
 ## 1회성 DB 이행
 
