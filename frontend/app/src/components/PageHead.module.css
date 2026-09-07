@@ -1,6 +1,12 @@
 .head {
   flex: none;
   min-height: 96px;
+  /* backdrop-filter 가 이 띠를 쌓임 맥락으로 만든다. z-index 를 안 주면
+     맥락 자체가 auto(0) 라 뒤에 오는 본문이 위에 그려지고, 안쪽 드롭다운은
+     z-index 를 아무리 올려도 맥락 밖으로 못 나간다 — 계정 메뉴가 카드 뒤로
+     깔렸다 (2026-09-07). 띠 전체를 본문 위 층으로 올린다. */
+  position: relative;
+  z-index: var(--z-sticky);
   /* 사이드바와 같은 유리 — 둘이 셸 크롬 한 벌이라 재질이 갈리면 안 된다 */
   background: var(--bg-chrome);
   backdrop-filter: var(--glass);

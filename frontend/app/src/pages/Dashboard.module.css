@@ -464,6 +464,13 @@ button.tr:focus-visible {
    표는 가로로 못 줄인다 — 9칸이 다 들어가야 읽히는데 폰 폭에서는 불가능하다.
    그래서 칸을 지우지 않고 카드로 접는다. 숫자를 지우면 다른 화면이 된다. */
 @media (max-width: 1100px) {
+  /* 제목 띠의 요약 숫자는 nowrap 이라 안 줄어든다 — 자리가 모자라면 제목이
+     '대…' 로 뭉개질 때까지 밀린다. 아르 패널까지 열리면 더 좁아지므로
+     본문이 한 열로 접히는 지점에서 함께 감춘다 */
+  .meta {
+    display: none;
+  }
+
   .totals {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     row-gap: var(--sp-4);

@@ -4,13 +4,14 @@
   flex: none;
 }
 
+/* 평소에는 테두리도 바탕도 없다 — 늘 보이는 자리라 버튼처럼 서 있으면
+   제목 띠에서 계정이 제일 센 요소가 된다 */
 .trigger {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   height: 36px;
   padding: 0 var(--sp-2) 0 3px;
-  /* 알약 — 아바타가 원이라 바깥도 원으로 끝나야 한 덩어리로 읽힌다 */
   border-radius: var(--r-pill);
   border: var(--border-w) solid transparent;
   background: transparent;
@@ -25,10 +26,10 @@
   background: var(--bg-sunken);
 }
 
-/* 열려 있는 동안은 눌린 채로 남는다 — 메뉴가 어디서 나왔는지 보여야 한다 */
+/* 열려 있는 동안만 눌린 채로 남는다. 메뉴가 어디서 나왔는지 보여야 한다 */
 .on {
   background: var(--bg-sunken);
-  border-color: var(--border);
+  border-color: var(--border-soft);
 }
 
 .trigger:focus-visible {
@@ -37,44 +38,28 @@
 }
 
 .avatar {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex: none;
   border-radius: 50%;
   background: var(--accent-soft);
-  border: var(--border-w) solid rgba(34, 211, 238, .30);
+  border: var(--border-w) solid rgba(34, 211, 238, .28);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-body);
+  font-size: var(--font-sm);
   font-weight: 700;
   color: var(--accent-text);
 }
 
-.who {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  min-width: 0;
-}
-
 .name {
   font-size: var(--font-sm);
-  font-weight: 600;
   color: var(--text);
-  line-height: 1.2;
-}
-
-.role {
-  font-size: 11px;
-  color: var(--text-sub);
-  line-height: 1.2;
 }
 
 .caret {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex: none;
   stroke: var(--text-sub);
   fill: none;
@@ -86,54 +71,132 @@
 /* ── 드롭다운 ────────────────────────────────────── */
 .menu {
   position: absolute;
-  top: calc(100% + var(--sp-2));
+  top: calc(100% + 6px);
   right: 0;
-  min-width: 232px;
+  /* 메일 주소가 들어갈 만큼만. 더 넓으면 항목 두 개짜리 메뉴가 허전해 보인다 */
+  min-width: 208px;
+  max-width: 280px;
   z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
-  gap: 2px;
   padding: var(--sp-1);
   border-radius: var(--r-card);
-  background: var(--bg-chrome);
+  /* 떠 있는 메뉴는 뒤가 비치면 안 된다 — --bg-chrome 은 알파 .66 이라 카드
+     위에 얹으면 뒤 글자가 그대로 읽힌다. 불투명 바탕 위에 크롬을 한 겹 깔아
+     유리 느낌은 남기고 투명도만 없앤다 */
+  background: linear-gradient(var(--bg-chrome), var(--bg-chrome)), var(--bg);
   backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   box-shadow: var(--sh-overlay);
 }
 
-/* 두 줄(이름 + 무엇이 들어 있는지)이라 고정 높이 대신 패딩으로 잡는다 —
-   무엇이 들어 있는지 안 적으면 '설정' 과 '내 계정' 중 어디를 눌러야 할지 모른다 */
-.item {
+/* ── 누구로 로그인해 있는지 ────────────────────────
+   계정 메뉴가 첫째로 답해야 할 것이다. 항목 라벨에 설명을 길게 다는 대신
+   여기서 한 번 말한다 — 설명줄이 붙으면 메뉴가 문단처럼 읽힌다 */
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  min-width: 0;
+}
+
+.whoAvatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: var(--border-w) solid rgba(34, 211, 238, .28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.whoText {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 2px;
-  padding: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+
+.whoName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* 역할은 이름 옆 작은 알약 — 줄을 하나 더 쓰지 않는다 */
+.role {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.whoMail {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sep {
+  height: var(--border-w);
+  margin: 0 calc(var(--sp-1) * -1) var(--sp-1);
+  background: var(--border-soft);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 38px;
+  padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r-ctl);
   background: transparent;
+  font-size: var(--font-sm);
+  color: var(--text);
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
+}
+
+.item svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .item:hover {
   background: var(--bg-sunken);
 }
 
+.item:hover svg {
+  stroke: var(--accent-text);
+}
+
 .item:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: -2px;
-}
-
-.itemLabel {
-  font-size: var(--font-body);
-  color: var(--text);
-}
-
-.itemSub {
-  font-size: 11px;
-  color: var(--text-sub);
 }
 
 /* 모바일은 '더보기' 탭이 같은 자리를 맡는다 — 둘 다 두면 진입점이 둘이 된다 */
