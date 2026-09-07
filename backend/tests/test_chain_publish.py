@@ -340,3 +340,11 @@ class TestConfig:
         assert amoy.is_testnet is True
         assert main.is_testnet is False
         assert chain.DEFAULT_NETWORK == "polygon-amoy"  # 기본이 테스트넷이어야 한다
+
+    def test_explorer_url_covers_sepolia(self):
+        """운영이 Sepolia 로 옮겨도(2026-09-07) 발표에서 열 링크가 나와야 한다."""
+        from app import chain
+
+        assert chain.explorer_url("ethereum-sepolia", "0xab") == "https://sepolia.etherscan.io/tx/0xab"
+        assert chain.explorer_url("base-sepolia", "0xab") == "https://sepolia.basescan.org/tx/0xab"
+        assert chain.explorer_url("unknown-net", "0xab") is None

@@ -23,7 +23,7 @@
 
 - `CHAIN_RPC_URL`     — 폴리곤 RPC 주소
 - `CHAIN_PRIVATE_KEY` — 서명용 개인키. **테스트넷 전용 지갑의 것만 넣는다**
-- `CHAIN_NETWORK`     — 기록용 이름 (기본 `polygon-amoy`)
+- `CHAIN_NETWORK`     — 기록용 이름 (기본 `polygon-amoy`, 운영은 `ethereum-sepolia` — 2026-09-07)
 
 **개인키를 코드·로그·응답 어디에도 남기지 않는다.** 이 모듈은 개인키에서 뽑은
 주소만 밖으로 낸다. 테스트넷 키라 값이 없지만, 습관이 무너지면 메인넷으로
@@ -192,6 +192,11 @@ def explorer_url(network: str, tx_hash: str) -> str | None:
     bases = {
         "polygon-amoy": "https://amoy.polygonscan.com/tx/",
         "polygon-mainnet": "https://polygonscan.com/tx/",
+        # 2026-09-07: Amoy faucet 이 전부 메인넷 잔액을 요구해 막혀서 운영은
+        # Sepolia 로 옮겼다 (ADR-0028 2단계 개정). 코드는 체인을 가리지 않는다 —
+        # chain id 는 RPC 에서 읽고, 여기는 발표에서 열 링크만 고른다.
+        "ethereum-sepolia": "https://sepolia.etherscan.io/tx/",
+        "base-sepolia": "https://sepolia.basescan.org/tx/",
     }
     base = bases.get(network)
     return base + tx_hash if base else None
