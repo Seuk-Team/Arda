@@ -1,4 +1,4 @@
-# CloudWatch 알람 3개 — 콘솔에서 30번 클릭하는 대신 이 파일 하나를 올린다 (2026-09-07, 인프라 오너).
+# CloudWatch 알람 6개 — 콘솔에서 30번 클릭하는 대신 이 파일 하나를 올린다 (2026-09-07, 인프라 오너).
 #
 # 짝: infra/push-metrics.sh 가 10분마다 보내는 지표(네임스페이스 Arda, Host=arda-api).
 # 설명·조건 근거는 docs/00_overview/07-deploy.md "모니터링·경보" 절.
@@ -12,10 +12,12 @@
 # 검사 실패 → **AWS 가 인스턴스를 자동 복구** + 메일). 스택 업데이트로 반영: CloudFormation →
 # arda-alarms → 업데이트 → 기존 템플릿 교체 → 파일 업로드 → 파라미터 InstanceId 입력.
 #
+# 2026-09-07 저녁 추가: N8nDown(n8n 헬스 20분 실패, ADR-0030). 스택 업데이트 한 번 더.
+#
 # 주의: 서버 cron 이 돌기 전에 올리면 ApiHealthy 알람은 "데이터 없음 = 경보" 설정 때문에
 # 첫 20분 안에 메일 한 통이 온다. 서버 cron 을 먼저 걸고 10분 뒤 올리면 안 온다.
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Arda 운영 서버 경보 — 디스크·백업 나이·API 헬스 (push-metrics.sh 짝)
+Description: Arda 운영 서버 경보 — 디스크·백업 나이·API 헬스·메모리·n8n (push-metrics.sh 짝)
 
 Parameters:
   AlertTopicArn:
@@ -101,6 +103,25 @@ Resources:
       AlarmActions: [!Ref AlertTopicArn]
       OKActions: [!Ref AlertTopicArn]
 
+  N8nDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: arda-n8n-down
+      AlarmDescription: "n8n /healthz 가 20분 연속 실패 — 메일 자동화가 멈췄다(MAIL_DISPATCH=n8n 이면 발송 중단). docker compose logs n8n"
+      Namespace: Arda
+      MetricName: N8nHealthy
+      Dimensions: [{ Name: Host, Value: !Ref HostName }]
+      Statistic: Minimum
+      Period: 600
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      # 인스턴스 전체가 죽은 건 ApiDown 이 울린다 — 여기서 또 울리면 메일 두 통
+      TreatMissingData: ignore
+      AlarmActions: [!Ref AlertTopicArn]
+      OKActions: [!Ref AlertTopicArn]
+
   SystemCheckFailed:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -121,4 +142,4 @@ Resources:
 
 Outputs:
   Alarms:
-    Value: !Join [", ", [!Ref DiskHigh, !Ref BackupStale, !Ref ApiDown, !Ref MemHigh, !Ref SystemCheckFailed]]
+    Value: !Join [", ", [!Ref DiskHigh, !Ref BackupStale, !Ref ApiDown, !Ref MemHigh, !Ref N8nDown, !Ref SystemCheckFailed]]

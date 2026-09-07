@@ -21,5 +21,16 @@ api.seuk.suvisdev.cloud {
 		}
 	}
 
+	# n8n 편집 화면·웹훅 (ADR-0030). handle 이지 handle_path 가 아니다 — n8n 은 N8N_PATH=/n8n/ 로
+	# 자기 경로를 알고 있어 앞을 떼면 안 된다. Basic Auth 는 팀 전원 공유 계정 하나 —
+	# 사용자·해시는 compose 가 .env 에서 환경변수로 넣는다(여기 평문 없음).
+	# 해시 만들기: docker run --rm caddy:2-alpine caddy hash-password --plaintext '<비밀번호>'
+	handle /n8n/* {
+		basic_auth {
+			{env.N8N_BASIC_AUTH_USER} {env.N8N_BASIC_AUTH_HASH}
+		}
+		reverse_proxy n8n:5678
+	}
+
 	reverse_proxy api:8000
 }

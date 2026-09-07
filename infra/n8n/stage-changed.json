@@ -1,0 +1,125 @@
+{
+  "name": "stage-changed → 지원자 메일 (ADR-0030 · 초안)",
+  "meta": {
+    "arda_note": "초안 (2026-09-07). 백엔드 내부 경로 /internal/email-logs/{id}/render · /result 가 아직 없어 실측 전이다. n8n 에서 import → 노드 확인 → export 로 이 파일을 덮어쓴다. 저장소가 진실."
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stage-changed",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "1a000000-0000-4000-8000-000000000001",
+      "name": "Webhook stage-changed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "stage-changed",
+      "notes": "api 의 stage_service.publish_all 이 MAIL_DISPATCH=n8n 일 때 쏜다. body: { email_log_id }. 내부 주소 http://n8n:5678/n8n/webhook/stage-changed"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.ARDA_INTERNAL_URL }}/internal/email-logs/{{ $json.body.email_log_id }}/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Token", "value": "={{ $env.ARDA_SERVICE_TOKEN }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a000000-0000-4000-8000-000000000002",
+      "name": "렌더링 조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0],
+      "notes": "완성된 제목·본문·수신자를 우리 API 에서 받는다. n8n 은 본문을 만들지 않는다(ADR-0030 결정 2). 응답 예상: { to, subject, body_text, body_html, from_email, reply_to }"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $json.from_email }}",
+        "toAddresses": ["={{ $json.to }}"],
+        "subject": "={{ $json.subject }}",
+        "body": "={{ $json.body_html || $json.body_text }}",
+        "isBodyHtml": "={{ !!$json.body_html }}",
+        "additionalFields": {
+          "replyToAddresses": ["={{ $json.reply_to }}"]
+        }
+      },
+      "id": "1a000000-0000-4000-8000-000000000003",
+      "name": "SES 발송",
+      "type": "n8n-nodes-base.awsSes",
+      "typeVersion": 1,
+      "position": [480, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "aws": { "name": "arda-server (SES 발송만)" }
+      },
+      "notes": "공급자를 바꾸려면 이 노드만 SMTP(Send Email) 노드로 교체한다 — 2단계(로컬) 의 요점. 재시도 3회 · 5초 간격은 워커와 같다."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ARDA_INTERNAL_URL }}/internal/email-logs/{{ $('Webhook stage-changed').item.json.body.email_log_id }}/result",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Token", "value": "={{ $env.ARDA_SERVICE_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"status\": \"sent\", \"provider_message_id\": $json.MessageId } }}",
+        "options": {}
+      },
+      "id": "1a000000-0000-4000-8000-000000000004",
+      "name": "결과 기록 sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, -120],
+      "notes": "영수증 방식 — email_logs.provider_message_id(#58) 에 SES MessageId 를 남긴다. 결과 API 는 멱등이어야 한다(ADR-0030 정하지 못한 것 2)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ARDA_INTERNAL_URL }}/internal/email-logs/{{ $('Webhook stage-changed').item.json.body.email_log_id }}/result",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Token", "value": "={{ $env.ARDA_SERVICE_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"status\": \"failed\", \"error\": String($json.error?.message || $json.error || 'unknown') } }}",
+        "options": {}
+      },
+      "id": "1a000000-0000-4000-8000-000000000005",
+      "name": "결과 기록 failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 120],
+      "notes": "3회 재시도 뒤에도 실패하면 여기로. 워커의 failed 기록과 같은 뜻."
+    }
+  ],
+  "connections": {
+    "Webhook stage-changed": { "main": [[{ "node": "렌더링 조회", "type": "main", "index": 0 }]] },
+    "렌더링 조회": { "main": [[{ "node": "SES 발송", "type": "main", "index": 0 }]] },
+    "SES 발송": {
+      "main": [
+        [{ "node": "결과 기록 sent", "type": "main", "index": 0 }],
+        [{ "node": "결과 기록 failed", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul"
+  },
+  "active": false
+}

@@ -57,11 +57,57 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  # n8n — 알림·메일 자동화 계층 (ADR-0030 1단계, 2026-09-07). self-host 만, Cloud 금지.
+  # 포트는 127.0.0.1 에만 연다 — 호스트의 status.sh·push-metrics.sh 가 헬스를 찌르기 위해서다.
+  # 밖에서는 Caddy /n8n/* (Basic Auth) 로만. api 가 웹훅을 쏠 때는 docker 네트워크로
+  # http://n8n:5678/n8n/webhook/... 를 직접 부른다(Basic Auth 안 거침).
+  # N8N_ENCRYPTION_KEY 는 자격 증명 암호화 키 — 잃으면 n8n_data 백업을 복원해도 자격 증명을 못 푼다.
+  # 버전 태그는 고정한다(2026-09-07 최신 안정판). 올릴 때는 `docker compose pull n8n && up -d n8n`
+  # 뒤 편집 화면이 뜨는지 확인.
+  n8n:
+    image: n8nio/n8n:2.37.11
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_HOST: api.seuk.suvisdev.cloud
+      N8N_PROTOCOL: https
+      N8N_PORT: "5678"
+      N8N_PATH: /n8n/
+      WEBHOOK_URL: https://api.seuk.suvisdev.cloud/n8n/
+      N8N_EDITOR_BASE_URL: https://api.seuk.suvisdev.cloud/n8n/
+      N8N_PROXY_HOPS: "1"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set in .env — infra/.env.example}
+      GENERIC_TIMEZONE: Asia/Seoul
+      TZ: Asia/Seoul
+      # 실행 기록은 14일만 — SQLite 가 29GB 디스크에서 무한히 크지 않게
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "336"
+      # 외부로 나가는 진단·버전 알림·개인화 설문 전부 끔 (지원자 정보가 있는 서버다)
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      # 워크플로가 우리 API 를 부를 때 쓰는 값 — 표현식 {{ $env.ARDA_INTERNAL_URL }} 로 읽는다
+      ARDA_INTERNAL_URL: http://api:8000
+      ARDA_SERVICE_TOKEN: ${ARDA_SERVICE_TOKEN:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    # t3.medium 4GB — api·worker·db·거짓말 탐지(574MiB/건)와 동거. 이 위로 크면 n8n 만 죽는다
+    mem_limit: 768m
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - api
+
   caddy:
     image: caddy:2-alpine
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # n8n 편집 화면 Basic Auth — 팀 전원 공유 (2026-09-07 결정: 누가 빠져도 나머지가 진행할 수 있게)
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-arda}
+      N8N_BASIC_AUTH_HASH: ${N8N_BASIC_AUTH_HASH:?set in .env — infra/.env.example}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./demo:/srv/demo:ro
@@ -71,8 +117,10 @@ services:
     depends_on:
       - api
       - lie-detection
+      - n8n
 
 
 volumes:
   pgdata:
   caddy_data:
+  n8n_data:

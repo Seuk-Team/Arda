@@ -70,6 +70,7 @@
 | 13 | 온프레미스 판 — 메일 SMTP 전환 | W3. `mail.py` 의 boto3 SES → `smtplib`. **SES 도 SMTP 를 제공하므로 SaaS 판과 코드가 하나로 합쳐진다.** 반나절 |
 | 14 | 온프레미스 판 — 메일 큐 | W3. SQS → `EmailLog` 테이블 폴링. `create_log`/`publish` 분리(08/31)로 교체 지점이 이미 좁다. 반나절 |
 | 15 | `docker-compose.onprem.yml` + 한 번 실제로 띄우기 | W3. 12~14 뒤. **띄워 봐야 "AWS 없이 돈다"가 주장이 아니라 사실이 된다** |
+| 17 | **n8n 컨테이너 (ADR-0030 1단계)** — 09/07 PR | compose `n8n` + Caddy `/n8n/*` Basic Auth(**팀 전원 공유**, 09/07 팀장 결정) + 볼륨 백업·`N8nHealthy` 지표·알람 + 워크플로 초안 `infra/n8n/stage-changed.json`. 서버 설치 절차는 [07-deploy "n8n"](../00_overview/07-deploy.md). **실발송 검증은 백엔드 내부 API 2개·`MAIL_DISPATCH` 스위치 뒤** — 그때까지 메일은 워커. 13·14(SMTP·DB 폴링)는 n8n 이 실패하면 돌아올 길로 남긴다 |
 | 16 | GPU 서버 (g4dn.xlarge, 켜고 끄기) | **상시 아님.** 예산 $400·10/27 이라 24시간(월 ≈$470) 불가, 8h×20일 ≈$105. 로컬 STT·qwen 시연 때만. 쿼터 승인 대기. 거짓말 탐지는 CPU 라 여기 안 올린다(t3.medium 으로 해결). 운영 에이전트는 Anthropic Haiku 유지 |
 
 ## 6. 리스크

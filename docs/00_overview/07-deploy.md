@@ -40,8 +40,8 @@
 ```
 
 - EC2: 서울, **t3.medium(4GB) + 스왑 2G, 디스크 29GB** (2026-09-07 — 거짓말 탐지 서비스가 분석 1건에 574MiB 를 써서 t3.small 2GB 로는 api·worker 와 같이 못 돈다. 월 +$17. 이전: t3.small ← t3.micro), 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
-- 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구. 거짓말 탐지 `lie-detection` 컨테이너(Caddy `/ai/*`, CPU 모델·GPU 불필요)는 PR #42 로 같은 EC2 에 붙는다.
-- **2026-09-07 운영 장치 요약**: 자동 CD(2분 폴링 + alembic + 이미지·빌드 캐시 prune) · 컨테이너 로그 상한 · DB 매일 S3 백업 · CloudWatch 경보 3개(디스크·백업·API) → SNS 메일 · `~/status.sh` 계기판. 각 절은 아래.
+- 컨테이너 4개(db·api·worker·caddy) 전부 `restart: unless-stopped` — 재부팅 자동 복구. 거짓말 탐지 `lie-detection` 컨테이너(Caddy `/ai/*`, CPU 모델·GPU 불필요)는 PR #42 로 같은 EC2 에 붙는다. `n8n` 컨테이너(Caddy `/n8n/*`)는 [ADR-0030](../03_decision/0030-n8n-알림-자동화-분리.md) 1단계 — 아래 "n8n" 절.
+- **2026-09-07 운영 장치 요약**: 자동 CD(2분 폴링 + alembic + 이미지·빌드 캐시 prune) · 컨테이너 로그 상한 · DB 매일 S3 백업 · CloudWatch 경보 3개(디스크·백업·API) → SNS 메일 · `~/status.sh` 계기판 · **n8n 컨테이너**(알림·메일 자동화 계층, 아래 "n8n" 절). 각 절은 아래.
 - 서버 compose는 `docker-compose.prod.yml`(로컬 개발용 루트 compose와 별개 — --reload 없음, DB 포트 비공개).
 - **S3 버킷 CORS (2026-08-31 설정)**: 이력서는 브라우저에서 S3 로 직행하는데, 버킷에 CORS 규칙이 **없어서 브라우저 업로드가 막혀 있었다.** 아래를 넣어 풀었다.
 
@@ -181,6 +181,7 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 | `BackupAgeHours` | 마지막 백업 파일 나이(시간) | **≥ 30** (1회) — 하루 1회인데 빠졌다 | 무시 |
 | `ApiHealthy` | `localhost:8000/health` 가 ok 면 1 | **< 1** (2회 연속 = 20분) | **경보로 취급** — 인스턴스가 통째로 죽어 숫자가 안 와도 울린다 |
 | `MemUsedPercent` (09-07 추가) | (total−available)/total | **≥ 90** (2회) — 거짓말 탐지가 같은 서버 | 무시 |
+| `N8nHealthy` (09-07 저녁 추가) | n8n `/healthz` 가 200 이면 1 | **< 1** (2회 연속 = 20분) | 무시 — 인스턴스가 통째로 죽은 건 `ApiHealthy` 가 울린다 |
 | `StatusCheckFailed_System` (AWS 기본 지표) | EC2 시스템 상태 검사 | **≥ 1** (2분 연속) → **AWS 가 인스턴스 자동 복구**(같은 IP·디스크) + 메일 | — |
 
 **설정 (1회, suvisdev 콘솔)**:
@@ -193,7 +194,51 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 
 **밖에서 찌르는 확인 — [`.github/workflows/health-monitor.yml`](../../.github/workflows/health-monitor.yml) (09-07)**: GitHub 러너가 15분마다 `api…/health` 와 `seuk.suvisdev.cloud/` 를 부른다(30초 간격 2회 실패해야 알림). 실패하면 이슈 "🔴 외부 헬스체크 실패" 를 열거나 열린 이슈에 코멘트(assignee suvisdev), 복구되면 코멘트 달고 자동으로 닫는다. 서버 안 지표와 조합: **둘 다 울리면 서버, 이것만 울리면 DNS·TLS·Caddy·보안그룹.** 비용 0.
 
-**알람 템플릿 갱신(09-07)**: 메모리·자동 복구 알람이 추가돼 파라미터 `InstanceId` 가 생겼다. 반영은 CloudFormation → `arda-alarms` → **업데이트** → 기존 템플릿 교체 → 파일 업로드 → `InstanceId` 에 `arda-api` 의 i-… 입력.
+**알람 템플릿 갱신(09-07)**: 메모리·자동 복구 알람이 추가돼 파라미터 `InstanceId` 가 생겼다. 반영은 CloudFormation → `arda-alarms` → **업데이트** → 기존 템플릿 교체 → 파일 업로드 → `InstanceId` 에 `arda-api` 의 i-… 입력. 09-07 저녁에 `arda-n8n-down` 이 하나 더 붙어 **알람 6개** — 같은 절차로 한 번 더.
+
+## n8n — 알림·메일 자동화 계층 (2026-09-07 도입, ADR-0030 1단계)
+
+**왜**: 메일 파이프라인이 SQS·SES·워커 코드에 묶여 있어 AWS 를 떠나면(예산 $400 · 10/27) 같이 멈춘다. 알림 계층을 n8n 워크플로로 떼어 **트리거는 우리 API 웹훅, 발송은 노드 하나 교체**로 공급자가 바뀌게 한다. 근거·대안·정하지 못한 것은 [ADR-0030](../03_decision/0030-n8n-알림-자동화-분리.md). n8n Cloud 는 쓰지 않는다 — 지원자 개인정보가 외부 SaaS 를 거친다.
+
+**무엇**: [infra/docker-compose.prod.yml](../../infra/docker-compose.prod.yml) 에 `n8n` 서비스(이미지 `n8nio/n8n:2.37.11` 고정, 볼륨 `n8n_data`, 메모리 상한 768MB, 포트는 `127.0.0.1:5678` 만), [Caddyfile](../../infra/Caddyfile) `/n8n/*` + **Basic Auth**. 워크플로 JSON 은 [infra/n8n/](../../infra/n8n/README.md) 이 진실. 백업·지표·경보 스크립트에 n8n 줄이 들어갔다. **비용 0** — 같은 EC2, 무료 구간 안의 지표·알람 1개씩.
+
+**접근은 팀 전원 (2026-09-07 팀장 결정)**: 편집 화면 Basic Auth 와 n8n 의 owner 계정은 **팀 공유 계정 하나**. 누가 빠져도 나머지가 진행할 수 있어야 한다 — 09-02 이탈 때 권한이 한 사람에게 묶여 치른 대가([ADR-0025](../03_decision/0025-운영-권한-이관.md))를 반복하지 않는다. 비밀번호는 팀 채널 고정 메시지, 저장소엔 없다. 화면에서 고친 워크플로는 export 해서 `infra/n8n/` 에 커밋(저장소가 진실).
+
+**서버 설치 (1회, `ssh arda` 후)**:
+```bash
+cd ~/arda
+curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/docker-compose.prod.yml -o docker-compose.prod.yml
+curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/Caddyfile -o Caddyfile
+echo "N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> .env            # 한 번 정하면 바꾸지 않는다
+docker run --rm caddy:2-alpine caddy hash-password --plaintext '<팀 공유 비밀번호>'   # 나온 해시를 아래 줄에
+echo "N8N_BASIC_AUTH_USER=arda" >> .env
+echo "N8N_BASIC_AUTH_HASH='<해시>'" >> .env                            # $ 가 있어 작은따옴표 필수
+docker compose -f docker-compose.prod.yml up -d n8n
+docker compose -f docker-compose.prod.yml up -d --force-recreate caddy   # 환경변수가 바뀌었으니 reload 가 아니라 재생성
+curl -sf localhost:5678/healthz || curl -sf localhost:5678/n8n/healthz   # 둘 중 하나가 200 이면 됨
+```
+그 뒤 브라우저 `https://api.seuk.suvisdev.cloud/n8n/` → Basic Auth → n8n owner 계정 만들기(팀 공유) → 워크플로 import(`infra/n8n/stage-changed.json`) → Credentials 에 AWS(`arda-server` 키, 이름 `arda-server (SES 발송만)`). 키 이름 목록은 [infra/.env.example](../../infra/.env.example).
+백업·지표 스크립트도 새 판으로 교체(위 두 절의 `curl … -o ~/backup-arda-db.sh` · `~/push-metrics.sh` 두 줄 그대로) — n8n 볼륨 백업과 `N8nHealthy` 지표가 들어 있다. `~/status.sh` 도 같은 방법. 경보는 CloudFormation `arda-alarms` 스택 **업데이트**(알람 6개).
+
+**`N8N_ENCRYPTION_KEY` 는 백업과 한 쌍**: n8n 은 자격 증명(AWS 키 등)을 이 키로 암호화해 볼륨에 둔다. 키 없이는 `n8n_data` 백업을 복원해도 자격 증명을 못 푼다. 서버 `.env` 외에 **팀 비밀번호 저장소에 한 벌** 더 둔다.
+
+**백업·복원**: 매일 04:00 KST DB 백업과 같은 cron 이 볼륨을 `s3://arda-db-backups-seuk/n8n/n8n-<UTC시각>.tar.gz` 로 올린다(로컬 3개, S3 30일). 복원:
+```bash
+aws s3 cp s3://arda-db-backups-seuk/n8n/n8n-<시각>.tar.gz /tmp/n8n-restore.tar.gz
+docker compose -f ~/arda/docker-compose.prod.yml stop n8n
+docker compose -f ~/arda/docker-compose.prod.yml run --rm -v /tmp:/restore n8n sh -c 'rm -rf /home/node/.n8n/* && tar xzf /restore/n8n-restore.tar.gz -C /home/node/.n8n'
+docker compose -f ~/arda/docker-compose.prod.yml up -d n8n
+```
+`.env` 의 `N8N_ENCRYPTION_KEY` 가 백업 당시와 같아야 한다.
+
+**함정**
+- **하위 경로 서빙은 실측 전(09-07)**. `N8N_PATH`·`WEBHOOK_URL`·`N8N_EDITOR_BASE_URL` 세 값이 맞아야 편집 화면 자산이 뜬다. 첫 설치에서 화면이 깨지면 서브도메인(`n8n.seuk.suvisdev.cloud` — DNS A 레코드 1개 + Caddy 블록 하나, `N8N_PATH` 제거)으로 바꾸는 것이 빠르다.
+- compose·Caddyfile 은 배포 tar 가 안 덮는다 — `infra/` 가 바뀌면 위 `curl` 두 줄 + `up -d`.
+- Caddy 는 환경변수를 **기동 때** 읽는다 — 비밀번호를 바꾸면 `caddy reload` 가 아니라 `up -d --force-recreate caddy`.
+- 웹훅은 docker 네트워크 안(`http://n8n:5678/n8n/webhook/…`)에서만 부른다. 밖에서 부르면 Basic Auth 에 막힌다 — 의도한 것.
+- 메모리 상한 768MB 를 넘으면 n8n 만 죽고 `restart: unless-stopped` 로 다시 뜬다. api·worker 는 영향 없음.
+
+**아직 안 되는 것 (백엔드 몫, ADR-0030 결정 2·3)**: 내부 경로 `/internal/email-logs/{id}/render`·`/result` + 서비스 토큰(`ARDA_SERVICE_TOKEN`) + `MAIL_DISPATCH=worker|n8n` 스위치 + `publish_all` 분기. 이것이 오기 전까지 n8n 은 떠 있되 **메일은 계속 워커가 보낸다**(기본값 `worker`). 1단계 완료 기준은 "최종 합격 메일이 n8n 경로로 도착 + `provider_message_id` 기록".
 
 ## 1회성 DB 이행
 
