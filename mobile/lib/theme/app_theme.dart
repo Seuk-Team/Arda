@@ -8,13 +8,17 @@ import 'package:flutter/material.dart';
 
 import 'tokens.dart';
 
-/// 05-design §0-4: **테마는 라이트 온리.** 다크 테마를 만들지 않는다.
+/// 05-design §0-4: **테마는 하나뿐이다.** 웹이 2026-09-04 에 딥 네트워크
+/// 다크로 뒤집었고(라이트 온리 → 다크 온리) 앱도 같은 팔레트를 쓴다.
+/// 라이트 테마를 따로 만들지 않는다 — 두 벌을 두면 둘 다 낡는다.
 ThemeData buildAppTheme() {
-  const colors = ColorScheme.light(
-    primary: AppColors.leaf,
-    onPrimary: AppColors.bgElev,
-    secondary: AppColors.sprout,
-    onSecondary: AppColors.text,
+  const colors = ColorScheme.dark(
+    /// 주 동작은 흰 판 + 어두운 글자다. 네온이 이미 배경에 깔려 있어
+    /// 버튼까지 빛나면 무엇이 동작인지 안 읽힌다
+    primary: AppColors.accentFill,
+    onPrimary: AppColors.onAccent,
+    secondary: AppColors.accent,
+    onSecondary: AppColors.onAccent,
     surface: AppColors.bgElev,
     onSurface: AppColors.text,
     surfaceContainerLowest: AppColors.bg,
@@ -22,7 +26,7 @@ ThemeData buildAppTheme() {
     outline: AppColors.border,
     outlineVariant: AppColors.borderSoft,
     error: AppColors.danger,
-    onError: AppColors.bgElev,
+    onError: AppColors.onAccent,
   );
 
   return ThemeData(
@@ -32,7 +36,8 @@ ThemeData buildAppTheme() {
     fontFamily: AppType.fontFamily,
     textTheme: _textTheme,
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.bgElev,
+      /// 셸 크롬은 본문 카드보다 한 겹 더 가라앉는다
+      backgroundColor: AppColors.bgChrome,
       foregroundColor: AppColors.text,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
@@ -53,8 +58,8 @@ ThemeData buildAppTheme() {
     filledButtonTheme: FilledButtonThemeData(
       style:
           FilledButton.styleFrom(
-            backgroundColor: AppColors.leaf,
-            foregroundColor: AppColors.bgElev,
+            backgroundColor: AppColors.accentFill,
+            foregroundColor: AppColors.onAccent,
             // §9: 터치 타깃 최소 44×44 (HIG)
             minimumSize: const Size(
               AppLayout.minTouchTarget,
@@ -67,7 +72,9 @@ ThemeData buildAppTheme() {
             shape: const RoundedRectangleBorder(borderRadius: AppShape.ctl),
             // §6: disabled 도 정의해야 완성이다. Material 기본 회색 대신 토큰을 쓴다
             disabledBackgroundColor: AppColors.bgSunken,
-            disabledForegroundColor: AppColors.neutral,
+            /// 다크에서 --neutral 은 비활성 글자로 쓰기엔 어둡다 — 대비 4.5:1 을
+            /// 못 넘긴다. 본문색을 낮춰 쓴다 (웹 .btn:disabled 와 같은 알파)
+            disabledForegroundColor: AppColors.textSub,
             textStyle: const TextStyle(
               fontFamily: AppType.fontFamily,
               fontSize: AppType.body,

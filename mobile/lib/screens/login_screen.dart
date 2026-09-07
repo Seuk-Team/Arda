@@ -203,10 +203,13 @@ class _ArMark extends StatelessWidget {
       width: 72,
       height: 72,
       clipBehavior: Clip.antiAlias,
-      // ar.png 배경과 같은 흰색 (ar_screen.dart ArAvatar 주석 참고)
+      // 유리 바탕이 캐릭터 뒤로 비친다 (ar_screen.dart ArAvatar 주석 참고)
       decoration: const BoxDecoration(
         color: AppColors.bgElev,
         shape: BoxShape.circle,
+        border: Border.fromBorderSide(
+          BorderSide(color: AppColors.border, width: AppShape.borderW),
+        ),
       ),
       child: Image.asset(
         'assets/images/ar.png',

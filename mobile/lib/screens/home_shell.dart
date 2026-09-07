@@ -130,10 +130,12 @@ class _ArButton extends StatelessWidget {
           boxShadow: AppShadow.overlay,
         ),
         child: Material(
-          // ar.png 배경과 같은 흰색 (ar_screen.dart ArAvatar 주석 참고)
+          // 유리 바탕이 캐릭터 뒤로 비친다 (ar_screen.dart ArAvatar 주석 참고).
+          // 웹 우하단 아르 도크와 같은 재질이다
           color: AppColors.bgElev,
-          // 테두리 없음 — §4 오버레이 그림자가 이미 떠 보이게 한다
-          shape: const CircleBorder(),
+          shape: const CircleBorder(
+            side: BorderSide(color: AppColors.border, width: AppShape.borderW),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onPressed,

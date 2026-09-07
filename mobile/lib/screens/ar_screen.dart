@@ -492,11 +492,13 @@ class ArAvatar extends StatelessWidget {
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
-      // 바탕은 흰색이다 — assets/images/ar.png 이 흰 배경이라 같은 색이어야
-      // 원 가장자리에 이음매가 안 보인다.
+      // 2026-09-07 — 다크로 옮기면서 ar.png 의 흰 배경을 투명으로 뺐다.
+      // 전에는 "흰 배경이라 바탕도 흰색이어야 이음매가 안 보인다" 였는데,
+      // 다크에서는 흰 원이 그대로 남아 캐릭터가 스티커처럼 붙어 보였다.
+      // 지금은 유리 바탕이 캐릭터 뒤로 비친다 (웹 우하단 도크와 같은 재질).
       //
-      // **테두리를 두지 않는다.** 원형 클립이 이미지를 바깥 원까지 그려서 링이
-      // 군데군데 덮이고, 남은 조각만 초록 틈처럼 보였다. 웹도 링 없이 캐릭터만 쓴다.
+      // 배경이 투명해지면서 테두리도 다시 넣을 수 있게 됐다 — 전에는 원형
+      // 클립이 이미지를 바깥까지 그려 링이 군데군데 덮였다.
       //
       // 그림은 런처 아이콘 원본에서 **여백을 잘라 낸** 것이다. 원본은 캔버스의
       // 75%만 그림이라 원 안이 휑했다. 자를 때 뿔이 원에 걸리지 않도록
@@ -504,6 +506,9 @@ class ArAvatar extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.bgElev,
         shape: BoxShape.circle,
+        border: Border.fromBorderSide(
+          BorderSide(color: AppColors.border, width: AppShape.borderW),
+        ),
       ),
       child: Image.asset(
         'assets/images/ar.png',
