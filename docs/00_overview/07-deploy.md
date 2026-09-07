@@ -134,6 +134,33 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 
 **scp 없이 (2026-09-02 부터)**: 레포가 공개라 서버가 직접 받는다 — `~/arda` 에서 `curl -sL https://github.com/Team-Seuk/Arda/archive/<sha>.tar.gz -o /tmp/arda.tgz && tar xzf /tmp/arda.tgz --strip-components=1 -C ~/arda && echo <sha> > DEPLOYED_COMMIT`, 그 뒤 `build` → `up -d` 를 **나눠서**. `docker-compose.prod.yml`·`Caddyfile` 은 레포에 없어 tar 가 덮지 않는다 — 원본은 [infra/](../../infra/) 에 회수해 뒀다(2026-09-02). 서버 것과 다르면 서버가 진실이고 infra/ 를 고친다.
 
+## DB 백업 — 매일 S3 로 (2026-09-07 도입)
+
+**왜**: EC2 한 대, EBS 볼륨 하나다. 인스턴스 사고 한 번이면 지원자 개인정보와 무결성 원장이 같이 사라진다. `chain_publications.proof`(OTS 증명)는 잃으면 다시 못 만든다([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). 08/31 에 손으로 한 번 뜬 것 외에 백업이 없었다.
+
+**무엇**: [infra/backup-arda-db.sh](../../infra/backup-arda-db.sh) 가 매일 **04:00 KST**(cron `0 19 * * *` UTC) 에 `pg_dump | gzip` → `s3://arda-db-backups-seuk/db/arda-<UTC시각>.sql.gz`. 로컬 `~/backups/` 에는 최근 3개만. S3 수명주기로 **30일 뒤 자동 삭제**. 로그 `~/backup.log`.
+
+**권한 모델**: 서버 IAM 유저 `arda-server` 는 백업 버킷에 **`PutObject` 만** 있다(읽기·삭제 없음). 서버가 털려도 백업을 지우거나 내려받지 못한다. 버킷은 퍼블릭 차단·SSE-S3 암호화. 복원은 관리자(suvisdev 콘솔/로컬)만.
+
+**서버 설치 (1회, suvisdev)**:
+```bash
+sudo apt-get install -y awscli
+curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/backup-arda-db.sh -o ~/backup-arda-db.sh && chmod +x ~/backup-arda-db.sh
+~/backup-arda-db.sh                         # 손으로 한 번 — S3 에 파일 생기는지 확인
+( crontab -l 2>/dev/null; echo '0 19 * * * /home/ubuntu/backup-arda-db.sh >> /home/ubuntu/backup.log 2>&1' ) | crontab -
+```
+
+**복원** (관리자 PC 또는 서버, 예: 2026-09-10 것으로):
+```bash
+aws s3 cp s3://arda-db-backups-seuk/db/arda-20260910T190001Z.sql.gz /tmp/restore.sql.gz
+# 새 DB 에 넣는다 — 기존 arda 를 덮지 않는다. 확인 뒤 이름을 바꾸는 쪽이 안전하다
+docker compose -f ~/arda/docker-compose.prod.yml exec -T db psql -U postgres -c 'CREATE DATABASE arda_restore'
+gunzip -c /tmp/restore.sql.gz | docker compose -f ~/arda/docker-compose.prod.yml exec -T db psql -U postgres -d arda_restore
+```
+그 뒤 `alembic current` 로 리비전이 맞는지 보고, 맞으면 `.env` 의 DB 이름을 바꾸거나 `ALTER DATABASE ... RENAME` 으로 교체한다. **복원 리허설을 한 번은 해 봐야 백업이 진짜다** — W4 중간 점검 항목.
+
+**확인 습관**: 매주 한 번 콘솔에서 `arda-db-backups-seuk/db/` 에 어제 날짜 파일이 있는지. 없으면 `~/backup.log`.
+
 ## 1회성 DB 이행
 
 스키마는 `create_all` 로 만들지만([db.py](../../backend/app/db.py)), **이미 데이터가 있는 DB** 는 값·제약을 바꿀 수단이 없다. 그런 변경은 `backend/scripts/` 에 SQL 파일로 두고 여기에 실행법을 적는다.
