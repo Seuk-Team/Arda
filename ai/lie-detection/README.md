@@ -12,8 +12,8 @@ Arda 백엔드와 분리해 둔 이유는 의존성 때문이다 — mediapipe·
 cd ai/lie-detection
 uv venv
 uv pip install -r requirements.txt
-.venv/Scripts/python.exe app.py     # Windows
-# .venv/bin/python app.py           # macOS/Linux
+.venv/Scripts/python.exe -m uvicorn app:app --port 5000     # Windows
+# .venv/bin/python -m uvicorn app:app --port 5000           # macOS/Linux
 ```
 
 `http://localhost:5000` 에서 영상을 올려 확인할 수 있다.
@@ -23,7 +23,17 @@ uv pip install -r requirements.txt
 
 ## API
 
-### `POST /analyze`
+두 갈래다. **파일 판정**은 담당자 확인·데모용이고, **실시간 면접**이 지원자가 쓰는 쪽이다.
+
+### `WS /ws/interview/{token}` — 실시간 면접
+
+카메라·마이크가 켜진 채로 흐르고, 말이 끝나면 서버가 알아채 다음 질문을 보낸다.
+프로토콜은 [PROTOCOL.md](PROTOCOL.md) 가 원본이다.
+
+> **전사는 아직 비어 있다.** 자리표시자가 저장되며 흐름은 돈다.
+> GPU 서버가 준비되면 `interview_ws.transcribe()` 만 채운다.
+
+### `POST /analyze` — 파일 하나 판정
 
 multipart/form-data 로 `video` 필드에 영상 파일을 보낸다.
 
@@ -49,12 +59,13 @@ multipart/form-data 로 `video` 필드에 영상 파일을 보낸다.
 
 | 파일 | 역할 |
 |------|------|
-| `app.py` | Flask 서버 — 웹 UI + `/analyze` API |
+| `app.py` | FastAPI 서버 — 데모 화면 · `/analyze` · 실시간 면접 WS |
+| `interview_ws.py` | 실시간 면접 — 발화 끝 판정, 표정 신호, 백엔드 연동 |
+| `PROTOCOL.md` | 지원자 화면이 맞춰야 하는 규약 |
 | `feature_extractor.py` | 영상 → 100차원 특징 벡터. 구간별 관찰도 여기서 만든다 |
 | `train.py` | `processed/` 의 X·y 로 모델 학습 → `model.pkl` |
 | `build_dataset.py` | 학습용 영상 폴더 → `processed/X.npy`, `y.npy` |
 | `analyze_file.py` | CLI 로 영상 하나 분석 |
-| `realtime.py` | 웹캠 실시간 판정 (카메라 필요) |
 
 ## 모델
 
