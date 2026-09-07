@@ -54,6 +54,10 @@ class EmailLogOut(BaseModel):
     subject: str | None = None
     body: str | None = None
     sent_at: datetime | None = None
+    # SES 가 준 MessageId. **`status="sent"` 인데 이 값이 없으면 실제로는 안 나간
+    # 것**이다 — `MAIL_DRY_RUN` 이 켜져 있으면 SES 를 안 부르고도 sent 가 된다.
+    # "보냈다는데 안 왔다"를 확인하는 첫 자리다.
+    provider_message_id: str | None = None
     created_at: datetime
 
 

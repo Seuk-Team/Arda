@@ -110,8 +110,13 @@ def _send_via_ses(
     body: str,
     reply_to: str | None = None,
     from_name: str | None = None,
-) -> None:
-    """SES 로 한 통 보낸다. 실패하면 예외가 그대로 올라간다."""
+) -> str | None:
+    """SES 로 한 통 보낸다. 실패하면 예외가 그대로 올라간다.
+
+    **SES 가 준 MessageId 를 돌려준다.** 호출부가 행에 남긴다 — `sent` 는
+    "SES 가 받아줬다"까지만 뜻해서, 그 뒤를 추적하려면 이 값이 있어야 한다.
+    `DRY_RUN` 이면 보내지 않았으므로 `None` 이다.
+    """
     global _last_sent_at
 
     if DRY_RUN:
@@ -123,7 +128,7 @@ def _send_via_ses(
             subject,
             body,
         )
-        return
+        return None
 
     # 샌드박스 발송 속도(1통/초)를 넘지 않게 간격을 벌린다
     wait = SES_MIN_INTERVAL - (time.monotonic() - _last_sent_at)
@@ -144,9 +149,12 @@ def _send_via_ses(
     resp = _ses().send_email(**kwargs)
     _last_sent_at = time.monotonic()
 
-    # SES 가 준 MessageId 를 남긴다. 스키마에 넣을 컬럼이 없어 로그로만 갖는다 —
-    # "보냈는데 안 왔다"는 문의가 오면 이 값으로 SES 쪽을 추적한다.
-    logger.info("SES 수락 message_id=%s", resp.get("MessageId"))
+    # SES 가 준 MessageId. 2026-09-07 부터 **행에도 남긴다**
+    # (`email_logs.provider_message_id`) — 로그는 사라지고 서버 접근은 한 사람만
+    # 가져서, "보냈는데 안 왔다"가 왔을 때 확인할 방법이 없었다.
+    message_id = resp.get("MessageId")
+    logger.info("SES 수락 message_id=%s", message_id)
+    return message_id
 
 
 def _format_kst(dt: datetime) -> str:
@@ -260,11 +268,14 @@ def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:
                 actor_kind=log.actor_kind,
                 actor_name=actor_name,
             )
-        _send_via_ses(
+        message_id = _send_via_ses(
             log.to_email, subject, body, _reply_to(log, actor_email), from_name
         )
         log.status = "sent"
         log.sent_at = datetime.now(UTC)
+        # DRY_RUN 이면 None 이다 — 그 경우 "sent 인데 message_id 가 없다" 가
+        # 곧 "실제로는 안 나갔다" 는 표시가 된다.
+        log.provider_message_id = message_id
         logger.info("발송 완료 email_log_id=%s stage=%s", email_log_id, log.stage)
     except Exception:
         log.retry_count += 1
