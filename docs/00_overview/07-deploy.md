@@ -19,7 +19,7 @@
 | 무엇 | URL | 비고 |
 |---|---|---|
 | **API** | https://api.seuk.suvisdev.cloud | Swagger는 `/docs`. HTTPS만 — 8000 직접 접근은 막혀 있다 |
-| **프론트** | https://seuk.suvisdev.cloud | main 머지 → 1~2분 내 자동 재배포. 커스텀 도메인 `arda.seuk.cloud` 검증 마무리 중 |
+| **프론트** | https://seuk.suvisdev.cloud | main 머지 → 1~2분 내 자동 재배포. 옛 `arda.seuk.cloud` · `api.arda.seuk.cloud` 는 전 팀장 명의 인프라에 아직 떠 있지만 정본이 아니다 — 저장소 기본값은 2026-09-07 에 전부 새 주소로 맞췼다 |
 | 공개 지원 링크 | `https://seuk.suvisdev.cloud/apply/<token>` | 서버 `PUBLIC_APP_BASE_URL` 기준으로 생성 (B6) |
 
 **프론트·앱의 API 베이스 주소는 `https://api.seuk.suvisdev.cloud`다** — W3 연동 때 이 값을 쓴다. HTTPS라 mixed content·Flutter 예외 설정 문제 없음.

@@ -1,6 +1,6 @@
 /// API 서버 주소 — **빌드할 때 넣는다** (2026-09-02 결정).
 ///
-/// 앱은 웹과 달리 서버 주소를 스스로 알 수 없다. 웹은 arda.seuk.cloud 에서
+/// 앱은 웹과 달리 서버 주소를 스스로 알 수 없다. 웹은 seuk.suvisdev.cloud 에서
 /// 열리니 같은 도메인으로 물어보면 되지만, 앱은 폰에 설치돼 있어 절대 주소가
 /// 필요하다.
 ///
@@ -24,12 +24,14 @@ abstract final class ApiConfig {
   /// 서버 주소. `--dart-define=API_BASE=...` 로 덮어쓴다
   static const host = String.fromEnvironment(
     'API_BASE',
-    defaultValue: 'https://api.arda.seuk.cloud',
+    // 2026-09-07: 인프라 이전(09-04) 뒤 정본. 옛 api.arda.seuk.cloud 는 전 팀장 명의
+    // AWS 에 남아 있는 서버라 언제 꺼질지 모른다 — 기본값이 거길 보면 APK 가 어느 날 멈춘다.
+    defaultValue: 'https://api.seuk.suvisdev.cloud',
   );
 
   /// **경로 접두어.** 02-api.md 표에는 `/auth/login` 처럼 적혀 있지만 실제 서버는
   /// `/api/v1/auth/login` 이다 — 문서가 접두어를 생략했다(2026-09-02 실측:
-  /// `GET https://api.arda.seuk.cloud/openapi.json`).
+  /// `GET https://api.seuk.suvisdev.cloud/openapi.json`).
   ///
   /// 여기 한 곳에만 두고 각 호출은 짧은 경로를 쓴다. 큐 8 에서 엔드포인트가
   /// 50개 넘게 붙는데 저마다 접두어를 적으면 한 번 바뀔 때 전부 고쳐야 한다.
