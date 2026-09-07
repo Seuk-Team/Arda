@@ -32,6 +32,16 @@
   box-shadow: var(--sh-card);
   min-height: 320px;
   overflow: hidden;
+  /* 빈 상태·에러가 카드 한가운데 서게 한다. 위에 붙으면 아래가 통째로
+     비어 카드가 깨진 것처럼 보인다 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* 줄이 있으면 위에서부터 쌓인다 — 가운데 정렬은 빈 상태 전용이다 */
+.panel:has(.item) {
+  justify-content: flex-start;
 }
 
 /* 본문은 왼쪽 공고 레일 + 오른쪽 목록 두 열이다 */
@@ -40,6 +50,12 @@
   grid-template-columns: 236px minmax(0, 1fr);
   gap: var(--sp-4);
   align-items: start;
+}
+
+/* 배정이 없으면 공고 레일도 없다 — 열을 하나로 줄이지 않으면 목록이 레일
+   자리에 갇혀 좁고 길쭉해진다 */
+.pageBare {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* ── 왼쪽 공고 레일 ──────────────────────────────────
