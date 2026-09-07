@@ -49,6 +49,14 @@ services:
       db:
         condition: service_healthy
 
+  # 거짓말 탐지 (ai/lie-detection). 포트를 밖으로 열지 않는다 — Caddy 가 /ai/* 로만 넘긴다.
+  # GPU 서버가 준비되면 이 서비스를 그쪽으로 옮긴다. 인터페이스(POST /analyze)가 같으므로
+  # Caddyfile 의 reverse_proxy 주소만 바꾸면 되고 부르는 쪽은 바뀌지 않는다.
+  lie-detection:
+    build: ./ai/lie-detection
+    restart: unless-stopped
+    logging: *default-logging
+
   caddy:
     image: caddy:2-alpine
     ports:
@@ -62,6 +70,7 @@ services:
     logging: *default-logging
     depends_on:
       - api
+      - lie-detection
 
 
 volumes:
