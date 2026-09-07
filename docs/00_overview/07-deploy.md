@@ -275,7 +275,7 @@ ENV HF_HUB_OFFLINE=1
 
 `HF_HUB_OFFLINE=1` 을 거는 이유는 속도가 아니라 **실패를 눈에 띄게** 하기 위해서다. 모델이 빠졌을 때 조용히 내려받으면 그 사실을 아무도 모른다.
 
-**GPU 장비(로컬 STT·채팅용)는 STT 모델도 받아야 한다** — 이미지에는 안 들어 있다(optional extra 라 t3.micro 에 얹지 않는다):
+**GPU 장비(로컬 STT·채팅용)는 STT 모델도 받아야 한다** — 이미지에는 안 들어 있다(optional extra 라 운영 EC2(t3.medium, GPU 없음)에 얹지 않는다):
 
 ```bash
 uv sync --extra local
