@@ -1,4 +1,4 @@
-﻿import { Suspense, lazy, useLayoutEffect, useRef, useState } from 'react'
+﻿import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import styles from './Sidebar.module.css'
@@ -56,7 +56,17 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" />
     </>
   ),
+  /* 접기 손잡이 — 판 하나에 심지. 방향은 CSS 가 뒤집지 않고 path 를 갈아 끼운다 */
+  rail: (
+    <>
+      <rect x="3.5" y="4" width="17" height="16" rx="2" />
+      <path d="M9.5 4v16" />
+    </>
+  ),
 }
+
+/* 접힘 상태는 새로고침해도 남아야 한다 — 매번 다시 접는 건 설정이 아니라 사고다 */
+const RAIL_KEY = 'arda.sidebar.collapsed'
 
 const NAV = [
   { to: '/dashboard', label: '대시보드', icon: 'dashboard' },
@@ -83,6 +93,22 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
   /* 활성 표시를 항목이 아니라 별도 레이어로 분리한다 — 판 하나가 옮겨 붙는다 */
   const { pathname } = useLocation()
   const navRef = useRef<HTMLElement>(null)
+
+  /* 접힘. localStorage 를 못 읽는 환경(사파리 프라이빗 등)에서도 죽지 않게 감싼다 */
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(RAIL_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(RAIL_KEY, collapsed ? '1' : '0')
+    } catch {
+      /* 저장 못 해도 이번 세션 동안은 접힌 채로 쓴다 */
+    }
+  }, [collapsed])
   const [pill, setPill] = useState<{ y: number; h: number } | null>(null)
   /* 아르 칸에 커서·포커스가 올라와 있는 동안만 아르가 커서를 따라본다.
      onArHover 는 모션(listen)용이라 Layout 이 갖고 있고, 이건 뷰어에만 필요해 여기 둔다. */
@@ -94,10 +120,10 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
   }, [pathname])
 
   return (
-    <aside className={styles.sidebar}>
-      <NavLink to="/dashboard" className={styles.logo}>
+    <aside className={`${styles.sidebar} ${collapsed ? styles.rail : ''}`}>
+      <NavLink to="/dashboard" className={styles.logo} title="대시보드">
         <BrandMark size={26} className={styles.logoMark} />
-        Arda
+        <span className={styles.logoText}>Arda</span>
       </NavLink>
 
       <nav className={styles.nav} ref={navRef}>
@@ -115,10 +141,23 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
             className={({ isActive }) => `${styles.link} ${isActive ? styles.active : ''}`}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">{ICONS[item.icon]}</svg>
-            {item.label}
+            <span className={styles.linkText}>{item.label}</span>
           </NavLink>
         ))}
       </nav>
+
+      {/* 접기 — 내비 바로 아래. 접힌 폭에서도 같은 자리에 남아야 다시 펼 수 있다 */}
+      <button
+        type="button"
+        className={styles.railToggle}
+        onClick={() => setCollapsed((v) => !v)}
+        aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        aria-expanded={!collapsed}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">{ICONS.rail}</svg>
+        <span className={styles.linkText}>접기</span>
+      </button>
 
       {/* 아르 상주 슬롯 — 정사각형 전체가 에이전트 패널 토글 버튼이다 (ADR-0009 개정). */}
       <button

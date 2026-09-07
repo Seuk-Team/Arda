@@ -2,6 +2,8 @@
 .sidebar {
   width: var(--sidebar-w);
   flex: none;
+  /* 접었다 펴는 동안 본문이 같이 움직인다 — 폭만 흐르게 하고 안쪽은 즉시 바뀐다 */
+  transition: width var(--dur-base) var(--ease);
   /* 유리. 셸 크롬이라 본문 카드보다 한 겹 더 가라앉는다 (--bg-chrome) */
   background: var(--sidebar-bg);
   backdrop-filter: var(--glass);
@@ -214,6 +216,87 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
+}
+
+/* ── 접힌 폭 ──────────────────────────────────────
+   글자만 감추고 항목 높이(48px)와 아이콘 크기는 그대로 둔다 —
+   접었을 때 다른 화면처럼 보이면 같은 메뉴로 안 읽힌다 (05-design §2). */
+.rail {
+  width: var(--rail-w);
+  padding-left: var(--sp-1);
+  padding-right: var(--sp-1);
+}
+
+/* 글자는 자리를 통째로 비운다. visibility 로 숨기면 폭이 남아 아이콘이 밀린다 */
+.rail .logoText,
+.rail .linkText {
+  display: none;
+}
+
+.rail .logo {
+  align-self: center;
+  padding: 0;
+}
+
+.rail .link,
+.rail .railToggle {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+
+/* 접기 손잡이는 메뉴 항목과 같은 규격을 쓴다 — 눌러야 하는 것들의 높이가
+   제각각이면 세로줄이 무너진다 */
+.railToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 48px;
+  margin-top: var(--sp-1);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  font-size: var(--font-body);
+  font-weight: 500;
+  color: var(--text-sub);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.railToggle svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.railToggle:hover {
+  background: var(--bg-sunken);
+}
+
+.railToggle:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+/* 접히면 이름·역할은 사라지고 아바타만 남는다 */
+.rail .me {
+  justify-content: center;
+  padding: var(--sp-2) 0;
+}
+
+.rail .meText {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
 }
 
 @media (max-width: 768px) {
