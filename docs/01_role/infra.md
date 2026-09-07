@@ -1,5 +1,7 @@
 # 인프라·총괄 로드맵
 
+> 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
+
 > **오너**: ~~bestcow (팀장)~~ **공석 (2026-09-02 이탈) — AWS·GitHub 권한은 woojeongalex 가 쥐고 있다. 이 로드맵을 이어갈 사람은 팀이 정한다.** [ADR-0025](../03_decision/0025-운영-권한-이관.md) · [09-handover](../00_overview/09-handover.md) · **폴더**: `infra/` · `.github/` · `docker-compose.yml` · AWS 리소스 전부 · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
 > 공통 규칙은 [04-team.md](../00_overview/04-team.md).
 

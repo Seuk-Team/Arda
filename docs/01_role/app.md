@@ -1,5 +1,7 @@
 # 앱 로드맵
 
+> 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
+
 > **오너**: minahdev · **폴더**: `mobile/` (신설) · **상태**: 확정 v1.1 (2026-08-26, 스택 Flutter 확정 — #16·#18 + ADR-0010)
 > 공통 규칙은 [04-team.md](../00_overview/04-team.md). **디자인은 [05-design.md](../00_overview/05-design.md)를 따른다** — 모바일 원칙(§9: 칸반 금지, 터치 44px)과 토큰이 그대로 적용된다.
 

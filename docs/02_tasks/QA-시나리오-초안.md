@@ -1,5 +1,7 @@
 # [QA] 필수 기능 확인 시나리오 초안
 
+> 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
+
 > 담당: (이름) · 브랜치: `docs/qa-scenarios`
 
 ## 배경

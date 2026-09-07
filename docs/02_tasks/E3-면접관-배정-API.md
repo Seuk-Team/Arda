@@ -1,5 +1,7 @@
 # [E3] 면접관 배정 API
 
+> 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
+
 > 담당: 팀원4 · 역할 E(인프라·인증) · 브랜치: `feat/e3-interviewer-assignment`
 > **PR 단위**: 이 지시서 전체 = PR 1개
 >
