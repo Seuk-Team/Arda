@@ -1,0 +1,8 @@
+# .venv 는 호스트 파이썬으로 만든 것이라 이미지 안에서 동작하지 않고, 수백 MB 를 빌드
+# 컨텍스트로 밀어 넣는다. processed/ 는 학습용 데이터라 서비스에 필요 없다.
+.venv/
+processed/
+__pycache__/
+*.pyc
+.env
+.env.*

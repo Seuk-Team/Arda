@@ -3,5 +3,23 @@ api.seuk.suvisdev.cloud {
 		root * /srv/demo
 		file_server
 	}
+
+	# 거짓말 탐지 (ai/lie-detection). handle_path 라 앞의 /ai 는 떼고 넘어간다 —
+	# /ai/analyze 로 들어오면 서비스는 /analyze 로 받는다.
+	handle_path /ai/* {
+		# 본문 한도를 여기 안에서만 올린다. 사이트 전체에 걸면 이력서 업로드(F1)의
+		# 방어까지 같이 느슨해진다.
+		request_body {
+			max_size 200MB
+		}
+		# 영상 분석이 분 단위까지 가므로 기본 타임아웃으로는 정상 처리 중인 요청이 끊긴다.
+		reverse_proxy lie-detection:5000 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+			}
+		}
+	}
+
 	reverse_proxy api:8000
 }
