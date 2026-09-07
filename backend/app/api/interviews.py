@@ -10,7 +10,9 @@
 """
 
 import os
+import re
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
@@ -18,7 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import interview_pacing
+from app import interview_pacing, s3
+from app.agent import stt
+from app.api.files import _extract_ext, validate_audio_upload
+from app.s3 import EXPIRES_IN
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import (
@@ -30,6 +35,8 @@ from app.models import (
 )
 from app.schemas.interview import (
     AnswerRequest,
+    AudioUploadRequest,
+    AudioUploadResponse,
     ConsentRequest,
     InterviewPublicOut,
     PacingHintOut,
@@ -308,6 +315,99 @@ def set_questions(
     return get_session(session_id, db, user)
 
 
+@router.post(
+    "/public/interview/{token}/audio-upload-url",
+    response_model=AudioUploadResponse,
+)
+def presign_answer_audio(
+    token: str, body: AudioUploadRequest, db: Session = Depends(get_db)
+):
+    """답변 음성 업로드 URL 발급 (설계 §5-4). **공개** — 면접 토큰이 곧 인증이다.
+
+    **이력서 업로드와 경로를 나눈 이유**: `/public/files/presign-upload` 는
+    토큰 없이 누구나 부를 수 있다. 거기에 음성 형식을 허용하면 아무나 우리
+    버킷에 미디어를 올릴 수 있게 된다. 여기는 **진행 중인 면접**이어야 발급된다.
+
+    **키는 서버가 만든다.** 클라이언트가 경로를 고르면 서명이 곧 임의 위치 쓰기
+    권한이 된다 — 이력서 쪽(`files._build_key`)과 같은 이유다.
+
+    면접 음성이라 `applications/…` 밑에 두지 않는다. 지원서 첨부(`files` 행)가
+    아니라 면접 회차에 붙는 것이고, 보관 기간·삭제 규칙이 달라질 자리다.
+    """
+    session = _get_by_token(db, token)
+
+    if session.status == "expired":
+        raise HTTPException(HTTPStatus.GONE, "링크 유효 기간이 지났습니다")
+    if session.status != "in_progress":
+        raise HTTPException(HTTPStatus.CONFLICT, "진행 중인 면접이 아닙니다")
+
+    ext = _extract_ext(body.filename)
+    validate_audio_upload(ext, body.content_type, body.size_bytes)
+
+    key = f"interviews/{uuid.uuid4()}/answer.{ext}"
+    return AudioUploadResponse(
+        upload_url=s3.presign_put(key, body.content_type, body.size_bytes),
+        s3_key=key,
+        expires_in=EXPIRES_IN,
+    )
+
+
+# 위 발급 경로가 만든 모양만 받는다. 클라이언트가 준 키를 그냥 믿으면
+# `applications/<남의 uuid>/resume.pdf` 를 답변이라고 보내 **남의 이력서를 읽어
+# 전사**시킬 수 있다 — 서버가 S3 를 대신 읽어 주는 경로라 그대로 유출이 된다.
+_AUDIO_KEY = re.compile(
+    r"^interviews/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+    r"answer\.([a-z0-9]{1,10})$"
+)
+
+
+def _transcribe_answer(turn: InterviewTurn, key: str) -> str:
+    """음성을 읽어 전사하고, 회차에 길이·비용까지 적는다 (설계 §5-4).
+
+    **`raw` 를 저장한다 — `resolved` 가 아니다.** 전사에는 엔티티 해석("파이썬
+    이년" → "Python 2년")이 같이 나오는데, 면접 답변은 나중에 이력서 주장과
+    맞춰 **원문으로 인용**되는 자리다(ADR-0026 결정 3). 다듬은 문장을 인용하면
+    지원자가 "그렇게 말한 적 없다"고 할 때 우리가 틀린다.
+
+    실패하면 **아무것도 저장하지 않고 502** 다. 음성은 S3 에 남아 있지만 회차는
+    비어 있으므로 지원자에게는 같은 질문이 그대로 보이고 다시 답할 수 있다.
+    반쯤 저장해 두면 답을 못 한 채로 다음 질문으로 넘어간다.
+    """
+    matched = _AUDIO_KEY.match(key)
+    if matched is None:
+        raise HTTPException(
+            HTTPStatus.UNPROCESSABLE_ENTITY, "잘못된 음성 파일 키입니다"
+        )
+
+    try:
+        audio = s3.read_object(key)
+    except Exception as exc:
+        raise HTTPException(
+            HTTPStatus.BAD_GATEWAY, f"음성을 읽지 못했습니다 ({type(exc).__name__})"
+        )
+
+    try:
+        result = stt.transcribe(audio, filename=f"answer.{matched.group(1)}")
+    except Exception as exc:
+        raise HTTPException(
+            HTTPStatus.BAD_GATEWAY, f"음성을 전사하지 못했습니다 ({type(exc).__name__})"
+        )
+
+    text = (result.get("raw") or "").strip()
+    if not text:
+        # 빈 문자열을 넣으면 "답한 질문"이 되어 다음 질문으로 넘어간다.
+        # 말이 안 담긴 녹음은 답변이 아니라 다시 하면 되는 일이다.
+        raise HTTPException(
+            HTTPStatus.UNPROCESSABLE_ENTITY,
+            "음성에서 말을 찾지 못했습니다. 다시 답변해 주세요",
+        )
+
+    turn.audio_s3_key = key
+    turn.audio_duration_sec = result.get("audio_duration_sec")
+    turn.stt_cost_usd = result.get("cost_usd")
+    return text
+
+
 @router.post("/public/interview/{token}/answer", response_model=InterviewPublicOut)
 def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)):
     """현재 질문에 답한다. 공개.
@@ -353,14 +453,19 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
         ).all()
     ]
 
-    turn.transcript = body.transcript
+    if body.audio_s3_key is not None:
+        transcript = _transcribe_answer(turn, body.audio_s3_key)
+    else:
+        transcript = body.transcript
+
+    turn.transcript = transcript
     db.commit()
 
     out = get_interview_public(token, db)
 
     # 진행 보조 (ADR-0026 결정 4). **저장하지 않는다** — 이 응답에만 실린다.
     # 점수가 아니라 다음에 할 행동 한 문장이고, 평가로 가는 길이 없다.
-    hint = interview_pacing.suggest(body.transcript, earlier)
+    hint = interview_pacing.suggest(transcript, earlier)
     if hint is None:
         return out
     return out.model_copy(
