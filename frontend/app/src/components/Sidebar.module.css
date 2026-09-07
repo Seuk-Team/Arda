@@ -1,6 +1,11 @@
 ﻿/* mockup.html 사이드바 규격을 그대로 옮긴다 (§12-1 시안 복제) */
 .sidebar {
   position: relative;
+  /* 손잡이가 경계 밖으로 절반 삐져나오는데, 사이드바가 backdrop-filter 로
+     쌓임 맥락을 만들면서 z-index 가 없어 제목 띠(--z-sticky)가 그 절반을
+     덮었다 — 손잡이가 반쪽만 보였다 (2026-09-07). 셸 크롬이 본문 띠보다
+     위에 있어야 한다. */
+  z-index: var(--z-dropdown);
   width: var(--sidebar-w);
   flex: none;
   /* 접었다 펴는 동안 본문이 같이 움직인다 — 폭만 흐르게 하고 안쪽은 즉시 바뀐다 */
@@ -11,14 +16,20 @@
   border-right: var(--border-w) solid var(--sidebar-line);
   display: flex;
   flex-direction: column;
-  padding: var(--sp-4) var(--sp-2) 0;
+  /* 위 여백은 로고 띠가 대신 잡는다 — 로고를 제목 띠와 같은 높이에 세우려면
+     여기서 밀어 두면 안 된다 */
+  padding: 0 var(--sp-2);
 }
 
+/* 제목 띠(PageHead)와 같은 96px 칸 안에서 세로 가운데 — 로고와 화면 제목의
+   눈높이가 맞는다. 전에는 위 여백 16px + 글자 높이라 15px 높이 떠 있었다 */
 .logo {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   align-self: flex-start;
+  height: 96px;
+  flex: none;
   font-size: var(--font-h1);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -43,7 +54,7 @@
 
 .nav {
   position: relative;
-  margin-top: var(--sp-6);
+  margin-top: var(--sp-2);
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
@@ -163,17 +174,20 @@
   top: 28px;
   right: calc(var(--border-w) * -1);
   transform: translateX(50%);
-  width: 22px;
-  height: 40px;
+  width: 24px;
+  height: 44px;
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: var(--border-w) solid var(--sidebar-line);
   border-radius: var(--r-ctl);
-  background: var(--bg-chrome);
-  backdrop-filter: var(--glass);
-  color: var(--text-sub);
+  /* 어두운 셸 위에 어두운 알약이라, 나타나도 안 보였다 (2026-09-07).
+     테두리와 그림자가 경계를 만들고 갈매기는 본문 밝기로 올린다 —
+     --sidebar-line(.09) · --text-sub 로는 떠 있어도 안 읽힌다. */
+  border: var(--border-w) solid rgba(255, 255, 255, .24);
+  background: linear-gradient(var(--bg-elev), var(--bg-elev)), var(--bg);
+  box-shadow: 0 2px 10px rgba(2, 4, 10, .55);
+  color: var(--text);
   cursor: pointer;
   opacity: 0;
   z-index: var(--z-sticky);
@@ -184,11 +198,11 @@
 }
 
 .handle svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -201,8 +215,9 @@
 }
 
 .handle:hover {
-  color: var(--accent-text);
-  border-color: var(--accent);
+  color: var(--on-accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
 }
 
 .handle:focus-visible {
