@@ -93,12 +93,22 @@ OLLAMA_HOST=http://localhost:11434 AGENT_CHAT_BACKEND=ollama uv run ...
 
 ## 4. 자주 물리는 함정
 
-**5432 포트를 다른 PostgreSQL 이 선점한 경우.** Windows 에 네이티브 PostgreSQL 서비스가 있으면 컨테이너 DB 가 정상 기동해도 연결이 그쪽으로 간다. 인증이 실패하고 **DB 의존 테스트가 통째로 error** 가 난다 — 코드 문제가 아니다. 네이티브 서비스를 끄거나, 공용 `docker-compose.yml` 은 두고 개인 오버라이드로 다른 포트를 함께 매핑해 쓴다.
+**5432 포트를 다른 PostgreSQL 이 선점한 경우.** Windows 에 네이티브 PostgreSQL 서비스가 있으면 컨테이너 DB 가 정상 기동해도 연결이 그쪽으로 간다. 인증이 실패하거나 **옛 스키마의 다른 `arda` DB 로 붙어**(`users.is_active 칼럼 없음`) DB 의존 테스트가 통째로 error 가 난다 — 코드 문제가 아니다. 네이티브 서비스를 끄거나, 공용 `docker-compose.yml` 은 두고 개인 오버라이드로 다른 포트를 함께 매핑해 쓴다.
 
 ```bash
-# 예: 개인 오버라이드 파일에 55432 를 얹고
-DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:55432/arda" uv run pytest
+# 예: 개인 오버라이드 파일에 55432 를 얹고 backend/.env 에 이렇게 적어 둔다
+DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:55432/arda"
 ```
+
+**`pytest` 는 `backend/.env` 를 읽는다** (2026-09-07). 예전에는 `tests/conftest.py` 가 `.env` 를 안 읽어서, `.env` 에 다른 포트를 적어 둬도 무시되고 기본값 5432 로 붙었다. 이제는 conftest 가 스위치를 선점한 **직후** `load_dotenv` 를 부르므로 `DATABASE_URL` 이 `.env` 에서 따라온다. 명령줄에 매번 붙이던 것은 더 필요 없다.
+
+```bash
+uv run pytest -q     # .env 의 DATABASE_URL 로 붙는다
+```
+
+에이전트 백엔드 스위치(`AGENT_CHAT_BACKEND`·`ANTHROPIC_API_KEY` 등)는 **여전히 빈 값으로 선점**된다. `.env` 에 실제 키가 있어도 테스트에는 안 들어간다 — 로컬 초록·CI 빨강이 갈리는 것을 막기 위해서다.
+
+**로컬 DB 에 더미 데이터를 넣었다면.** 테스트는 개발 DB 를 그대로 쓴다. 픽스처가 만드는 지원자 이름은 매 실행마다 꼬리가 붙어(`김도현-a1b2c3`) 시드와 겹치지 않지만, **이름으로 찾는 테스트를 새로 쓸 때 이름을 리터럴로 적으면 같은 함정이 생긴다.** `application.name` 을 참조할 것.
 
 **MinIO 버킷 이름.** 로컬 S3 는 `minio-init` 이 **`arda-local`** 버킷을 만든다. `S3_BUCKET` 을 실 AWS 이름(`arda-resumes-teamseuk`)으로 둔 채 업로드하면 **전건 404** 로 죽고, 그 404 는 S3 로 직접 PUT 하다 나는 것이라 **API 로그에 안 남는다.** 원인 찾는 데 오래 걸린다.
 
