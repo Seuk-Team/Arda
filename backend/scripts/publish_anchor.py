@@ -24,7 +24,10 @@
 ## 필요한 것 (전부 Actions secret)
 
     ARDA_API_BASE      https://api.seuk.suvisdev.cloud/api/v1
-    ARDA_API_TOKEN     admin JWT
+    ARDA_API_TOKEN     admin JWT — **secret 이 아니라 워크플로가 매 실행마다
+                       로그인해서 넣어 준다.** JWT 는 12시간이면 만료돼서
+                       (security.py `JWT_EXPIRES_MINUTES`) secret 에 박아 두면
+                       하루 만에 401 로 죽는다
     CHAIN_RPC_URL      https://polygon-amoy-bor-rpc.publicnode.com
     CHAIN_PRIVATE_KEY  테스트넷 전용 지갑 개인키
     CHAIN_NETWORK      polygon-amoy (기본값)
