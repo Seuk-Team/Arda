@@ -205,6 +205,7 @@ name = "arda-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "alembic" },
     { name = "anthropic" },
     { name = "bcrypt" },
     { name = "boto3" },
@@ -232,13 +233,13 @@ local = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "alembic" },
     { name = "pytest" },
     { name = "pytest-timeout" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.13" },
     { name = "anthropic", specifier = ">=0.52" },
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "boto3", specifier = ">=1.43.79" },
@@ -263,7 +264,6 @@ provides-extras = ["local"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "alembic", specifier = ">=1.13" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-timeout", specifier = ">=2.3" },
 ]
