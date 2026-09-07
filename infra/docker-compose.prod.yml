@@ -1,5 +1,15 @@
 # Arda 프로덕션 compose — EC2 전용. 로컬 개발은 저장소 루트의 docker-compose.yml.
 # 차이: --reload 제거, DB 포트 비공개, 워커 활성, restart 정책, env_file 주입.
+
+# 컨테이너 로그 상한 (2026-09-07). 19GB 디스크에 상한 없이 쌓이면 09/01 처럼 배포가
+# 디스크 고갈로 죽는다. 서비스당 20MB × 3 = 최대 60MB. 오래된 로그가 필요하면
+# 그때 CloudWatch 로 보내지, 여기서 더 키우지 않는다.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -10,6 +20,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+    logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d arda"]
       interval: 3s
@@ -23,6 +34,7 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -32,6 +44,7 @@ services:
     env_file: ./backend/.env
     command: /app/.venv/bin/python -m app.worker
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +59,7 @@ services:
       - ./demo:/srv/demo:ro
       - caddy_data:/data
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - api
 
