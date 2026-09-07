@@ -19,7 +19,7 @@ body { font-family: 'Segoe UI', sans-serif; background: #0d0d12; color: #e0e0e0;
 h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .sub { color: #555; font-size: 0.85rem; margin-bottom: 28px; }
 
-.main { display: flex; gap: 24px; width: 100%; max-width: 960px; align-items: flex-start; }
+.main { display: flex; gap: 24px; width: 100%; max-width: 1440px; align-items: flex-start; }
 
 /* 왼쪽: 업로드 + 영상 */
 .left { flex: 1; display: flex; flex-direction: column; gap: 16px; }
@@ -39,7 +39,7 @@ h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .upload-area small { color: #333; }
 
 #video-wrap { display: none; border-radius: 12px; overflow: hidden; background: #000; }
-#preview { width: 100%; max-height: 360px; display: block; }
+#preview { width: 100%; max-height: 72vh; display: block; }
 
 /* 오른쪽: 결과 */
 .right { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; max-height: 90vh; overflow-y: auto; }
@@ -55,6 +55,10 @@ h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
 #analyze-btn:disabled { background: #222; color: #444; cursor: not-allowed; }
 
 #loading { display: none; text-align: center; color: #555; font-size: 0.88rem; padding: 12px; }
+@media (max-width: 900px) {
+  .main { flex-direction: column; }
+  .right { width: 100%; max-height: none; }
+}
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #333; border-top-color: #6666ff; border-radius: 50%; animation: spin .8s linear infinite; vertical-align: middle; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

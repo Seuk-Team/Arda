@@ -28,7 +28,11 @@ export default function Interview() {
   const [notice, setNotice] = useState<string | null>(null)
   const [pacing, setPacing] = useState<PacingHint | null>(null)
   const [byText, setByText] = useState(false)
-  const rec = useAnswerRecorder()
+  /* 영상으로 답할지. 화면이 뜨면 카메라를 켜 두는 것이 기본이다 — 면접이니까.
+     ADR-0026 대로 **영상 자체를 우리가 보관하지는 않는다**: 답변 파일은 전사가
+     끝나면 그 목적이 다하고, 진위 분석(ADR-0029)은 설정이 있을 때만 부른다. */
+  const [withVideo, setWithVideo] = useState(true)
+  const rec = useAnswerRecorder(withVideo)
 
   const load = useCallback(async () => {
     try {
@@ -141,7 +145,13 @@ export default function Interview() {
 
   return (
     <div className={styles.page}>
-      <main className={styles.column}>
+      <main
+        className={
+          withVideo && !byText
+            ? `${styles.column} ${styles.columnWide}`
+            : styles.column
+        }
+      >
         <h1 className={styles.logo}><span className={styles.seed}>A</span>rda</h1>
 
         {state.kind === 'loading' && (
@@ -239,8 +249,21 @@ export default function Interview() {
 
                   {rec.supported && !byText ? (
                     <div className={styles.recorder}>
+                      {withVideo && (
+                        <video
+                          ref={rec.previewRef}
+                          className={styles.preview}
+                          playsInline
+                          muted
+                          hidden={rec.state !== 'recording'}
+                        />
+                      )}
                       {rec.state === 'idle' && (
-                        <p className={styles.recorderHint}>버튼을 누르고 답변해 주세요.</p>
+                        <p className={styles.recorderHint}>
+                          {withVideo
+                            ? '버튼을 누르면 카메라와 마이크가 켜집니다.'
+                            : '버튼을 누르고 답변해 주세요.'}
+                        </p>
                       )}
                       {rec.state === 'recording' && (
                         <p className={styles.recording} aria-live="polite">
@@ -282,10 +305,16 @@ export default function Interview() {
                       </div>
 
                       {rec.state !== 'recording' && (
-                        <button type="button" className={styles.switchMode}
-                          onClick={() => { rec.reset(); setByText(true) }}>
-                          텍스트로 답변하기
-                        </button>
+                        <div className={styles.switchRow}>
+                          <button type="button" className={styles.switchMode}
+                            onClick={() => { rec.reset(); setWithVideo(!withVideo) }}>
+                            {withVideo ? '카메라 없이 음성만' : '카메라도 켜기'}
+                          </button>
+                          <button type="button" className={styles.switchMode}
+                            onClick={() => { rec.reset(); setByText(true) }}>
+                            텍스트로 답변하기
+                          </button>
+                        </div>
                       )}
                     </div>
                   ) : (

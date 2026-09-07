@@ -48,7 +48,9 @@ MAX_BYTES = 10 * 1024 * 1024  # 10MB
 # **이력서 허용 목록과 섞지 않는다.** 위 `ALLOWED_EXT` 에 음성 확장자를 얹으면
 # 이력서 자리에 `.webm` 을 올릴 수 있게 된다 — 담당자가 열 수 없는 파일이
 # 이력서로 박힌다. 쓰이는 곳이 다르면 목록도 따로 둔다.
-AUDIO_EXT = ("webm", "m4a", "mp3", "wav")
+# 영상도 받는다 — 면접 답변을 카메라로 찍으면 **음성이 같은 파일에 들어간다**
+# (ADR-0029 진위 분석의 입력이기도 하다). 전사는 그 파일에서 음성만 뽑는다.
+AUDIO_EXT = ("webm", "m4a", "mp3", "wav", "mp4")
 
 # 브라우저 MediaRecorder 는 코덱을 붙여 보낸다(`audio/webm;codecs=opus`).
 # 세미콜론 뒤는 떼고 본다 — 브라우저마다 붙는 값이 달라 전부 적을 수 없다.
@@ -57,14 +59,20 @@ AUDIO_TYPE = {
     "m4a": {"audio/mp4", "audio/x-m4a", "audio/m4a"},
     "mp3": {"audio/mpeg", "audio/mp3"},
     "wav": {"audio/wav", "audio/x-wav", "audio/wave"},
+    # 사파리가 영상을 mp4 로 낸다. webm 은 위에서 video/webm 을 이미 받는다.
+    "mp4": {"video/mp4"},
 }
+
+
+MEDIA_MAX_BYTES = 50 * 1024 * 1024  # 면접 녹화 전용 상한
 
 
 def validate_audio_upload(ext: str, content_type: str, size_bytes: int) -> None:
     """면접 답변 음성용. 이력서와 같은 이유로 **발급 시점에** 막는다.
 
-    상한은 이력서와 같은 10MB 를 쓴다. webm/opus 로 10MB 면 대략 10분이라
-    답변 하나로는 넉넉하고, 상한을 따로 두면 관리할 숫자만 늘어난다.
+    **상한이 이력서와 다르다.** 음성만이면 10MB 로 넉넉하지만 카메라를 켜면
+    같은 길이가 훨씬 커진다(640x480 vp8 로 1분에 대략 5~10MB). 이력서 상한을
+    올리면 그쪽 방어가 같이 느슨해지므로 여기만 따로 둔다.
     """
     if ext not in AUDIO_EXT:
         raise HTTPException(
@@ -75,10 +83,10 @@ def validate_audio_upload(ext: str, content_type: str, size_bytes: int) -> None:
         raise HTTPException(
             http.HTTP_422_UNPROCESSABLE_ENTITY, "파일 크기가 올바르지 않습니다"
         )
-    if size_bytes > MAX_BYTES:
+    if size_bytes > MEDIA_MAX_BYTES:
         raise HTTPException(
             http.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            f"음성은 {MAX_BYTES // 1024 // 1024}MB 이하만 올릴 수 있습니다",
+            f"녹화는 {MEDIA_MAX_BYTES // 1024 // 1024}MB 이하만 올릴 수 있습니다",
         )
     base_type = content_type.split(";")[0].strip().lower()
     if base_type not in AUDIO_TYPE[ext]:
