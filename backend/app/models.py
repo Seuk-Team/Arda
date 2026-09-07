@@ -154,6 +154,19 @@ class Application(Base):
     source: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=text("'form'")
     )
+
+    # 지원 현황 조회 링크 (신-1 지원자 포털). 지원자가 이메일을 넣으면 그때 발급해
+    # 메일로 보낸다 — **접수 시점에 만들지 않는다.** 아무도 안 볼 링크를 미리 만들어
+    # 두면 유효한 토큰이 계정 수만큼 상시 존재하게 된다.
+    #
+    # 지원자에게 비밀번호를 만들게 하지 않는 이유: 지원할 때마다 계정을 만들게 하면
+    # 지원율이 떨어지고, 우리는 **지원하지 않을 수도 있는 사람의 비밀번호**까지 갖게
+    # 된다. 나머지 공개 경로(면접·일정·인적성)와 같은 토큰 방식으로 맞춘다.
+    portal_token: Mapped[str | None] = mapped_column(String(64), unique=True)
+    portal_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -514,6 +527,14 @@ class EmailLog(Base):
         SmallInteger, nullable=False, server_default=text("0")
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # SES 가 준 MessageId. **`sent` 는 "SES 가 받아줬다"까지만 뜻한다** — 받은 뒤
+    # 반송되거나, `MAIL_DRY_RUN` 이면 아예 안 나가고도 `sent` 가 된다.
+    # 그래서 "보냈다는데 안 왔다"가 오면 이 값이 있어야 SES 쪽을 추적할 수 있다.
+    #
+    # 2026-09-07 에 추가했다. 그전에는 이 값을 **로그로만** 갖고 있었는데, 실제로
+    # 그 상황이 왔을 때 서버 셸이 없는 사람은 확인할 방법이 없었다.
+    # NULL 이면 아직 안 보냈거나 DRY_RUN 이거나 옛 행이다.
+    provider_message_id: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

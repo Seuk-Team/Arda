@@ -9,6 +9,7 @@
 # 안이다. 여기서 보내는 건 지표 3개 · 월 1.3만 건.
 #
 # 지표 (네임스페이스 Arda, 차원 Host=arda-api):
+#   MemUsedPercent    (total-available)/total. 알람: >= 90 (2회) — 거짓말 탐지가 같은 서버라 본다
 #   DiskUsedPercent   / 의 사용률.               알람: >= 85
 #   BackupAgeHours    마지막 로컬 백업 파일 나이.  알람: >= 30 (하루 1회인데 빠졌다)
 #   ApiHealthy        localhost:8000/health 가 ok 면 1, 아니면 0.
@@ -46,6 +47,9 @@ else
   age_h=9999
 fi
 
+# 2b) 메모리 — available 기준 (buff/cache 는 필요하면 비워지므로 used 로 재면 과장된다)
+mem=$(free | awk '/Mem:/{printf "%d", (1-$7/$2)*100}')
+
 # 3) API 헬스
 if curl -sf -m 5 http://localhost:8000/health 2>/dev/null | grep -q '"ok"'; then
   healthy=1
@@ -58,5 +62,6 @@ aws cloudwatch put-metric-data --namespace "$NAMESPACE" --metric-data \
   "MetricName=DiskUsedPercent,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=Percent,Value=$disk,Timestamp=$ts" \
   "MetricName=BackupAgeHours,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=None,Value=$age_h,Timestamp=$ts" \
   "MetricName=ApiHealthy,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=None,Value=$healthy,Timestamp=$ts" \
-  && echo "[$ts] disk=${disk}% backup_age=${age_h}h api=${healthy}" \
-  || echo "[$ts] 전송 실패 (disk=${disk}% backup_age=${age_h}h api=${healthy}) — IAM cloudwatch:PutMetricData 확인"
+  "MetricName=MemUsedPercent,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=Percent,Value=$mem,Timestamp=$ts" \
+  && echo "[$ts] disk=${disk}% mem=${mem}% backup_age=${age_h}h api=${healthy}" \
+  || echo "[$ts] 전송 실패 (disk=${disk}% mem=${mem}% backup_age=${age_h}h api=${healthy}) — IAM cloudwatch:PutMetricData 확인"

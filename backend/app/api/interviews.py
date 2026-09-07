@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import interview_pacing, s3
+from app import interview_pacing, lie_analysis, s3
 from app.agent import stt
 from app.api.files import _extract_ext, validate_audio_upload
 from app.s3 import EXPIRES_IN
@@ -134,6 +134,53 @@ def list_sessions(
         .order_by(InterviewSession.created_at.desc())
     ).all()
     return [_to_out(s) for s in rows]
+
+
+@router.post("/interview-turns/{turn_id}/analyze")
+def analyze_turn(
+    turn_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """이 회차의 녹화를 진위 분석 서비스에 넘긴다 (ADR-0029). **담당자용.**
+
+    **설정이 없으면 503 이다.** `LIE_SERVICE_URL` 을 안 넣으면 이 기능은 꺼져
+    있다 — ADR-0029 결정 5 가 "「정하지 못한 것」 ①②③ 이 정해지기 전에는 운영에
+    붙이지 않는다"고 정했다. 체인이 `CHAIN_RPC_URL` 없이 꺼져 있는 것과 같다.
+
+    **결과를 저장하지 않는다.** 담을 표를 아직 정하지 않았고(ADR-0029 「결과」),
+    스키마가 정해지기 전에 값이 쌓이면 그 값이 근거처럼 쓰이기 시작한다.
+
+    지원자가 영상으로 답했을 때만 쓸 수 있다 — 음성만 있는 회차는 분석할 얼굴이
+    없어서 서비스가 `{"error": ...}` 를 돌려준다.
+    """
+    reason = lie_analysis.unavailable_reason()
+    if reason:
+        raise HTTPException(
+            HTTPStatus.SERVICE_UNAVAILABLE, f"진위 분석을 쓸 수 없습니다: {reason}"
+        )
+
+    turn = db.get(InterviewTurn, turn_id)
+    if turn is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "면접 회차를 찾을 수 없습니다")
+    if not turn.audio_s3_key:
+        raise HTTPException(
+            HTTPStatus.CONFLICT, "이 회차에는 녹화가 없습니다"
+        )
+
+    try:
+        blob = s3.read_object(turn.audio_s3_key)
+    except Exception as exc:
+        raise HTTPException(
+            HTTPStatus.BAD_GATEWAY, f"녹화를 읽지 못했습니다 ({type(exc).__name__})"
+        )
+
+    try:
+        return lie_analysis.analyze(blob, filename=turn.audio_s3_key.rsplit("/", 1)[-1])
+    except Exception as exc:
+        raise HTTPException(
+            HTTPStatus.BAD_GATEWAY, f"분석하지 못했습니다 ({type(exc).__name__})"
+        )
 
 
 @router.get("/interview-sessions/{session_id}", response_model=SessionDetailOut)
