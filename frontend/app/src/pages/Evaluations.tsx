@@ -181,7 +181,9 @@ export default function Evaluations() {
         actions={<span className={styles.meta}>내가 안 낸 평가 {pending}건 / 배정 {rows.length}건</span>}
       />
 
-        <main className={`page-content ${styles.page}`}>
+        {/* 레일이 없으면 두 열짜리 격자가 목록을 레일 자리(236px)로 밀어 넣는다 —
+            배정이 0건일 때 빈 카드가 좁고 길쭉하게 섰다 (2026-09-07) */}
+        <main className={`page-content ${styles.page} ${rows.length === 0 ? styles.pageBare : ''}`}>
           {rows.length > 0 && <Rail groups={groups} selected={sel} onSelect={setSel} />}
 
           <div className={styles.panel}>
