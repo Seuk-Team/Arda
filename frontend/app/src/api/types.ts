@@ -257,6 +257,14 @@ export interface AgentConfirmResponse {
 
 /* ── AI 면접 (public/interview) ───────────────────────────────────── */
 
+/* 면접 진행 보조 (ADR-0026 결정 4). **판정이 아니라 제안이다.**
+   점수·확률이 없고 서버에 저장되지도 않는다 — 답변을 낸 그 응답에만 실려 온다.
+   `action` 은 늘어날 수 있으므로 **모르는 값은 무시한다.** */
+export interface PacingHint {
+  action: string
+  message: string
+}
+
 export interface InterviewPublic {
   status: 'pending' | 'in_progress' | 'done' | 'expired'
   applicant_name: string
@@ -265,6 +273,16 @@ export interface InterviewPublic {
   consent_required: boolean
   current_question: string | null
   question_seq: number | null
+  /* 답변 직후에만 온다. 조회(GET)에는 항상 null */
+  pacing: PacingHint | null
+}
+
+/* 답변 음성 업로드용 서명 URL. 이력서 업로드와 다른 경로다 —
+   그쪽은 토큰 없이 누구나 부를 수 있어서 음성 형식을 얹지 않았다. */
+export interface InterviewAudioUpload {
+  upload_url: string
+  s3_key: string
+  expires_in: number
 }
 
 export interface InterviewSession {
