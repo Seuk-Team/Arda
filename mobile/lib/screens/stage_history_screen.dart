@@ -77,7 +77,7 @@ class _Entry extends StatelessWidget {
   /// 05-design §1 **색은 판단에만.**
   /// 진행 중은 무채, 합격만 연두, 불합격만 적갈.
   Color get _dotColor => switch (entry.toStage) {
-    Stage.accepted => AppColors.sprout,
+    Stage.accepted => AppColors.ok,
     Stage.rejected => AppColors.danger,
     _ => AppColors.neutral,
   };

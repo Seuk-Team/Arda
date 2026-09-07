@@ -1,13 +1,10 @@
 // 대시보드 — 조각 3~9. 05-design 이 값을 못 박은 곳은 전부 그 값으로 검사한다.
 
-import 'package:arda/data/dashboard_repository.dart';
 import 'package:arda/data/mock_data.dart';
-import 'package:arda/models/interview.dart';
 import 'package:arda/models/stage.dart';
 import 'package:arda/auth/current_user.dart';
 import 'package:arda/screens/dashboard_screen.dart';
 import 'package:arda/theme/tokens.dart';
-import 'package:arda/widgets/funnel_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -43,7 +40,7 @@ BoxDecoration decorationOf(WidgetTester tester) =>
 /// 진행중 공고 카드까지 내려간다 — 지원자 현황 목록 때문에 화면 밖으로 밀렸다.
 Future<void> scrollToPostings(WidgetTester tester) async {
   await tester.dragUntilVisible(
-    find.text('진행중 공고'),
+    find.text('공고별 현황'),
     find.byType(Scrollable).first,
     const Offset(0, -300),
   );
@@ -346,79 +343,58 @@ void main() {
     });
   });
 
-  group('조각 8 — 지원자 현황', () {
-    testWidgets('레일은 접수~합격 4단 — 불합격은 없다 (§0.5)', (tester) async {
+  // 2026-09-07 — 지원자 이름 목록(옛 조각 8)과 면접 행 일정 칩 검사를 걷었다.
+  // 웹 대시보드 개편을 따라 그 블록이 화면에서 사라졌다. 사람을 훑는 일은
+  // '지원자' 탭이 하고, 대시보드는 "지금 어디에 몇 명"에만 답한다.
+  group('전체 현황', () {
+    testWidgets('심사 중 세 단계는 막대가 있고, 합격·불합격은 없다', (tester) async {
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
 
-      final rail = tester.widget<FunnelBar>(find.byType(FunnelBar));
-      expect(rail.stages, DashboardScreen.railStages);
-      expect(rail.stages, isNot(contains(Stage.rejected)));
-      expect(rail.keepEmptySegments, isTrue);
+      // 합격·불합격은 한번 되면 영원히 쌓이는 누적값이라 심사 중 세 칸과
+      // 같은 자를 쓸 수 없다 — 막대 대신 '누적'이라 적는다
+      expect(find.text('누적'), findsNWidgets(2));
     });
 
-    testWidgets('0건 구간도 6px 남는다 — §0.5 minmax(6px, n fr)', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: SizedBox(
-                width: 300,
-                child: FunnelBar(
-                  counts: {
-                    Stage.applied: 10,
-                    Stage.screening: 0,
-                    Stage.interview: 0,
-                    Stage.accepted: 2,
-                  },
-                  stages: DashboardScreen.railStages,
-                  keepEmptySegments: true,
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
+    testWidgets('다섯 단계가 모두 숫자로 나온다', (tester) async {
+      await tester.pumpWidget(host());
+      await tester.pumpAndSettle();
 
-      final widths = tester
-          .widgetList<SizedBox>(
-            find.descendant(
-              of: find.byType(Row),
-              matching: find.byType(SizedBox),
-            ),
-          )
-          .map((b) => b.width)
-          .whereType<double>()
-          .toList();
-      expect(widths.length, DashboardScreen.railStages.length);
-      for (final w in widths) {
-        expect(w, greaterThanOrEqualTo(6.0));
+      for (final stage in Stage.values) {
+        expect(
+          find.text(stage.label),
+          findsWidgets,
+          reason: '${stage.label} 칸이 없다 — 다섯이 다 보여야 합이 읽힌다',
+        );
       }
-      // 구간 합이 정확히 막대 폭 — 남거나 넘치지 않는다
-      expect(
-        widths.reduce((a, b) => a + b),
-        moreOrLessEquals(300, epsilon: 0.5),
-      );
     });
 
-    testWidgets('범례는 왼쪽부터 붙여 쓴다 — 균등 분산 금지 (§0.5)', (tester) async {
+    testWidgets('단계별 지원자 이름을 늘어놓지 않는다 — 그건 지원자 탭이 한다', (tester) async {
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
 
-      final wrap = tester.widget<Wrap>(find.byType(Wrap));
-      expect(wrap.alignment, WrapAlignment.start);
-      for (final stage in DashboardScreen.railStages) {
-        expect(find.text(stage.label), findsWidgets);
+      // '오늘 면접'은 이름을 적는 게 맞다 — 그 블록의 목적이 누구를 언제
+      // 만나는지이기 때문이다. 걷어낸 것은 단계별로 늘어놓던 이름 목록이다.
+      final onToday = {
+        for (final i in mockInterviewsOn(aDay)) i.applicantName,
+      };
+      final others = mockApplicants.where((a) => !onToday.contains(a.name));
+      expect(others, isNotEmpty, reason: '검사할 대상이 없으면 통과가 무의미하다');
+
+      for (final a in others) {
+        expect(
+          find.text(a.name),
+          findsNothing,
+          reason: '대시보드에 ${a.name} 이름이 남아 있다',
+        );
       }
     });
   });
 
-  group('조각 9 — 진행중 공고', () {
+  group('공고별 현황', () {
     testWidgets('진행중 공고만 나온다 — 마감은 없다', (tester) async {
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
-      // 지원자 현황 목록이 들어오면서 이 카드가 아래로 밀렸다.
-      // ListView 는 화면 밖 자식을 만들지 않으므로 내려가서 본다
       await scrollToPostings(tester);
 
       for (final p in mockOpenPostings) {
@@ -439,82 +415,6 @@ void main() {
       final screen = tester.getRect(find.byType(DashboardScreen));
       final meta = tester.getRect(find.textContaining('마감 D-').first);
       expect(screen.right - meta.right, greaterThan(60));
-    });
-  });
-
-  group('면접 행의 일정 칩 (2026-09-03 실기기에서 잡은 것)', () {
-    /// 대시보드 아래쪽 면접 그룹까지 내려간다
-    Future<void> scrollToInterview(WidgetTester tester) async {
-      await tester.dragUntilVisible(
-        find.text('면접').first,
-        find.byType(Scrollable).first,
-        const Offset(0, -300),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    final interviewee = mockApplicants.firstWhere(
-      (x) => x.currentStage == Stage.interview,
-    );
-
-    Widget hostWith(Map<int, ScheduleChip> chips) => CurrentUserScope(
-      notifier: CurrentUser(mockUser),
-      child: MaterialApp(
-        home: Scaffold(
-          body: DashboardScreen(
-            today: aDay,
-            repository: FakeDashboardRepository(
-              data: DashboardData(
-                todayInterviews: const [],
-                reviewWaiting: 0,
-                openPostings: const [],
-                stageCounts: const {Stage.interview: 1},
-                applicantsByStage: {
-                  Stage.interview: [interviewee],
-                },
-                scheduleStatus: chips,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    testWidgets('확정이면 그날이 오늘이 아니어도 시각을 적는다 — 빈 알약이 되면 안 된다', (tester) async {
-      await tester.pumpWidget(
-        hostWith({
-          // 오늘(09.01)이 아닌 날로 확정됐다
-          interviewee.id: ScheduleChip(
-            ScheduleStatus.confirmed,
-            confirmedAt: DateTime(2026, 9, 4, 15, 30),
-          ),
-        }),
-      );
-      await tester.pumpAndSettle();
-      await scrollToInterview(tester);
-
-      // 예전 버그: 오늘 면접 목록에서만 시각을 찾아, 다른 날로 확정된 사람은
-      // confirmed 의 빈 라벨이 그대로 나가 알약만 남았다
-      expect(find.text('09.04 15:30'), findsOneWidget);
-      expect(find.text('일정 없음'), findsNothing);
-    });
-
-    testWidgets('확정이 아니면 상태 문구를 적는다', (tester) async {
-      await tester.pumpWidget(
-        hostWith({interviewee.id: const ScheduleChip(ScheduleStatus.proposed)}),
-      );
-      await tester.pumpAndSettle();
-      await scrollToInterview(tester);
-
-      expect(find.text('일정 제안 중'), findsOneWidget);
-    });
-
-    testWidgets('안 물어본 사람은 "일정 없음"', (tester) async {
-      await tester.pumpWidget(hostWith(const {}));
-      await tester.pumpAndSettle();
-      await scrollToInterview(tester);
-
-      expect(find.text('일정 없음'), findsOneWidget);
     });
   });
 }

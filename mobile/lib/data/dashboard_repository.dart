@@ -9,9 +9,7 @@
 library;
 
 import '../api/api_client.dart';
-import '../api/api_error.dart';
 import '../api/endpoints.dart';
-import '../models/applicant.dart';
 import '../models/interview.dart';
 import '../models/job_posting.dart';
 import '../models/stage.dart';
@@ -25,8 +23,6 @@ class DashboardData {
     required this.reviewWaiting,
     required this.openPostings,
     required this.stageCounts,
-    required this.applicantsByStage,
-    required this.scheduleStatus,
   });
 
   /// 오늘 확정된 면접
@@ -41,13 +37,11 @@ class DashboardData {
   /// **진행중 공고만** 합친 단계별 인원
   final Map<Stage, int> stageCounts;
 
-  /// 단계별 지원자 — 대시보드가 단계마다 앞 몇 명의 이름을 적는다
-  final Map<Stage, List<Applicant>> applicantsByStage;
-
-  /// 면접 단계 사람의 일정 제안 상태. **묻지 않은 사람은 아예 없다** —
-  /// 화면에 이름이 뜨는 몇 명만 물어본다
-  final Map<int, ScheduleChip> scheduleStatus;
 }
+
+// 2026-09-07 — applicantsByStage · scheduleStatus 를 걷었다.
+// 대시보드가 단계마다 지원자 이름을 적던 블록이 없어지면서(웹과 같은 개편)
+// 쓰는 곳이 사라졌다. 일정 칩을 묻던 요청 N 개도 같이 사라진다.
 
 /// 일정 칩 하나 — 상태 + (확정이면) 그 시각.
 ///
@@ -99,23 +93,11 @@ class DashboardRepository {
       }
     }
 
-    final byStage = {
-      for (final s in Stage.values)
-        s: [
-          for (final p in open)
-            ...p.applicants.where((a) => a.currentStage == s),
-        ],
-    };
-
     return DashboardData(
       todayInterviews: interviews,
       reviewWaiting: waiting,
       openPostings: open,
       stageCounts: counts,
-      applicantsByStage: byStage,
-      scheduleStatus: await _scheduleStatuses(
-        (byStage[Stage.interview] ?? const []).take(namedPerStage),
-      ),
     );
   }
 
@@ -141,53 +123,4 @@ class DashboardRepository {
     ];
   }
 
-  /// 일정 제안 상태 — **이름이 뜨는 몇 명만** 병렬로 묻는다.
-  ///
-  /// 면접 단계 전원에게 물으면 사람 수만큼 요청이 붙는다. 웹도 화면에 나오는
-  /// 인원(최대 `GROUP_LIMIT`)만 묻는다.
-  Future<Map<int, ScheduleChip>> _scheduleStatuses(
-    Iterable<Applicant> applicants,
-  ) async {
-    final entries = await Future.wait(
-      applicants.map((a) async => MapEntry(a.id, await _statusOf(a.id))),
-    );
-    return {
-      for (final e in entries)
-        if (e.value != null) e.key: e.value!,
-    };
-  }
-
-  /// **404 는 오류가 아니다** — "아직 제안을 안 보냈다" 는 정상 상태다
-  /// (웹 `Dashboard.tsx` 주석에도 그렇게 적혀 있다). 화면은 "일정 없음" 으로
-  /// 그리므로 여기서 null 로 바꿔 돌려준다.
-  Future<ScheduleChip?> _statusOf(int applicationId) async {
-    try {
-      final json = await _client.get(
-        Endpoints.scheduleProposals(applicationId),
-      );
-      final status = switch (json['status'] as String?) {
-        'proposed' => ScheduleStatus.proposed,
-        'confirmed' => ScheduleStatus.confirmed,
-        'expired' => ScheduleStatus.expired,
-        _ => ScheduleStatus.none,
-      };
-
-      // 확정이면 그 시각까지 들고 온다 — 오늘이 아닐 수 있고, 그때 시각이
-      // 없으면 칩이 빈 알약이 된다
-      final slot = json['confirmed_slot'] as Map<String, dynamic>?;
-      final startAt = slot?['start_at'] as String?;
-
-      return ScheduleChip(
-        status,
-        confirmedAt: startAt == null ? null : DateTime.parse(startAt).toLocal(),
-      );
-    } on ServerError catch (e) {
-      if (e.statusCode == 404) return null;
-      // 그 밖의 실패는 칩만 비운다 — 일정 칩 하나 때문에 대시보드 전체가
-      // 오류가 되면 안 된다
-      return null;
-    } on ApiError {
-      return null;
-    }
-  }
 }

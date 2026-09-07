@@ -466,24 +466,6 @@ class FakeDashboardRepository implements DashboardRepository {
       reviewWaiting: mockReviewQueueCount,
       openPostings: open,
       stageCounts: mockOpenStageCounts,
-      applicantsByStage: {
-        for (final s in Stage.values)
-          s: [
-            for (final p in open)
-              ...p.applicants.where((a) => a.currentStage == s),
-          ],
-      },
-      scheduleStatus: {
-        for (final e in mockScheduleStatus.entries)
-          e.key: ScheduleChip(
-            e.value,
-            // 목데이터의 확정은 그날 면접 시각을 쓴다 — 서버의
-            // `confirmed_slot` 자리다
-            confirmedAt: e.value == ScheduleStatus.confirmed
-                ? mockInterviewFor(e.key, day)?.startAt
-                : null,
-          ),
-      },
     );
   }
 

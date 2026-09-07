@@ -93,17 +93,18 @@ void main() {
 
     await tester.tap(find.text('최종 합격'));
     await tester.pumpAndSettle();
+    // 2026-09-07 다크 이식 — 규칙(합격·불합격만 색)은 그대로, 값만 바뀌었다
     final accepted = tester.widget<Text>(find.text('최종 합격').last);
-    expect(accepted.style?.color, const Color(0xFF3A6B21)); // --leaf
+    expect(accepted.style?.color, const Color(0xFF6EE7B7)); // --ok-text
 
     await tester.tap(find.text('불합격'));
     await tester.pumpAndSettle();
     final rejected = tester.widget<Text>(find.text('불합격').last);
-    expect(rejected.style?.color, const Color(0xFFA9503C)); // --danger
+    expect(rejected.style?.color, const Color(0xFFF0A38F)); // --danger
 
     await tester.tap(find.text('면접'));
     await tester.pumpAndSettle();
     final inProgress = tester.widget<Text>(find.text('면접').last);
-    expect(inProgress.style?.color, const Color(0xFF5C6654)); // --text-sub
+    expect(inProgress.style?.color, const Color(0xFF9AA7C0)); // --text-sub
   });
 }

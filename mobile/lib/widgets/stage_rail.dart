@@ -54,7 +54,7 @@ class StageRail extends StatelessWidget {
                     child: Container(
                       height: 2,
                       color: i <= currentIndex
-                          ? AppColors.sprout
+                          ? AppColors.accent
                           : AppColors.sunkenHover,
                     ),
                   ),
@@ -112,9 +112,12 @@ class _Node extends StatelessWidget {
     final done = index < currentIndex;
     final now = index == currentIndex;
 
+    // 지나온 단계는 워시, 지금 단계는 채움. 둘 다 '진행'이라 시안이다 —
+    // 합격 초록은 마지막 단계에 도달했을 때 StageLabel 이 따로 그린다.
+    // 채운 칸의 글자는 --on-accent 다: 흰 채움 위 흰 글자는 안 보인다
     final (bg, border, fg) = switch ((done, now)) {
-      (true, _) => (AppColors.sproutSoft, AppColors.sprout, AppColors.leaf),
-      (_, true) => (AppColors.leaf, AppColors.leaf, AppColors.bgElev),
+      (true, _) => (AppColors.accentSoft, AppColors.accent, AppColors.accentText),
+      (_, true) => (AppColors.accent, AppColors.accent, AppColors.onAccent),
       _ => (AppColors.bgSunken, AppColors.border, AppColors.textSub),
     };
 
