@@ -144,7 +144,7 @@ main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-com
 
 **서버 설치 (1회, suvisdev)**:
 ```bash
-sudo apt-get install -y awscli
+sudo snap install aws-cli --classic     # Ubuntu 24.04 apt 에는 awscli 가 없다 (2026-09-07 실측)
 curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/backup-arda-db.sh -o ~/backup-arda-db.sh && chmod +x ~/backup-arda-db.sh
 ~/backup-arda-db.sh                         # 손으로 한 번 — S3 에 파일 생기는지 확인
 ( crontab -l 2>/dev/null; echo '0 19 * * * /home/ubuntu/backup-arda-db.sh >> /home/ubuntu/backup.log 2>&1' ) | crontab -
