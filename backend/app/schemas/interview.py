@@ -76,7 +76,7 @@ class PacingHintOut(BaseModel):
     `app/interview_pacing.py` 에 모여 있다.
     """
 
-    action: str  # follow_up | offer_break
+    action: str  # follow_up | offer_break | rephrase
     message: str
 
 

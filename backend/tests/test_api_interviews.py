@@ -530,6 +530,34 @@ class TestAnswerAudio:
         db.refresh(turn)
         assert "(해석됨)" not in turn.transcript
 
+    def test_말이_느리면_진행_보조가_질문을_바꾸자고_한다(self, public, running):
+        """`audio_duration_sec` 이 진행 보조까지 실제로 전달되는지 (배선 확인)."""
+        slow = _stt_result()
+        slow["audio_duration_sec"] = 40.0  # 같은 문장을 40초에 = 아주 느리다
+
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=slow),
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+
+        assert res.json()["pacing"]["action"] == "rephrase"
+
+    def test_보통_속도면_진행_보조가_없다(self, public, running):
+        """24자를 12.5초 = 1.9자/초. 중간에 한두 번 생각하며 말한 평범한 답변이다."""
+        with (
+            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.agent.stt.transcribe", return_value=_stt_result()),
+        ):
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"audio_s3_key": _AUDIO_KEY},
+            )
+        assert res.json()["pacing"] is None
+
     def test_남의_이력서_키는_거절한다(self, public, db: Session, running):
         """서버가 S3 를 대신 읽어 주는 경로다 — 키를 믿으면 그대로 유출이다."""
         with patch("app.s3.read_object") as mock_read:

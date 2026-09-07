@@ -465,7 +465,9 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
 
     # 진행 보조 (ADR-0026 결정 4). **저장하지 않는다** — 이 응답에만 실린다.
     # 점수가 아니라 다음에 할 행동 한 문장이고, 평가로 가는 길이 없다.
-    hint = interview_pacing.suggest(transcript, earlier)
+    hint = interview_pacing.suggest(
+        transcript, earlier, audio_duration_sec=turn.audio_duration_sec
+    )
     if hint is None:
         return out
     return out.model_copy(
