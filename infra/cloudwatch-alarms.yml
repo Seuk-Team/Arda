@@ -8,6 +8,10 @@
 #   (arn:aws:sns:ap-northeast-2:<계정>:arda-alerts) → 다음 → 다음 → 스택 생성.
 # 비용 0 — 알람 10개까지 상시 무료. 지우고 싶으면 스택 삭제 한 번.
 #
+# 2026-09-07 추가: MemHigh(메모리 ≥90%, 거짓말 탐지 동거 후) · SystemCheckFailed(EC2 시스템 상태
+# 검사 실패 → **AWS 가 인스턴스를 자동 복구** + 메일). 스택 업데이트로 반영: CloudFormation →
+# arda-alarms → 업데이트 → 기존 템플릿 교체 → 파일 업로드 → 파라미터 InstanceId 입력.
+#
 # 주의: 서버 cron 이 돌기 전에 올리면 ApiHealthy 알람은 "데이터 없음 = 경보" 설정 때문에
 # 첫 20분 안에 메일 한 통이 온다. 서버 cron 을 먼저 걸고 10분 뒤 올리면 안 온다.
 AWSTemplateFormatVersion: "2010-09-09"
@@ -21,6 +25,9 @@ Parameters:
     Type: String
     Default: arda-api
     Description: push-metrics.sh 의 Host 차원 값
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: 자동 복구 대상 EC2 (arda-api) 의 인스턴스 ID — i-로 시작
 
 Resources:
   DiskHigh:
@@ -76,6 +83,42 @@ Resources:
       AlarmActions: [!Ref AlertTopicArn]
       OKActions: [!Ref AlertTopicArn]
 
+  MemHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: arda-mem-high
+      AlarmDescription: "메모리 사용 90% 이상 20분 — 거짓말 탐지 분석이 겹쳤거나 누수. status.sh 로 확인, 필요하면 lie-detection 재시작"
+      Namespace: Arda
+      MetricName: MemUsedPercent
+      Dimensions: [{ Name: Host, Value: !Ref HostName }]
+      Statistic: Maximum
+      Period: 600
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 90
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: ignore
+      AlarmActions: [!Ref AlertTopicArn]
+      OKActions: [!Ref AlertTopicArn]
+
+  SystemCheckFailed:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: arda-ec2-auto-recover
+      AlarmDescription: "EC2 시스템 상태 검사 2분 연속 실패 — AWS 가 같은 IP·디스크로 인스턴스를 자동 복구한다(재부팅과 같음). 메일도 온다"
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Dimensions: [{ Name: InstanceId, Value: !Ref InstanceId }]
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Sub "arn:aws:automate:${AWS::Region}:ec2:recover"
+        - !Ref AlertTopicArn
+
 Outputs:
   Alarms:
-    Value: !Join [", ", [!Ref DiskHigh, !Ref BackupStale, !Ref ApiDown]]
+    Value: !Join [", ", [!Ref DiskHigh, !Ref BackupStale, !Ref ApiDown, !Ref MemHigh, !Ref SystemCheckFailed]]
