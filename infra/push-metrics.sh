@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# 서버 상태 숫자 3개를 CloudWatch 로 보낸다 — 10분마다 cron (2026-09-07, 인프라 오너).
+# 서버 상태 숫자 5개를 CloudWatch 로 보낸다 — 10분마다 cron (2026-09-07, 인프라 오너).
 #
 # 왜: 디스크가 차는지·백업이 빠졌는지·API 가 죽었는지를 사람이 주 1회 보는 대신,
 # 숫자를 보내 두고 CloudWatch 알람이 넘으면 SNS 메일을 쏘게 한다. 사람이 안 봐도 된다.
 # 에이전트를 깔지 않는다 — 이미 있는 aws-cli 로 put-metric-data 만 부른다.
 #
 # 비용: CloudWatch 상시 무료 구간(사용자 지정 지표 10개·알람 10개·API 100만 건/월)
-# 안이다. 여기서 보내는 건 지표 3개 · 월 1.3만 건.
+# 안이다. 여기서 보내는 건 지표 5개 · 월 2.2만 건.
 #
 # 지표 (네임스페이스 Arda, 차원 Host=arda-api):
 #   MemUsedPercent    (total-available)/total. 알람: >= 90 (2회) — 거짓말 탐지가 같은 서버라 본다
@@ -15,6 +15,8 @@
 #   ApiHealthy        localhost:8000/health 가 ok 면 1, 아니면 0.
 #                     알람: < 1. **누락 데이터도 경보로** 두면 인스턴스가 통째로
 #                     죽어 아무 숫자도 안 올 때도 울린다.
+#   N8nHealthy        localhost:5678/healthz 가 200 이면 1, 아니면 0 (ADR-0030). 알람: < 1 (2회).
+#                     누락은 무시 — 인스턴스 전체가 죽은 건 ApiHealthy 가 잡는다.
 #
 # 설치:
 #   curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/push-metrics.sh -o ~/push-metrics.sh && chmod +x ~/push-metrics.sh
@@ -57,11 +59,19 @@ else
   healthy=0
 fi
 
+# 4) n8n 헬스 — N8N_PATH 설정에 따라 /healthz 또는 /n8n/healthz 중 하나가 응답한다
+if curl -sf -m 5 http://localhost:5678/healthz >/dev/null 2>&1 || curl -sf -m 5 http://localhost:5678/n8n/healthz >/dev/null 2>&1; then
+  n8n=1
+else
+  n8n=0
+fi
+
 ts=$(date -u +%FT%TZ)
 aws cloudwatch put-metric-data --namespace "$NAMESPACE" --metric-data \
   "MetricName=DiskUsedPercent,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=Percent,Value=$disk,Timestamp=$ts" \
   "MetricName=BackupAgeHours,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=None,Value=$age_h,Timestamp=$ts" \
   "MetricName=ApiHealthy,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=None,Value=$healthy,Timestamp=$ts" \
   "MetricName=MemUsedPercent,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=Percent,Value=$mem,Timestamp=$ts" \
-  && echo "[$ts] disk=${disk}% mem=${mem}% backup_age=${age_h}h api=${healthy}" \
-  || echo "[$ts] 전송 실패 (disk=${disk}% mem=${mem}% backup_age=${age_h}h api=${healthy}) — IAM cloudwatch:PutMetricData 확인"
+  "MetricName=N8nHealthy,Dimensions=[{Name=Host,Value=$HOST_DIM}],Unit=None,Value=$n8n,Timestamp=$ts" \
+  && echo "[$ts] disk=${disk}% mem=${mem}% backup_age=${age_h}h api=${healthy} n8n=${n8n}" \
+  || echo "[$ts] 전송 실패 (disk=${disk}% mem=${mem}% backup_age=${age_h}h api=${healthy} n8n=${n8n}) — IAM cloudwatch:PutMetricData 확인"

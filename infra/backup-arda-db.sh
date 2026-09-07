@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 운영 DB 백업 — 매일 pg_dump 를 gzip 으로 떠서 S3 에 올린다 (2026-09-07, 인프라 오너).
+# n8n 볼륨(워크플로·자격 증명)도 같은 버킷 n8n/ 아래로 (ADR-0030).
 #
 # 왜 있나: 서버는 EC2 한 대, DB 는 EBS 볼륨 하나다. 인스턴스 사고 한 번이면 지원자
 # 개인정보와 무결성 원장이 같이 사라진다. 특히 chain_publications.proof(OTS 증명)는
@@ -57,6 +58,23 @@ gzip -t "$OUT"
 
 aws s3 cp "$OUT" "s3://${BACKUP_BUCKET}/db/${FILE}" --only-show-errors
 log "업로드 완료 s3://${BACKUP_BUCKET}/db/${FILE} (${SIZE}B)"
+
+# n8n (ADR-0030, 2026-09-07): 워크플로·자격 증명·실행 기록이 든 볼륨(/home/node/.n8n)을 통째로.
+# 워크플로 JSON 은 저장소 infra/n8n/ 이 진실이지만, 화면에서 고치고 아직 export 안 한 것과
+# 자격 증명은 여기밖에 없다. 복원엔 ~/arda/.env 의 N8N_ENCRYPTION_KEY 가 같이 있어야 한다.
+# 컨테이너가 없거나 꺼져 있으면 건너뛴다 — DB 백업이 이것 때문에 실패하면 안 된다.
+if docker compose -f "$COMPOSE" ps --status running --services 2>/dev/null | grep -qx n8n; then
+  N8N_OUT="${LOCAL_DIR}/n8n-${STAMP}.tar.gz"
+  if docker compose -f "$COMPOSE" exec -T n8n tar czf - -C /home/node/.n8n . > "$N8N_OUT" && gzip -t "$N8N_OUT"; then
+    aws s3 cp "$N8N_OUT" "s3://${BACKUP_BUCKET}/n8n/$(basename "$N8N_OUT")" --only-show-errors
+    log "n8n 업로드 완료 s3://${BACKUP_BUCKET}/n8n/$(basename "$N8N_OUT") ($(stat -c %s "$N8N_OUT")B)"
+  else
+    log "n8n 백업 실패 — 볼륨 tar 또는 gzip 검사에서 멈춤 (DB 백업은 이미 올라갔다)"; rm -f "$N8N_OUT"
+  fi
+  ls -1t "${LOCAL_DIR}"/n8n-*.tar.gz 2>/dev/null | tail -n +"$((KEEP_LOCAL + 1))" | xargs -r rm -f
+else
+  log "n8n 컨테이너 없음 — n8n 백업 건너뜀"
+fi
 
 # 로컬은 최근 N개만 남긴다 — 29GB 디스크다 (09/01 디스크 고갈 전력)
 ls -1t "${LOCAL_DIR}"/arda-*.sql.gz 2>/dev/null | tail -n +"$((KEEP_LOCAL + 1))" | xargs -r rm -f
