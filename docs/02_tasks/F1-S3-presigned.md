@@ -1,5 +1,7 @@
 # [F1·F2] S3 presigned 업로드 · 다운로드
 
+> 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
+
 > 담당: 팀원1 · 역할 C(파일·알림) · 브랜치: `feat/f1-s3-presigned`
 > **PR 단위**: 이 지시서 전체 = PR 1개
 
