@@ -42,7 +42,7 @@ class ApplicationIntegrityOut(BaseModel):
 class PublicationOut(BaseModel):
     """사슬 머리를 공개 체인에 올린 기록 한 건 (ADR-0028 2·3단계).
 
-    `network` 로 어디에 올렸는지 갈린다 — `polygon-amoy` 는 탐색기 링크가,
+    `network` 로 어디에 올렸는지 갈린다 — `ethereum-sepolia` 는 탐색기 링크가,
     `opentimestamps` 는 증명 파일(`proof`)이 근거다.
     """
 

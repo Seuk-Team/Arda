@@ -46,6 +46,34 @@ class Test짧은_답:
         assert hint.action == "follow_up"
 
 
+class Test발화_속도:
+    """음성으로 답했을 때만 볼 수 있다 (2026-09-07, 설계 §5-4 이후)."""
+
+    def test_말이_유난히_느리면_질문을_바꾸자고_한다(self):
+        # 33자를 30초에 = 1.1자/초
+        hint = pacing.suggest(긴_답, audio_duration_sec=30.0)
+        assert hint is not None
+        assert hint.action == "rephrase"
+
+    def test_보통_속도면_아무_말도_안_한다(self):
+        # 같은 답을 6초에 = 5.5자/초
+        assert pacing.suggest(긴_답, audio_duration_sec=6.0) is None
+
+    def test_텍스트로_답하면_속도를_안_본다(self):
+        """`audio_duration_sec` 이 없으면 길이만 본다 — 없는 것을 신호로 쓰지 않는다."""
+        assert pacing.suggest(긴_답) is None
+
+    def test_너무_짧은_녹음은_속도를_재지_않는다(self):
+        """2초짜리는 첫 한마디 뜸들이는 것만으로 속도가 반토막 난다."""
+        assert pacing.suggest(긴_답, audio_duration_sec=2.0) is None
+
+    def test_짧은_답이_속도보다_먼저다(self):
+        """두 글자짜리 답의 초당 글자 수는 사람에 대한 정보가 아니다."""
+        hint = pacing.suggest(짧은_답, audio_duration_sec=30.0)
+        assert hint is not None
+        assert hint.action == "follow_up"
+
+
 class Test평가로_새지_않는다:
     """ADR-0026 결정 4 — 점수에 넣지 않는다. 구조로 막혀 있어야 한다."""
 
@@ -55,9 +83,21 @@ class Test평가로_새지_않는다:
         names = {f.name for f in fields(hint)}
         assert names == {"action", "message"}
 
-    def test_행동은_정해진_둘_중_하나다(self):
+    def test_행동은_정해진_셋_중_하나다(self):
         """새 action 을 늘릴 때 여기서 한 번 걸리게 한다 — 판정어가 끼어들지 않게."""
-        for transcript, earlier in [(짧은_답, []), (짧은_답, [짧은_답])]:
-            hint = pacing.suggest(transcript, earlier)
+        cases = [
+            (짧은_답, [], None),
+            (짧은_답, [짧은_답], None),
+            (긴_답, [], 30.0),
+        ]
+        for transcript, earlier, duration in cases:
+            hint = pacing.suggest(transcript, earlier, audio_duration_sec=duration)
             assert hint is not None
-            assert hint.action in {"follow_up", "offer_break"}
+            assert hint.action in {"follow_up", "offer_break", "rephrase"}
+
+    def test_느린_답에도_심리_추론을_적지_않는다(self):
+        """"긴장" 같은 말을 넣는 순간 ADR-0026 결정 2 를 넘는다."""
+        hint = pacing.suggest(긴_답, audio_duration_sec=30.0)
+        assert hint is not None
+        for 금지어 in ("긴장", "불안", "거짓", "의심", "점수"):
+            assert 금지어 not in hint.message
