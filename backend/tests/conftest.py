@@ -45,7 +45,27 @@ _TEST_SAFE_SWITCHES = (
 for _key in _TEST_SAFE_SWITCHES:
     os.environ[_key] = ""
 
+# `.env` 는 **여기서** 읽는다 — `app.db` 를 import 하기 전에.
+#
+# `app/db.py` 는 import 되는 순간 `os.getenv("DATABASE_URL", "…5432/arda")` 로 URL 을
+# 고정하는데, `load_dotenv()` 는 `app/main.py` 에만 있어서 pytest 경로에서는 아예
+# 불리지 않았다. 그래서 `.env` 에 다른 포트를 적어 둬도 무시되고 5432 로 붙는다.
+# 그 자리에 네이티브 PostgreSQL 이 앉아 있는 PC 는 옛 스키마의 다른 `arda` DB 로
+# 붙어 `users.is_active 칼럼 없음` 으로 수백 개가 error 가 났다 (2026-09-07 수택 보고).
+# `08-local-setup.md` 에 함정으로 적어 뒀는데도 밟혔다 — 사람 기억에 맡기지 않고
+# 코드로 막는다.
+#
+# **선점 루프 뒤에 부르는 것이 핵심이다.** `override=False`(기본) 라 위에서 빈 값으로
+# 잡아 둔 스위치는 `.env` 가 못 덮는다. 새로 들어오는 것은 `DATABASE_URL` 처럼
+# 선점하지 않은 키뿐이라, 로컬 초록·CI 빨강이 갈리던 조건은 그대로 유지된다.
+from pathlib import Path  # noqa: E402
+
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 from datetime import UTC, datetime  # noqa: E402
+from uuid import uuid4  # noqa: E402
 
 import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
@@ -138,9 +158,17 @@ def posting(db: Session, admin_user: User) -> JobPosting:
 
 @pytest.fixture()
 def application(db: Session, posting: JobPosting) -> Application:
+    # 이름에 꼬리를 붙여 **매 실행마다 고유**하게 만든다. 고정값 "김도현" 이면
+    # 시드 더미를 넣어 둔 로컬 DB 에서 같은 이름이 둘이 되고, 이름으로 찾는
+    # 경로가 "여러 명이 있어요" 로 빠져 `TestDirectHandlerStageRule` 세 개가
+    # 깨진다. CI 는 빈 DB 라 통과해서 **더미를 넣은 사람만** 밟았다
+    # (2026-09-07 수택 보고 · 재현 확인).
+    #
+    # 이름을 쓰는 test 는 `application.name` 을 참조한다 — 여기 값을 바꿔도
+    # 따라오게. 리터럴로 적으면 같은 함정이 다시 생긴다.
     app = Application(
         job_posting_id=posting.id,
-        name="김도현",
+        name=f"김도현-{uuid4().hex[:6]}",
         email="test-dohyun@fixture.local",
         phone="010-1234-5678",
         education="서울대 컴공",

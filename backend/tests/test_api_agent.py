@@ -332,9 +332,13 @@ class TestDirectHandlerStageRule:
     def test_skip_forward_offers_next_stage_card(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
         from app.api.agent import _handle_direct
-        # fixture 의 김도현은 applied. interview 로 두 칸 건너뛰기 요청.
+        # fixture 지원자는 applied. interview 로 두 칸 건너뛰기 요청.
+        # 이름은 fixture 에서 가져온다 — 리터럴로 적으면 시드 더미와 겹쳐
+        # "여러 명이 있어요" 로 빠진다 (conftest 의 `application` 주석 참고).
         intent = DirectAction(
-            "change_stage", {"_name_lookup": "김도현", "to_stage": "interview"}, is_write=True,
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "interview"},
+            is_write=True,
         )
         resp = _handle_direct(intent, db, admin_user)
         assert "먼저" in resp.reply and "서류 검토" in resp.reply
@@ -348,7 +352,9 @@ class TestDirectHandlerStageRule:
         from app.agent.intent_router import DirectAction
         from app.api.agent import _handle_direct
         intent = DirectAction(
-            "change_stage", {"_name_lookup": "김도현", "to_stage": "screening"}, is_write=True,
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "screening"},
+            is_write=True,
         )
         resp = _handle_direct(intent, db, admin_user)
         assert resp.reply == ""
@@ -358,7 +364,9 @@ class TestDirectHandlerStageRule:
         from app.agent.intent_router import DirectAction
         from app.api.agent import _handle_direct
         intent = DirectAction(
-            "change_stage", {"_name_lookup": "김도현", "to_stage": "applied"}, is_write=True,
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "applied"},
+            is_write=True,
         )
         resp = _handle_direct(intent, db, admin_user)
         assert "이미" in resp.reply and resp.pending_action is None
