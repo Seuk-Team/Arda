@@ -43,6 +43,50 @@ ALLOWED_TYPE = {
 
 MAX_BYTES = 10 * 1024 * 1024  # 10MB
 
+# ── 면접 답변 음성 (설계 §5-4) ────────────────────────────────
+#
+# **이력서 허용 목록과 섞지 않는다.** 위 `ALLOWED_EXT` 에 음성 확장자를 얹으면
+# 이력서 자리에 `.webm` 을 올릴 수 있게 된다 — 담당자가 열 수 없는 파일이
+# 이력서로 박힌다. 쓰이는 곳이 다르면 목록도 따로 둔다.
+AUDIO_EXT = ("webm", "m4a", "mp3", "wav")
+
+# 브라우저 MediaRecorder 는 코덱을 붙여 보낸다(`audio/webm;codecs=opus`).
+# 세미콜론 뒤는 떼고 본다 — 브라우저마다 붙는 값이 달라 전부 적을 수 없다.
+AUDIO_TYPE = {
+    "webm": {"audio/webm", "video/webm"},  # 크롬이 video/webm 으로 붙일 때가 있다
+    "m4a": {"audio/mp4", "audio/x-m4a", "audio/m4a"},
+    "mp3": {"audio/mpeg", "audio/mp3"},
+    "wav": {"audio/wav", "audio/x-wav", "audio/wave"},
+}
+
+
+def validate_audio_upload(ext: str, content_type: str, size_bytes: int) -> None:
+    """면접 답변 음성용. 이력서와 같은 이유로 **발급 시점에** 막는다.
+
+    상한은 이력서와 같은 10MB 를 쓴다. webm/opus 로 10MB 면 대략 10분이라
+    답변 하나로는 넉넉하고, 상한을 따로 두면 관리할 숫자만 늘어난다.
+    """
+    if ext not in AUDIO_EXT:
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"허용되지 않는 음성 형식입니다. 가능: {', '.join(AUDIO_EXT)}",
+        )
+    if size_bytes <= 0:
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_ENTITY, "파일 크기가 올바르지 않습니다"
+        )
+    if size_bytes > MAX_BYTES:
+        raise HTTPException(
+            http.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            f"음성은 {MAX_BYTES // 1024 // 1024}MB 이하만 올릴 수 있습니다",
+        )
+    base_type = content_type.split(";")[0].strip().lower()
+    if base_type not in AUDIO_TYPE[ext]:
+        raise HTTPException(
+            http.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"확장자(.{ext})와 파일 형식({content_type})이 맞지 않습니다",
+        )
+
 
 def _validate_upload(ext: str, content_type: str, size_bytes: int) -> None:
     """발급 전에 막는다.
