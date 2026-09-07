@@ -168,6 +168,28 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 
 **디스크가 차지 않게 하는 장치 (2026-09-07 정리)**: 배포 스크립트가 배포 끝마다 옛 이미지와 3GB 넘는 빌드 캐시를 지운다(`docker image prune` · `docker builder prune --keep-storage 3g`). 컨테이너 로그는 compose 에서 서비스당 20MB × 3 상한. 이 둘이 없던 09/07 이전엔 빌드 캐시 12GB 가 쌓여 있었다.
 
+## 모니터링·경보 — 사람이 안 봐도 되게 (2026-09-07 도입)
+
+**왜**: 앵커 cron 이 이틀 죽었는데 아무도 못 봤다(09/05~06). "주 1회 `~/status.sh`" 는 까먹는다. 넘으면 메일이 오게 한다.
+
+**구조**: 서버 cron 이 10분마다 [infra/push-metrics.sh](../../infra/push-metrics.sh) 로 숫자 3개를 CloudWatch 에 보낸다(네임스페이스 `Arda`, 차원 `Host=arda-api`). 알람 3개가 SNS 주제 `arda-alerts` 로 메일을 쏜다. 에이전트 없음 — 이미 있는 aws-cli 만 쓴다. **비용 0** — CloudWatch 상시 무료 구간(사용자 지정 지표 10개·알람 10개·API 100만 건/월) 안이고 SNS 메일도 월 1,000통까지 무료.
+
+| 지표 | 뜻 | 알람 조건 | 누락 데이터 |
+|---|---|---|---|
+| `DiskUsedPercent` | `/` 사용률 | **≥ 85** (1회) | 무시 |
+| `BackupAgeHours` | 마지막 백업 파일 나이(시간) | **≥ 30** (1회) — 하루 1회인데 빠졌다 | 무시 |
+| `ApiHealthy` | `localhost:8000/health` 가 ok 면 1 | **< 1** (2회 연속 = 20분) | **경보로 취급** — 인스턴스가 통째로 죽어 숫자가 안 와도 울린다 |
+
+**설정 (1회, suvisdev 콘솔)**:
+1. IAM → 사용자 `arda-server` → 인라인 정책 `arda-metrics-write`: `cloudwatch:PutMetricData` 허용 (Resource `*` — 이 API 는 리소스 단위 제한이 없다. `cloudwatch:namespace` 조건으로 `Arda` 만 허용)
+2. SNS → 주제 생성(표준) `arda-alerts` → 구독 생성(이메일, 수택 주소) → **받은 확인 메일의 링크 클릭** (안 누르면 알람이 울려도 메일이 안 온다)
+3. CloudWatch → 경보 → 경보 생성 → 지표 선택 `Arda` › `Host` › 위 표대로 3개. 기간 10분, 통계 최댓값(`ApiHealthy` 는 최솟값). 작업: 경보 상태일 때 `arda-alerts`. `ApiHealthy` 만 "누락 데이터 처리: 잘못됨(breaching)"
+4. 서버: 스크립트 받고 cron 등록 — [push-metrics.sh](../../infra/push-metrics.sh) 머리 주석 두 줄
+
+**확인**: 등록 10~15분 뒤 CloudWatch → 지표 → `Arda` 에 3개가 보이면 된다. `~/metrics.log` 에 `disk=..% backup_age=..h api=1` 이 10분마다 찍힌다. **알람 테스트**: `sudo systemctl stop arda-deploy.timer` 가 아니라 `docker compose -f ~/arda/docker-compose.prod.yml stop api` 로 20분 뒤 메일이 오는지 한 번 본 뒤 `start api`. 시연 직전엔 하지 말 것.
+
+**밖에서 찌르는 확인은 아직 없다**: 위 셋은 서버 안에서 잰다. DNS·TLS·Caddy 가 죽어 밖에서만 안 되는 경우는 못 잡는다. 필요해지면 GitHub Actions cron 이 15분마다 `https://api.seuk.suvisdev.cloud/health` 를 부르는 워크플로(앵커 실패 알림 #25 와 같은 패턴)를 추가한다.
+
 ## 1회성 DB 이행
 
 스키마는 `create_all` 로 만들지만([db.py](../../backend/app/db.py)), **이미 데이터가 있는 DB** 는 값·제약을 바꿀 수단이 없다. 그런 변경은 `backend/scripts/` 에 SQL 파일로 두고 여기에 실행법을 적는다.
