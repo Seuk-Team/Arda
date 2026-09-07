@@ -299,6 +299,53 @@ export interface InterviewSessionDetail extends InterviewSession {
   findings: InterviewFinding[]
 }
 
+/* ── 제출물 무결성 (ADR-0028) ─────────────────────────────────────
+   "위조 방지"가 아니라 **위조 검출**이다. DB 를 고치는 건 누구도 막을 수
+   없고, 달라지는 건 고친 사실이 드러난다는 점이다 — 문구를 그렇게 쓴다. */
+
+/* 고리 하나 + 지금 원본과 맞춰 본 결과 */
+export interface IntegrityItem {
+  seq: number
+  doc_type: string
+  file_id: number | null
+  filename: string | null
+  content_sha256: string
+  chain_hash: string
+  anchored_at: string
+  status: 'ok' | 'mismatch' | 'unreadable'
+  reason: string | null
+}
+
+/* verdict 는 항목들을 한 줄로 요약한 것 — 나쁜 쪽이 이긴다.
+   `none` 은 "깨끗하다"가 아니라 **"증명할 근거가 없다"** 이므로 ok 와 섞지 않는다.
+   ADR-0028 이전에 접수된 지원서가 여기 해당한다. */
+export type IntegrityVerdict = 'ok' | 'mismatch' | 'unreadable' | 'none'
+
+export interface ApplicationIntegrity {
+  application_id: number
+  anchored: boolean
+  verdict: IntegrityVerdict
+  items: IntegrityItem[]
+}
+
+/* 사슬 머리를 공개 체인에 올린 기록.
+   explorer_url 은 **서버가 골라 준다** — 네트워크마다 탐색기가 달라서
+   프론트에서 주소를 조립하면 안 된다. */
+export interface Publication {
+  id: number
+  network: string
+  covered_through_seq: number
+  chain_hash: string
+  tx_hash: string | null
+  block_number: number | null
+  status: 'pending' | 'confirmed' | 'failed'
+  error: string | null
+  created_at: string
+  confirmed_at: string | null
+  explorer_url: string | null
+  proof: string | null
+}
+
 /* ── 인적성(사전 성향) 설문 (ADR-0027) ───────────────────────────── */
 
 export interface AptitudePublicQuestion {
