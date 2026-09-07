@@ -116,7 +116,11 @@ class _Node extends StatelessWidget {
     // 합격 초록은 마지막 단계에 도달했을 때 StageLabel 이 따로 그린다.
     // 채운 칸의 글자는 --on-accent 다: 흰 채움 위 흰 글자는 안 보인다
     final (bg, border, fg) = switch ((done, now)) {
-      (true, _) => (AppColors.accentSoft, AppColors.accent, AppColors.accentText),
+      (true, _) => (
+        AppColors.accentSoft,
+        AppColors.accent,
+        AppColors.accentText,
+      ),
       (_, true) => (AppColors.accent, AppColors.accent, AppColors.onAccent),
       _ => (AppColors.bgSunken, AppColors.border, AppColors.textSub),
     };

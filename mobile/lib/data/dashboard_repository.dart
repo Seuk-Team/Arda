@@ -16,6 +16,9 @@ import '../models/stage.dart';
 import 'posting_repository.dart';
 import 'schedule_repository.dart';
 
+/// 배정 한 건 — `AssignmentOut` 에서 화면이 쓰는 것만.
+typedef Assignment = ({int applicationId, DateTime assignedAt});
+
 /// 대시보드 한 화면에 필요한 것 전부.
 class DashboardData {
   const DashboardData({
@@ -36,7 +39,6 @@ class DashboardData {
 
   /// **진행중 공고만** 합친 단계별 인원
   final Map<Stage, int> stageCounts;
-
 }
 
 // 2026-09-07 — applicantsByStage · scheduleStatus 를 걷었다.
@@ -104,23 +106,30 @@ class DashboardRepository {
   /// 내게 배정된 건수 — `GET /interviewers/{id}/applications` 의 `count`.
   ///
   /// 대시보드는 숫자만 보여 주므로 목록을 안 쓴다. 이름이 필요한 평가 대기
-  /// 큐는 [assignedIds] 로 id 를 받아 사람마다 상세를 더 받는다.
+  /// 큐는 [assignments] 로 배정을 받아 사람마다 상세를 더 받는다.
   Future<int> _reviewWaitingCount(int userId) async {
     final json = await _client.get(Endpoints.assignedApplications(userId));
     return json['count'] as int? ?? 0;
   }
 
-  /// 내게 배정된 지원자 id — 평가 대기 큐가 쓴다.
+  /// 내게 배정된 건 — 평가 현황이 쓴다.
   ///
-  /// **응답에 이름도 공고명도 없다**(`AssignmentOut` 은 id 뿐). 화면을 그리려면
-  /// 건마다 상세를 한 번 더 받아야 한다 — 웹 `Evaluations.tsx` 도 똑같이
-  /// `Promise.all` 로 병렬로 받는다. 배정이 보통 몇 건이라 그게 낫다.
-  Future<List<int>> assignedIds(int userId) async {
+  /// **응답에 이름도 공고명도 없다**(`AssignmentOut` 은 id·시각뿐). 화면을
+  /// 그리려면 건마다 상세를 한 번 더 받아야 한다 — 웹 `Evaluations.tsx` 도
+  /// 똑같이 `Promise.all` 로 병렬로 받는다. 배정이 보통 몇 건이라 그게 낫다.
+  ///
+  /// `created_at` 은 **배정된 시각**이다. '배정 n일째' 가 여기서 나온다 —
+  /// 지원일을 쓰면 어제 배정된 건이 "20일째"로 뜬다.
+  Future<List<Assignment>> assignments(int userId) async {
     final json = await _client.get(Endpoints.assignedApplications(userId));
     return [
       for (final a in (json['assignments'] as List? ?? const []))
-        (a as Map<String, dynamic>)['application_id'] as int,
+        (
+          applicationId: (a as Map<String, dynamic>)['application_id'] as int,
+          assignedAt:
+              DateTime.tryParse(a['created_at'] as String? ?? '') ??
+              DateTime.now(),
+        ),
     ];
   }
-
 }

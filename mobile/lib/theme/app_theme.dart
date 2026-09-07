@@ -72,6 +72,7 @@ ThemeData buildAppTheme() {
             shape: const RoundedRectangleBorder(borderRadius: AppShape.ctl),
             // §6: disabled 도 정의해야 완성이다. Material 기본 회색 대신 토큰을 쓴다
             disabledBackgroundColor: AppColors.bgSunken,
+
             /// 다크에서 --neutral 은 비활성 글자로 쓰기엔 어둡다 — 대비 4.5:1 을
             /// 못 넘긴다. 본문색을 낮춰 쓴다 (웹 .btn:disabled 와 같은 알파)
             disabledForegroundColor: AppColors.textSub,

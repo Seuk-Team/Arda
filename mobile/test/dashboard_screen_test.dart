@@ -375,9 +375,7 @@ void main() {
 
       // '오늘 면접'은 이름을 적는 게 맞다 — 그 블록의 목적이 누구를 언제
       // 만나는지이기 때문이다. 걷어낸 것은 단계별로 늘어놓던 이름 목록이다.
-      final onToday = {
-        for (final i in mockInterviewsOn(aDay)) i.applicantName,
-      };
+      final onToday = {for (final i in mockInterviewsOn(aDay)) i.applicantName};
       final others = mockApplicants.where((a) => !onToday.contains(a.name));
       expect(others, isNotEmpty, reason: '검사할 대상이 없으면 통과가 무의미하다');
 

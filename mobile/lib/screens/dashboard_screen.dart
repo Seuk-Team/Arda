@@ -168,9 +168,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // 심사 중 세 칸과 같은 자를 쓰면 시간이 갈수록 앞 세 칸이 실오라기가
         // 된다 — 견줄 대상이 아니다. 덤으로 --ok 와 --danger 는 적록색약에서
         // ΔE 3.5 라 나란히 두면 경계가 안 보인다.
-        _Card(
-          child: _TotalsBlock(counts: stageTotals),
-        ),
+        _Card(child: _TotalsBlock(counts: stageTotals)),
         const SizedBox(height: AppSpace.s3),
 
         // ④ 공고별 현황 — ③ 을 공고로 쪼갠 것. 두 블록의 합은 항상 같다
@@ -219,7 +217,9 @@ class _TotalsBlock extends StatelessWidget {
       children: [
         _CardHead(
           title: '전체 현황',
-          meta: formatCount(live.fold(0, (a, b) => a + b) + accepted + rejected),
+          meta: formatCount(
+            live.fold(0, (a, b) => a + b) + accepted + rejected,
+          ),
         ),
         const SizedBox(height: AppSpace.s3),
         Row(
@@ -355,7 +355,9 @@ class _StatCell extends StatelessWidget {
           )
         else
           ClipRRect(
-            borderRadius: const BorderRadius.horizontal(right: Radius.circular(3)),
+            borderRadius: const BorderRadius.horizontal(
+              right: Radius.circular(3),
+            ),
             child: Container(
               height: 10,
               color: AppColors.bgSunken,

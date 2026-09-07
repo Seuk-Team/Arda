@@ -618,32 +618,39 @@ Interview? mockInterviewFor(int applicationId, DateTime around) {
 /// **화면은 이제 서버에서 받는다**(큐 8 4단계, 2026-09-03) — 이 목록은
 /// 테스트가 쓰는 값으로만 남는다. `TeamMember` 는 `models/team_member.dart` 로
 /// 옮겼다(진짜 데이터가 되었으므로 파서와 같은 자리에 있어야 한다).
+/// id 는 [mockUser](1번, 김민아) 다음부터다 — 같은 id 를 두 사람이 쓰면
+/// 평가 현황이 남의 평가를 "내 것" 으로 본다.
 const mockTeam = <TeamMember>[
   TeamMember(
+    id: 2,
     name: '김채용',
     email: 'admin@arda.com',
     role: UserRole.admin,
     active: true,
   ),
   TeamMember(
+    id: 3,
     name: '이서연',
     email: 'recruiter1@arda.com',
     role: UserRole.member,
     active: true,
   ),
   TeamMember(
+    id: 4,
     name: '박정호',
     email: 'reviewer1@arda.com',
     role: UserRole.member,
     active: true,
   ),
   TeamMember(
+    id: 5,
     name: '최민지',
     email: 'recruiter2@arda.com',
     role: UserRole.member,
     active: true,
   ),
   TeamMember(
+    id: 6,
     name: '한도윤',
     email: 'reviewer2@arda.com',
     role: UserRole.member,
