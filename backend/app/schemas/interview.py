@@ -68,6 +68,18 @@ class SessionDetailOut(SessionOut):
     findings: list[FindingOut] = []
 
 
+class PacingHintOut(BaseModel):
+    """진행 보조 제안 하나 (ADR-0026 결정 4).
+
+    **판정이 아니라 제안이다.** 점수·확률·등급에 해당하는 값이 없고, DB 에도
+    남지 않는다 — 답변을 저장한 그 응답에만 실려 나간다. 규칙은
+    `app/interview_pacing.py` 에 모여 있다.
+    """
+
+    action: str  # follow_up | offer_break
+    message: str
+
+
 class InterviewPublicOut(BaseModel):
     """지원자용. **토큰과 URL 을 되돌려주지 않는다** — 이미 가진 사람만 본다.
 
@@ -83,6 +95,9 @@ class InterviewPublicOut(BaseModel):
     # 진행 중일 때 현재 질문. pending 이면 None
     current_question: str | None = None
     question_seq: int | None = None
+    # 답변을 낸 직후에만 붙는다. 조회(GET)에는 항상 None —
+    # 지원자가 새로고침할 때마다 같은 말을 반복하지 않게.
+    pacing: PacingHintOut | None = None
 
 
 class ConsentRequest(BaseModel):

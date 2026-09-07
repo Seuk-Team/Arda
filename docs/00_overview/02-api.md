@@ -118,13 +118,15 @@
 | POST | /public/interview/{token}/consent | 녹음·전사 동의 | **공개**. 본문 `{agreed}`. **지원 폼의 개인정보 동의와 별개다** — 거절하면 422, 기록도 안 남는다 |
 | POST | /public/interview/{token}/start | 면접 시작 | **공개**. 동의 없으면 422 · 만료면 410 · 준비된 질문이 없으면 422 |
 | PUT | /interview-sessions/{id}/questions | 질문 목록 설정 | 본문 `{questions: [...]}` (1~20개). **시작 전에만** — 진행 중 변경은 409 |
-| POST | /public/interview/{token}/answer | 현재 질문에 답변 | **공개**. 본문 `{transcript}`. **답 안 한 가장 앞 질문**에 붙는다 — 순번을 지원자가 보내지 않는다. 남은 질문이 없으면 409 |
+| POST | /public/interview/{token}/answer | 현재 질문에 답변 | **공개**. 본문 `{transcript}`. **답 안 한 가장 앞 질문**에 붙는다 — 순번을 지원자가 보내지 않는다. 남은 질문이 없으면 409. 응답에 **`pacing`** 이 붙을 수 있다(아래) |
 | POST | /public/interview/{token}/finish | 면접 종료 | **공개**. **다 답하지 않아도 끝낼 수 있다.** 두 번 눌러도 200 |
 
 - **동의가 시작의 선행 조건이다.** `consented_at` 이 비어 있으면 `/start` 가 422 로 거절한다
 - `findings` 에 **점수가 없다** — `consistent` / `inconsistent` / `unverified` 셋뿐이고 판단은 사람이 한다 ([ADR-0003](../03_decision/0003-ai-추천만.md))
 - 답변 음성 업로드는 **기존 `POST /public/files/presign-upload` 를 그대로 쓴다** — 새 경로를 만들지 않았다
-- 아직 없는 것: 답변 제출·전사(`/turns`) · 종료(`/finish`). 설계 §5 의 4번부터다
+- **`pacing` — 진행 보조** (2026-09-07, [ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md) 결정 4). 답변 응답에만 붙고 조회(GET)에는 항상 `null` 이다. 모양은 `{action, message}` 이고 `action` 은 `follow_up`(되묻기) · `offer_break`(쉬어가기 권함) 둘뿐. **점수가 없고 DB 에 저장되지 않는다** — 평가로 가는 길을 만들지 않기 위해서다. 제안할 것이 없으면 `null`. 규칙은 `app/interview_pacing.py`
+  - 지금은 **전사 글자 수만** 본다. 침묵 길이·발화 속도는 설계 §5-4(음성 업로드→STT)가 붙어야 입력이 생긴다
+- 아직 없는 것: 음성 업로드→STT 전사. 설계 §5 의 4번이다
 
 ## 인적성(사전 성향) 설문 (ADR-0027)
 

@@ -329,6 +329,39 @@ class TestAnswer:
         assert res.json()["question_seq"] == 2
         assert res.json()["current_question"] == "질문2"
 
+    def test_짧게_답하면_진행_보조가_같이_온다(self, public, db: Session, running):
+        """ADR-0026 결정 4 — 판정이 아니라 다음에 할 행동 한 문장."""
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "네"}
+        )
+        assert res.status_code == 200
+        pacing = res.json()["pacing"]
+        assert pacing["action"] == "follow_up"
+        assert pacing["message"]
+
+    def test_충분히_답하면_진행_보조가_없다(self, public, db: Session, running):
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer",
+            json={"transcript": "결제 정산 API 를 맡아 응답 시간을 절반으로 줄였습니다"},
+        )
+        assert res.json()["pacing"] is None
+
+    def test_진행_보조는_저장되지_않는다(self, public, db: Session, running):
+        """평가로 새는 길을 아예 안 만든다 — 답변 응답에만 실리고 끝이다."""
+        public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "네"}
+        )
+        # 다시 조회하면 없다. 새로고침할 때마다 같은 말을 반복하지 않는다.
+        assert public.get("/api/v1/public/interview/tok-test").json()["pacing"] is None
+
+        turn = db.scalars(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == running.id)
+            .order_by(InterviewTurn.seq)
+        ).first()
+        # 저장된 것은 전사뿐 — 신호를 적어 두는 칸이 없다
+        assert turn.transcript == "네"
+
     def test_답_안_한_가장_앞_질문에_붙는다(self, public, db: Session, running):
         """마지막 질문을 보면 안 된다 — 3개 중 1번만 답했을 때 3번을 내주게 된다."""
         public.post(
