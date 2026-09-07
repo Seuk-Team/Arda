@@ -116,45 +116,10 @@
   stroke: var(--accent);
 }
 
-/* ── 아르 상주 슬롯 ─────────────────────────────
-   바닥으로 미는 역할을 .me 가 아니라 이쪽이 맡는다 (목업과 동일).
-   사이드바 폭(216) 안쪽 좌우 패딩(--sp-2 ×2)을 뺀 정사각형이 통째로 버튼이다. */
-.arSlot {
-  margin: auto 0 var(--sp-2);
-  width: 100%;
-  aspect-ratio: 1;
-  padding: 0;
-  overflow: hidden;
-  background: var(--bg-sunken);
-  border: var(--border-w) solid var(--sidebar-line);
-  border-radius: var(--r-card);
-  cursor: pointer;
-  transition:
-    border-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
-}
-
-.arSlot:hover {
-  box-shadow: var(--sh-card);
-}
-
-.arSlot:focus-visible {
-  outline: 2px solid var(--accent-text);
-  outline-offset: 2px;
-}
-
-/* 패널이 열려 있는 동안 눌린 상태.
-   2026-09-01 — --accent-text 는 연두 사이드바 위에서 1px 짙은 잎초록이라 검은 선으로 읽혔고,
-   그렇다고 바탕을 --accent-soft 로 깔면 3D 캔버스가 투명이라 아르가 뜬 것처럼 흐려진다.
-   바탕은 흰색 그대로 두고 테두리만 한 단계 밝은 --accent 으로 굵힌다. */
-.arSlot[aria-expanded='true'] {
-  border-color: var(--accent);
-  box-shadow: var(--sh-glow);
-}
-
-.arView {
-  width: 100%;
-  height: 100%;
+/* 아르는 화면 우하단 도크로 갔다 (2026-09-07, Layout.module.css).
+   내비가 바닥까지 늘어지지 않게 남은 자리는 이 빈 칸이 먹는다. */
+.grow {
+  flex: 1;
 }
 
 /* 프로필은 우측 상단 계정 메뉴(AccountMenu)로 옮겼다 (2026-09-05) */

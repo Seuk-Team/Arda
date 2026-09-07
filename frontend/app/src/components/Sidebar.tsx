@@ -1,17 +1,8 @@
-﻿import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+﻿import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import styles from './Sidebar.module.css'
 import BrandMark from './BrandMark'
-import type { Motion } from './ArViewer'
-
-/* three.js 가 초기 번들의 대부분이었다. 아르는 전 화면 사이드바에 상주하지만
-   첫 페인트에 필요한 건 아니라 별도 청크로 뺀다 — 타입만 정적으로 가져온다. */
-const ArViewer = lazy(() => import('./ArViewer'))
-
-/* 맥은 ⌘, 나머지는 Ctrl. 라벨에만 쓰므로 userAgent 로 충분하다. */
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
-const AR_HINT = IS_MAC ? '⌘K' : 'Ctrl+K'
 
 /* 아이콘은 mockup.html 사이드바에서 그대로 옮겼다 (§12-1 시안 복제).
    stroke·크기는 CSS 가 잡으므로 path 만 담는다. */
@@ -70,16 +61,10 @@ const NAV = [
      남긴다. 개인 설정 하나가 업무 화면들 사이에 껴 있던 것이 어색했다. */
 ] as const
 
-interface Props {
-  /* 아르 패널 열림 여부 — 정사각형 버튼의 눌린 상태를 이걸로 그린다 */
-  arOpen: boolean
-  arMotion: Motion
-  onToggleAr: () => void
-  onArHover: (hovered: boolean) => void
-  arButtonRef: RefObject<HTMLButtonElement | null>
-}
-
-export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arButtonRef }: Props) {
+/* 아르는 사이드바를 떠나 화면 우하단 도크로 갔다 (2026-09-07, Layout).
+   접힌 폭 64px 에서는 정사각형이 48px 로 뭉개졌고, 접기 손잡이·내비와
+   같은 좁은 열을 두고 다퉜다. 떠 있으면 폭에 안 매인다. */
+export default function Sidebar() {
   /* 활성 표시를 항목이 아니라 별도 레이어로 분리한다 — 판 하나가 옮겨 붙는다 */
   const { pathname } = useLocation()
   const navRef = useRef<HTMLElement>(null)
@@ -100,10 +85,6 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
     }
   }, [collapsed])
   const [pill, setPill] = useState<{ y: number; h: number } | null>(null)
-  /* 아르 칸에 커서·포커스가 올라와 있는 동안만 아르가 커서를 따라본다.
-     onArHover 는 모션(listen)용이라 Layout 이 갖고 있고, 이건 뷰어에만 필요해 여기 둔다. */
-  const [arHover, setArHover] = useState(false)
-
   useLayoutEffect(() => {
     const on = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')
     setPill(on ? { y: on.offsetTop, h: on.offsetHeight } : null)
@@ -149,27 +130,8 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
         <span className={styles.linkText}>접기</span>
       </button>
 
-      {/* 아르 상주 슬롯 — 정사각형 전체가 에이전트 패널 토글 버튼이다 (ADR-0009 개정). */}
-      <button
-        ref={arButtonRef}
-        type="button"
-        className={styles.arSlot}
-        onClick={onToggleAr}
-        onMouseEnter={() => { onArHover(true); setArHover(true) }}
-        onMouseLeave={() => { onArHover(false); setArHover(false) }}
-        onFocus={() => { onArHover(true); setArHover(true) }}
-        onBlur={() => { onArHover(false); setArHover(false) }}
-        aria-label={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
-        title={`아르 에이전트 ${arOpen ? '닫기' : '열기'} (${AR_HINT})`}
-        aria-expanded={arOpen}
-        aria-controls="ar-panel"
-      >
-        {/* 폴백은 같은 크기의 빈 칸 — 청크가 늦게 와도 정사각형이 흔들리지 않는다 */}
-        <Suspense fallback={<span className={styles.arView} />}>
-          {/* 커서가 이 칸 위에 있을 때만 따라본다. 벗어나면 정면으로 돌아온다 */}
-          <ArViewer className={styles.arView} motion={arMotion} track={arHover} />
-        </Suspense>
-      </button>
+      {/* 내비가 바닥까지 밀리지 않게 남은 자리를 먹는다 — 아르가 있던 칸이다 */}
+      <span className={styles.grow} aria-hidden="true" />
 
     </aside>
   )

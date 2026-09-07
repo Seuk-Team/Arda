@@ -3,6 +3,7 @@
    모션에 내장돼 있다: ask→질문 얼굴, confirm→행복, fail→실패, 나머지는 기본 얼굴. */
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { tintHsl, tintPixels } from '../lib/arTint'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
@@ -10,6 +11,40 @@ export const MOTIONS = ['idle', 'enter', 'listen', 'think', 'ask', 'confirm', 'f
 export type Motion = (typeof MOTIONS)[number]
 
 /* 루프 모션 외(enter·confirm·fail)는 1회 재생 후 idle 복귀 */
+/* 베이스컬러 텍스처를 색만 돌려 새로 만든다. 원본 텍스처를 열쇠로 캐시해
+   여러 뷰어가 같이 쓴다 — 화면마다 1M 픽셀을 다시 훑을 이유가 없다.
+   캔버스가 못 그리면(이미지가 아직 없거나 컨텍스트를 못 얻으면) 원본을
+   그대로 돌려준다. 색이 안 도는 것이 아르가 안 보이는 것보다 낫다. */
+const tintCache = new WeakMap<THREE.Texture, THREE.Texture>()
+
+function tintedMap(src: THREE.Texture): THREE.Texture {
+  const hit = tintCache.get(src)
+  if (hit) return hit
+  const img = src.image as CanvasImageSource & { width?: number; height?: number }
+  const w = img?.width ?? 0
+  const h = img?.height ?? 0
+  if (w === 0 || h === 0) return src
+  const cv = document.createElement('canvas')
+  cv.width = w
+  cv.height = h
+  const ctx = cv.getContext('2d')
+  if (!ctx) return src
+  ctx.drawImage(img, 0, 0)
+  const data = ctx.getImageData(0, 0, w, h)
+  tintPixels(data.data)
+  ctx.putImageData(data, 0, 0)
+
+  const out = new THREE.CanvasTexture(cv)
+  /* glTF 텍스처는 flipY=false 다. 기본값(true)을 그대로 두면 아르가 뒤집힌다 */
+  out.flipY = src.flipY
+  out.colorSpace = src.colorSpace
+  out.wrapS = src.wrapS
+  out.wrapT = src.wrapT
+  out.needsUpdate = true
+  tintCache.set(src, out)
+  return out
+}
+
 const LOOPS: ReadonlySet<Motion> = new Set(['idle', 'listen', 'think', 'ask'])
 const FADE = 0.12
 
@@ -85,10 +120,32 @@ export default function ArViewer({ motion = 'idle', speed, expression, interacti
     const ro = new ResizeObserver(resize)
     ro.observe(host)
 
+    /* 아르 색을 시안 쪽으로 돌린다 (05-design · 아르 A안).
+       한 번만 만들어 두고 여러 뷰어가 같이 쓴다 — 화면마다 1M 픽셀을 다시
+       훑을 이유가 없다. 원본 텍스처는 그대로 두고 새 것을 얹는다. */
+    const tintScene = (root: THREE.Object3D) => {
+      root.traverse((o) => {
+        const mesh = o as THREE.Mesh
+        if (!mesh.isMesh) return
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        mats.forEach((mat) => {
+          const m = mat as THREE.MeshStandardMaterial
+          if (m.map) m.map = tintedMap(m.map)
+          if (m.color) {
+            const hsl = { h: 0, s: 0, l: 0 }
+            m.color.getHSL(hsl)
+            const next = tintHsl(hsl.h, hsl.s, hsl.l)
+            if (next) m.color.setHSL(next[0], next[1], next[2])
+          }
+        })
+      })
+    }
+
     let controls: OrbitControls | null = null
     let disposed = false
     new GLTFLoader().load(`${import.meta.env.BASE_URL}ar.glb`, (g) => {
       if (disposed) return
+      tintScene(g.scene)
       scene.add(g.scene)
       /* 커서 추적은 모델 전체를 조금 돌려서 낸다 — 목 본 이름에 기대지 않으므로
          glb 가 바뀌어도 안 깨진다. 원래 각도를 기억해 두고 그 위에 더한다. */
