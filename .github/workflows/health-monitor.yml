@@ -1,0 +1,92 @@
+# 바깥에서 찌르는 헬스체크 (2026-09-07, 인프라 오너)
+#
+# 서버 안의 지표(push-metrics.sh → CloudWatch)는 "서버가 살아 있고 api 컨테이너가 답한다" 까지만
+# 안다. DNS·TLS·Caddy·보안그룹이 죽어 **밖에서만** 안 되는 경우는 못 잡는다. 여기서는 GitHub
+# 러너가 공개 주소를 15분마다 부른다 — 사용자가 보는 것과 같은 경로다.
+#
+# 알림은 앵커 워크플로(#25)와 같은 패턴: 실패하면 이슈를 열거나 열린 이슈에 코멘트, 복구되면
+# 그 이슈에 "복구됨" 을 달고 닫는다. 열린 이슈는 항상 최대 하나.
+# 비용 0 (공개 저장소 Actions).
+name: 외부 헬스체크
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: health-monitor
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      API: https://api.seuk.suvisdev.cloud
+      FRONT: https://seuk.suvisdev.cloud
+      TITLE: "🔴 외부 헬스체크 실패 — 서버 밖에서 서비스가 안 보인다"
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: 두 번 찔러 본다 (한 번 삐끗한 걸로 알리지 않는다)
+        id: probe
+        run: |
+          check() {
+            api=$(curl -s -m 15 -o /tmp/h.json -w "%{http_code}" "$API/health" || echo 000)
+            front=$(curl -s -m 15 -o /dev/null -w "%{http_code}" "$FRONT/" || echo 000)
+            body=$(cat /tmp/h.json 2>/dev/null || true)
+            echo "api=$api front=$front body=$body"
+            [ "$api" = "200" ] && echo "$body" | grep -q '"ok"' && [ "$front" = "200" ]
+          }
+          if check; then echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "첫 시도 실패 — 30초 뒤 재시도"; sleep 30
+          if check; then echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "detail=api=$api front=$front body=${body:0:200}" >> "$GITHUB_OUTPUT"
+
+      - name: 열린 알림 이슈 찾기
+        id: issue
+        run: |
+          n=$(gh issue list --repo "$REPO" --state open --limit 100 --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\") | .number] | first // empty")
+          echo "number=$n" >> "$GITHUB_OUTPUT"
+
+      - name: 실패 — 이슈를 열거나 코멘트
+        if: steps.probe.outputs.ok == 'false'
+        run: |
+          body=$(cat <<EOF
+          공개 주소로 서비스가 안 보입니다 (30초 간격 2회 모두 실패).
+
+          - 결과: \`${{ steps.probe.outputs.detail }}\`
+          - 실행: $RUN_URL
+          - 시각(UTC): $(date -u '+%Y-%m-%d %H:%M')
+
+          ## 먼저 볼 것
+
+          1. **CloudWatch 경보 \`arda-api-down\` 도 울렸는가** — 같이 울렸으면 서버·컨테이너 문제(\`ssh arda\` → \`~/status.sh\`). 여기만 울렸으면 **DNS·TLS·Caddy·보안그룹** 쪽이다.
+          2. \`front\` 만 실패면 Vercel, \`api\` 만 실패면 EC2/Caddy.
+          3. 서버에서 \`docker compose -f ~/arda/docker-compose.prod.yml logs caddy --tail 50\`.
+
+          ---
+          이 이슈는 워크플로가 자동으로 열었습니다. 복구되면 자동으로 닫힙니다.
+          EOF
+          )
+          if [ -n "${{ steps.issue.outputs.number }}" ]; then
+            gh issue comment "${{ steps.issue.outputs.number }}" --repo "$REPO" --body "$body"
+          else
+            gh issue create --repo "$REPO" --title "$TITLE" --body "$body" --assignee suvisdev
+          fi
+
+      - name: 복구 — 열린 이슈가 있으면 닫는다
+        if: steps.probe.outputs.ok == 'true' && steps.issue.outputs.number != ''
+        run: |
+          gh issue comment "${{ steps.issue.outputs.number }}" --repo "$REPO" \
+            --body "복구 확인 — $(date -u '+%Y-%m-%d %H:%M') UTC 에 api·front 모두 200. 자동으로 닫습니다. ($RUN_URL)"
+          gh issue close "${{ steps.issue.outputs.number }}" --repo "$REPO"
+
+      - name: 결과
+        if: steps.probe.outputs.ok == 'false'
+        run: exit 1

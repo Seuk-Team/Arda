@@ -123,7 +123,7 @@ API 전체가 안 뜬 것**이다.
 
 ## 재배포 — 자동 (2026-09-04 부터)
 
-**main 머지가 곧 배포다.** 서버의 systemd 타이머 `arda-deploy.timer` 가 2분마다 `main` 을 보고, 새 커밋이면 `/home/ubuntu/deploy-arda.sh` 가 pull → build → **`alembic upgrade head`** → up 을 순서대로 돈다(`set -euo pipefail` — 이행이 실패하면 배포가 거기서 멈추고 기존 컨테이너는 계속 산다). 로그는 `~/deploy.log`.
+**main 머지가 곧 배포다.** 서버의 systemd 타이머 `arda-deploy.timer` 가 2분마다 `main` 을 보고, 새 커밋이면 `/home/ubuntu/deploy-arda.sh`(저장소 사본 [infra/deploy-arda.sh](../../infra/deploy-arda.sh), 09-07 회수 — 서버 것이 진실) 가 pull → build → **`alembic upgrade head`** → up 을 순서대로 돈다(`set -euo pipefail` — 이행이 실패하면 배포가 거기서 멈추고 기존 컨테이너는 계속 산다). 로그는 `~/deploy.log`.
 
 - alembic 단계는 2026-09-04 에 넣었다 — 0009 컬럼이 DB 에 없어 `/integrity/*` 가 500 났던 사고 뒤. 이미지가 스스로 이행할 수 있게 된 것(PR #20, alembic 을 운영 의존으로)은 그 다음이다.
 - 손으로 돌려야 하면 서버 관리자(suvisdev)가 `bash ~/deploy-arda.sh`. 시연 직전에는 `sudo systemctl stop arda-deploy.timer` 로 배포를 잠시 멈출 수 있다([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 검토 Q6).
@@ -180,6 +180,8 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 | `DiskUsedPercent` | `/` 사용률 | **≥ 85** (1회) | 무시 |
 | `BackupAgeHours` | 마지막 백업 파일 나이(시간) | **≥ 30** (1회) — 하루 1회인데 빠졌다 | 무시 |
 | `ApiHealthy` | `localhost:8000/health` 가 ok 면 1 | **< 1** (2회 연속 = 20분) | **경보로 취급** — 인스턴스가 통째로 죽어 숫자가 안 와도 울린다 |
+| `MemUsedPercent` (09-07 추가) | (total−available)/total | **≥ 90** (2회) — 거짓말 탐지가 같은 서버 | 무시 |
+| `StatusCheckFailed_System` (AWS 기본 지표) | EC2 시스템 상태 검사 | **≥ 1** (2분 연속) → **AWS 가 인스턴스 자동 복구**(같은 IP·디스크) + 메일 | — |
 
 **설정 (1회, suvisdev 콘솔)**:
 1. IAM → 사용자 `arda-server` → 인라인 정책 `arda-metrics-write`: `cloudwatch:PutMetricData` 허용 (Resource `*` — 이 API 는 리소스 단위 제한이 없다. `cloudwatch:namespace` 조건으로 `Arda` 만 허용)
@@ -189,7 +191,9 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 
 **확인**: 등록 10~15분 뒤 CloudWatch → 지표 → `Arda` 에 3개가 보이면 된다. `~/metrics.log` 에 `disk=..% backup_age=..h api=1` 이 10분마다 찍힌다. **알람 테스트**: `sudo systemctl stop arda-deploy.timer` 가 아니라 `docker compose -f ~/arda/docker-compose.prod.yml stop api` 로 20분 뒤 메일이 오는지 한 번 본 뒤 `start api`. 시연 직전엔 하지 말 것.
 
-**밖에서 찌르는 확인은 아직 없다**: 위 셋은 서버 안에서 잰다. DNS·TLS·Caddy 가 죽어 밖에서만 안 되는 경우는 못 잡는다. 필요해지면 GitHub Actions cron 이 15분마다 `https://api.seuk.suvisdev.cloud/health` 를 부르는 워크플로(앵커 실패 알림 #25 와 같은 패턴)를 추가한다.
+**밖에서 찌르는 확인 — [`.github/workflows/health-monitor.yml`](../../.github/workflows/health-monitor.yml) (09-07)**: GitHub 러너가 15분마다 `api…/health` 와 `seuk.suvisdev.cloud/` 를 부른다(30초 간격 2회 실패해야 알림). 실패하면 이슈 "🔴 외부 헬스체크 실패" 를 열거나 열린 이슈에 코멘트(assignee suvisdev), 복구되면 코멘트 달고 자동으로 닫는다. 서버 안 지표와 조합: **둘 다 울리면 서버, 이것만 울리면 DNS·TLS·Caddy·보안그룹.** 비용 0.
+
+**알람 템플릿 갱신(09-07)**: 메모리·자동 복구 알람이 추가돼 파라미터 `InstanceId` 가 생겼다. 반영은 CloudFormation → `arda-alarms` → **업데이트** → 기존 템플릿 교체 → 파일 업로드 → `InstanceId` 에 `arda-api` 의 i-… 입력.
 
 ## 1회성 DB 이행
 
