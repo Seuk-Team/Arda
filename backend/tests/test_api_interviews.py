@@ -607,6 +607,82 @@ class TestAnswerAudio:
         assert res.status_code == 422
 
 
+class TestAnalyze:
+    """녹화 진위 분석 (ADR-0029).
+
+    **설정이 없으면 꺼져 있어야 한다** — ADR-0029 결정 5 가 "①②③ 이 정해지기
+    전에는 운영에 붙이지 않는다"고 정했다. 그 방어가 여기서 깨지면 환경변수
+    하나 없이도 운영에서 켜진다.
+    """
+
+    @pytest.fixture()
+    def turn(self, db: Session, application: Application, admin_user: User):
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        t = InterviewTurn(
+            session_id=s.id, seq=1, question="질문1", audio_s3_key=_AUDIO_KEY
+        )
+        db.add(t)
+        db.commit()
+        return t
+
+    def test_설정이_없으면_503(self, as_user, admin_user: User, turn):
+        with patch("app.lie_analysis.SERVICE_URL", ""):
+            res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
+        assert res.status_code == 503
+
+    def test_녹화가_없는_회차는_409(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user, status="in_progress")
+        t = InterviewTurn(session_id=s.id, seq=1, question="질문1")  # 녹화 없음
+        db.add(t)
+        db.commit()
+
+        with patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"):
+            res = as_user(admin_user).post(f"/api/v1/interview-turns/{t.id}/analyze")
+        assert res.status_code == 409
+
+    def test_없는_회차는_404(self, as_user, admin_user: User):
+        with patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"):
+            res = as_user(admin_user).post("/api/v1/interview-turns/99999999/analyze")
+        assert res.status_code == 404
+
+    def test_결과를_그대로_돌려주고_저장하지_않는다(
+        self, as_user, db: Session, admin_user: User, turn
+    ):
+        """담을 표를 아직 안 정했다 — 값이 먼저 쌓이면 근거처럼 쓰이기 시작한다."""
+        result = {"pred": 0, "truth_pct": 100.0, "lie_pct": 0.0, "observations": []}
+        with (
+            patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"),
+            patch("app.s3.read_object", return_value=b"fake-video"),
+            patch("app.lie_analysis.analyze", return_value=result) as mock_analyze,
+        ):
+            res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
+
+        assert res.status_code == 200
+        assert res.json() == result
+        mock_analyze.assert_called_once()
+
+        # 회차에는 아무것도 안 붙었다 — 저장 칸 자체가 없다
+        db.refresh(turn)
+        assert not hasattr(turn, "lie_pct")
+
+    def test_분석이_죽으면_502(self, as_user, admin_user: User, turn):
+        with (
+            patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"),
+            patch("app.s3.read_object", return_value=b"fake-video"),
+            patch("app.lie_analysis.analyze", side_effect=RuntimeError("서비스 죽음")),
+        ):
+            res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
+        assert res.status_code == 502
+
+
 class TestAudioUploadUrl:
     """답변 음성 업로드 URL — 이력서 경로와 나눠 뒀다."""
 

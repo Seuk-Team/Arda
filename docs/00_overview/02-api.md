@@ -118,12 +118,14 @@
 | POST | /public/interview/{token}/consent | 녹음·전사 동의 | **공개**. 본문 `{agreed}`. **지원 폼의 개인정보 동의와 별개다** — 거절하면 422, 기록도 안 남는다 |
 | POST | /public/interview/{token}/start | 면접 시작 | **공개**. 동의 없으면 422 · 만료면 410 · 준비된 질문이 없으면 422 |
 | PUT | /interview-sessions/{id}/questions | 질문 목록 설정 | 본문 `{questions: [...]}` (1~20개). **시작 전에만** — 진행 중 변경은 409 |
-| POST | /public/interview/{token}/audio-upload-url | 답변 음성 업로드 URL 발급 | **공개**. 본문 `{filename, content_type, size_bytes}`. **진행 중인 면접만** — 아니면 409·만료 410. 허용 `webm`·`m4a`·`mp3`·`wav`, 10MB 이하. 키는 서버가 만든다(`interviews/<uuid>/answer.<ext>`) |
+| POST | /public/interview/{token}/audio-upload-url | 답변 녹화 업로드 URL 발급 | **공개**. 본문 `{filename, content_type, size_bytes}`. **진행 중인 면접만** — 아니면 409·만료 410. 허용 `webm`·`m4a`·`mp3`·`wav`·`mp4`, **50MB 이하**(카메라를 켜면 같은 길이가 훨씬 커진다 — 이력서 상한 10MB 와 따로 둔다). 키는 서버가 만든다(`interviews/<uuid>/answer.<ext>`) |
+| POST | /interview-turns/{id}/analyze | 녹화 진위 분석 (ADR-0029) | 담당자용. **`LIE_SERVICE_URL` 이 없으면 503** — 설정을 안 넣으면 꺼져 있다. 녹화 없는 회차 409 · 서비스 실패 502. **결과를 저장하지 않는다** |
 | POST | /public/interview/{token}/answer | 현재 질문에 답변 | **공개**. 본문 `{transcript}` **또는** `{audio_s3_key}` — **둘 다 보내면 422**. 음성이면 서버가 읽어 전사하고 길이·비용까지 적는다. **답 안 한 가장 앞 질문**에 붙는다 — 순번을 지원자가 보내지 않는다. 남은 질문이 없으면 409. 응답에 **`pacing`** 이 붙을 수 있다(아래) |
 | POST | /public/interview/{token}/finish | 면접 종료 | **공개**. **다 답하지 않아도 끝낼 수 있다.** 두 번 눌러도 200 |
 
 - **동의가 시작의 선행 조건이다.** `consented_at` 이 비어 있으면 `/start` 가 422 로 거절한다
 - `findings` 에 **점수가 없다** — `consistent` / `inconsistent` / `unverified` 셋뿐이고 판단은 사람이 한다 ([ADR-0003](../03_decision/0003-ai-추천만.md))
+- **영상으로도 답할 수 있다** (2026-09-07). 카메라를 켜면 **음성이 같은 파일에 들어가므로** 올리는 경로가 하나로 끝난다 — 전사는 그 파일에서 음성만 뽑고, 같은 파일이 진위 분석(ADR-0029)의 입력이 된다. **한 번 녹화로 둘 다 된다**
 - **답변 음성은 이력서 업로드 경로를 쓰지 않는다** (2026-09-07 변경). `POST /public/files/presign-upload` 는 토큰 없이 누구나 부를 수 있어서, 거기에 음성 형식을 얹으면 아무나 버킷에 미디어를 올릴 수 있다. 그리고 이력서 허용 목록에 `.webm` 이 들어가면 **이력서 자리에 음성이 박힌다.** 그래서 면접 토큰이 필요한 별도 경로를 뒀다
 - **전사는 `raw` 를 저장한다 — `resolved` 가 아니다.** 엔티티 해석("파이썬 이년" → "Python 2년")을 거친 문장을 저장하면, 나중에 이력서 주장과 맞춰 **원문으로 인용**할 때(ADR-0026 결정 3) 지원자가 하지 않은 말을 인용하게 된다
 - **전사에 실패하면 아무것도 저장하지 않고 502.** 반쯤 저장하면 답을 못 한 채로 다음 질문으로 넘어간다. 음성은 S3 에 남지만 회차가 비어 있어 지원자에게 같은 질문이 그대로 보이고 다시 답할 수 있다
