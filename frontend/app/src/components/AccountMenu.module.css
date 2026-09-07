@@ -1,0 +1,142 @@
+/* 우측 상단 계정 묶음 (05-design §2 · 컨트롤 높이 36px) */
+.box {
+  position: relative;
+  flex: none;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 36px;
+  padding: 0 var(--sp-2) 0 3px;
+  /* 알약 — 아바타가 원이라 바깥도 원으로 끝나야 한 덩어리로 읽힌다 */
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid transparent;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.trigger:hover {
+  background: var(--bg-sunken);
+}
+
+/* 열려 있는 동안은 눌린 채로 남는다 — 메뉴가 어디서 나왔는지 보여야 한다 */
+.on {
+  background: var(--bg-sunken);
+  border-color: var(--border);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  border: var(--border-w) solid rgba(34, 211, 238, .30);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.role {
+  font-size: 11px;
+  color: var(--text-sub);
+  line-height: 1.2;
+}
+
+.caret {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: var(--text-sub);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── 드롭다운 ────────────────────────────────────── */
+.menu {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  right: 0;
+  min-width: 232px;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-1);
+  border-radius: var(--r-card);
+  background: var(--bg-chrome);
+  backdrop-filter: var(--glass);
+  border: var(--border-w) solid var(--border);
+  box-shadow: var(--sh-overlay);
+}
+
+/* 두 줄(이름 + 무엇이 들어 있는지)이라 고정 높이 대신 패딩으로 잡는다 —
+   무엇이 들어 있는지 안 적으면 '설정' 과 '내 계정' 중 어디를 눌러야 할지 모른다 */
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.item:hover {
+  background: var(--bg-sunken);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.itemLabel {
+  font-size: var(--font-body);
+  color: var(--text);
+}
+
+.itemSub {
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+/* 모바일은 '더보기' 탭이 같은 자리를 맡는다 — 둘 다 두면 진입점이 둘이 된다 */
+@media (max-width: 768px) {
+  .box { display: none; }
+}

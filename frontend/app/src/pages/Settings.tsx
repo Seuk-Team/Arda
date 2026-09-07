@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
@@ -32,12 +32,24 @@ const MAIL_STAGES: { stage: MailTemplate['stage']; label: string }[] = [
 
 export default function Settings() {
   const { user } = useAuth()
-  const [tab, setTab] = useState<string>(MY_TAB)
+  /* 우측 상단 계정 메뉴가 '내 계정' 과 '설정' 두 갈래로 들어온다. 라우트를 쪼개지
+     않고 ?tab= 으로 첫 탭만 지정한다 — 쪼개면 모바일 '더보기' 가 가리키는
+     /settings 가 admin 전용이 되어 member 는 내 계정에 못 들어간다. */
+  const [params, setParams] = useSearchParams()
 
   const tabs: string[] =
     user?.role === 'admin'
       ? [MY_TAB, ...ADMIN_TABS, AVAILABILITY_TAB]
       : [MY_TAB, AVAILABILITY_TAB]
+
+  /* 현재 탭의 출처는 URL 하나뿐이다. state 에 따로 두고 effect 로 맞추면
+     둘이 어긋나는 순간이 생긴다(메뉴에서 다른 탭으로 다시 들어올 때).
+     덤으로 탭이 링크가 되고 뒤로가기가 먹는다.
+     이 사용자에게 없는 탭 이름이 들어오면 무시한다 — member 가
+     ?tab=사용자·권한 으로 들어와도 빈 화면을 보면 안 된다. */
+  const wanted = params.get('tab')
+  const tab = wanted && tabs.includes(wanted) ? wanted : MY_TAB
+  const setTab = (t: string) => setParams({ tab: t }, { replace: true })
 
   return (
     <>

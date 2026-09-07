@@ -157,66 +157,7 @@
   height: 100%;
 }
 
-/* ── 프로필 ──────────────────────────────────────── */
-.me {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border-top: var(--border-w) solid var(--sidebar-line);
-  white-space: nowrap;
-}
-
-.meText {
-  min-width: 0;
-}
-
-.meName {
-  font-size: var(--font-body);
-  font-weight: 600;
-  color: var(--text);
-}
-
-.meRole {
-  font-size: var(--font-sm);
-  color: var(--accent-text);
-  margin-top: var(--sp-1);
-}
-
-.avatar {
-  width: 44px;
-  height: 44px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: var(--border-w) solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-h2);
-  font-weight: 700;
-  color: var(--accent-text);
-}
-
-/* 로딩·비로그인 자리 표시. 목업 문자열 대신 빈 블록을 둔다 (§6) */
-.skel {
-  width: 88px;
-  height: 1em;
-  border-radius: var(--r-ctl);
-  background: var(--bg-sunken);
-  opacity: 0.55;
-}
-
-.skelShort {
-  width: 56px;
-}
-
-.avatar.skel {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-}
+/* 프로필은 우측 상단 계정 메뉴(AccountMenu)로 옮겼다 (2026-09-05) */
 
 /* ── 접힌 폭 ──────────────────────────────────────
    글자만 감추고 항목 높이(48px)와 아이콘 크기는 그대로 둔다 —
@@ -283,16 +224,6 @@
 .railToggle:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: -2px;
-}
-
-/* 접히면 이름·역할은 사라지고 아바타만 남는다 */
-.rail .me {
-  justify-content: center;
-  padding: var(--sp-2) 0;
-}
-
-.rail .meText {
-  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

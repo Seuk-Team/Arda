@@ -4,8 +4,6 @@ import { NavLink, useLocation } from 'react-router-dom'
 import styles from './Sidebar.module.css'
 import BrandMark from './BrandMark'
 import type { Motion } from './ArViewer'
-import { useAuth } from '../auth/AuthContext'
-import { ROLE_LABEL } from '../lib/stage'
 
 /* three.js 가 초기 번들의 대부분이었다. 아르는 전 화면 사이드바에 상주하지만
    첫 페인트에 필요한 건 아니라 별도 청크로 뺀다 — 타입만 정적으로 가져온다. */
@@ -50,12 +48,6 @@ const ICONS: Record<string, ReactNode> = {
     </>
   ),
   evaluations: <path d="M12 3.8l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z" />,
-  settings: (
-    <>
-      <circle cx="12" cy="12" r="3.2" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" />
-    </>
-  ),
   /* 접기 손잡이 — 판 하나에 심지. 방향은 CSS 가 뒤집지 않고 path 를 갈아 끼운다 */
   rail: (
     <>
@@ -74,7 +66,8 @@ const NAV = [
   { to: '/applicants', label: '지원자', icon: 'applicants' },
   { to: '/calendar', label: '캘린더', icon: 'calendar' },
   { to: '/evaluations', label: '평가 현황', icon: 'evaluations' },
-  { to: '/settings', label: '설정', icon: 'settings' },
+  /* 설정은 우측 상단 계정 메뉴로 옮겼다 (2026-09-05) — 내비에는 일하는 화면만
+     남긴다. 개인 설정 하나가 업무 화면들 사이에 껴 있던 것이 어색했다. */
 ] as const
 
 interface Props {
@@ -87,9 +80,6 @@ interface Props {
 }
 
 export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arButtonRef }: Props) {
-  /* 목업 상수를 실데이터로 교체. user 가 아직 없으면(부트스트랩 중) 스켈레톤 — §6 */
-  const { user } = useAuth()
-
   /* 활성 표시를 항목이 아니라 별도 레이어로 분리한다 — 판 하나가 옮겨 붙는다 */
   const { pathname } = useLocation()
   const navRef = useRef<HTMLElement>(null)
@@ -181,29 +171,6 @@ export default function Sidebar({ arOpen, arMotion, onToggleAr, onArHover, arBut
         </Suspense>
       </button>
 
-      {/* 표시 전용 — 클릭 진입은 두지 않는다 (팀장 결정 2026-08-31) */}
-      <div className={styles.me}>
-        {user ? (
-          <>
-            <div className={styles.meText}>
-              <div className={styles.meName}>{user.name}</div>
-              <div className={styles.meRole}>{ROLE_LABEL[user.role]}</div>
-            </div>
-            <div className={styles.avatar} aria-hidden="true">
-              {user.name.charAt(0)}
-            </div>
-          </>
-        ) : (
-          /* 부트스트랩 중이거나 사용자를 못 받은 상태. 목업 이름을 대신 쓰지 않는다. */
-          <>
-            <div className={styles.meText}>
-              <div className={`${styles.meName} ${styles.skel}`} />
-              <div className={`${styles.meRole} ${styles.skel} ${styles.skelShort}`} />
-            </div>
-            <div className={`${styles.avatar} ${styles.skel}`} />
-          </>
-        )}
-      </div>
     </aside>
   )
 }

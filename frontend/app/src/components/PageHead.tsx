@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import AccountMenu from './AccountMenu'
 import styles from './PageHead.module.css'
 
 /* 화면 제목 띠. mockup.html 의 .head 규격 (§12-1 시안 복제).
@@ -9,6 +10,9 @@ export default function PageHead({ title, actions }: { title: string; actions?: 
     <header className={styles.head} data-pagehead="">
       <h1 className={styles.title}>{title}</h1>
       {actions && <div className={styles.actions}>{actions}</div>}
+      {/* 계정 묶음은 늘 맨 오른쪽 — 화면마다 자리가 바뀌면 찾는 데 시간이 든다.
+          사이드바 바닥에서 여기로 올렸다 (2026-09-05) */}
+      <AccountMenu />
     </header>
   )
 }
