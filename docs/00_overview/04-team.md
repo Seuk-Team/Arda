@@ -8,33 +8,34 @@
 
 | 도메인 | 오너 | 폴더 (여기 밖은 내 것이 아니다) | 로드맵 |
 |---|---|---|---|
-| 인프라·총괄 | ~~bestcow~~ **공석 (2026-09-02 팀장 이탈 — 권한은 woojeongalex 에게, 역할은 팀이 정한다. [ADR-0025](../03_decision/0025-운영-권한-이관.md))** | `infra/` · `.github/` · `docker-compose.yml` · AWS | [role/infra.md](../01_role/infra.md) |
+| 인프라·총괄 | ~~bestcow~~ **suvisdev** (2026-09-04 팀장 승격 — AWS·서버·자동 CD·발표 총괄. 다른 도메인에 게이트 없음. 경위 [ADR-0025](../03_decision/0025-운영-권한-이관.md)·[09-handover.md](09-handover.md)) | `infra/` · `.github/` · `docker-compose.yml` · AWS | [role/infra.md](../01_role/infra.md) |
 | 프론트엔드 | ~~cloverky~~ **minahdev** (2026-09-04 — 앱과 겸임) | `frontend/` | [role/frontend.md](../01_role/frontend.md) |
-| 에이전트 | suvisdev | `backend/app/agent/` · `backend/app/api/agent.py` | [role/agent.md](../01_role/agent.md) |
+| 에이전트 | ~~suvisdev~~ **cloverky** (2026-09-04 — suvisdev 가 인프라·총괄로 이동) | `backend/app/agent/` · `backend/app/api/agent.py` | [role/agent.md](../01_role/agent.md) |
 | 앱 | minahdev | `mobile/` | [role/app.md](../01_role/app.md) |
 | 백엔드 | woojeongalex | `backend/` (agent 부분 제외) | [role/backend.md](../01_role/backend.md) |
 
 ## 오너가 하는 일
 
-- **자기 큐를 위에서부터 소화한다.** 선행이 안 풀렸으면 건너뛰고 다음 것. 큐가 비면 오너가 로드맵을 갱신해 채운다(마일스톤 범위 안에서 — 범위 자체를 바꾸는 건 팀 합의. 2026-09-02 부터 팀장 없음).
+- **자기 큐를 위에서부터 소화한다.** 선행이 안 풀렸으면 건너뛰고 다음 것. 큐가 비면 오너가 로드맵을 갱신해 채운다(마일스톤 범위 안에서 — 범위 자체를 바꾸는 건 팀 합의 — 팀장 suvisdev 가 조율).
 - **자기 도메인 지시서는 자기가 쓴다.** 쓸지 말지도 오너 판단 — Claude에게 시킬 작업은 지시서([tasks/_template.md](../02_tasks/_template.md))로 만들어두는 편이 결과가 안정적이다.
-- **main에 바로 push한다 (2026-08-28 개정 — 리뷰 게이트 없음).** push 전 검증(실행·테스트)과 깨졌을 때의 수습이 오너 책임 — 절차·사후 공지 규칙은 [03-conventions.md](03-conventions.md).
+- **브랜치→PR→자체 머지한다 (2026-09-04 개정 — main 직접 push 금지, 승인 불요, CI 초록 필수).** 머지 전 검증(실행·테스트)과 깨졌을 때의 수습이 오너 책임 — 절차·사후 공지 규칙은 [03-conventions.md](03-conventions.md).
 - 다른 도메인의 문제는 간단하면 직접 고치고 커밋에 명시+채널 공지, 크면 이슈로 오너에게 넘긴다.
 
-## ~~팀장 전담~~ → 미배정 (2026-09-02 팀장 이탈)
+## 팀장 전담 — suvisdev (2026-09-04 승격)
 
-아래는 팀장이 맡던 것이다. **지금은 아무도 맡고 있지 않다** — 팀이 사람을 정하거나 없애기로 정한다 ([09-handover.md](09-handover.md)).
+2026-09-02 이탈로 비었던 자리를 suvisdev 가 맡는다 ([09-handover.md](09-handover.md)). **리뷰·승인 게이트는 아니다** — 도메인 안 판단은 오너 자율 그대로다. 팀장이 관여하는 것은 도메인 밖뿐이다.
 
-- 아키텍처 방향 결정 · 파트 간 통합 · 주간 계획 · 발표 총괄
+- 마일스톤·범위 합의 · 파트 간 통합 · 발표 총괄(원고 프레이밍 통일)
+- 인프라 — AWS·서버·자동 CD·`.github/`
 - **주간 다이제스트** — 금요일에 그 주 변경 요약을 훑는다 (검수 아님, 파악용 — [03-conventions.md](03-conventions.md))
 - **09/04(금) 초기 버전 게이트 판정** · 09/30 1차 완성 판정
 
 ## 운영 리듬
 
 - **1차 완성 기한: 09/30(수).** 각 도메인은 자기 로드맵의 주간 계획(W1~W5 + 09/28~30 버퍼)대로 스스로 진행한다.
-- **승인 대기 없음** — 전원 main 직접 push (2026-08-28 개정). 스키마·공용 문서·타 도메인 변경은 사후 공지가 유일한 절차 ([03-conventions.md](03-conventions.md)).
+- **승인 대기 없음** — 브랜치→PR→**자체 머지** (2026-09-04 개정, main 직접 push 는 GitHub 이 막는다). 스키마·공용 문서·타 도메인 변경은 사후 공지가 유일한 절차 ([03-conventions.md](03-conventions.md)).
 - **진행 상태는 팀 칸반**(<https://ats.suvisdev.cloud/kanban/>)에 각자 기록한다 — Claude에게 "지킬 업데이트 해줘" 한 마디. 로드맵은 범위·큐 순서, 칸반은 현재 상태 ([03-conventions.md](03-conventions.md)).
-- ~~팀장은 금요일 주간 다이제스트(커밋 요약 + 칸반 done 열)로 전체 흐름만 파악한다.~~ 팀장 공석 — 다이제스트를 이어갈지는 팀이 정한다.
+- 팀장(suvisdev)은 금요일 주간 다이제스트(커밋 요약 + 칸반 done 열)로 전체 흐름만 파악한다 — 검수 아님.
 
 *이관된 것: 프론트 뼈대·칸반 → cloverky, 인증(A1~A3)·단계 전환 로직(D3) → woojeongalex.*
 
@@ -53,11 +54,10 @@
 
 | 담당 | 도메인 | 면접에서 말할 것 (대표 1개) |
 |---|---|---|
-| woojeongalex | 백엔드 | 상태 전환 규칙을 DB와 코드 중 어디서 강제했는가 + 인덱스 튜닝 전/후 수치 |
-| cloverky | 프론트엔드 | 드래그 실패 시 낙관적 업데이트를 어떻게 롤백했는가 |
-| suvisdev | 에이전트 | 도구 호출 에이전트 — 왜 쓰기 도구에만 확인 단계를 강제했는가 |
-| minahdev | 앱 | 같은 API로 웹·앱 두 클라이언트 — 클라이언트 추가에 서버 변경이 몇 줄이었는가 |
-| ~~bestcow~~ **공석** | 인프라·총괄 | ~~배포 파이프라인·권한 모델 + 리뷰 병목을 구조로 푼 과정~~ — 2026-09-02 이탈. 이 파트를 누가 말할지 팀이 정한다. 근거 자료는 [07-deploy](07-deploy.md)·[ADR-0007](../03_decision/0007-도메인-오너제-전환.md)·[ADR-0025](../03_decision/0025-운영-권한-이관.md) |
+| woojeongalex | 백엔드 | 상태 전환 규칙을 DB와 코드 중 어디서 강제했는가 + 인덱스 튜닝 전/후 수치 + 제출물 무결성 앵커([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)) |
+| cloverky | 에이전트 | 도구 호출 에이전트 — 왜 쓰기 도구에만 확인 단계를 강제했는가 |
+| minahdev | 앱 + 프론트엔드 | 같은 API로 웹·앱 두 클라이언트 — 클라이언트 추가에 서버 변경이 몇 줄이었는가 · 드래그 실패 시 낙관적 업데이트를 어떻게 롤백했는가 |
+| suvisdev | 인프라·총괄 | 자동 CD(main 머지 → 2분 폴링 배포)에 alembic 이행을 넣은 과정 · 서명 개인키를 서버 밖(GitHub Actions)으로 뺀 결정([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) Q2·Q3) · 근거 [07-deploy](07-deploy.md)·[ADR-0007](../03_decision/0007-도메인-오너제-전환.md)·[ADR-0025](../03_decision/0025-운영-권한-이관.md) |
 
 **발표 소주제 4번**(LLM 도구 호출 에이전트 + AI 원가 관측 ✅ / STT 면접 분석 📋 — [presentation-outline](../presentation-outline.md) §4)의 **내용 정리·근거 수치는 woojeongalex 가 맡는다.** 범위 판정과 원가 실측이 백엔드 쪽 근거에 걸려 있어서다([rag-범위-정리](../rag-범위-정리.md) — 09/01 이 담당으로 작성). **에이전트 도메인 오너십(`backend/app/agent/`)은 suvisdev 그대로다** — 4번 때문에 그 폴더를 건드리면 다른 도메인 규칙대로 커밋에 명시하고 채널에 공지한다.
 

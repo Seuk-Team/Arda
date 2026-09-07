@@ -120,9 +120,17 @@ API 전체가 안 뜬 것**이다.
 
 **서버 `.env` 에 `MAIL_REPLY_TO=seukathon@gmail.com`** (2026-09-01 설정). Reply-To 는 SES 검증 대상이 아니라 실제 수신 가능한 메일함이면 된다. **비우면 아르·시스템 발송의 회신이 증발한다** — 문구가 전부 "이 메일에 회신해 주시기 바랍니다"라고 말하기 때문이다. 합격·불합격은 주체와 무관하게 사람 이름으로 서명한다(설계 근거는 [G4 지시서](../02_tasks/G4-설정-실동작-메일-발송.md) 결정 6~8).
 
-## 재배포 (현재는 수동 — IAM `arda-ops` 권한자, 2026-09-02 부터 woojeongalex)
+## 재배포 — 자동 (2026-09-04 부터)
 
-main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. **CI/CD(J4, main 머지 시 자동 배포)는 W3에 이 절차를 대체한다.** 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
+**main 머지가 곧 배포다.** 서버의 systemd 타이머 `arda-deploy.timer` 가 2분마다 `main` 을 보고, 새 커밋이면 `/home/ubuntu/deploy-arda.sh` 가 pull → build → **`alembic upgrade head`** → up 을 순서대로 돈다(`set -euo pipefail` — 이행이 실패하면 배포가 거기서 멈추고 기존 컨테이너는 계속 산다). 로그는 `~/deploy.log`.
+
+- alembic 단계는 2026-09-04 에 넣었다 — 0009 컬럼이 DB 에 없어 `/integrity/*` 가 500 났던 사고 뒤. 이미지가 스스로 이행할 수 있게 된 것(PR #20, alembic 을 운영 의존으로)은 그 다음이다.
+- 손으로 돌려야 하면 서버 관리자(suvisdev)가 `bash ~/deploy-arda.sh`. 시연 직전에는 `sudo systemctl stop arda-deploy.timer` 로 배포를 잠시 멈출 수 있다([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 검토 Q6).
+- 프론트는 Vercel 이 main 머지 후 1~2분 내 자동 배포.
+
+### 과거 절차 (2026-09-04 이전, 기록용)
+
+main 기준 `git archive` → scp → 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`. 그 전까지 "배포 서버에 반영해달라"는 팀 채널로.
 
 **scp 없이 (2026-09-02 부터)**: 레포가 공개라 서버가 직접 받는다 — `~/arda` 에서 `curl -sL https://github.com/Team-Seuk/Arda/archive/<sha>.tar.gz -o /tmp/arda.tgz && tar xzf /tmp/arda.tgz --strip-components=1 -C ~/arda && echo <sha> > DEPLOYED_COMMIT`, 그 뒤 `build` → `up -d` 를 **나눠서**. `docker-compose.prod.yml`·`Caddyfile` 은 레포에 없어 tar 가 덮지 않는다 — 원본은 [infra/](../../infra/) 에 회수해 뒀다(2026-09-02). 서버 것과 다르면 서버가 진실이고 infra/ 를 고친다.
 
