@@ -12,7 +12,8 @@
 # 읽기·삭제가 없어서 서버가 털려도 백업을 지우거나 내려받지 못한다. 복원은 관리자
 # (suvisdev 콘솔)가 한다 — 절차는 docs/00_overview/07-deploy.md "백업" 절.
 #
-# 필요한 것: awscli (`sudo apt-get install -y awscli`), ~/arda/.env 의 AWS_* 키,
+# 필요한 것: aws-cli (`sudo snap install aws-cli --classic` — Ubuntu 24.04 apt 엔 없다, 09/07 실측),
+#            ~/arda/.env 의 AWS_* 키,
 #            환경변수 BACKUP_BUCKET (없으면 아래 기본값).
 set -euo pipefail
 
