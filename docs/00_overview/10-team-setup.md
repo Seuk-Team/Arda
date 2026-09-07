@@ -66,7 +66,20 @@ git fetch origin        # 이게 성공하면 끝
 - **메일은 아직 dry-run** (`MAIL_DRY_RUN=1`) — SES 프로덕션 승인 대기 중.
   발송 테스트는 `success@simulator.amazonses.com` 수신자로. 승인되면 공지한다
 - **DB 는 새로 시작**(빈 상태) — 옛 서버의 과정용 데이터는 이관하지 않았다
-- **GPU 서버는 준비 중** — g4dn.xlarge 쿼터 승인 후 생성 예정. 거짓말 탐지 등
-  GPU 워크로드는 그쪽에 올린다(백엔드 EC2 는 t3.small, GPU 없음)
+- **거짓말 탐지는 GPU 가 필요 없다** (scikit-learn + mediapipe, CPU) — 백엔드 EC2 를
+  **t3.medium(4GB)** 으로 올려 같은 서버에 붙인다(2026-09-07, PR #42). 메모리만 문제였다
+- **GPU 서버(g4dn.xlarge)는 로컬 STT·sLLM(qwen) 시연이 필요할 때만** — 쿼터 승인 후
+  만들되 **켜고 끄는 전제**다. AWS 예산이 총 **$400 · 2026-10-27 까지**라 24시간
+  가동(월 ≈$470)은 불가. 8시간×20일이면 ≈$105
 - 서버 SSH·AWS 관리·비용은 suvisdev 소관 — 인프라 문제는 팀 채널에
+
+## 8. 2026-09-07 에 바뀐 것 (운영)
+
+- **앵커 체인 Polygon Amoy → Ethereum Sepolia** (PR #29). Amoy faucet 이 전부 메인넷 잔액을 요구해 막혔다. Actions secret 6개 등록 완료, 매일 09:10 자동 게시 초록. 탐색기는 sepolia.etherscan.io
+- **DB 매일 04:00 S3 백업** · **컨테이너 로그 상한** · **배포마다 이미지·빌드 캐시 정리** (디스크 76%→45%)
+- **CloudWatch 경보 3개** (디스크 ≥85% · 백업 30h 넘김 · API 죽음) → suvisdev 메일. 서버 `~/status.sh` 로 한 화면 확인
+- **OpenAI STT 키** 서버 반영 (수택 개인 결제, $5 선불·월 $5 한도). 음성 답변(PR #40) 전사 가능
+- 저장소 옛 주소(`api.arda.seuk.cloud`) 정리 → 정본 `api.seuk.suvisdev.cloud` (PR #30)
+- 규칙: **ADR 은 오너가 쓰면 확정, 팀장 확정 대기 없음** (PR #49, [03-conventions](03-conventions.md))
+- Discord `#github` 알림은 저장소 이관 때 끊겼다 — 웹후크 재등록 예정(서버 소유자 woojeongalex 권한 필요)
 
