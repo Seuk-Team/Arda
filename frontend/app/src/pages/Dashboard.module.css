@@ -1,1039 +1,589 @@
-/* 캘린더 축소판 → 전체 화면 확대 전환은 2026-09-01 에 뺐고 2026-09-04 에 잔재까지 걷었다.
-   축소판을 누르면 그냥 캘린더로 이동한다 — 페이드아웃도 없다. */
+/* 대시보드 = 현황판. 위에서 아래로 얼마나 → 어디가 → 언제.
+   지원자 목록은 '지원자' 탭이 맡는다 (2026-09-07). */
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-5);
+/* .page-content 는 스크롤 통일 뿐이라 자식 사이 간격이 없다 —
+   카드가 그냥 맞닿는다. 세로 흐름은 화면이 각자 잡는다. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
 }
 
-.stat {
-  background: var(--bg-elev);
-  backdrop-filter: var(--glass);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-card);
-  box-shadow: var(--sh-card);
-  padding: var(--sp-4);
-}
-
-.statLabel {
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  margin-bottom: var(--sp-2);
+/* ── 제목 띠 안 요약 숫자 ─────────────────────────────── */
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
   white-space: nowrap;
 }
 
-.statVal {
-  font-size: var(--font-display);
-  font-weight: 700;
+.metaItem,
+.mine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* '나' 값만 시안색 + 누를 수 있다. 나머지는 회사 숫자라 표시 전용이다 */
+.mine {
+  padding: 2px var(--sp-2);
+  margin: -2px calc(var(--sp-2) * -1);
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.mine:hover {
+  background: var(--bg-sunken);
+}
+
+.mine .metaLabel,
+.mine .metaVal {
+  color: var(--accent-text);
+}
+
+.metaBar {
+  width: 1px;
+  height: 20px;
+  flex: none;
+  background: var(--border-soft);
+}
+
+.metaLabel {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+.metaVal {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  color: var(--text);
-  text-shadow: var(--ts-heading);
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: #fff;
 }
 
-.statUnit {
-  font-size: var(--font-num);
-  font-weight: 400;
+.metaUnit {
+  font-size: var(--font-sm);
   color: var(--text-sub);
-  margin-left: var(--sp-1);
-  text-shadow: none;
 }
 
+/* ── 카드 ─────────────────────────────────────────────── */
 .card {
   background: var(--bg-elev);
   backdrop-filter: var(--glass);
   border: var(--border-w) solid var(--border);
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
-  padding: var(--sp-4);
-  margin-bottom: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.cap {
+  margin: 0;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  letter-spacing: .10em;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.noteOn {
+  font-family: var(--mono);
+  color: var(--accent-text);
 }
 
 .go {
-  font-size: var(--font-caption);
-  font-weight: 600;
+  margin-left: auto;
+  flex: none;
+  font-size: var(--font-sm);
   color: var(--accent-text);
   white-space: nowrap;
 }
 
-/* ── 캘린더 축소판(절반) + 진행중 공고(절반) 2열 (2026-08-31 개편) ── */
-.topGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--sp-3);
-  align-items: start;
-  margin-bottom: var(--sp-5);
-}
-
-.topGrid .card { margin-bottom: 0; }
-
-.postingCol {
-  min-width: 0;
-}
-
-/* 1100px 아래는 1열 — §9 확정 브레이크포인트 재사용. 아르 패널이 열려 본문이 좁아지는
-   경우는 뷰포트 쿼리로 못 잡는다 — 목록 컬럼은 ellipsis 로 버틴다 (§7) */
-@media (max-width: 1100px) {
-  .topGrid { grid-template-columns: minmax(0, 1fr); }
-}
-
-
-/* ── 면접 일정 축소판 ─────────────────────────────────────────────
-   캘린더 화면(Interviews.tsx)의 조각을 축소해 옮긴 것 — 요일 머리 + 그 주 7칸 +
-   고른 날의 목록. 카드 규격(--bg-elev/--border/--r-card/--sh-card)이 캘린더
-   화면의 월 그리드 패널과 같아야 전환에서 도형이 그대로 이어진다. */
-.calCard {
-  cursor: pointer;
-}
-
-/* 제목과 연월은 한 줄로 읽히는 한 덩어리다 — 밑선을 맞춘다 (2026-09-01) */
-.calHead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-
-.calTitle {
-  font-size: var(--font-h2);
-  font-weight: 700;
-  color: var(--text);
-  text-shadow: var(--ts-heading);
-  white-space: nowrap;
-}
-
-/* 2026-09-01 — 14px 무채로는 제목 옆에서 묻혔다. 크기·굵기를 제목과 같게 올리고
-   색만 --text-sub 로 남겨 위계를 지킨다 */
-.calMonth {
-  flex: 1;
-  font-size: var(--font-h2);
-  font-weight: 700;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  text-shadow: var(--ts-heading);
-  white-space: nowrap;
-}
-
-.calHead .go { margin-left: var(--sp-2); }
-
-.dow,
-.strip {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--sp-1);
-}
-
-.dowCell {
-  font-size: var(--font-caption);
-  font-weight: 600;
-  color: var(--text-sub);
-  text-align: center;
-  white-space: nowrap;
-}
-
-/* 그 주 7칸. 날짜 + 건수만 — 대시보드는 밀도를 보는 자리다.
-   2026-09-01 — 날짜는 건수가 있든 없든 칸 정중앙에 있어야 한다. 세로로 쌓으면
-   건수가 붙는 날만 날짜가 위로 밀려 요일 줄과 어긋났다. 건수는 흐름에서 빼
-   우상단에 얹는다. */
-.stripCell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 56px;
-  margin-top: var(--sp-1);
-  border-radius: var(--r-ctl);
-  background: var(--bg-elev);
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.stripCell:hover { background: var(--bg-sunken); }
-.stripCell:active { background: var(--sunken-hover); }
-.stripCell:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
-
-/* 고른 날 — 아래 목록이 어느 칸의 것인지 (캘린더 화면 .selected 와 같은 표시) */
-.stripSel {
-  background: var(--bg-sunken);
-  box-shadow: inset 0 0 0 2px var(--accent-text);
-}
-
-.stripSel:hover { background: var(--bg-sunken); }
-
-.stripDate {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 var(--sp-1);
-  border-radius: var(--r-pill);
-  font-size: var(--font-num);
-  font-weight: 600;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-  white-space: nowrap;
-}
-
-/* 면접이 잡힌 날 표식 (2026-09-01). 판단 전 정보라 무채 (05-design §1).
-   흐름 밖에 두어 날짜가 칸 정중앙에서 밀리지 않게 한다 */
-.stripDot {
-  position: absolute;
-  bottom: var(--sp-2);
-  left: 50%;
-  transform: translateX(-50%);
-  width: var(--sp-1);
-  height: var(--sp-1);
-  border-radius: var(--r-pill);
-  background: var(--neutral);
-}
-
-/* 오늘은 날짜 알약이 이미 연두라 점도 같은 계열로 맞춘다 */
-.stripToday .stripDot { background: var(--accent); }
-
-.stripToday .stripDate {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-weight: 700;
-}
-
-/* 고른 날의 목록. 바닥은 로딩 스켈레톤·빈 문구 한 줄이 들어갈 만큼만 —
-   빈 날에 카드가 공허하게 길어지지 않게 낮췄다 (2026-08-31 절반 너비 개편) */
-.calList {
-  margin-top: var(--sp-3);
-  padding-top: var(--sp-2);
-  border-top: var(--border-w) solid var(--border-soft);
-  min-height: 48px;
-}
-
-/* 컬럼 머리 — 행과 같은 뼈대(클래스)를 쓰고 글자만 캡션으로 눌러 폭을 맞춘다 */
-.calCols {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding-bottom: var(--sp-1);
-}
-
-.calCols span {
-  font-size: var(--font-caption);
-  font-weight: 600;
-  color: var(--text-sub);
-}
-
-/* 2026-09-01 — 행이 버튼이 됐다(누르면 캘린더에서 그 날이 열린다). 컬럼 머리와
-   세로줄이 어긋나지 않게 좌우 여백 없이 폭을 다 쓰고 바탕도 그대로 둔다. */
-.calRow {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  width: 100%;
-  /* 위아래 --sp-3 이면 행 높이가 45px — §9 터치 타깃 44px 을 넘긴다 */
-  padding: var(--sp-3) 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.calRow:hover { background: var(--bg-sunken); }
-.calRow:active { background: var(--sunken-hover); }
-.calRow:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
-
-.calRow + .calRow { border-top: var(--border-w) solid var(--border-soft); }
-
-.calTime {
-  flex: none;
-  min-width: 44px;
-  font-size: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  white-space: nowrap;
-}
-
-/* 이름·면접관은 고정 폭 — 머리행과 값이 세로로 나란히 서야 표로 읽힌다 */
-.calName {
-  flex: none;
-  width: 84px;
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.calPosting {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.calWho {
-  flex: none;
-  width: 68px;
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.calState {
-  padding: var(--sp-2) 0;
-  font-size: var(--font-sm);
-  color: var(--text-sub);
-  word-break: keep-all;
-}
-
-/* 로딩 자리 — 캘린더 화면과 같은 스켈레톤 규격 (§6 스켈레톤 우선) */
-.calSkel {
-  display: block;
-  height: 16px;
-  width: 60%;
-  margin: var(--sp-3) 0;
-  border-radius: var(--r-ctl);
-  background: var(--bg-sunken);
-  animation: pulse var(--dur-slow) var(--ease) infinite alternate;
-}
-
-.calSkel:nth-child(3) { width: 44%; }
-
-@keyframes pulse {
-  from { opacity: 1; }
-  to { opacity: 0.55; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .calSkel { animation: none; }
-}
-
-/* ── 지원자 현황 — 리스트 ↔ 칸반 (같은 데이터) ─────────────────── */
-.pipeHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-3);
-}
-
-/* 보기 전환 — 공고의 지원자 화면(PostingApplicants)의 vtoggle 조각 복제 */
-.vtoggle {
-  flex: none;
-  display: flex;
-  height: 40px;
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  overflow: hidden;
-}
-
-.vtoggle button {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  padding: 0 var(--sp-4);
-  border: none;
-  background: var(--bg-elev);
-  color: var(--text);
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.vtoggle button:hover { background: var(--bg-sunken); }
-.vtoggle button:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
-.vtoggle button + button { border-left: var(--border-w) solid var(--border); }
-
-.vOn {
-  background: var(--accent-soft) !important;
-  color: var(--accent-text) !important;
-  text-shadow: var(--ts-heading);
-}
-
-/* 단계 그룹 (리스트·칸반 공용 헤더) */
-.groupHead {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-3) 0 var(--sp-2);
-}
-
-/* 색은 판단에만 (05-design §1) — 진행 중 무채, 합격만 연두 */
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: var(--neutral);
-}
-
-.dotPass { background: var(--accent); }
-
-.groupLabel {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-}
-
-.groupLabelPass { color: var(--accent-text); }
-
-.groupCount {
-  font-size: var(--font-caption);
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  white-space: nowrap;
-}
-
-.group + .group {
-  border-top: var(--border-w) solid var(--border-soft);
-}
-
-.groupEmpty {
-  font-size: var(--font-caption);
-  color: var(--text-sub);
-  padding: var(--sp-2) 0 var(--sp-3);
+.state {
   margin: 0;
-}
-
-/* 리스트 행 — 그 공고의 지원자 화면으로 가는 진입점 */
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  width: calc(100% + var(--sp-5));
-  margin: 0 calc(-1 * var(--sp-3));
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-ctl);
-  text-align: left;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.row:hover { background: var(--bg-sunken); }
-.row:active { background: var(--sunken-hover); }
-.row:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
-
-.rowName {
-  flex: none;
-  min-width: 96px;
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
-}
-
-.rowPosting {
-  flex: 1;
-  min-width: 0;
+  padding: var(--sp-3) 0;
   font-size: var(--font-sm);
   color: var(--text-sub);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.rowDate {
-  flex: none;
-  font-size: var(--font-num);
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  white-space: nowrap;
-}
-
-/* 면접 일정 칩 — 확정(사람의 결정)만 연두, 나머지는 무채 */
-.chip {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 var(--sp-2);
-  border-radius: var(--r-pill);
-  font-size: var(--font-caption);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.chipConfirmed {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border: var(--border-w) solid var(--accent);
-}
-
-.chipNeutral {
-  background: var(--bg-sunken);
-  color: var(--text-sub);
-  border: var(--border-w) solid var(--border);
 }
 
 .moreLink {
-  display: block;
-  width: calc(100% + var(--sp-5));
-  margin: 0 calc(-1 * var(--sp-3));
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-ctl);
-  text-align: right;
-  font-size: var(--font-caption);
-  font-weight: 600;
+  align-self: flex-start;
+  font-size: var(--font-sm);
   color: var(--accent-text);
-  white-space: nowrap;
-  cursor: pointer;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  display: inline-block;
+  border-radius: 2px;
+}
+
+/* ── 1. 전체 현황 ─────────────────────────────────────── */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 13px repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  align-items: end;
+}
+
+.tot {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.totLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 14px;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+.totVal {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  height: 34px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+
+.totUnit {
+  /* 단위는 본문 글꼴로 되돌린다 — 부모가 mono 라 안 되돌리면 '명'까지 mono 가 된다 */
+  font-family: inherit;
+  font-size: var(--font-sm);
+  font-weight: 400;
+  color: var(--text-sub);
+}
+
+.totTrack {
+  height: 10px;
+  display: block;
+  background: var(--bg-sunken);
+  border-radius: 0 3px 3px 0;
+}
+
+.totBar {
+  display: block;
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+}
+
+/* 막대 자리를 비워 두면 밑선이 어긋난다 — 왜 막대가 없는지를 대신 적는다 */
+.totCum {
+  height: 10px;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: var(--text-sub);
+  opacity: .75;
+}
+
+.totSplit {
+  width: 1px;
+  height: 58px;
+  justify-self: center;
+  background: var(--border);
+}
+
+/* ── 2. 공고별 표 ─────────────────────────────────────── */
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tr {
+  display: grid;
+  /* 남는 폭은 막대 쪽으로 더 간다. 공고명에 1fr 을 통째로 주면 넓은 화면에서
+     이름 칸만 600px 씩 벌어지고 정작 견줘야 할 막대가 눌린다 */
+  grid-template-columns: minmax(180px, 1fr) 52px minmax(140px, 2fr) 40px 40px 40px 44px 52px 46px;
+  gap: var(--sp-2);
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--sp-2);
+  margin: 0 calc(var(--sp-2) * -1);
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  text-align: left;
   transition: background var(--dur-fast) var(--ease);
 }
 
-.moreLink:hover { background: var(--bg-sunken); }
+button.tr {
+  cursor: pointer;
+}
 
-/* 칸반 — 보기 전용. 드래그는 공고의 지원자 화면에서만 (실수 드래그가 메일을 보낸다) */
-.board {
+button.tr:hover {
+  background: var(--bg-sunken);
+}
+
+button.tr:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.th {
+  min-height: 22px;
+  border-bottom: var(--border-w) solid var(--border-soft);
+  border-radius: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.th .dot {
+  margin-right: 4px;
+}
+
+.right {
+  text-align: right;
+}
+
+.pname {
+  min-width: 0;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dday {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-sm);
+  font-weight: 700;
+}
+
+.ddayHot { color: var(--danger); }
+.ddayWarn { color: var(--warn-text); }
+.ddayCalm { color: var(--text-sub); }
+
+.track {
+  height: 13px;
+  display: block;
+  background: var(--bg-sunken);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  display: flex;
+  gap: 2px;
+}
+
+.fill > span {
+  min-width: 3px;
+}
+
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+
+.numTotal {
+  font-weight: 700;
+}
+
+/* 0 은 물러나 있는다 — 있는 값과 없는 값이 같은 무게로 보이면 표가 안 읽힌다 */
+.zero {
+  color: var(--text-sub);
+  opacity: .45;
+  font-weight: 400;
+}
+
+/* ── 3. 면접 ──────────────────────────────────────────── */
+.duo {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.chart {
+  flex: 1;
+  min-height: 148px;
+  display: flex;
+  align-items: stretch;
   gap: var(--sp-2);
 }
 
 .col {
-  background: var(--bg-sunken);
-  border-radius: var(--r-card);
-  padding: var(--sp-2) var(--sp-3);
-  min-width: 0;
-}
-
-.kcard {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-1);
-  width: 100%;
-  background: var(--bg-elev);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  padding: var(--sp-2) var(--sp-3);
-  margin-bottom: var(--sp-2);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease);
-}
-
-.kcard:hover { border-color: var(--accent); }
-.kcard:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
-
-.kcardName {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.kcardPosting {
-  font-size: var(--font-caption);
-  color: var(--text-sub);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.kcard .chip { margin-top: var(--sp-1); }
-
-.colMore {
-  display: block;
-  width: 100%;
-  padding: var(--sp-1) 0;
-  text-align: right;
-  font-size: var(--font-caption);
-  font-weight: 600;
-  color: var(--accent-text);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-/* 모바일은 칸반 금지 (05-design §9) — 칸반을 숨기고 리스트를 되살린다 */
-.listHiddenOnDesktop { display: none; }
-
-@media (max-width: 768px) {
-  .board { display: none; }
-  .vtoggle { display: none; }
-  .listHiddenOnDesktop { display: block; }
-}
-
-/* ── 진행중 공고 ──────────────────────────────────────────────── */
-.postingList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-/* 세로 카드 — 제목/총 인원·D-day 행 + 레일 + 단계별 건수.
-   껍데기는 .card 를 그대로 쓴다(캘린더 축소판 .calCard 와 같은 방식) — 같은 위계면 같은 규격이다.
-   여기서는 버튼으로 만들기 위한 것과 hover 만 얹는다 */
-.postingCard {
-  display: block;
-  text-align: left;
-  width: 100%;
-  transition: background var(--dur-fast) var(--ease);
-  cursor: pointer;
-}
-
-.postingCard:hover {
-  background: var(--bg-sunken);
-}
-
-/* 캘린더 카드의 .calHead 와 같은 규격 */
-.postingTop {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-
-/* 캘린더 카드의 .calTitle 과 같은 규격 + 긴 공고명 ellipsis (§7) */
-.postingName {
   flex: 1;
   min-width: 0;
-  font-size: var(--font-h2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.colVal {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-sm);
   font-weight: 700;
   color: var(--text);
-  text-shadow: var(--ts-heading);
+}
+
+.colBarBox {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: var(--border-w) solid var(--border-soft);
+}
+
+.colBar {
+  width: 100%;
+  background: var(--stage-2);
+  border-radius: 3px 3px 0 0;
+}
+
+/* 오늘 하루만 강조한다. 일곱 개를 다 칠하면 강조가 아니다 */
+.colBarToday {
+  background: var(--accent);
+}
+
+.colDow {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+.colToday {
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.ivList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.iv {
+  display: grid;
+  grid-template-columns: 46px 56px minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--sp-2);
+  margin: 0 calc(var(--sp-2) * -1);
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.iv:hover {
+  background: var(--bg-sunken);
+}
+
+.iv:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.ivTime {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.ivNext {
+  color: var(--accent-text);
+}
+
+.ivName {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* 구간 폭은 인라인 grid-template-columns 로 온다 (공고의 지원자 화면 .funnel 과 같은 방식) —
-   % 로 주면 반올림 오차가 쌓이고 0 건 구간이 통째로 사라진다 */
-.postingRail {
-  display: grid;
-  height: 8px;
-  border-radius: var(--r-pill);
-  overflow: hidden;
-  column-gap: var(--sp-1);
-}
-
-.railSeg {
-  height: 100%;
-}
-
-/* 단계별 건수 — 눈금이 아니라 범례다. 왼쪽부터 붙여 쓰고 색 점으로 구간에 잇는다
-   (공고의 지원자 화면 .flabels 와 같은 형태). 판단 전은 무채 글자, 합격만 잎초록 (§1) */
-.postingCounts {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: var(--sp-4);
-  margin-top: var(--sp-3);
-  font-size: var(--font-caption);
-  color: var(--text-sub);
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.countItem {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-}
-
-.countDot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  flex: none;
-  margin-right: var(--sp-1);
-}
-
-.countItem b {
-  font-weight: 600;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-.countPass b { color: var(--accent-text); }
-
-.postingDday {
-  font-size: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  color: var(--text-sub);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* loading / empty / error 공용 자리 (05-design §6) */
-.state {
-  padding: var(--sp-5);
+.ivPosting,
+.ivWho {
   font-size: var(--font-sm);
   color: var(--text-sub);
-  word-break: keep-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ── 데스크탑 2열 그리드 (calCard 왼쪽 / postingCol 오른쪽) ──
-   topGrid 래퍼를 제거하고 .page(main)를 그리드 컨테이너로 씀.
-   DOM 순서: stats → calCard → mobileReview → pipeCard → postingCol
-   데스크탑에서 postingCol을 grid-row: 2로 올려 calCard 옆에 배치한다. */
-.page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: var(--sp-3);
-  row-gap: var(--sp-5);
-  align-items: start;
+.ivWho {
+  opacity: .8;
 }
 
-/* 그리드 직계 자식의 margin-bottom은 gap이 대신한다 */
-.page > .stats,
-.page > .calCard,
-.page > .pipeCard,
-.page > .postingCol {
-  margin-bottom: 0;
-}
-
-.stats    { grid-column: 1 / -1; grid-row: 1; }
-.calCard  { grid-column: 1;      grid-row: 2; }
-.pipeCard { grid-column: 1 / -1; grid-row: 3; position: relative; }
-
-/* 모서리 틱 — 시안의 계기판 장식. 위쪽 두 귀퉁이만 찍는다: 네 귀퉁이를 다
-   두르면 카드가 액자가 되고, 안의 표·숫자보다 테두리가 먼저 읽힌다.
-   대시보드의 머리 블록 하나에만 붙여 "여기가 이 화면의 요약"이라는 표시로 쓴다. */
-.pipeCard::before,
-.pipeCard::after {
-  content: '';
-  position: absolute;
-  top: calc(-1 * var(--border-w));
-  width: 10px;
-  height: 10px;
-  border-top: var(--border-w) solid rgba(150, 190, 240, .55);
-  pointer-events: none;
-}
-
-.pipeCard::before {
-  left: calc(-1 * var(--border-w));
-  border-left: var(--border-w) solid rgba(150, 190, 240, .55);
-}
-
-.pipeCard::after {
-  right: calc(-1 * var(--border-w));
-  border-right: var(--border-w) solid rgba(150, 190, 240, .55);
-}
-.postingCol { grid-column: 2;    grid-row: 2; }
-
-/* 1100px 이하: 1열, postingCol은 calCard 바로 아래 (기존 topGrid 1열 동작 유지) */
+/* ── 좁은 화면 ────────────────────────────────────────────
+   표는 가로로 못 줄인다 — 9칸이 다 들어가야 읽히는데 폰 폭에서는 불가능하다.
+   그래서 칸을 지우지 않고 카드로 접는다. 숫자를 지우면 다른 화면이 된다. */
 @media (max-width: 1100px) {
-  .page { grid-template-columns: minmax(0, 1fr); }
-  .calCard  { grid-row: 2; }
-  .postingCol { grid-column: 1; grid-row: 3; }
-  .pipeCard { grid-row: 4; }
+  /* 제목 띠의 요약 숫자는 nowrap 이라 안 줄어든다 — 자리가 모자라면 제목이
+     '대…' 로 뭉개질 때까지 밀린다. 아르 패널까지 열리면 더 좁아지므로
+     본문이 한 열로 접히는 지점에서 함께 감춘다 */
+  .meta {
+    display: none;
+  }
+
+  .totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--sp-4);
+  }
+
+  .totSplit {
+    display: none;
+  }
+
+  .duo {
+    grid-template-columns: 1fr;
+  }
 }
 
-/* ── 모바일 전용 요소 (기본 숨김) ────────────────── */
-.mobileCalTitle  { display: none; }
-.mobileCalMeta   { display: none; }
-.mobileReview    { display: none; }
-.mobilePipeTop   { display: none; }
-.mobilePipeBar   { display: none; }
-.mobilePostingTitle { display: none; }
-.mobilePipeLink  { display: none; }
-.mobileCalLink   { display: none; }
+/* ── 좁은 화면 전용: 내 배정 ─────────────────────────────
+   제목 띠의 요약 숫자는 폰 폭에 안 들어간다. 감추는 대신 '내 배정' 하나만
+   본문 맨 위로 내린다 — 이 화면에서 유일하게 눌러서 할 일이 있는 값이다. */
+.mobileMine {
+  display: none;
+}
 
-/* ── 모바일 대시보드 (≤768px) ───────────────────── */
 @media (max-width: 768px) {
-  /* 그리드 해제 — DOM 순서대로 블록 스택 */
-  .page {
-    display: block;
+  /* 제목 띠에서 요약 숫자를 통째로 뺀다. 안 그러면 nowrap 이라 제목이
+     '대…' 로 뭉개질 때까지 줄어든다 */
+  .meta {
+    display: none;
   }
 
-  /* 기존 margin-bottom 복원 */
-  .page > .calCard,
-  .page > .pipeCard,
-  .page > .postingCol {
-    margin-bottom: var(--sp-5);
-  }
-
-  /* 데스크탑 전용 요소 숨김 */
-  .stats     { display: none; }
-  .calTitle  { display: none; }
-  .calMonth  { display: none; }
-  .dow       { display: none; }
-  .strip     { display: none; }
-
-  /* 모바일 calCard 헤더 */
-  .mobileCalTitle {
-    display: block;
-    font-size: var(--font-h2);
-    font-weight: 700;
-    color: var(--text);
-    text-shadow: var(--ts-heading);
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  .mobileCalMeta {
-    display: block;
-    font-size: var(--font-sm);
-    color: var(--text-sub);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* calHead flex는 유지되므로 mobileCalTitle이 flex item으로 작동 */
-  .calHead {
-    flex-wrap: wrap;
-    gap: var(--sp-1) var(--sp-2);
-  }
-
-  /* 내 리뷰 대기 카드 */
-  .mobileReview {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    background: var(--bg-elev);
-    backdrop-filter: var(--glass);
-    border: var(--border-w) solid var(--border);
-    border-radius: var(--r-card);
-    box-shadow: var(--sh-card);
-    padding: var(--sp-4);
-    margin-bottom: var(--sp-5);
-  }
-
-  .mobileReviewInfo {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-1);
-  }
-
-  .mobileReviewLabel {
-    font-size: var(--font-sm);
-    color: var(--text-sub);
-    margin: 0;
-  }
-
-  .mobileReviewVal {
-    font-size: var(--font-display);
-    font-weight: 700;
-    font-family: var(--mono);
-    font-variant-numeric: tabular-nums;
-    color: var(--text);
-    text-shadow: var(--ts-heading);
-    margin: 0;
-  }
-
-  .mobileReviewUnit {
-    font-size: var(--font-num);
-    font-weight: 400;
-    color: var(--text-sub);
-    text-shadow: none;
-    margin-left: var(--sp-1);
-  }
-
-  .mobileReviewBtn {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    height: 40px;
-    padding: 0 var(--sp-4);
-    border-radius: var(--r-ctl);
-    background: var(--accent-fill);
-    color: var(--on-accent);
-    font-size: var(--font-sm);
-    font-weight: 600;
-    white-space: nowrap;
-    text-decoration: none;
-  }
-
-  /* 파이프 카드 모바일 헤더 */
-  .mobilePipeTop {
+  .mobileMine {
     display: flex;
     align-items: baseline;
     gap: var(--sp-2);
-    margin-bottom: var(--sp-3);
-  }
-
-  .mobilePipeTitle {
-    font-size: var(--font-h2);
-    font-weight: 700;
-    color: var(--text);
-    text-shadow: var(--ts-heading);
-  }
-
-  .mobilePipeCnt {
-    font-size: var(--font-h2);
-    font-weight: 700;
-    font-family: var(--mono);
-    font-variant-numeric: tabular-nums;
-    color: var(--text-sub);
-    text-shadow: var(--ts-heading);
-  }
-
-  .mobilePipeBar {
-    display: grid;
-    height: 8px;
-    border-radius: var(--r-pill);
-    overflow: hidden;
-    column-gap: var(--sp-1);
-    margin-bottom: var(--sp-3);
-  }
-
-  /* 진행중 공고 섹션 제목 + 건수 */
-  .mobilePostingTitle {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: var(--font-h2);
-    font-weight: 700;
-    color: var(--text);
-    text-shadow: var(--ts-heading);
-    margin-bottom: var(--sp-3);
-  }
-
-  .mobilePostingCount {
-    font-size: var(--font-sm);
-    font-weight: 400;
-    color: var(--text-sub);
-    text-shadow: none;
-  }
-
-  /* postingList → 단일 카드 */
-  .postingCol .postingList {
-    display: block;
+    padding: var(--sp-3) var(--sp-4);
     background: var(--bg-elev);
     backdrop-filter: var(--glass);
     border: var(--border-w) solid var(--border);
     border-radius: var(--r-card);
-    box-shadow: var(--sh-card);
-    overflow: hidden;
-    gap: 0;
   }
 
-  /* 개별 공고카드 → 심플 행 */
-  .postingCol .postingCard {
-    background: transparent;
-    border: none;
+  .mobileMineLabel {
+    font-size: var(--font-sm);
+    color: var(--text-sub);
+  }
+
+  .mobileMineVal {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--font-h2);
+    color: var(--accent-text);
+  }
+
+  .mobileMineGo {
+    margin-left: auto;
+    font-size: var(--font-sm);
+    color: var(--accent-text);
+    white-space: nowrap;
+  }
+
+  .totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .totVal {
+    font-size: 24px;
+    height: 26px;
+  }
+
+  /* 표 → 카드. 열 이름 줄이 사라지므로 이름표를 숫자 옆에 되살린다 —
+     이름표 없는 숫자는 어느 단계인지 알 수 없어 표가 아니라 낙서가 된다 */
+  .th {
+    display: none;
+  }
+
+  .tr {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: min-content;
+    row-gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-2);
+    min-height: 0;
     border-bottom: var(--border-w) solid var(--border-soft);
     border-radius: 0;
-    box-shadow: none;
-    padding: var(--sp-3) var(--sp-4);
-    margin-bottom: 0;
   }
 
-  .postingCol .postingCard:last-child {
-    border-bottom: none;
+  .pname {
+    grid-column: 1 / 3;
   }
 
-  /* 레일·단계 카운트 숨김 */
-  .postingCol .postingRail   { display: none; }
-  .postingCol .postingCounts { display: none; }
-  .postingCol .postingTop    { margin-bottom: 0; min-width: 0; overflow: hidden; }
-  .postingCol .postingName   { font-size: var(--font-sm); }
-  .postingCol .postingDday   { font-size: var(--font-sm); flex-shrink: 0; }
-
-  /* 지원자 현황: 전체 링크 위치 이동 (상단 pipeHead → 하단) */
-  .pipeCard .pipeHead { display: none; }
-  .mobilePipeLink { display: block; }
-
-  /* 지원자 행을 두 줄로 접는다.
-     한 줄일 때 이름(96px 고정)·일정 칩·지원일이 모두 flex:none 이라 줄어들 수
-     없었고, 셋과 간격만 더해도 345px 라 375px 화면에서 카드 밖으로 58px 밀려
-     지원일이 잘렸다. 폭을 다투는 대신 줄을 나눈다 — 정보를 버리지 않는 유일한
-     방법이다(칩과 지원일 중 뭘 지울지는 이 화면이 정할 문제가 아니다).
-
-       [ 이름            공고 ────── ]
-       [ 일정 칩            지원일   ]  */
-  .row {
-    display: grid;
-    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-    grid-template-areas:
-      "name posting"
-      "chip date";
-    align-items: center;
-    row-gap: var(--sp-1);
-    column-gap: var(--sp-2);
+  .track,
+  .fill {
+    grid-column: 1 / -1;
   }
 
-  /* 고정 96px 을 풀어 준다 — 두 줄이 돼도 이름이 길면 여전히 공고를 밀어낸다 */
-  .rowName {
-    grid-area: name;
-    min-width: 0;
-    max-width: none;
-  }
-
-  .rowPosting { grid-area: posting; }
-
-  /* 아래 줄은 양 끝으로 — 칩은 왼쪽, 지원일은 오른쪽에 붙는다 */
-  .row > .chip {
-    grid-area: chip;
-    justify-self: start;
-  }
-
-  .rowDate {
-    grid-area: date;
-    justify-self: end;
-  }
-
-  /* ── 오늘 면접 calCard ──────────────────────── */
-
-  /* 헤더: 오늘 면접(좌) / 날짜·건수(우) 한 줄, "캘린더 →"는 하단으로 */
-  .calHead {
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: var(--sp-2);
-  }
-  .mobileCalTitle { flex: 1; font-size: var(--font-h2); }
-  .mobileCalMeta  { flex: none; }
-  .calHead .go    { display: none; }
-
-  /* 컬럼 헤더·면접관 숨김 */
-  .calCols { display: none; }
-  .calWho  { display: none; }
-
-  /* 행: CSS grid — 시각(왼쪽 span 2행) / 이름(위) + 공고(아래) */
-  .calRow {
-    display: grid;
-    grid-template-columns: 48px 1fr;
-    grid-template-rows: auto auto;
-    column-gap: var(--sp-3);
-    row-gap: var(--sp-1);
-    padding: var(--sp-3) 0;
-  }
-
-  .calTime {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    align-self: center;
-    min-width: unset;
-    color: var(--accent-text);
-    font-weight: 700;
-    font-size: var(--font-num);
-  }
-
-  .calName {
-    grid-column: 2;
-    grid-row: 1;
-    width: auto;
+  .num {
     font-size: var(--font-sm);
-    font-weight: 600;
-    color: var(--text);
+    text-align: left;
   }
 
-  .calPosting {
-    grid-column: 2;
-    grid-row: 2;
+  .num::before {
+    content: attr(data-label) ' ';
+    font-family: inherit;
     font-size: var(--font-caption);
+    font-weight: 400;
     color: var(--text-sub);
   }
 
-  /* 하단 "캘린더 →" 항상 표시 */
-  .mobileCalLink { display: block; }
+  .iv {
+    grid-template-columns: 46px minmax(0, 1fr);
+    row-gap: 2px;
+    min-height: 44px;
+  }
+
+  .ivPosting,
+  .ivWho {
+    grid-column: 2;
+  }
 }

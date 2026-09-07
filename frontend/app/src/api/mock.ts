@@ -10,12 +10,14 @@ import type {
   ApplicationDetail,
   ApplicationListItem,
   AssignedApplications,
+  Evaluation,
   Interview,
   Note,
   Posting,
   ScheduleStatus,
   SearchResult,
   Stage,
+  UserItem,
   TokenResponse,
   User,
 } from './types'
@@ -137,7 +139,33 @@ function searchApps(query: Query): SearchResult {
   }
 }
 
+/* 로컬 사용자. DEV_USER(id 0)가 '나' 다 — 평가 화면이 내 평가와 남의 평가를
+   갈라 그려서, 남이 최소 한 명은 있어야 화면이 제 모습으로 보인다 */
+const USERS: UserItem[] = [
+  { id: 0, name: '개발', email: 'dev@local', role: 'admin', is_active: true, created_at: at(-90, 9) },
+  { id: 1, name: '유하늘', email: 'sky@example.com', role: 'member', is_active: true, created_at: at(-80, 9) },
+  { id: 2, name: '장보라', email: 'bora@example.com', role: 'member', is_active: true, created_at: at(-70, 9) },
+]
+
+/* 지원자별 평가. 평가 화면의 상태 네 가지가 다 나오게 짰다:
+     103 아무도 안 냄(오래 묵음) · 106 남만 냄 · 107 의견 갈림 · 108 완료 */
+const EVALS: Record<number, Evaluation[]> = {
+  106: [{ id: 1, evaluator_id: 1, score: 4, comment: null, created_at: at(-1, 14) }],
+  107: [
+    { id: 2, evaluator_id: 0, score: 5, comment: '설계 질문에 답이 깊었습니다.', created_at: at(-1, 11) },
+    { id: 3, evaluator_id: 1, score: 2, comment: '협업 경험이 얕아 보입니다.', created_at: at(-1, 15) },
+  ],
+  108: [
+    { id: 4, evaluator_id: 0, score: 4, comment: null, created_at: at(-2, 10) },
+    { id: 5, evaluator_id: 1, score: 5, comment: null, created_at: at(-2, 16) },
+  ],
+}
+
 function detail(a: ApplicationListItem): ApplicationDetail {
+  const evaluations = EVALS[a.id] ?? []
+  const avg = evaluations.length === 0
+    ? null
+    : Math.round((evaluations.reduce((t, e) => t + e.score, 0) / evaluations.length) * 10) / 10
   return {
     ...a,
     phone: '010-0000-0000',
@@ -145,6 +173,9 @@ function detail(a: ApplicationListItem): ApplicationDetail {
     skills: ['TypeScript', 'React'],
     self_intro: '(로컬 목 데이터) 자기소개서 본문입니다.',
     ai_summary: '(로컬 목 데이터) 공고 요건과의 적합 지점 요약입니다.',
+    evaluations,
+    eval_count: evaluations.length,
+    avg_score: avg,
   }
 }
 
@@ -204,13 +235,22 @@ export function mockResponse(method: string, path: string, query: Query = {}): u
     return a === undefined ? undefined : serve(detail(a))
   }
 
+  if (path === '/users') {
+    return serve({ items: USERS, count: USERS.length })
+  }
+
+  /* 두 공고에 걸쳐 배정한다 — 평가 화면 왼쪽 공고 레일이 한 줄만 나오면
+     고르는 화면인지 알 수 없다 */
   if (/^\/interviewers\/\d+\/applications$/.test(path)) {
     return serve({
       assignments: [
-        { id: 1, application_id: 106, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
-        { id: 2, application_id: 109, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
+        { id: 1, application_id: 103, interviewer_id: 0, assigned_by: 0, created_at: at(-5, 9) },
+        { id: 2, application_id: 107, interviewer_id: 0, assigned_by: 0, created_at: at(-2, 9) },
+        { id: 3, application_id: 108, interviewer_id: 0, assigned_by: 0, created_at: at(-2, 9) },
+        { id: 4, application_id: 106, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
+        { id: 5, application_id: 109, interviewer_id: 0, assigned_by: 0, created_at: at(-1, 9) },
       ],
-      count: 2,
+      count: 5,
     } satisfies AssignedApplications)
   }
 

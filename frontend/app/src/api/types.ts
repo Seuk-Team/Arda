@@ -123,6 +123,16 @@ export interface StageHistoryItem {
   created_at: string
 }
 
+/* 평가 한 건 (backend EvaluationOut). 상세 응답이 배열로 함께 준다 —
+   평가자별 점수가 있어야 '누가 냈나'와 '의견이 갈렸나'를 알 수 있다 */
+export interface Evaluation {
+  id: number
+  evaluator_id: number
+  score: number
+  comment: string | null
+  created_at: string
+}
+
 export interface ApplicationDetail {
   id: number
   job_posting_id: number
@@ -138,6 +148,7 @@ export interface ApplicationDetail {
   created_at: string
   avg_score: number | null
   eval_count?: number
+  evaluations?: Evaluation[]
   files?: FileOut[]
   stage_history?: StageHistoryItem[]
 }

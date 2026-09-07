@@ -1,38 +1,92 @@
-/* 모바일 아르 플로팅 버튼 — 더보기 탭(1/5 맨 오른쪽) 바로 위 */
-.arFloat {
-  display: none;
+/* ── 아르 도크 ────────────────────────────────────────
+   사이드바 정사각형에서 화면 우하단으로 옮겼다 (2026-09-07).
+   접힌 사이드바(64px)에서 정사각형이 48px 로 뭉개졌고, 좁은 열을 내비·접기
+   손잡이와 다퉜다. 떠 있으면 폭에 안 매인다.
+   떠 있는 것이 내용을 가리면 방해물이므로, 본문은 아래쪽에 그만큼 자리를 비운다. */
+.arDock {
+  position: absolute;
+  right: var(--sp-6);
+  bottom: var(--sp-5);
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  border: var(--border-w) solid var(--border);
+  box-shadow: var(--sh-overlay);
+  overflow: hidden;
+  cursor: pointer;
+  z-index: var(--z-sticky);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.arDock:hover,
+.arDock[aria-expanded='true'] {
+  border-color: var(--accent);
+  box-shadow: var(--sh-glow), var(--sh-overlay);
+}
+
+/* 패널이 열리면 도크가 채팅 입력창 위에 올라앉는다 — 아르 패널은 오버레이가
+   아니라 flex 형제라(SidePanel .rail) 본문만 좁아지고, 화면 오른쪽 끝에
+   붙어 있는 이 도크는 제자리에 남기 때문이다. 패널 폭만큼 비켜선다.
+   패널 폭은 즉시 바뀌므로(전환 없음) 여기도 흐르게 두지 않는다 — 따로 놀면
+   도크가 패널을 스치고 지나간다. */
+.arDock[aria-expanded='true'] {
+  right: calc(var(--right-panel-w) + var(--sp-6));
+}
+
+.arDock:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.arView {
+  width: 100%;
+  height: 100%;
+}
+
+.arHint {
+  position: absolute;
+  right: calc(var(--sp-6) + 56px + var(--sp-3));
+  bottom: calc(var(--sp-5) + 18px);
+  font-size: var(--font-cap);
+  color: var(--text-sub);
+  opacity: .5;
+  pointer-events: none;
+  z-index: var(--z-sticky);
 }
 
 @media (max-width: 768px) {
   .main { padding-bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom)); }
 
   /* 5칸 내비의 맨 오른쪽(더보기) 칸 중앙 = 오른쪽에서 10vw.
-     버튼 폭(--sp-8)의 절반만큼 되물려 그 중앙에 세운다.
-     44px 최소 터치 타깃(§9)보다 크고, 원은 --r-pill 이다(§4 radius 3종). */
-  .arFloat {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+     버튼 폭의 절반만큼 되물려 그 중앙에 세운다.
+     44px 최소 터치 타깃(§9)보다 크다. */
+  .arDock {
     position: fixed;
     bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + var(--sp-2));
     right: calc(10vw - var(--sp-8) / 2);
     width: var(--sp-8);
     height: var(--sp-8);
-    border-radius: var(--r-pill);
-    background: var(--bg-chrome);
-    backdrop-filter: var(--glass);
     border: 2px solid var(--accent);
     box-shadow: var(--sh-glow), var(--sh-overlay);
-    z-index: var(--z-sticky);
-    cursor: pointer;
-    padding: 0;
-    overflow: hidden;
   }
 
-  .arFloat img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+  /* 손가락으로 쓰는 화면에는 단축키가 없다 */
+  .arHint {
+    display: none;
+  }
+
+  /* 좁은 화면에서 패널은 본문을 덮는 오버레이다(최대 92vw) — 비켜설 자리가
+     없다. 패널이 자기 닫기 버튼을 갖고 있으므로 도크는 감춘다 */
+  .arDock[aria-expanded='true'] {
+    display: none;
   }
 }
 
