@@ -28,9 +28,10 @@
                        로그인해서 넣어 준다.** JWT 는 12시간이면 만료돼서
                        (security.py `JWT_EXPIRES_MINUTES`) secret 에 박아 두면
                        하루 만에 401 로 죽는다
-    CHAIN_RPC_URL      https://polygon-amoy-bor-rpc.publicnode.com
+    CHAIN_RPC_URL      https://ethereum-sepolia-rpc.publicnode.com  (2026-09-07 부터 Sepolia —
+                       Amoy 는 https://polygon-amoy-bor-rpc.publicnode.com, faucet 이 막혀 보류)
     CHAIN_PRIVATE_KEY  테스트넷 전용 지갑 개인키
-    CHAIN_NETWORK      polygon-amoy (기본값)
+    CHAIN_NETWORK      ethereum-sepolia (운영) · 기본값은 polygon-amoy
 
 **개인키를 찍지 않는다.** 로그에 나가는 것은 주소뿐이다 — Actions 로그는
 저장소 권한이 있는 사람 모두가 본다.

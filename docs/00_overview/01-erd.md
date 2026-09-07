@@ -204,7 +204,7 @@ erDiagram
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | id | bigint | PK | |
-| network | varchar(30) | NOT NULL | `polygon-amoy`(테스트넷, 기본) / `polygon-mainnet` |
+| network | varchar(30) | NOT NULL | `ethereum-sepolia`(운영, 2026-09-07~) / `polygon-amoy`(기본값, 보류) / `opentimestamps` / `polygon-mainnet`(미사용) |
 | covered_through_seq | bigint | NOT NULL | 이 거래가 덮는 범위 — 1 부터 이 `seq` 까지 |
 | chain_hash | varchar(64) | NOT NULL | 실제로 체인에 실어 보낸 값 (그 시점 사슬 머리) |
 | tx_hash | varchar(66) | NULL, UNIQUE | 거래 해시. 보내기 전·실패면 NULL |
