@@ -34,41 +34,111 @@
   overflow: hidden;
 }
 
-.row {
+/* 본문은 왼쪽 공고 레일 + 오른쪽 목록 두 열이다 */
+.page {
   display: grid;
-  align-items: center;
-  gap: var(--sp-3);
-  grid-template-columns: 140px minmax(160px, 1fr) 100px 112px;
-  padding: 0 var(--sp-6);
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
 }
 
-.thead {
-  height: 48px;
-  border-bottom: var(--border-w) solid var(--border);
+/* ── 왼쪽 공고 레일 ──────────────────────────────────
+   고르는 곳이면서 진행률 표시다. '전체'가 맨 위에 있어 공고를 가로지르는
+   시야를 잃지 않는다 */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+}
+
+.railItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.railItem:hover {
+  background: var(--bg-sunken);
+}
+
+.railItem:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+/* 사이드바 활성 항목과 같은 표시 — 시안 워시 + 왼쪽 심지 (05-design §2) */
+.railOn,
+.railOn:hover {
+  background: var(--accent-soft);
+  border-color: rgba(34, 211, 238, .30);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.railTop {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.railTitle {
+  min-width: 0;
   font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-sub);
-}
-
-.thead span {
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.railCount {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.railTrack {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-sunken);
+}
+
+.railBar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* ── 목록 한 줄 ──────────────────────────────────────
+   이름·상태 / 배지 / 평가자 / 점수 / 버튼 */
 .item {
-  height: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto 84px 64px;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 60px;
+  padding: var(--sp-2) var(--sp-5);
   border-bottom: var(--border-w) solid var(--border-soft);
   cursor: pointer;
   font-size: var(--font-sm);
   color: var(--text);
   transition: background var(--dur-fast) var(--ease);
-}
-
-.item span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .item:hover {
@@ -86,18 +156,138 @@
   background: var(--accent-soft);
 }
 
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .name {
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.posting {
+.sub {
+  font-size: var(--font-caption);
   color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.num {
+/* 배지는 색만으로 뜻을 나르지 않는다 — 글자가 항상 같이 있다 (§1) */
+.badges {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeWarn {
+  background: rgba(251, 191, 36, .15);
+  color: var(--warn-text);
+  border: var(--border-w) solid rgba(251, 191, 36, .35);
+}
+
+.badgeHot {
+  background: rgba(240, 163, 143, .12);
+  color: var(--danger);
+  border: var(--border-w) solid rgba(240, 163, 143, .35);
+}
+
+.avatars {
+  display: flex;
+  gap: 3px;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+
+.noEval {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.scoreBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.score {
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  font-size: var(--font-h2);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.scoreOk { color: var(--ok-text); }
+.scoreWarn { color: var(--warn-text); }
+
+/* 아직 안 낸 것은 숫자가 아니라 글자다 — 크기를 낮춰 점수와 안 헷갈리게 한다 */
+.scoreNone {
+  font-family: inherit;
+  font-size: var(--font-sm);
+  font-weight: 500;
   color: var(--text-sub);
 }
+
+.scoreSub {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+.btnGo,
+.btnQuiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--r-ctl);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 내가 아직 안 낸 건만 채운 버튼 — 할 일이 있는 줄이 눈에 먼저 든다 */
+.btnGo {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+.btnQuiet {
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border);
+  color: var(--text);
+}
+
+/* 판단 전 단계라 색 없이 라벨로만 (05-design §1) */
 
 /* 판단 전 단계라 색 없이 라벨로만 (05-design §1) */
 .stage {
@@ -114,7 +304,7 @@
 }
 
 .skelRow {
-  height: 56px;
+  height: 60px;
   border-bottom: var(--border-w) solid var(--border-soft);
   background: var(--bg-sunken);
   animation: pulse var(--dur-slow) var(--ease) infinite alternate;
