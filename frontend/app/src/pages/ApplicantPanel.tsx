@@ -240,7 +240,7 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
 
           {/* 첨부 바로 아래 — 이 배지가 말하는 대상이 그 파일들이다.
               상세에서 한 번만 부른다(목록에서 부르면 사람 수만큼 S3 를 읽는다) */}
-          <IntegrityBadge applicationId={applicationId} />
+          <IntegrityBadge key={applicationId} applicationId={applicationId} />
 
           <MailSection applicationId={applicationId} onSent={() => setMailHistoryKey((k) => k + 1)} />
 

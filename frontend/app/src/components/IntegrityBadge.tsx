@@ -59,10 +59,10 @@ export default function IntegrityBadge({ applicationId }: { applicationId: numbe
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
 
+  /* 지원자가 바뀌면 부모가 key 로 이 컴포넌트를 다시 마운트한다 —
+     효과 안에서 상태를 되돌리면 앞 지원자의 결과가 한 프레임 남는다 */
   useEffect(() => {
     const ac = new AbortController()
-    setData(null)
-    setOpen(false)
 
     integrityApi
       .get(applicationId, ac.signal)
