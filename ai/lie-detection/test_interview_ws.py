@@ -10,6 +10,7 @@ import time
 
 import numpy as np
 
+import interview_ws as iw
 from interview_ws import (
     LIVE_EVERY_SEC,
     MIN_SPEECH_SEC,
@@ -175,3 +176,40 @@ class TestScore:
         assert out["pred"] in (0, 1)
         assert abs(out["truth_pct"] + out["lie_pct"] - 100.0) < 0.2
         assert any(s["key"] == "눈 깜빡임" for s in out["signals"])
+
+
+class TestTranscribeFallback:
+    """전사가 안 되는 상황에서 **면접이 끊기지 않아야 한다.**
+
+    설정이 잘못됐다는 이유로 지원자가 면접을 못 보게 하지 않는다.
+    """
+
+    def test_스위치가_비면_자리표시자를_돌려준다(self, monkeypatch):
+        monkeypatch.setattr(iw, "STT_MODEL", "")
+        out = iw.transcribe(LOUD * 40)
+        assert out.startswith("[전사 꺼짐")
+
+    def test_모델을_못_올려도_터지지_않는다(self, monkeypatch):
+        monkeypatch.setattr(iw, "STT_MODEL", "없는-모델")
+        monkeypatch.setattr(iw, "_stt", None)
+        monkeypatch.setattr(iw, "_stt_failed", False)
+        out = iw.transcribe(LOUD * 40)
+        assert out.startswith("[전사 불가")
+
+    def test_한_번_실패하면_다시_시도하지_않는다(self, monkeypatch):
+        tries = []
+
+        def boom(*a, **k):
+            tries.append(1)
+            raise RuntimeError("못 올림")
+
+        monkeypatch.setattr(iw, "STT_MODEL", "없는-모델")
+        monkeypatch.setattr(iw, "_stt", None)
+        monkeypatch.setattr(iw, "_stt_failed", False)
+        monkeypatch.setitem(
+            __import__("sys").modules, "faster_whisper", type("m", (), {"WhisperModel": boom})
+        )
+        for _ in range(3):
+            iw.transcribe(LOUD * 40)
+        # 답변마다 수십 초짜리 로딩을 다시 시도하면 면접이 답변마다 멈춘다
+        assert len(tries) == 1

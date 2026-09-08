@@ -325,25 +325,41 @@ async def submit_answer(client, token: str, transcript: str) -> dict:
 
 
 _stt = None
+_stt_failed = False   # 한 번 실패하면 매 답변마다 다시 시도하지 않는다
 _stt_lock = threading.Lock()
 
 
 def _stt_model():
     """faster-whisper 모델. 처음 부를 때 한 번만 올린다(수십 초 · ~1GB).
+    **못 올리면 None 을 돌려준다** — 면접을 끊지 않는다.
 
     락은 로드 구간만 감싼다 — 두 요청이 동시에 들어와 모델을 두 번 올리면
     메모리가 두 배로 든다.
     """
-    global _stt
-    if _stt is None:
-        with _stt_lock:
-            if _stt is None:
-                from faster_whisper import WhisperModel
+    global _stt, _stt_failed
+    if _stt is not None or _stt_failed:
+        return _stt
+    with _stt_lock:
+        if _stt is not None or _stt_failed:
+            return _stt
+        try:
+            from faster_whisper import WhisperModel
 
-                logger.info("전사 모델 로딩: %s (%s)", STT_MODEL, STT_DEVICE)
-                _stt = WhisperModel(
-                    STT_MODEL, device=STT_DEVICE, compute_type=STT_COMPUTE_TYPE
-                )
+            logger.info("전사 모델 로딩: %s (%s)", STT_MODEL, STT_DEVICE)
+            _stt = WhisperModel(
+                STT_MODEL, device=STT_DEVICE, compute_type=STT_COMPUTE_TYPE
+            )
+        except Exception:
+            # **여기서 터뜨리면 면접이 끊긴다.** 설정이 잘못됐다는 이유로 지원자가
+            # 면접을 못 보게 하지 않는다 — 자리표시자로 내려앉고 로그로 알린다.
+            # 실제로 겪은 것들: 라이브러리 미설치 · `STT_DEVICE=cuda` 인데 이미지에
+            # CUDA 런타임이 없음(`libcublas.so.12`) · 메모리 부족(`mkl_malloc`).
+            # 셋 다 **첫 전사 시점**에야 드러나므로 배포 직후에는 안 보인다.
+            _stt_failed = True
+            logger.exception(
+                "전사 모델을 올리지 못했다 — 자리표시자로 계속한다. model=%s device=%s",
+                STT_MODEL, STT_DEVICE,
+            )
     return _stt
 
 
@@ -361,10 +377,14 @@ def transcribe(pcm: bytes) -> str:
     if not STT_MODEL:
         return f"[전사 꺼짐 · 발화 {seconds:.1f}초]"
 
+    model = _stt_model()
+    if model is None:
+        return f"[전사 불가 · 발화 {seconds:.1f}초]"
+
     usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
     audio = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
 
-    segments, _ = _stt_model().transcribe(
+    segments, _ = model.transcribe(
         audio,
         language=STT_LANGUAGE or None,
         beam_size=STT_BEAM_SIZE,

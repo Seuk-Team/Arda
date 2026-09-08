@@ -3,6 +3,10 @@ uvicorn[standard]==0.52.4
 httpx==0.28.1
 python-multipart==0.0.32
 imageio-ffmpeg==0.6.0
+# 실시간 면접 받아쓰기(ADR-0032). **모델은 여기 없다** — STT_MODEL 을 줬을 때만
+# 받는다(large-v3-turbo ~1.6GB). 라이브러리만으로 이미지가 약 116MB 늘어난다
+# (ctranslate2 60 · onnxruntime 41 · tokenizers 8 · huggingface-hub 5).
+faster-whisper==1.2.1
 librosa==1.0.0
 mediapipe==1.0.1
 numpy==2.5.2
