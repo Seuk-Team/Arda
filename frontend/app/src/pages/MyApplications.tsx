@@ -164,16 +164,16 @@ export default function MyApplications() {
                       메일함을 뒤져 링크를 찾는 수밖에 없다 — 로그인해 놓고도
                       들어갈 길이 없는 것이 이 화면의 원래 구멍이었다.
 
-                      두 가지가 다른 면접이라 버튼을 나눈다:
-                      · 실시간 면접 — 면접관과 얼굴을 보고 말한다
-                      · AI 면접 — 아르가 묻고 혼자 답한다(녹화) */}
+                      **AI 면접이 기본이다** — 아르가 묻고, 말하면 버튼 없이
+                      다음 질문으로 넘어간다. 실시간 면접(사람 면접관과 얼굴을
+                      맞대는 것)은 아직 시연 범위 밖이라 아래에 작게 둔다. */}
                   {a.interviews.map((iv) => (
                     <div key={iv.token} className={styles.interview}>
-                      <a className="btn btn-primary" href={`/interview-live/${iv.token}`}>
-                        실시간 면접 참여
+                      <a className="btn btn-primary" href={`/interview-ai/${iv.token}`}>
+                        AI 면접 참여
                       </a>
-                      <a className={styles.link} href={`/interview/${iv.token}`}>
-                        AI 면접으로 참여
+                      <a className={styles.link} href={`/interview-live/${iv.token}`}>
+                        면접관과 화상으로 참여
                       </a>
                     </div>
                   ))}

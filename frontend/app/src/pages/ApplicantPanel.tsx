@@ -607,9 +607,15 @@ function InterviewSection({ applicationId }: { applicationId: number }) {
                   들어가 봐야 방이 안 열린다(서버가 session_closed 로 막는다).
                   같은 세션·같은 토큰을 쓰므로 AI 면접과 자리를 나누지 않는다. */}
               {!isDone && (
-                <Link className={styles.ivCopy} to={`/interview-room/${s.id}`}>
-                  면접방 입장
-                </Link>
+                <>
+                  {/* AI 면접이 도는 동안 판정을 보는 자리. 카메라를 안 켠다. */}
+                  <Link className={styles.ivCopy} to={`/interview-watch/${s.id}`}>
+                    실시간 분석 보기
+                  </Link>
+                  <Link className={styles.ivCopy} to={`/interview-room/${s.id}`}>
+                    화상 면접방
+                  </Link>
+                </>
               )}
               {isDone && (
                 <button type="button" className={styles.ivExpand} onClick={() => toggleExpand(s)}>

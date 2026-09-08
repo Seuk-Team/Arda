@@ -358,3 +358,36 @@ class TestIceServers:
         interview_rtc._turn_cache["expires_at"] = interview_rtc.time.time() + 3600  # 갱신 시점
         monkeypatch.setattr(httpx, "post", self._fake_post([], fail=True))
         assert interview_rtc.ice_servers() == cached
+
+
+class TestVerdictRelay:
+    """AI 면접 실시간 판정을 담당자에게 나른다 (2026-09-08).
+
+    판정은 지원자 기기가 `/ai/ws/live` 에서 받는다. 서버에는 그것을 담당자에게
+    보낼 통로가 없어서 **이미 있는 방을 쓴다.**
+    """
+
+    def test_지원자가_보낸_판정이_채용자에게_간다(
+        self, client, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user)
+        ticket = interview_rtc.issue_ticket(s.id, admin_user.id)
+
+        with client.websocket_connect(f"/api/v1/ws/interview/{s.token}/rtc") as applicant:
+            applicant.receive_json()
+            with client.websocket_connect(
+                f"/api/v1/ws/interview/{s.token}/rtc?ticket={ticket}"
+            ) as recruiter:
+                recruiter.receive_json()  # hello
+                applicant.receive_json()  # peer-join
+
+                applicant.send_json(
+                    {"type": "verdict", "truth_pct": 61.2, "lie_pct": 38.8}
+                )
+                got = recruiter.receive_json()
+
+        # 서버는 내용을 고치지 않는다 — 보낸 쪽만 덧붙는다
+        assert got["type"] == "verdict"
+        assert got["truth_pct"] == 61.2
+        assert got["lie_pct"] == 38.8
+        assert got["from"] == "applicant"
