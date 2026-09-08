@@ -257,7 +257,17 @@ docker compose -f ~/arda/docker-compose.prod.yml up -d n8n
 `.env` 의 `N8N_ENCRYPTION_KEY` 가 백업 당시와 같아야 한다.
 
 **함정**
-- **하위 경로 서빙은 실측 전(09-07)**. `N8N_PATH`·`WEBHOOK_URL`·`N8N_EDITOR_BASE_URL` 세 값이 맞아야 편집 화면 자산이 뜬다. 첫 설치에서 화면이 깨지면 서브도메인(`n8n.seuk.suvisdev.cloud` — DNS A 레코드 1개 + Caddy 블록 하나, `N8N_PATH` 제거)으로 바꾸는 것이 빠르다.
+- **하위 경로 서빙은 3층 협력이다 (2026-09-08 실측 확정)**: Caddy 는 `handle_path /n8n/*` 로 앞을 벗기고, compose 는 `N8N_PATH=/n8n/` 를 유지해 n8n 이 자산·에디터 URL 을 만들 때 앞에 붙이도록 한다. `handle` 만 쓰면 n8n 이 `/n8n/assets/…` 요청을 404 처리해 편집기가 하얗게 뜬다 — 초기 세팅에서 반나절 잡아먹은 함정. 반대로 `N8N_PATH` 를 지우면 HTML 이 자산을 `/assets/…` 절대경로로 링크해서 Caddy 가 그걸 api 로 라우팅 → 역시 404.
+- **Basic Auth 해시의 `$` 는 `.env` 에서 `$$` 로 이스케이프해야 한다 (2026-09-08 실측 확정)**. `docker compose` 는 `.env` 값 안의 `$FOO` 를 변수 참조로 해석해 확장하려 든다. bcrypt 해시(`$2a$14$…`)의 `$Q5z…` 같은 대문자 시작 부분이 통째로 빈 값으로 대체돼 `$2a$14$` 7자로 잘림 → caddy 가 "hashedSecret too short" 로 죽음. 안전한 등록:
+  ```bash
+  HASH=$(docker run --rm caddy:2-alpine caddy hash-password --plaintext '<비밀번호>')
+  ESCAPED="${HASH//\$/\$\$}"    # bash 파라미터 확장으로 $ → $$ 치환
+  sed -i '/^N8N_BASIC_AUTH_HASH=/d' ~/arda/.env
+  printf 'N8N_BASIC_AUTH_HASH=%s\n' "$ESCAPED" >> ~/arda/.env
+  docker compose -f ~/arda/docker-compose.prod.yml up -d --force-recreate caddy
+  ```
+- **Basic Auth 통과했는데 화면이 하얗다** = 자산이 404. 원인 위 3층 협력 어긋남. 진단: `curl -sI -u '<user>:<pass>' https://.../n8n/assets/…js | head -3` 에 `HTTP/2 404` + `content-type: text/html` 이면 확정. `handle_path` 로 교체 후 `up -d --force-recreate n8n caddy`.
+- 화면이 계속 깨지면 마지막 대안은 서브도메인(`n8n.seuk.suvisdev.cloud` — DNS A 레코드 1개 + Caddy 블록 하나, `N8N_PATH` 제거). 지금 세팅은 실측 통과했으니 굳이 안 감.
 - compose·Caddyfile 은 배포 tar 가 안 덮는다 — `infra/` 가 바뀌면 위 `curl` 두 줄 + `up -d`.
 - Caddy 는 환경변수를 **기동 때** 읽는다 — 비밀번호를 바꾸면 `caddy reload` 가 아니라 `up -d --force-recreate caddy`.
 - 웹훅은 docker 네트워크 안(`http://n8n:5678/n8n/webhook/…`)에서만 부른다. 밖에서 부르면 Basic Auth 에 막힌다 — 의도한 것.

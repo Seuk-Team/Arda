@@ -21,11 +21,13 @@ api.seuk.suvisdev.cloud {
 		}
 	}
 
-	# n8n 편집 화면·웹훅 (ADR-0030). handle 이지 handle_path 가 아니다 — n8n 은 N8N_PATH=/n8n/ 로
-	# 자기 경로를 알고 있어 앞을 떼면 안 된다. Basic Auth 는 팀 전원 공유 계정 하나 —
-	# 사용자·해시는 compose 가 .env 에서 환경변수로 넣는다(여기 평문 없음).
-	# 해시 만들기: docker run --rm caddy:2-alpine caddy hash-password --plaintext '<비밀번호>'
-	handle /n8n/* {
+	# n8n 편집 화면·웹훅 (ADR-0030·ADR-0031). handle_path 로 앞의 /n8n 을 벗겨서 n8n 에 넘긴다 —
+	# 반면 compose 의 N8N_PATH=/n8n/ 는 유지: n8n 이 자산 URL·에디터 URL 을 만들 때 앞에 /n8n/ 을
+	# 붙이도록. 브라우저 → /n8n/assets/xxx.js → Caddy 가 /assets/xxx.js 로 n8n 에 전달 → n8n 서빙.
+	# ⚠️ handle 만 쓰면 (2026-09-08 실측): n8n 이 /n8n/assets/... 요청을 404 처리 → 편집기 하얗게 뜸.
+	# Basic Auth 는 팀 전원 공유 계정 하나(ADR-0030 결정 4) — 사용자·해시는 compose 가 .env 에서
+	# 환경변수로 넣는다(여기 평문 없음). 해시 만들기·저장 절차는 07-deploy "n8n" 절 참고.
+	handle_path /n8n/* {
 		basic_auth {
 			{env.N8N_BASIC_AUTH_USER} {env.N8N_BASIC_AUTH_HASH}
 		}
