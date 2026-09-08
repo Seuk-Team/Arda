@@ -104,9 +104,10 @@ flutter:
   # main.dart 에서 LicenseRegistry 에 등록해 앱 안에서 볼 수 있게 한다.
   assets:
     - assets/fonts/OFL.txt
-    # 아르 캐릭터 — 로그인 화면 로고 위에 쓴다.
-    # assets/icon/app_icon.png(런처 아이콘 원본, 766px·478KB)은 개발용이라
-    # 앱에 들어가지 않는다. 화면에 쓰는 것은 256px 로 줄인 이 사본이다.
+    # 아르 캐릭터 — 아르 화면과 채팅에 쓴다.
+    # **로그인 로고 자리에서는 빠졌다**(2026-09-08) — 그 자리는 브랜드 마크
+    # (노드 A)가 그림으로 그린다(widgets/network_field.dart).
+    # assets/icon/*.png(런처 아이콘 원본)은 개발용이라 앱에 들어가지 않는다.
     - assets/images/ar.png
 
   # To add assets to your application, add an assets section, like this:
@@ -145,13 +146,21 @@ flutter:
 # 원본 하나(assets/icon/app_icon.png)를 바꾸고 아래를 다시 돌리면 전 해상도가 갱신된다:
 #   dart run flutter_launcher_icons
 #
-# 캐릭터 "아르"는 임시다. 브랜드 아이콘 시안이 나오면 원본만 교체하면 된다.
+# **2026-09-08: 캐릭터 "아르"에서 브랜드 마크로 바꿨다.** 05-design §0.0 이
+# 로고를 "노드 다섯 개와 그 연결선이 이루는 A"(네트워크이면서 이니셜)로 정의한다 —
+# 아르는 안내자이지 브랜드 마크가 아니다. 로그인 화면 로고와 같은 그림이라
+# 앱을 여는 자리와 들어온 자리가 같은 표를 쓴다.
+#
+# 두 장인 이유: 적응형 아이콘은 전경을 마스크로 자르므로 **배경이 투명**해야
+# 하고, 옛 안드로이드용 정사각 아이콘은 **배경이 있어야** 한다.
+# 그림은 scratchpad 의 렌더 스크립트가 만든다(좌표는 widgets/network_field.dart
+# 의 _MarkPainter 와 같다).
 flutter_launcher_icons:
   android: true
   # iOS 는 빌드하지 않지만(ADR-0010) 아이콘 자산은 함께 맞춰 둔다 — 호환 유지 규율
   ios: true
   image_path: "assets/icon/app_icon.png"
   remove_alpha_ios: true
-  # Android 8+ 적응형 아이콘. 배경은 05-design 의 --bg-elev(흰색)
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  # Android 8+ 적응형 아이콘. 배경은 05-design 의 --bg(딥 네트워크 바탕)
+  adaptive_icon_background: "#070B14"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"

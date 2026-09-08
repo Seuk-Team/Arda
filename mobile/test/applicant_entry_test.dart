@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_applicant.dart';
 import 'fake_auth.dart';
+import 'no_motion.dart';
 
 const _token = ApplicantToken(kind: ApplicantTokenKind.portal, token: 'p1');
 
@@ -59,6 +60,7 @@ FilledButton loginButton(WidgetTester tester) => tester.widget<FilledButton>(
 void main() {
   group('탭', () {
     testWidgets('기본은 담당자 — 매일 켜는 쪽이다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
 
@@ -68,6 +70,7 @@ void main() {
     });
 
     testWidgets('지원자는 비밀번호 대신 생년월일이다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
@@ -76,6 +79,7 @@ void main() {
     });
 
     testWidgets('링크를 넣는 자리는 없다 — 링크는 앱을 설치할 때 준다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
@@ -85,6 +89,7 @@ void main() {
     });
 
     testWidgets('담당자로 돌아올 수 있다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
       await tester.tap(find.text('담당자'));
@@ -95,6 +100,7 @@ void main() {
     });
 
     testWidgets('고른 탭만 시안색이다 (§2)', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
 
@@ -111,6 +117,7 @@ void main() {
 
   group('지원자 로그인', () {
     testWidgets('둘 다 채워야 버튼이 살아난다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
       expect(loginButton(tester).onPressed, isNull);
@@ -123,6 +130,7 @@ void main() {
     });
 
     testWidgets('8자리를 다 안 채우면 잠겨 있다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
@@ -131,6 +139,7 @@ void main() {
     });
 
     testWidgets('숫자만 들어간다 — 8자리 날짜 칸이다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
@@ -142,6 +151,7 @@ void main() {
     });
 
     testWidgets('날짜가 아니면 서버에 보내지 않는다', (tester) async {
+      disableMotion(tester);
       final portal = FakeApplicantPortalRepository();
       await tester.pumpWidget(host(portal: portal));
       await toApplicant(tester);
@@ -156,6 +166,7 @@ void main() {
     });
 
     testWidgets('2월 30일도 잡는다', (tester) async {
+      disableMotion(tester);
       final portal = FakeApplicantPortalRepository();
       await tester.pumpWidget(host(portal: portal));
       await toApplicant(tester);
@@ -168,6 +179,7 @@ void main() {
     });
 
     testWidgets('서버가 아직 없어서 준비 중이라고 답한다', (tester) async {
+      disableMotion(tester);
       // loginTokens 를 안 준 가짜 = 진짜와 같이 501
       final portal = FakeApplicantPortalRepository();
       final store = FakeApplicantStore();
@@ -185,6 +197,7 @@ void main() {
     });
 
     testWidgets('서버가 생기면 토큰을 저장하고 홈으로 간다', (tester) async {
+      disableMotion(tester);
       final portal = FakeApplicantPortalRepository(loginTokens: const [_token]);
       final store = FakeApplicantStore();
       await tester.pumpWidget(host(portal: portal, store: store));
@@ -199,6 +212,7 @@ void main() {
     });
 
     testWidgets('이메일 앞뒤 공백은 떼고 보낸다 — 복사하면 딸려 온다', (tester) async {
+      disableMotion(tester);
       final portal = FakeApplicantPortalRepository(loginTokens: const [_token]);
       await tester.pumpWidget(host(portal: portal));
       await toApplicant(tester);

@@ -10,6 +10,7 @@ import 'package:arda/routes.dart';
 import 'package:arda/screens/login_screen.dart';
 import 'package:arda/theme/app_theme.dart';
 import 'package:arda/widgets/app_bottom_nav.dart';
+import 'package:arda/widgets/network_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,6 +18,7 @@ import 'app_boot.dart';
 import 'package:arda/data/repositories.dart';
 
 import 'fake_auth.dart';
+import 'no_motion.dart';
 import 'fake_repos.dart';
 
 void main() {
@@ -55,6 +57,7 @@ void main() {
 
   group('버튼 활성화', () {
     testWidgets('빈 칸이면 로그인 버튼이 비활성이다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(app());
 
       final button = tester.widget<FilledButton>(find.byType(FilledButton));
@@ -62,6 +65,7 @@ void main() {
     });
 
     testWidgets('이메일만 채우면 아직 비활성이다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(app());
 
       await tester.enterText(find.byType(TextField).first, 'a@b.com');
@@ -72,6 +76,7 @@ void main() {
     });
 
     testWidgets('둘 다 채우면 활성이 된다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(app());
       await fill(tester);
 
@@ -82,6 +87,7 @@ void main() {
 
   group('실패 문구 — 원인마다 다르다', () {
     testWidgets('비밀번호가 틀리면 다시 입력하라고 한다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(
         app(auth: FakeAuthService(error: const LoginFailed())),
       );
@@ -96,6 +102,7 @@ void main() {
     });
 
     testWidgets('서버에 못 닿으면 다른 문구다 — 입력해 봐야 소용없다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(
         app(auth: FakeAuthService(error: const NetworkError())),
       );
@@ -108,6 +115,7 @@ void main() {
     });
 
     testWidgets('다시 입력하면 문구가 사라진다 — 방금 것이 또 틀린 줄 안다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(
         app(auth: FakeAuthService(error: const LoginFailed())),
       );
@@ -124,6 +132,7 @@ void main() {
   });
 
   testWidgets('보내는 동안 버튼이 잠긴다 — 두 번 눌러 두 번 보내지 않는다', (tester) async {
+    disableMotion(tester);
     await tester.pumpWidget(
       app(auth: FakeAuthService(delay: const Duration(milliseconds: 200))),
     );
@@ -140,6 +149,7 @@ void main() {
   });
 
   testWidgets('로그인하면 홈(대시보드)으로 넘어간다', (tester) async {
+    disableMotion(tester);
     await tester.pumpWidget(bootedApp());
     await fill(tester);
 
@@ -151,6 +161,7 @@ void main() {
   });
 
   testWidgets('로그인한 사람 이름이 더보기에 뜬다 — 목데이터가 아니다', (tester) async {
+    disableMotion(tester);
     await tester.pumpWidget(
       bootedApp(auth: FakeAuthService(user: testUser.copyWithName('문해린'))),
     );
@@ -166,6 +177,7 @@ void main() {
 
   group('화면 생김새', () {
     testWidgets('앱을 켜면 로그인이 먼저다 — 탭바는 아직 없다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(bootedApp());
 
       expect(find.byType(LoginScreen), findsOneWidget);
@@ -173,14 +185,16 @@ void main() {
     });
 
     testWidgets('로고 아래 부제 — 무슨 서비스인지 알려 준다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(bootedApp());
       expect(find.text('채용 관리'), findsOneWidget);
     });
 
-    testWidgets('아르 마크 · 로고 · 부제가 같은 세로선에 선다', (tester) async {
+    testWidgets('브랜드 마크 · 로고 · 부제가 같은 세로선에 선다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(bootedApp());
 
-      final markX = tester.getCenter(find.byType(Image)).dx;
+      final markX = tester.getCenter(find.byType(BrandMark)).dx;
       final logoX = tester.getCenter(find.textContaining('rda')).dx;
       final tagX = tester.getCenter(find.text('채용 관리')).dx;
 
@@ -190,6 +204,7 @@ void main() {
   });
 
   testWidgets('로그아웃하면 로그인으로 돌아가고 스택이 비워진다', (tester) async {
+    disableMotion(tester);
     await bootToShell(tester, tab: '더보기');
 
     await tester.tap(find.text('로그아웃'));

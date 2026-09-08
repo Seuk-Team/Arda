@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import '../data/applicant_demo.dart';
 import '../data/applicant_portal_repository.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
+import '../widgets/network_field.dart';
 
 /// 로그인 — `mockup-login.html` 을 옮긴 것.
 ///
@@ -53,62 +56,108 @@ class LoginScreen extends StatefulWidget {
 /// 어느 쪽으로 들어오는가.
 enum LoginRole { staff, applicant }
 
-class _LoginScreenState extends State<LoginScreen> {
+/// 인트로가 이번 실행에서 이미 지나갔는가.
+///
+/// **세션당 한 번이다** — 매번 나오면 통행세다(웹도 `sessionStorage` 로 같은
+/// 규칙을 건다). 앱에서는 프로세스 수명이 곧 세션이라 최상위 변수로 충분하다:
+/// 로그아웃하고 돌아와도 다시 돌지 않고, 앱을 껐다 켜면 다시 돈다.
+bool _introSeen = false;
+
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   /// 담당자가 기본이다 — 지금 이 앱을 매일 켜는 사람이 담당자다.
   /// 지원자는 면접 때 한 번 들어오고, 그 뒤로는 런치 화면이 바로 보내 준다
   LoginRole _role = LoginRole.staff;
 
+  /// 인트로 시계. 웹 `LoginIntro.tsx` 와 같은 길이·같은 간격이다
+  AnimationController? _intro;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_intro != null || _introSeen) return;
+
+    // 05-design §5: 동작 줄이기면 연출을 돌리지 않는다. 여기서 판단해야
+    // MediaQuery 를 읽을 수 있다(initState 에서는 아직 없다)
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _introSeen = true;
+      return;
+    }
+    _intro = AnimationController(vsync: this, duration: _kEnd)
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed) _finishIntro();
+      })
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _intro?.dispose();
+    super.dispose();
+  }
+
+  /// 끝났거나 Skip. **다시는 안 돈다**
+  void _finishIntro() {
+    if (_intro == null) return;
+    _introSeen = true;
+    setState(() {
+      _intro?.dispose();
+      _intro = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final intro = _intro;
     return Scaffold(
-      // 목업 body 배경은 --bg (카드가 떠 보이게 하는 받침)
       backgroundColor: AppColors.bg,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpace.s5),
-            child: ConstrainedBox(
-              // 목업 .card: width 360, max-width 100%
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: Container(
-                padding: const EdgeInsets.all(AppSpace.s6),
-                decoration: const BoxDecoration(
-                  color: AppColors.bgElev,
-                  borderRadius: AppShape.card,
-                  border: Border.fromBorderSide(
-                    BorderSide(
-                      color: AppColors.border,
-                      width: AppShape.borderW,
-                    ),
+      body: Stack(
+        children: [
+          // 브랜드가 곧 배경이다 (05-design §0.0 딥 네트워크)
+          Positioned.fill(
+            child: intro == null
+                ? const NetworkField()
+                : AnimatedBuilder(
+                    animation: intro,
+                    builder: (_, _) =>
+                        NetworkField(dim: _introDim(intro.value * _kEndMs)),
                   ),
-                ),
+          ),
+
+          Positioned.fill(child: SafeArea(child: _card(intro))),
+
+          if (intro != null)
+            Positioned.fill(
+              child: _IntroLayer(intro: intro, onSkip: _finishIntro),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 로그인 카드. 인트로 끝에 **같은 문법으로** 떠오른다 — 왼쪽에서 슥
+  Widget _card(AnimationController? intro) {
+    final card = Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpace.s5),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _Brand(),
+              const SizedBox(height: AppSpace.s5),
+              _GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Center(child: _ArMark()),
-                    const SizedBox(height: AppSpace.s3),
-                    const _Logo(),
-                    const SizedBox(height: AppSpace.s1),
-                    // 초안의 부제. 로고만 있으면 무슨 서비스인지 모른다
-                    const Text(
-                      '채용 관리',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: AppType.fontFamily,
-                        fontSize: AppType.sm,
-                        color: AppColors.textSub,
-                        // §2: 작은 글씨엔 그림자 금지
-                      ),
-                    ),
-                    const SizedBox(height: AppSpace.s5),
-
                     _RoleTabs(
                       role: _role,
                       onChanged: (r) => setState(() => _role = r),
                     ),
                     const SizedBox(height: AppSpace.s5),
-
                     if (_role == LoginRole.staff)
                       _StaffForm(auth: widget.auth)
                     else
@@ -119,6 +168,353 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (intro == null) return card;
+    return AnimationBuilderCard(intro: intro, child: card);
+  }
+}
+
+/// 카드 등장 — 인트로가 끝날 무렵 왼쪽에서 슥 들어온다.
+///
+/// 별도 위젯인 이유: 이 애니메이션만 다시 그리면 되는데 화면 전체를
+/// [AnimatedBuilder] 로 감싸면 폼까지 매 프레임 다시 만들어진다
+class AnimationBuilderCard extends StatelessWidget {
+  const AnimationBuilderCard({
+    super.key,
+    required this.intro,
+    required this.child,
+  });
+
+  final AnimationController intro;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: intro,
+      // child 를 밖에서 한 번만 만든다 — 매 프레임 폼을 새로 세우지 않는다
+      child: child,
+      builder: (_, built) {
+        final ts = intro.value * _kEndMs - _kLead;
+        final e = _kEase.transform(((ts - _kCardAt) / _kIn).clamp(0.0, 1.0));
+        return Opacity(
+          opacity: e,
+          child: Transform.translate(
+            offset: Offset(-72 * (1 - e), 0),
+            child: Transform.scale(scale: .96 + .04 * e, child: built),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 브랜드 — 로고 + 이름. 로고는 노드 다섯과 연결선이 이루는 A 다 (§0.0)
+class _Brand extends StatelessWidget {
+  const _Brand();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        BrandMark(size: 46),
+        SizedBox(height: AppSpace.s3),
+        _Logo(),
+        SizedBox(height: AppSpace.s1),
+        // 로고만 있으면 무슨 서비스인지 모른다
+        Text(
+          '채용 관리',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: AppType.fontFamily,
+            fontSize: AppType.sm,
+            color: AppColors.textSub,
+            // §2: 작은 글씨엔 그림자 금지
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 유리 카드. **뒤가 비쳐야 한다** — 배경 노드망이 카드 밑으로 이어지는 것이
+/// 보여야 브랜드가 화면 전체에 걸린다 (05-design §0.4 재질: 유리)
+class _GlassCard extends StatelessWidget {
+  const _GlassCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: AppShape.card,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpace.s5),
+          decoration: BoxDecoration(
+            color: AppColors.bgElev,
+            borderRadius: AppShape.card,
+            border: Border.all(
+              color: AppColors.border,
+              width: AppShape.borderW,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// ── 인트로 상수 ──────────────────────────────────────
+///
+/// 웹 `LoginIntro.tsx` 의 값을 그대로 쓴다. 길이도 간격도 같아야 두 화면이
+/// 같은 연출로 읽힌다.
+///
+/// 진입(330)과 퇴장(190) 간격이 다른 이유: 퇴장은 가속 곡선이라 짧아도
+/// "후-둑" 이 읽히지만, 진입은 감속 곡선이라 같은 간격이면 두 줄이 거의 함께
+/// 도착해 한 덩어리로 보인다. 그래서 진입만 벌린다.
+const _kEnd = Duration(milliseconds: 3600);
+const _kEndMs = 3600.0;
+
+/// 들어오기 전 한 박자. 이게 없으면 마운트와 등장이 겹쳐 "들어가자마자 이미
+/// 떠 있는" 것처럼 보인다 — 슥 들어오는 동작 자체가 안 읽힌다
+const _kLead = 620.0;
+const _kIn = 672.0; // 진입 이징 길이
+const _kEnterBeat = 330.0;
+const _kLeaveBeat = 190.0;
+const _kLeave = 2350.0;
+const _kOut = 640.0;
+const _kCardAt = 2920.0; // 카드가 떠오르기 시작하는 시각
+/// 감광은 글자보다 살짝 먼저 걸린다 — 배경이 눌리는 것이 곧 예고다
+const _kDimAt = _kLead - 360;
+
+/// team.seuk.cloud 의 hero-enter 와 같은 곡선. 웹도 이것을 쓴다
+const _kEase = Cubic(.2, .7, .2, 1);
+
+/// 배경 감광 값. `t` 는 시퀀스 시작부터의 ms
+double _introDim(double t) {
+  final w = _kEase.transform(((t - _kDimAt) / 600).clamp(0.0, 1.0));
+  final out = ((t - _kLead - (_kLeave + _kLeaveBeat)) / 640).clamp(0.0, 1.0);
+  return (w - out).clamp(0.0, 1.0);
+}
+
+/// 시네마틱 인트로 — 세션당 1회.
+///
+/// 위에서부터 후두둑: 워드마크와 카피가 왼쪽에서 들어와 함께 서고, 같은
+/// 순서·같은 간격으로 오른쪽으로 빠진다. 문법은 하나다 — 슥 들어옴 → 머묾 →
+/// 가속 퇴장. 배경 감광은 [NetworkField] 가 같은 시계로 받는다.
+class _IntroLayer extends StatelessWidget {
+  const _IntroLayer({required this.intro, required this.onSkip});
+
+  final AnimationController intro;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // 인트로는 화면을 덮지만 Skip 말고는 아무것도 안 받는다
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: intro,
+              builder: (context, _) => _stack(intro.value * _kEndMs - _kLead),
+            ),
+          ),
+        ),
+        Positioned(
+          top: AppSpace.s5,
+          right: AppSpace.s5,
+          child: SafeArea(child: _SkipButton(onTap: onSkip)),
+        ),
+      ],
+    );
+  }
+
+  Widget _stack(double ts) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.s5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sweep(
+              ts,
+              enter: 0,
+              leave: _kLeave,
+              dist: 460,
+              child: const _Wordmark(),
+            ),
+            _sweep(
+              ts,
+              enter: _kEnterBeat,
+              leave: _kLeave + _kLeaveBeat,
+              dist: 380,
+              child: const _Copy(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 한 덩어리의 문법: 슥 들어와(감속) → 머물고 → 가속하며 빠진다
+  Widget _sweep(
+    double ts, {
+    required double enter,
+    required double leave,
+    required double dist,
+    required Widget child,
+  }) {
+    double o = 0, dx = -dist;
+    if (ts >= enter && ts < leave) {
+      final e = _kEase.transform(((ts - enter) / _kIn).clamp(0.0, 1.0));
+      o = e;
+      dx = -dist * (1 - e);
+    } else if (ts >= leave) {
+      var q = ((ts - leave) / _kOut).clamp(0.0, 1.0);
+      q = q * q; // 퇴장은 가속
+      o = 1 - q;
+      dx = (dist + 60) * q;
+    }
+    return Opacity(
+      opacity: o,
+      child: Transform.translate(offset: Offset(dx, 0), child: child),
+    );
+  }
+}
+
+/// 워드마크 — 그냥 글씨다. 배경 망이 유기적으로 빛나는 앞에 또렷한 타입이
+/// 서야 둘 다 산다.
+///
+/// **크롬(금속)은 명암 밴딩으로 읽힌다.** 글자 잉크가 박스의 0.155~0.851 을
+/// 차지하는 것에 맞춰 어두운 띠를 52% 에 둔다 — 웹과 같은 정지점이다.
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
+
+  static const _chrome = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFFC9D8EC),
+      Color(0xFFFFFFFF),
+      Color(0xFF93A9C6),
+      Color(0xFF63799B),
+      Color(0xFFB9CCE4),
+      Color(0xFFFFFFFF),
+      Color(0xFF8497B4),
+    ],
+    stops: [0, .33, .46, .52, .60, .80, 1],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      shaderCallback: _chrome.createShader,
+      blendMode: BlendMode.srcIn,
+      child: const Text(
+        'SEUK',
+        style: TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: 64,
+          // 번들한 굵기가 400·600 둘뿐이다(pubspec). 800 을 쓰면 600 으로
+          // 떨어져 자간만 어긋나므로, 있는 것 중 제일 굵은 것을 쓴다
+          fontWeight: AppType.wSemiBold,
+          letterSpacing: -64 * .035,
+          height: 1.05,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// 소제목 + 설명은 한 세트 — 같이 들어오고 같이 빠진다.
+///
+/// **줄은 손으로 끊는다.** 폭이 335px 뿐이라 맡겨 두면 조사만 남거나
+/// ("및" 한 글자 줄) 관형어와 체언이 갈라진다("하나의 / 플랫폼").
+class _Copy extends StatelessWidget {
+  const _Copy();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(top: 22),
+      child: Column(
+        children: [
+          Text(
+            'AI 기반 채용 프로세스 자동화 및\n지원자 통합 관리 플랫폼',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.h2,
+              fontWeight: AppType.wSemiBold,
+              letterSpacing: -AppType.h2 * .015,
+              height: 1.45,
+              color: Color(0xFFE4EDFF),
+              shadows: [
+                Shadow(color: Color(0x807DD3FC), blurRadius: 28),
+                Shadow(color: Color(0x4760A5FA), blurRadius: 64),
+              ],
+            ),
+          ),
+          SizedBox(height: 14),
+          Text(
+            '이력서 AI 파싱, 칸반 보드,\n'
+            'Tool-Calling Agent, RAG 질의응답까지 —\n'
+            '채용 프로세스를\n'
+            '하나의 플랫폼에서 자동화합니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              height: 1.75,
+              color: Color(0xFFA8BCDC),
+              shadows: [Shadow(color: Color(0x3860A5FA), blurRadius: 22)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 매번 나오면 통행세다 — 빠져나갈 문을 늘 열어 둔다
+class _SkipButton extends StatelessWidget {
+  const _SkipButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0x0FFFFFFF),
+      shape: const StadiumBorder(
+        side: BorderSide(color: Color(0x2EFFFFFF), width: AppShape.borderW),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpace.s4,
+            vertical: AppSpace.s3,
+          ),
+          child: Text(
+            'Skip →',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              fontWeight: AppType.wSemiBold,
+              letterSpacing: .04 * AppType.caption,
+              color: Color(0xFFCBD5E6),
             ),
           ),
         ),
@@ -615,39 +1011,6 @@ bool _looksLikeBirthdate(String text) {
   return parsed.year == year && parsed.month == month && parsed.day == day;
 }
 
-/// 아르 마크 — 앱 UI 초안(2026-09-01)이 로고 위에 더한 것.
-///
-/// 런처 아이콘이 아르라서 첫 화면에서 한 번은 마주치는 게 맞다. 사이드바 하단
-/// 상주 슬롯(05-design §0.5)은 로그인 뒤의 이야기라 여기서는 브랜드 표시일 뿐이고,
-/// **누를 수 없다.**
-class _ArMark extends StatelessWidget {
-  const _ArMark();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 72,
-      height: 72,
-      clipBehavior: Clip.antiAlias,
-      // 유리 바탕이 캐릭터 뒤로 비친다 (ar_screen.dart ArAvatar 주석 참고)
-      decoration: const BoxDecoration(
-        color: AppColors.bgElev,
-        shape: BoxShape.circle,
-        border: Border.fromBorderSide(
-          BorderSide(color: AppColors.border, width: AppShape.borderW),
-        ),
-      ),
-      child: Image.asset(
-        'assets/images/ar.png',
-        fit: BoxFit.cover,
-        // 화면 낭독기에는 장식이라고 알린다 — 로고 글자가 바로 아래에 있다
-        excludeFromSemantics: true,
-      ),
-    );
-  }
-}
-
-/// 목업 `.logo` — 첫 글자 `A` 만 잎초록.
 class _Logo extends StatelessWidget {
   const _Logo();
 
