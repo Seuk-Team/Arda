@@ -223,3 +223,15 @@
   color: var(--danger);
   word-break: keep-all;
 }
+
+/* 입력칸 바로 아래 붙는 설명. `.hint` 는 파일 안내용으로 이미 쓰이고 있어
+   자리(라벨 안쪽)와 여백이 달라 따로 둔다. */
+.fieldHint {
+  display: block;
+  margin-top: var(--sp-1);
+  font-size: var(--font-caption);
+  font-weight: 400;
+  color: var(--text-sub);
+  word-break: keep-all;
+  line-height: 1.5;
+}

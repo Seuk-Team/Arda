@@ -115,6 +115,7 @@ export default function Apply() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [education, setEducation] = useState('')
   const [careerYears, setCareerYears] = useState('')
   const [selfIntro, setSelfIntro] = useState('')
@@ -180,6 +181,9 @@ export default function Apply() {
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
+          // 8자리를 다 채웠을 때만 보낸다. 덜 친 값("1998")을 보내면 서버가
+          // 422 로 막아 **지원 자체가 실패한다** — 선택 항목이 필수처럼 군다.
+          birth_date: birthDate.length === 8 ? birthDate : null,
           education: education.trim() || null,
           career_years: careerYears === '' ? null : Number(careerYears),
           self_intro: selfIntro.trim() || null,
@@ -249,6 +253,25 @@ export default function Apply() {
         <Field label="이름" value={name} onChange={setName} autoComplete="name" placeholder="홍길동" disabled={pending} />
         <Field label="이메일" value={email} onChange={setEmail} type="email" autoComplete="email" placeholder="name@example.com" disabled={pending} />
         <Field label="연락처" value={phone} onChange={setPhone} type="tel" autoComplete="tel" placeholder="010-0000-0000" disabled={pending} />
+        {/* 생년월일은 **지원 현황 조회의 비밀번호가 된다** (ADR-0031).
+            그래서 무엇에 쓰이는지 그 자리에서 말해 준다 — 안 적으면 왜 받는지
+            모른 채 내게 되고, 나중에 로그인하라고 하면 뭘 넣어야 할지 모른다.
+
+            **필수로 두지 않는다.** 필수면 안 낸 사람은 지원 자체가 막히는데,
+            그건 나중에 조회를 못 하는 것보다 나쁘다. 안 내면 조회만 안 된다.
+
+            `type="number"` 를 안 쓰는 이유: 앞자리 0 이 사라진다.
+            숫자 자판은 `inputMode` 로 띄운다. */}
+        <Field
+          label="생년월일"
+          value={birthDate}
+          onChange={(v) => setBirthDate(v.replace(/\D/g, ''))}
+          inputMode="numeric"
+          maxLength={8}
+          placeholder="19980412"
+          disabled={pending}
+          hint="8자리 숫자. 나중에 지원 현황을 조회할 때 씁니다 (선택)"
+        />
         <Field label="최종 학력" value={education} onChange={setEducation} placeholder="OO대학교 컴퓨터공학과" disabled={pending} />
         <Field label="경력 연차" value={careerYears} onChange={setCareerYears} type="number" placeholder="신입이면 0" disabled={pending} />
 
@@ -275,8 +298,13 @@ export default function Apply() {
             onChange={(e) => setAgreed(e.target.checked)}
             disabled={pending}
           />
+          {/* **수집 항목을 적어 둔다.** 2026-09-08 에 생년월일이 늘었는데
+              문구가 "개인정보 수집·이용에 동의합니다" 한 줄이면, 무엇에
+              동의하는지 모른 채 체크하게 된다 — 항목이 바뀌면 문구가 먼저
+              바뀌는 것이 순서다 (ADR-0031 「정하지 못한 것」). */}
           <span>
-            개인정보 수집·이용에 동의합니다.
+            <strong>이름 · 이메일 · 연락처 · 생년월일 · 학력 · 경력 · 제출 서류</strong>를
+            채용 전형 진행과 결과 안내를 위해 수집·이용하는 데 동의합니다.
             <span className={styles.req}>동의하지 않으면 제출할 수 없습니다.</span>
           </span>
         </label>
@@ -319,9 +347,12 @@ interface FieldProps {
   placeholder?: string
   autoComplete?: string
   disabled?: boolean
+  inputMode?: 'numeric'
+  maxLength?: number
+  hint?: string
 }
 
-function Field({ label, value, onChange, type = 'text', ...rest }: FieldProps) {
+function Field({ label, value, onChange, type = 'text', hint, ...rest }: FieldProps) {
   return (
     <label className={styles.label}>
       {label}
@@ -332,6 +363,7 @@ function Field({ label, value, onChange, type = 'text', ...rest }: FieldProps) {
         onChange={(e) => onChange(e.target.value)}
         {...rest}
       />
+      {hint && <span className={styles.fieldHint}>{hint}</span>}
     </label>
   )
 }
