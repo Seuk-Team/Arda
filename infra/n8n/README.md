@@ -30,7 +30,7 @@ api: stage_service.publish_all (MAIL_DISPATCH=n8n)
 
 | 자격 증명 이름 | 종류 | 권한 |
 |---|---|---|
-| `SMTP 발송` | SMTP | 발송 계정(host·port·user·password·secure). 지메일이면 `smtp.gmail.com:587` + 앱 비밀번호, 학원 도메인이면 학원 관리자 값. **자격 증명은 `n8n_data` 볼륨에 `N8N_ENCRYPTION_KEY` 로 암호화 저장 — 이 키 잃으면 백업 복원해도 못 푼다.** |
+| `SMTP 발송` | SMTP | 지메일 앱 비밀번호 확정 (ADR-0031 · 2026-09-08). `smtp.gmail.com:587` + 앱 비밀번호. **SSL/TLS 토글은 OFF** (포트 587 은 STARTTLS 방식 — 토글 ON 은 포트 465 용). **자격 증명은 `n8n_data` 볼륨에 `N8N_ENCRYPTION_KEY` 로 암호화 저장 — 이 키 잃으면 백업 복원해도 못 푼다.** |
 | ~~`arda-server (SES 발송만)`~~ | ~~AWS~~ | ~~SES 는 ADR-0031 리허설 통과 뒤 워커에서 삭제. 이 자격 증명도 그때 제거.~~ |
 
 ## 워크플로 안에서 쓰는 환경변수 (compose 가 넣는다)
@@ -43,3 +43,21 @@ api: stage_service.publish_all (MAIL_DISPATCH=n8n)
 ## 로컬에서 띄우기 (2단계 준비)
 
 SMTP 계정 값만 로컬용으로 갈아 끼우면 같은 워크플로가 로컬에서도 돈다 — "AWS 없이 돈다" 실증(ADR-0031 일정 W5 초). SMTP 계정 결정은 ADR-0031 "정하지 못한 것 1" — 2026-09-08 오늘 결정.
+
+## 함정 (2026-09-08 세팅 실측)
+
+세 층이 다 맞아야 편집 화면이 뜬다:
+
+- **Caddy** = `handle_path /n8n/*` (앞을 벗김)
+- **compose** = `N8N_PATH=/n8n/` (자산·에디터 URL 만들 때 앞에 붙임)
+- **브라우저** = `/n8n/` 트레일링 슬래시 유지
+
+셋 중 하나만 어긋나면 자산이 404 → 화면이 하얗게 뜬다. 진단:
+```bash
+curl -sI -u '<user>:<pass>' https://api.seuk.suvisdev.cloud/n8n/assets/index-<hash>.js | head -3
+```
+`HTTP/2 404` + `content-type: text/html` 이면 자산 라우팅 어긋남.
+
+**Basic Auth 해시** 는 `.env` 에 넣을 때 `$` 를 `$$` 로 이스케이프해야 한다 — 안 그러면 docker compose 가 `$FOO` 를 변수로 해석해서 해시가 잘려 caddy 가 "hashedSecret too short" 로 죽는다. 절차는 [07-deploy "n8n" 함정](../../docs/00_overview/07-deploy.md) 절.
+
+**SMTP Credential SSL/TLS 토글** — 포트 587 은 **OFF** (STARTTLS 방식). ON 은 포트 465 (즉시 SSL) 용. 지메일은 587 쓰니 OFF.
