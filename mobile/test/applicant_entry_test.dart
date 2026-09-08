@@ -3,11 +3,12 @@
 // 담당자 탭이 그대로인지가 먼저다 — 지원자 갈래를 붙이면서 매일 쓰는 쪽을
 // 망가뜨리면 안 된다. 그 다음이 지원자 로그인이다.
 //
-// **지원자 로그인은 서버에 아직 없다.** 그래서 여기서 보는 것은 화면 규칙이다:
-// 무엇을 채워야 버튼이 살아나는지, 이상한 생년월일을 보내기 전에 잡는지,
-// 서버가 거절하면 무엇을 보여 주는지.
+// **서버가 실패 사유를 안 나눈다**(ADR-0031): 없는 이메일·틀린 생년월일·
+// 생년월일 없는 옛 지원서가 전부 같은 401 이고, 5회 실패하면 15분 429 다.
+// 앱이 사유를 지어내면 서버가 일부러 감춘 것을 도로 드러내므로, 여기서는
+// **서버 문구가 그대로 화면에 오르는지**를 본다.
 
-import 'package:arda/auth/applicant_store.dart';
+import 'package:arda/api/api_error.dart';
 import 'package:arda/routes.dart';
 import 'package:arda/screens/login_screen.dart';
 import 'package:arda/theme/tokens.dart';
@@ -18,17 +19,11 @@ import 'fake_applicant.dart';
 import 'fake_auth.dart';
 import 'no_motion.dart';
 
-const _token = ApplicantToken(kind: ApplicantTokenKind.portal, token: 'p1');
-
-Widget host({
-  FakeApplicantPortalRepository? portal,
-  FakeApplicantStore? store,
-}) => MaterialApp(
+Widget host({FakeApplicantPortalRepository? portal}) => MaterialApp(
   theme: ThemeData(useMaterial3: true),
   home: LoginScreen(
     auth: FakeAuthService(),
     portal: portal ?? FakeApplicantPortalRepository(),
-    applicantStore: store ?? FakeApplicantStore(),
   ),
   routes: {Routes.applicantHome: (_) => const Scaffold(body: Text('지원자 홈'))},
 );
@@ -42,8 +37,8 @@ Future<void> toApplicant(WidgetTester tester) async {
 /// 이메일·생년월일을 채운다. [birth] 를 비우면 이메일만 채운다
 Future<void> fill(
   WidgetTester tester, {
-  String email = 'a@b.com',
-  String birth = '19980315',
+  String email = 'dnwjdwkd145@naver.com',
+  String birth = '19980412',
 }) async {
   await tester.enterText(find.byType(TextField).first, email);
   if (birth.isNotEmpty) {
@@ -78,13 +73,13 @@ void main() {
       expect(find.text('비밀번호'), findsNothing);
     });
 
-    testWidgets('링크를 넣는 자리는 없다 — 링크는 앱을 설치할 때 준다', (tester) async {
+    testWidgets('링크를 넣는 자리는 없다 — 로그인이 유일한 문이다', (tester) async {
       disableMotion(tester);
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
       expect(find.text('붙여넣기'), findsNothing);
-      expect(find.text('입장'), findsNothing);
+      expect(find.text('링크로 입장'), findsNothing);
       expect(find.text('메일로 링크 받기'), findsNothing);
     });
 
@@ -115,7 +110,7 @@ void main() {
     });
   });
 
-  group('지원자 로그인', () {
+  group('입력 규칙', () {
     testWidgets('둘 다 채워야 버튼이 살아난다', (tester) async {
       disableMotion(tester);
       await tester.pumpWidget(host());
@@ -134,7 +129,7 @@ void main() {
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
-      await fill(tester, birth: '1998031');
+      await fill(tester, birth: '1998041');
       expect(loginButton(tester).onPressed, isNull);
     });
 
@@ -143,10 +138,10 @@ void main() {
       await tester.pumpWidget(host());
       await toApplicant(tester);
 
-      await fill(tester, birth: '1998-03-15');
+      await fill(tester, birth: '1998-04-12');
       expect(
         tester.widget<TextField>(find.byType(TextField).last).controller!.text,
-        '19980315',
+        '19980412',
       );
     });
 
@@ -177,43 +172,27 @@ void main() {
 
       expect(portal.calls, isEmpty);
     });
+  });
 
-    testWidgets('서버가 아직 없어서 준비 중이라고 답한다', (tester) async {
+  group('서버와 주고받기', () {
+    testWidgets('성공하면 지원자 홈으로 간다', (tester) async {
       disableMotion(tester);
-      // loginTokens 를 안 준 가짜 = 진짜와 같이 501
       final portal = FakeApplicantPortalRepository();
-      final store = FakeApplicantStore();
-      await tester.pumpWidget(host(portal: portal, store: store));
+      await tester.pumpWidget(host(portal: portal));
       await toApplicant(tester);
 
       await fill(tester);
       await tester.tap(find.text('로그인'));
       await tester.pumpAndSettle();
 
-      expect(portal.calls, contains('login:a@b.com:19980315'));
-      expect(find.text('지원자 로그인은 아직 준비 중입니다.'), findsOneWidget);
-      expect(store.tokens, isEmpty);
-      expect(find.text('지원자 홈'), findsNothing);
-    });
-
-    testWidgets('서버가 생기면 토큰을 저장하고 홈으로 간다', (tester) async {
-      disableMotion(tester);
-      final portal = FakeApplicantPortalRepository(loginTokens: const [_token]);
-      final store = FakeApplicantStore();
-      await tester.pumpWidget(host(portal: portal, store: store));
-      await toApplicant(tester);
-
-      await fill(tester);
-      await tester.tap(find.text('로그인'));
-      await tester.pumpAndSettle();
-
-      expect(store.tokens.single, _token);
+      expect(portal.calls, contains('login:dnwjdwkd145@naver.com:19980412'));
+      expect(portal.token, isNotNull);
       expect(find.text('지원자 홈'), findsOneWidget);
     });
 
     testWidgets('이메일 앞뒤 공백은 떼고 보낸다 — 복사하면 딸려 온다', (tester) async {
       disableMotion(tester);
-      final portal = FakeApplicantPortalRepository(loginTokens: const [_token]);
+      final portal = FakeApplicantPortalRepository();
       await tester.pumpWidget(host(portal: portal));
       await toApplicant(tester);
 
@@ -221,7 +200,56 @@ void main() {
       await tester.tap(find.text('로그인'));
       await tester.pumpAndSettle();
 
-      expect(portal.calls, contains('login:a@b.com:19980315'));
+      expect(portal.calls, contains('login:a@b.com:19980412'));
+    });
+
+    testWidgets('틀리면 서버 문구를 그대로 띄운다 — 사유를 지어내지 않는다', (tester) async {
+      disableMotion(tester);
+      final portal = FakeApplicantPortalRepository(
+        loginError: const ServerError(401, '이메일 또는 생년월일이 맞지 않습니다'),
+      );
+      await tester.pumpWidget(host(portal: portal));
+      await toApplicant(tester);
+
+      await fill(tester);
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('이메일 또는 생년월일이 맞지 않습니다'), findsOneWidget);
+      expect(find.text('지원자 홈'), findsNothing);
+    });
+
+    testWidgets('잠기면 잠겼다고 그대로 말한다 (429)', (tester) async {
+      disableMotion(tester);
+      final portal = FakeApplicantPortalRepository(
+        loginError: const ServerError(429, '로그인 시도가 많습니다. 15분 뒤에 다시 시도해 주세요'),
+      );
+      await tester.pumpWidget(host(portal: portal));
+      await toApplicant(tester);
+
+      await fill(tester);
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      // 잠긴 뒤에는 맞는 값을 넣어도 막힌다 — 그 사실이 화면에 그대로 나와야
+      // "비밀번호는 맞는데 왜 안 되지" 로 헤매지 않는다
+      expect(find.text('로그인 시도가 많습니다. 15분 뒤에 다시 시도해 주세요'), findsOneWidget);
+    });
+
+    testWidgets('못 닿아도 버튼이 풀린다 — 스피너가 영영 돌면 안 된다', (tester) async {
+      disableMotion(tester);
+      final portal = FakeApplicantPortalRepository(
+        loginError: const NetworkError(),
+      );
+      await tester.pumpWidget(host(portal: portal));
+      await toApplicant(tester);
+
+      await fill(tester);
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('네트워크를 확인'), findsOneWidget);
+      expect(loginButton(tester).onPressed, isNotNull);
     });
   });
 }

@@ -106,13 +106,13 @@ abstract final class Endpoints {
   // **토큰이 곧 인증이다** — Authorization 헤더를 붙이지 않는다.
   // 지원자에게는 계정이 없다(회원가입도 로그인도 없음).
 
-  /// 지원 현황 조회 링크 요청. 이메일 하나를 보내면 그 주소로 링크가 간다.
-  /// **찾았든 못 찾았든 같은 응답**이 온다 — 지원 사실 자체가 알려지면 안 된다
-  static const portalLookup = '/public/applications/lookup';
+  /// 지원자 로그인 — 이메일 + 생년월일 8자리 (ADR-0031).
+  /// **여기만 토큰 없이 부른다.** 나머지는 받은 토큰을 Bearer 로 붙인다
+  static const applicantLogin = '/public/applicant/login';
 
-  /// 링크로 보는 내 지원 현황
-  static String portalStatus(String token) =>
-      '/public/applications/status/$token';
+  /// 내 지원 현황 — 지원·면접·인적성·일정 토큰이 한 번에 온다.
+  /// **조회 인자를 받지 않는다** — 서버가 토큰의 이메일로만 찾는다
+  static const applicantMe = '/applicant/me';
 
   /// 면접 — 조회·동의·시작·답변·종료
   static String interview(String token) => '/public/interview/$token';

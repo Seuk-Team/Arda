@@ -32,7 +32,6 @@ library;
 import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
-import '../data/applicant_demo.dart';
 import '../data/applicant_portal_repository.dart';
 import '../data/camera_service.dart';
 import '../models/applicant_portal.dart';
@@ -81,7 +80,7 @@ class InterviewScreen extends StatefulWidget {
 class _InterviewScreenState extends State<InterviewScreen>
     with WidgetsBindingObserver {
   late final ApplicantPortalRepository _portal =
-      widget.portal ?? applicantPortal();
+      widget.portal ?? ApplicantPortalRepository();
   late final CameraService _camera = widget.camera ?? DeviceCameraService();
 
   /// 테스트가 넣어 준 카메라는 테스트가 치운다 — 우리가 만든 것만 우리가 닫는다

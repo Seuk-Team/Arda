@@ -5,10 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../api/api_error.dart';
-import '../auth/applicant_store.dart';
 import '../auth/auth_service.dart';
 import '../auth/current_user.dart';
-import '../data/applicant_demo.dart';
 import '../data/applicant_portal_repository.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
@@ -40,14 +38,13 @@ import '../widgets/network_field.dart';
 /// 두 탭은 저장소도 도착지도 다르다: 담당자는 JWT → 탭 셸, 지원자는 링크
 /// 토큰 → 지원자 홈. 섞이면 남의 신분으로 요청이 나간다.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.auth, this.portal, this.applicantStore});
+  const LoginScreen({super.key, this.auth, this.portal});
 
   /// 테스트가 가짜 서비스를 넣는 자리. 평소에는 null 이라 진짜가 만들어진다
   final AuthService? auth;
 
-  /// 지원자 탭이 쓰는 것들 — 같은 이유로 열어 둔다
+  /// 지원자 탭이 쓰는 것 — 같은 이유로 열어 둔다
   final ApplicantPortalRepository? portal;
-  final ApplicantStore? applicantStore;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -161,10 +158,7 @@ class _LoginScreenState extends State<LoginScreen>
                     if (_role == LoginRole.staff)
                       _StaffForm(auth: widget.auth)
                     else
-                      _ApplicantForm(
-                        portal: widget.portal,
-                        store: widget.applicantStore,
-                      ),
+                      _ApplicantForm(portal: widget.portal),
                   ],
                 ),
               ),
@@ -744,10 +738,9 @@ class _StaffFormState extends State<_StaffForm> {
 /// 링크 붙여넣기는 뺐다: 링크는 **앱을 설치할 때 주는 것**이라 앱 안에서 다시
 /// 받을 자리가 없다.
 class _ApplicantForm extends StatefulWidget {
-  const _ApplicantForm({this.portal, this.store});
+  const _ApplicantForm({this.portal});
 
   final ApplicantPortalRepository? portal;
-  final ApplicantStore? store;
 
   @override
   State<_ApplicantForm> createState() => _ApplicantFormState();
@@ -758,15 +751,10 @@ class _ApplicantFormState extends State<_ApplicantForm> {
   final _birth = TextEditingController();
 
   late final ApplicantPortalRepository _portal =
-      widget.portal ?? applicantPortal();
-  late final ApplicantStore _store = widget.store ?? const ApplicantStore();
+      widget.portal ?? ApplicantPortalRepository();
 
   bool _sending = false;
   String? _error;
-
-  /// 개발용 링크 칸 ([applicantLinkEntry] 일 때만 산다)
-  final _link = TextEditingController();
-  bool _entering = false;
 
   @override
   void initState() {
@@ -781,55 +769,7 @@ class _ApplicantFormState extends State<_ApplicantForm> {
   void dispose() {
     _email.dispose();
     _birth.dispose();
-    _link.dispose();
     super.dispose();
-  }
-
-  /// 담당자가 웹에서 만든 링크로 **진짜 서버에** 들어간다.
-  ///
-  /// 종류를 가리지 않는다 — 면접·인적성·일정·지원 현황 링크가 다 들어오고,
-  /// 여러 번 넣으면 쌓인다(탭마다 자기 링크를 쓴다).
-  Future<void> _enterByLink() async {
-    if (_entering) return;
-    final parsed = parseApplicantLink(_link.text);
-    if (parsed == null) {
-      setState(() => _error = '링크를 알아보지 못했습니다.');
-      return;
-    }
-    setState(() {
-      _entering = true;
-      _error = null;
-    });
-    try {
-      // **저장 전에 서버에 물어본다** — 죽은 링크를 넣어 두면 다음에 켤 때마다
-      // 오류 화면으로 떨어진다
-      switch (parsed.kind) {
-        case ApplicantTokenKind.portal:
-          await _portal.status(parsed.token);
-        case ApplicantTokenKind.interview:
-          await _portal.interview(parsed.token);
-        case ApplicantTokenKind.aptitude:
-          await _portal.aptitude(parsed.token);
-        case ApplicantTokenKind.schedule:
-          await _portal.schedule(parsed.token);
-      }
-      await _store.add(parsed);
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, Routes.applicantHome);
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _entering = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      if (kDebugMode) debugPrint('[applicant] 링크 입장 실패: $e');
-      setState(() {
-        _error = '들어가지 못했습니다.';
-        _entering = false;
-      });
-    }
   }
 
   bool get _canSubmit =>
@@ -840,7 +780,8 @@ class _ApplicantFormState extends State<_ApplicantForm> {
   Future<void> _submit() async {
     if (!_canSubmit) return;
     // 8자리를 채웠어도 날짜가 아닐 수 있다(19981345). 왕복 한 번을 아끼고,
-    // 무엇이 틀렸는지도 여기서 더 정확히 말해 줄 수 있다
+    // 무엇이 틀렸는지도 여기서 더 정확히 말해 줄 수 있다 — 서버는 형식 오류도
+    // 일부러 401 로만 답한다(떠보기 방지)
     if (!_looksLikeBirthdate(_birth.text)) {
       setState(() => _error = '생년월일을 다시 확인해 주세요. 예: 19980315');
       return;
@@ -851,16 +792,13 @@ class _ApplicantFormState extends State<_ApplicantForm> {
       _error = null;
     });
     try {
-      final tokens = await _portal.login(
-        email: _email.text.trim(),
-        birthdate: _birth.text,
-      );
-      for (final token in tokens) {
-        await _store.add(token);
-      }
+      await _portal.login(email: _email.text.trim(), birthdate: _birth.text);
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, Routes.applicantHome);
     } on ApiError catch (e) {
+      // **서버 문구를 그대로 쓴다.** 없는 이메일·틀린 생년월일·생년월일 없는
+      // 옛 지원서가 전부 같은 401 이고, 5회 실패하면 15분 잠긴다(429).
+      // 앱이 사유를 지어내면 서버가 일부러 감춘 것을 도로 드러낸다
       if (!mounted) return;
       setState(() {
         _error = e.message;
@@ -868,8 +806,7 @@ class _ApplicantFormState extends State<_ApplicantForm> {
       });
     } catch (e) {
       // 저장소가 죽는 것처럼 **예상 못 한 실패**. 여기서 안 받으면 스피너가
-      // 영영 돌고 사용자가 할 수 있는 일이 없다 (2026-09-08 실기기에서 겪었다).
-      // `on Exception` 이 아니라 통째로 받는 이유: Error 도 같이 와야 한다
+      // 영영 돌고 사용자가 할 수 있는 일이 없다
       if (!mounted) return;
       if (kDebugMode) debugPrint('[applicant] 로그인 실패: $e');
       setState(() {
@@ -931,62 +868,6 @@ class _ApplicantFormState extends State<_ApplicantForm> {
                 : const Text('로그인'),
           ),
         ),
-
-        // 개발용. 릴리스 빌드에서는 상수가 false 라 통째로 빠진다
-        if (applicantLinkEntry) ...[
-          const SizedBox(height: AppSpace.s5),
-          const Divider(color: AppColors.borderSoft, height: 1),
-          const SizedBox(height: AppSpace.s4),
-          const Text(
-            '개발용 — 링크로 입장',
-            style: TextStyle(
-              fontFamily: AppType.fontFamily,
-              fontSize: AppType.sm,
-              fontWeight: AppType.wSemiBold,
-              color: AppColors.warnText,
-            ),
-          ),
-          const SizedBox(height: AppSpace.s1),
-          const Text(
-            '담당자가 만든 면접·인적성·일정 링크를 붙여넣으면 그 링크로 들어갑니다. '
-            '여러 번 넣으면 탭마다 채워집니다.',
-            style: TextStyle(
-              fontFamily: AppType.fontFamily,
-              fontSize: AppType.caption,
-              height: 1.5,
-              color: AppColors.textSub,
-            ),
-          ),
-          const SizedBox(height: AppSpace.s3),
-          _Field(
-            label: '링크',
-            controller: _link,
-            hint: 'https://…/interview/…',
-            keyboardType: TextInputType.url,
-            onSubmitted: (_) => _enterByLink(),
-          ),
-          const SizedBox(height: AppSpace.s2),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () async {
-                final data = await Clipboard.getData(Clipboard.kTextPlain);
-                final text = data?.text?.trim();
-                if (text == null || text.isEmpty) return;
-                _link.text = text;
-              },
-              child: const Text('붙여넣기'),
-            ),
-          ),
-          const SizedBox(height: AppSpace.s2),
-          SizedBox(
-            height: AppLayout.minTouchTarget,
-            child: OutlinedButton(
-              onPressed: _entering ? null : _enterByLink,
-              child: Text(_entering ? '들어가는 중…' : '링크로 입장'),
-            ),
-          ),
-        ],
       ],
     );
   }

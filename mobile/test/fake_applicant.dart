@@ -1,127 +1,89 @@
-// 지원자 갈래용 가짜들 (2026-09-08).
+// 지원자 갈래용 가짜 (2026-09-08).
 //
-// 카메라는 실기기가 있어야 열려서 위젯 테스트에서 진짜를 만들면 그 자리에서
-// 죽는다. 저장소도 마찬가지다 — flutter_secure_storage 는 플랫폼 채널을 탄다.
-// 그래서 화면이 인터페이스만 알게 해 두고 여기서 갈아끼운다.
+// 저장소도 카메라도 플랫폼 채널을 타서 위젯 테스트에서 진짜를 만들면 그 자리에서
+// 죽는다. 화면이 인터페이스만 알게 해 두고 여기서 갈아끼운다.
 
 import 'package:arda/api/api_error.dart';
-import 'package:arda/auth/applicant_store.dart';
 import 'package:arda/data/applicant_portal_repository.dart';
 import 'package:arda/data/camera_service.dart';
 import 'package:arda/models/applicant_extra.dart';
+import 'package:arda/models/applicant_me.dart';
 import 'package:arda/models/applicant_portal.dart';
 import 'package:flutter/material.dart';
 
-class FakeApplicantStore implements ApplicantStore {
-  FakeApplicantStore([List<ApplicantToken>? initial]) : _tokens = [...?initial];
-
-  final List<ApplicantToken> _tokens;
-
-  List<ApplicantToken> get tokens => List.unmodifiable(_tokens);
-
-  @override
-  Future<List<ApplicantToken>> read() async => List.of(_tokens);
-
-  @override
-  Future<List<ApplicantToken>> add(ApplicantToken token) async {
-    _tokens
-      ..removeWhere((t) => t == token)
-      ..insert(0, token);
-    return List.of(_tokens);
-  }
-
-  @override
-  Future<List<ApplicantToken>> remove(ApplicantToken token) async {
-    _tokens.removeWhere((t) => t == token);
-    return List.of(_tokens);
-  }
-
-  @override
-  Future<void> clear() async => _tokens.clear();
-}
-
-/// 토큰마다 무엇을 돌려줄지 정해 준다. 안 정해 준 토큰은 404 다
+/// 지원자 API. 무엇을 돌려줄지 테스트가 정해 준다
 class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   FakeApplicantPortalRepository({
-    Map<String, PortalStatus>? statuses,
+    this.me_,
     Map<String, InterviewPublic>? interviews,
     Map<String, AptitudePublic>? aptitudes,
     Map<String, SchedulePublic>? schedules,
-    List<ApplicantToken>? loginTokens,
     this.arAnswer = '아르 답변입니다.',
-    this.lookupMessage = '입력하신 주소로 지원 현황 조회 링크를 보냈습니다.',
-    this.error,
-  }) : statuses = statuses ?? const {},
-       interviews = {...?interviews},
+    this.loginError,
+    this.meError,
+    this.token,
+  }) : interviews = {...?interviews},
        aptitudes = {...?aptitudes},
-       schedules = {...?schedules},
-       loginTokens = loginTokens ?? const [];
+       schedules = {...?schedules};
 
-  final Map<String, PortalStatus> statuses;
+  /// `GET /applicant/me` 가 줄 것. 안 주면 [meError] 나 빈 목록이다
+  final ApplicantMe? me_;
+
   final Map<String, InterviewPublic> interviews;
   final Map<String, AptitudePublic> aptitudes;
   final Map<String, SchedulePublic> schedules;
   final String arAnswer;
 
-  /// 로그인이 돌려줄 토큰들. **비어 있으면 진짜와 같이 501 로 실패한다** —
-  /// 서버에 아직 지원자 로그인이 없다
-  final List<ApplicantToken> loginTokens;
+  /// 로그인이 이걸로 실패한다. 서버는 401(틀림)·429(잠김) 를 준다
+  final ApiError? loginError;
 
-  final String lookupMessage;
+  /// `/applicant/me` 가 이걸로 실패한다. 만료면 [AuthExpired] 다
+  final ApiError? meError;
 
-  /// 주면 모든 호출이 이걸로 실패한다
-  final ApiError? error;
+  /// 저장돼 있는 토큰. 로그인에 성공하면 채워진다
+  String? token;
 
   /// 무엇을 불렀는지 — 순서까지 본다
   final calls = <String>[];
 
   @override
-  Future<List<ApplicantToken>> login({
-    required String email,
-    required String birthdate,
-  }) async {
+  Future<void> login({required String email, required String birthdate}) async {
     calls.add('login:$email:$birthdate');
-    if (error != null) throw error!;
-    if (loginTokens.isEmpty) {
-      throw const ServerError(501, '지원자 로그인은 아직 준비 중입니다.');
-    }
-    return loginTokens;
+    if (loginError != null) throw loginError!;
+    token = 'fake-applicant-token';
   }
 
   @override
-  Future<String> requestLookupLink(String email) async {
-    calls.add('lookup:$email');
-    if (error != null) throw error!;
-    return lookupMessage;
+  Future<ApplicantMe> me() async {
+    calls.add('me');
+    if (meError != null) throw meError!;
+    return me_ ?? const ApplicantMe(email: '', name: '');
   }
 
   @override
-  Future<PortalStatus> status(String token) async {
-    calls.add('status:$token');
-    if (error != null) throw error!;
-    final found = statuses[token];
-    if (found == null) throw const ServerError(404, '유효하지 않은 링크입니다');
-    return found;
+  Future<void> logout() async {
+    calls.add('logout');
+    token = null;
   }
+
+  @override
+  Future<bool> hasToken() async => token != null;
 
   @override
   Future<InterviewPublic> interview(String token) async {
     calls.add('interview:$token');
-    if (error != null) throw error!;
     return _need(token);
   }
 
   @override
   Future<InterviewPublic> consent(String token) async {
     calls.add('consent:$token');
-    if (error != null) throw error!;
     return _replace(token, (i) => _copy(i, consentRequired: false));
   }
 
   @override
   Future<InterviewPublic> start(String token) async {
     calls.add('start:$token');
-    if (error != null) throw error!;
     return _replace(
       token,
       (i) => _copy(
@@ -136,7 +98,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   @override
   Future<InterviewPublic> answer(String token, String transcript) async {
     calls.add('answer:$token:$transcript');
-    if (error != null) throw error!;
     final seq = (_need(token).questionSeq ?? 0) + 1;
     return _replace(
       token,
@@ -152,7 +113,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   @override
   Future<InterviewPublic> finish(String token) async {
     calls.add('finish:$token');
-    if (error != null) throw error!;
     return _replace(
       token,
       (i) => _copy(i, status: InterviewStatus.done, currentQuestion: null),
@@ -162,7 +122,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   @override
   Future<AptitudePublic> aptitude(String token) async {
     calls.add('aptitude:$token');
-    if (error != null) throw error!;
     final found = aptitudes[token];
     if (found == null) throw const ServerError(404, '유효하지 않은 링크입니다');
     return found;
@@ -174,7 +133,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
     Map<String, int> answers,
   ) async {
     calls.add('submitAptitude:$token:${answers.length}');
-    if (error != null) throw error!;
     final base = aptitudes[token];
     if (base == null) throw const ServerError(404, '유효하지 않은 링크입니다');
     final next = AptitudePublic(
@@ -190,7 +148,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   @override
   Future<SchedulePublic> schedule(String token) async {
     calls.add('schedule:$token');
-    if (error != null) throw error!;
     final found = schedules[token];
     if (found == null) throw const ServerError(404, '유효하지 않은 링크입니다');
     return found;
@@ -199,7 +156,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   @override
   Future<SchedulePublic> confirmSlot(String token, int slotId) async {
     calls.add('confirmSlot:$token:$slotId');
-    if (error != null) throw error!;
     final base = schedules[token];
     if (base == null) throw const ServerError(404, '유효하지 않은 링크입니다');
     final next = SchedulePublic(
@@ -218,7 +174,6 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   @override
   Future<String> askAr(String token, String question) async {
     calls.add('askAr:$token:$question');
-    if (error != null) throw error!;
     return arAnswer;
   }
 

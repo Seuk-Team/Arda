@@ -23,19 +23,19 @@ library;
 import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
-import '../auth/applicant_store.dart';
 import '../auth/auth_service.dart';
+import '../data/applicant_portal_repository.dart';
 import '../auth/current_user.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 
 class LaunchScreen extends StatefulWidget {
-  const LaunchScreen({super.key, this.auth, this.applicantStore});
+  const LaunchScreen({super.key, this.auth, this.portal});
 
   final AuthService? auth;
 
   /// 테스트가 가짜를 넣는 자리
-  final ApplicantStore? applicantStore;
+  final ApplicantPortalRepository? portal;
 
   @override
   State<LaunchScreen> createState() => _LaunchScreenState();
@@ -43,8 +43,8 @@ class LaunchScreen extends StatefulWidget {
 
 class _LaunchScreenState extends State<LaunchScreen> {
   late final AuthService _auth = widget.auth ?? AuthService();
-  late final ApplicantStore _applicants =
-      widget.applicantStore ?? const ApplicantStore();
+  late final ApplicantPortalRepository _portal =
+      widget.portal ?? ApplicantPortalRepository();
 
   /// 서버에 못 닿았을 때만 채워진다. 토큰이 없거나 만료된 경우는
   /// 화면을 그리지 않고 곧장 로그인으로 넘어간다
@@ -68,12 +68,12 @@ class _LaunchScreenState extends State<LaunchScreen> {
       }
 
       // 담당자가 아니면 지원자로 들어온 적이 있는지 본다. 서버에 묻지 않는다 —
-      // 링크가 죽었는지는 지원자 홈이 카드마다 알려 준다
-      final applicant = await _applicants.read();
+      // 토큰이 죽었는지는 지원자 셸이 401 을 받아 알려 준다(2시간짜리다)
+      final applicant = await _portal.hasToken();
       if (!mounted) return;
       Navigator.pushReplacementNamed(
         context,
-        applicant.isEmpty ? Routes.login : Routes.applicantHome,
+        applicant ? Routes.applicantHome : Routes.login,
       );
     } on ApiError catch (e) {
       // 여기 오는 것은 사실상 NetworkError 뿐이다 — AuthExpired 는 restore 가

@@ -9,25 +9,31 @@
 /// 제일 편하다. 왼쪽은 "먼저 하는 것"(인적성 → 일정 조율), 오른쪽은 "그다음"
 /// (면접 → 내 정보).
 ///
-/// ## 탭마다 토큰이 따로다
+/// ## 요청 한 번으로 다 받는다
 ///
-/// 서버에 지원자 계정이 없어서 화면마다 **자기 링크의 토큰**이 인증이다
-/// (지원 현황·인적성·일정·면접이 서로 다른 토큰이다). 셸이 저장소에서 한 번
-/// 읽어 종류별로 나눠 준다 — 탭마다 저장소를 다시 열면 같은 것을 네 번 읽는다.
+/// `GET /applicant/me` 가 지원 현황과 **탭 넷의 토큰을 한 번에** 준다
+/// (ADR-0031 + PR #84). 셸이 한 번 받아 나눠 주므로 탭마다 서버를 다시 부르지
+/// 않는다 — 링크를 따로 받던 시절에 화면마다 왕복이 쌓이던 구조를 걷어냈다.
 ///
-/// 받은 적 없는 링크의 탭은 **비어 있다고 말한다.** 담당자가 아직 안 보낸
-/// 것이지 지원자가 뭘 잘못한 게 아니라서, 오류처럼 그리지 않는다.
+/// 서버가 **아직 할 일이 남은 것만** 내려준다: 면접 `pending`·`in_progress`,
+/// 인적성 `pending`, 일정 `proposed`·`confirmed`. 들어가 봐야 막히는 문은
+/// 오지 않으므로 앱이 거를 것이 없다.
 ///
-/// ## 탭은 처음 열 때 받아 온다
+/// 받은 적 없는 탭은 **비어 있다고 말한다.** 담당자가 아직 안 보낸 것이지
+/// 지원자가 뭘 잘못한 게 아니라서, 오류처럼 그리지 않는다.
 ///
-/// [IndexedStack] 은 자식을 다 만들어 두는데, 그대로 두면 앱을 켜는 순간
-/// 네 화면이 각자 서버를 부른다. 한 번이라도 연 탭만 만든다 — 열어 둔 탭은
-/// 그대로 살아 있어 돌아왔을 때 다시 안 받는다.
+/// ## 탭은 처음 열 때 만든다
+///
+/// [IndexedStack] 은 자식을 다 만들어 두는데, 그러면 앱을 켜는 순간 네 화면이
+/// 각자 자기 링크를 부른다. 한 번이라도 연 탭만 만든다 — 열어 둔 탭은 그대로
+/// 살아 있어 돌아왔을 때 다시 안 받는다.
 library;
 
 import 'package:flutter/material.dart';
 
-import '../auth/applicant_store.dart';
+import '../api/api_error.dart';
+import '../data/applicant_portal_repository.dart';
+import '../models/applicant_me.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
@@ -60,10 +66,10 @@ enum ApplicantTab implements NavTab {
 }
 
 class ApplicantShell extends StatefulWidget {
-  const ApplicantShell({super.key, this.store, this.initialTab});
+  const ApplicantShell({super.key, this.portal, this.initialTab});
 
   /// 테스트가 가짜를 넣는 자리
-  final ApplicantStore? store;
+  final ApplicantPortalRepository? portal;
   final ApplicantTab? initialTab;
 
   @override
@@ -71,26 +77,37 @@ class ApplicantShell extends StatefulWidget {
 }
 
 class _ApplicantShellState extends State<ApplicantShell> {
-  late final ApplicantStore _store = widget.store ?? const ApplicantStore();
+  late final ApplicantPortalRepository _portal =
+      widget.portal ?? ApplicantPortalRepository();
 
   late ApplicantTab _current = widget.initialTab ?? ApplicantTab.home;
 
   /// 한 번이라도 연 탭. 홈은 처음부터 열려 있다
   late final Set<ApplicantTab> _opened = {_current};
 
-  /// 종류별 토큰. 아직 못 읽었으면 null 이다 — 그동안은 기다린다
-  Map<ApplicantTokenKind, String>? _tokens;
+  ApplicantMe? _me;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _read();
+    _load();
   }
 
-  Future<void> _read() async {
-    final tokens = ApplicantStore.byKind(await _store.read());
-    if (!mounted) return;
-    setState(() => _tokens = tokens);
+  Future<void> _load() async {
+    setState(() => _error = null);
+    try {
+      final me = await _portal.me();
+      if (!mounted) return;
+      setState(() => _me = me);
+    } on AuthExpired {
+      // 2시간짜리라 흔하다. 저장된 토큰은 ApiClient 가 이미 버렸다
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, Routes.login);
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    }
   }
 
   void _go(ApplicantTab tab) => setState(() {
@@ -98,23 +115,19 @@ class _ApplicantShellState extends State<ApplicantShell> {
     _opened.add(tab);
   });
 
+  /// 지원자로서 나가기. **담당자 토큰은 건드리지 않는다** — 저장소가 아예 다르다
+  Future<void> _leave() async {
+    await _portal.logout();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, Routes.login);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tokens = _tokens;
+    final me = _me;
     return Scaffold(
       appBar: AppTopBar(title: _current.title),
-      body: tokens == null
-          ? const Center(child: CircularProgressIndicator())
-          : IndexedStack(
-              index: ApplicantTab.values.indexOf(_current),
-              children: [
-                for (final tab in ApplicantTab.values)
-                  // 안 연 탭은 자리만 잡아 둔다 — 만들면 서버를 부른다
-                  _opened.contains(tab)
-                      ? _body(tab, tokens)
-                      : const SizedBox.shrink(),
-              ],
-            ),
+      body: me == null ? _waiting() : _tabs(me),
       bottomNavigationBar: AppBottomNav(
         tabs: ApplicantTab.values,
         current: _current,
@@ -123,36 +136,50 @@ class _ApplicantShellState extends State<ApplicantShell> {
     );
   }
 
-  Widget _body(ApplicantTab tab, Map<ApplicantTokenKind, String> tokens) =>
-      switch (tab) {
-        ApplicantTab.aptitude => AptitudeScreen(
-          token: tokens[ApplicantTokenKind.aptitude],
-        ),
-        ApplicantTab.schedule => ScheduleScreen(
-          token: tokens[ApplicantTokenKind.schedule],
-        ),
-        ApplicantTab.home => ApplicantSummaryScreen(
-          tokens: tokens,
-          onOpen: _go,
-        ),
-        ApplicantTab.interview => InterviewScreen(
-          token: tokens[ApplicantTokenKind.interview],
-          showChrome: false,
-          // 보이는 동안만 카메라를 켠다 — 안 넘기면 다른 탭에 있는 내내
-          // 카메라가 잡혀 있다(InterviewScreen.active 주석 참고)
-          active: _current == ApplicantTab.interview,
-        ),
-        ApplicantTab.more => ApplicantMoreScreen(
-          token: tokens[ApplicantTokenKind.portal],
-          onLeave: _leave,
-        ),
-      };
+  Widget _waiting() => _error == null
+      ? const Center(child: CircularProgressIndicator())
+      : _Failed(message: _error!, onRetry: _load);
 
-  /// 지원자로서 나가기. **담당자 토큰은 건드리지 않는다** — 저장소가 아예 다르다
-  Future<void> _leave() async {
-    await _store.clear();
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, Routes.login);
+  Widget _tabs(ApplicantMe me) => IndexedStack(
+    index: ApplicantTab.values.indexOf(_current),
+    children: [
+      for (final tab in ApplicantTab.values)
+        // 안 연 탭은 자리만 잡아 둔다 — 만들면 자기 링크를 부른다
+        _opened.contains(tab) ? _body(tab, me) : const SizedBox.shrink(),
+    ],
+  );
+
+  Widget _body(ApplicantTab tab, ApplicantMe me) {
+    // 지원이 여럿이면 **가장 최근 것**을 연다(서버가 최신 순으로 준다).
+    // 홈은 전부 보여 주므로 거기서 어느 지원인지 알 수 있다
+    final app = me.primary;
+    String? first(List<TokenLink> links) =>
+        links.isEmpty ? null : links.first.token;
+
+    return switch (tab) {
+      ApplicantTab.aptitude => AptitudeScreen(
+        token: app == null ? null : first(app.aptitudes),
+        portal: _portal,
+      ),
+      ApplicantTab.schedule => ScheduleScreen(
+        token: app == null ? null : first(app.schedules),
+        portal: _portal,
+      ),
+      ApplicantTab.home => ApplicantSummaryScreen(
+        me: me,
+        onOpen: _go,
+        onRefresh: _load,
+      ),
+      ApplicantTab.interview => InterviewScreen(
+        token: app == null ? null : first(app.interviews),
+        showChrome: false,
+        // 보이는 동안만 카메라를 켠다 — 안 넘기면 다른 탭에 있는 내내
+        // 카메라가 잡혀 있다(InterviewScreen.active 주석 참고)
+        active: _current == ApplicantTab.interview,
+        portal: _portal,
+      ),
+      ApplicantTab.more => ApplicantMoreScreen(me: me, onLeave: _leave),
+    };
   }
 }
 
@@ -178,6 +205,45 @@ class ApplicantMissing extends StatelessWidget {
             height: 1.6,
             color: AppColors.textSub,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 못 받아 왔을 때. 앱엔 새로고침이 없어 다시 시도할 자리를 준다 (§6)
+class _Failed extends StatelessWidget {
+  const _Failed({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.s5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: AppType.fontFamily,
+                fontSize: AppType.sm,
+                color: AppColors.danger,
+              ),
+            ),
+            const SizedBox(height: AppSpace.s4),
+            SizedBox(
+              height: AppLayout.minTouchTarget,
+              child: OutlinedButton(
+                onPressed: onRetry,
+                child: const Text('다시 시도'),
+              ),
+            ),
+          ],
         ),
       ),
     );

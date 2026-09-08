@@ -1,95 +1,42 @@
-/// 지원자 더보기 — 내 정보 · 지원 현황 · 나가기 (2026-09-08).
+/// 지원자 더보기 — 내 정보 · 지원 현황 · 로그아웃 (2026-09-08).
 ///
 /// 담당자 더보기([MoreScreen])와 다른 화면이다: 설정할 것이 거의 없다.
-/// 지원자에게 계정이 없어서 비밀번호도, 알림 설정도, 권한도 없다.
+/// 비밀번호도(생년월일이다), 알림 설정도, 권한도 없다.
 ///
 /// **여기 있는 것이 지원자가 아는 자기 정보의 전부다.** 서버가 지원자에게
-/// 주는 것은 이름·공고·단계·지원일 넷뿐이고(`PortalStatusOut`), 평가도
-/// 담당자 이름도 불합격 사유도 내려오지 않는다.
+/// 주는 것은 이름·이메일·공고·단계·지원일뿐이고(ADR-0031), 평가도 담당자
+/// 이름도 불합격 사유도 내려오지 않는다.
+///
+/// 셸이 이미 받아 둔 것을 그린다 — 여기서 서버를 다시 부르지 않는다.
 library;
 
 import 'package:flutter/material.dart';
 
-import '../api/api_error.dart';
-import '../data/applicant_demo.dart';
-import '../data/applicant_portal_repository.dart';
-import '../models/applicant_portal.dart';
+import '../models/applicant_me.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
-import 'applicant_shell.dart';
 
-class ApplicantMoreScreen extends StatefulWidget {
+class ApplicantMoreScreen extends StatelessWidget {
   const ApplicantMoreScreen({
     super.key,
-    required this.token,
+    required this.me,
     required this.onLeave,
-    this.portal,
   });
 
-  final String? token;
+  final ApplicantMe me;
 
-  /// 지원자로서 나가기. 셸이 저장소를 비우고 로그인으로 보낸다
+  /// 로그아웃. 셸이 토큰을 지우고 로그인 화면으로 보낸다
   final Future<void> Function() onLeave;
-
-  final ApplicantPortalRepository? portal;
-
-  @override
-  State<ApplicantMoreScreen> createState() => _ApplicantMoreScreenState();
-}
-
-class _ApplicantMoreScreenState extends State<ApplicantMoreScreen> {
-  late final ApplicantPortalRepository _portal =
-      widget.portal ?? applicantPortal();
-
-  PortalStatus? _status;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.token != null) _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _error = null);
-    try {
-      final status = await _portal.status(widget.token!);
-      if (!mounted) return;
-      setState(() => _status = status);
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.message);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final status = _status;
-
     return ListView(
       padding: const EdgeInsets.all(AppSpace.s4),
       children: [
-        if (widget.token == null)
-          const ApplicantMissing(what: '지원 현황 링크')
-        else if (status == null && _error == null)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: AppSpace.s7),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (status == null)
-          _Card(
-            child: Text(
-              _error!,
-              style: const TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.sm,
-                color: AppColors.danger,
-              ),
-            ),
-          )
-        else ...[
-          _Profile(status: status),
-          const SizedBox(height: AppSpace.s3),
+        _Profile(me: me),
+        const SizedBox(height: AppSpace.s3),
+
+        for (final app in me.applications) ...[
           _Card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +44,7 @@ class _ApplicantMoreScreenState extends State<ApplicantMoreScreen> {
                 const _Label('지원 현황'),
                 const SizedBox(height: AppSpace.s3),
                 Text(
-                  status.postingTitle,
+                  app.postingTitle,
                   style: const TextStyle(
                     fontFamily: AppType.fontFamily,
                     fontSize: AppType.body,
@@ -106,10 +53,11 @@ class _ApplicantMoreScreenState extends State<ApplicantMoreScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpace.s2),
-                // 서버가 준 말을 그대로. 내부 단계값으로 되돌리지 않는다 —
-                // 담당자가 통보하기 전에 화면이 먼저 말하면 안 된다
+                // 서버가 준 말을 그대로. `rejected` 가 "불합격" 으로 오지 않는
+                // 이유가 여기서도 그대로다 — 담당자가 통보하기 전에 앱이 먼저
+                // 말하면 사람이 전할 말을 화면이 앞지른다
                 Text(
-                  status.stageLabel,
+                  app.stageLabel,
                   style: const TextStyle(
                     fontFamily: AppType.fontFamily,
                     fontSize: AppType.h2,
@@ -119,7 +67,7 @@ class _ApplicantMoreScreenState extends State<ApplicantMoreScreen> {
                 ),
                 const SizedBox(height: AppSpace.s2),
                 Text(
-                  '${formatDate(status.submittedAt)} 접수',
+                  '${formatDate(app.appliedAt)} 접수',
                   style: const TextStyle(
                     fontFamily: AppType.fontFamily,
                     fontSize: AppType.caption,
@@ -130,15 +78,13 @@ class _ApplicantMoreScreenState extends State<ApplicantMoreScreen> {
               ],
             ),
           ),
+          const SizedBox(height: AppSpace.s3),
         ],
 
-        const SizedBox(height: AppSpace.s5),
+        const SizedBox(height: AppSpace.s3),
         SizedBox(
           height: AppLayout.minTouchTarget,
-          child: OutlinedButton(
-            onPressed: widget.onLeave,
-            child: const Text('로그아웃'),
-          ),
+          child: OutlinedButton(onPressed: onLeave, child: const Text('로그아웃')),
         ),
         const SizedBox(height: AppSpace.s4),
         const Center(
@@ -156,15 +102,15 @@ class _ApplicantMoreScreenState extends State<ApplicantMoreScreen> {
   }
 }
 
-/// 이니셜 아바타 + 이름. **사진은 없다** — `applications` 에 사진 컬럼이 없다
+/// 이니셜 아바타 + 이름 + 이메일. **사진은 없다** — `applications` 에 사진
+/// 컬럼이 없다
 class _Profile extends StatelessWidget {
-  const _Profile({required this.status});
+  const _Profile({required this.me});
 
-  final PortalStatus status;
+  final ApplicantMe me;
 
   @override
   Widget build(BuildContext context) {
-    final name = status.applicantName;
     return _Card(
       child: Row(
         children: [
@@ -181,7 +127,7 @@ class _Profile extends StatelessWidget {
               ),
             ),
             child: Text(
-              name.isEmpty ? '?' : name.characters.first,
+              me.name.isEmpty ? '?' : me.name.characters.first,
               style: const TextStyle(
                 fontFamily: AppType.fontFamily,
                 fontSize: AppType.h2,
@@ -196,7 +142,7 @@ class _Profile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  me.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -207,9 +153,11 @@ class _Profile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpace.s1),
-                const Text(
-                  '지원자',
-                  style: TextStyle(
+                Text(
+                  me.email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     fontFamily: AppType.fontFamily,
                     fontSize: AppType.sm,
                     color: AppColors.textSub,

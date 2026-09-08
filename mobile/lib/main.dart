@@ -4,7 +4,6 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import 'auth/auth_service.dart';
 import 'auth/current_user.dart';
-import 'data/applicant_demo.dart';
 import 'data/repositories.dart';
 import 'models/applicant.dart';
 import 'models/job_posting.dart';
@@ -23,32 +22,10 @@ import 'screens/stage_history_screen.dart';
 import 'screens/launch_screen.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
-import 'theme/tokens.dart';
 
 void main() {
   _registerFontLicense();
   runApp(ArdaApp());
-}
-
-/// 데모로 도는 지원자 화면에 리본을 두른다 (2026-09-08).
-///
-/// **캔 데이터를 진짜로 착각하지 않게 하는 장치다.** 목데이터가 조용히 진짜인
-/// 척한 사고가 이미 한 번 있었다(더보기 평가 현황 배지). 데모가 꺼져 있으면
-/// 아무것도 안 두른다 — 릴리스에서는 상수가 false 라 통째로 빠진다.
-class _MaybeDemo extends StatelessWidget {
-  const _MaybeDemo({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => applicantDemoMode
-      ? Banner(
-          message: '데모',
-          location: BannerLocation.topEnd,
-          color: AppColors.warn,
-          child: child,
-        )
-      : child;
 }
 
 /// 면접 화면을 실기기에서 열어 보는 문 (2026-09-08).
@@ -125,7 +102,7 @@ class ArdaApp extends StatelessWidget {
         Routes.postingNew: (_) => const PostingFormScreen(),
         // 지원자 갈래 (2026-09-08) — 탭 셸 밖이다. 로그인한 사람이 없고
         // 링크 토큰이 신분이라 CurrentUserScope 를 읽지 않는다
-        Routes.applicantHome: (_) => const _MaybeDemo(child: ApplicantShell()),
+        Routes.applicantHome: (_) => const ApplicantShell(),
       },
       // 지원자·상세는 "어느 공고/누구"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
       onGenerateRoute: (settings) {
@@ -134,7 +111,7 @@ class ArdaApp extends StatelessWidget {
           final token = (settings.arguments as String?) ?? _devInterviewToken;
           return MaterialPageRoute(
             settings: settings,
-            builder: (_) => _MaybeDemo(child: InterviewScreen(token: token)),
+            builder: (_) => InterviewScreen(token: token),
           );
         }
         if (settings.name == Routes.applicants) {

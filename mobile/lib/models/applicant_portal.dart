@@ -1,53 +1,18 @@
-/// 지원자가 자기 것으로 보는 것들 — 지원 현황과 면접 (2026-09-08).
+/// 지원자가 보는 면접 한 건 — `InterviewPublicOut` (2026-09-08).
 ///
 /// **담당자 모델과 섞지 않는다.** 서버가 지원자에게 주는 것은 담당자용 응답을
-/// 줄인 것이 아니라 아예 다른 모양이다: 평가·메모·담당자 이름이 없고,
-/// 단계도 내부값(`applied`·`rejected`)이 아니라 **사람이 읽을 말**로 온다
-/// (`stage_label`). 특히 `rejected` 는 "불합격" 으로 내려오지 않는다 —
-/// 담당자가 통보하기 전에 화면이 먼저 말하면 안 되기 때문이다
-/// (backend/app/api/portal.py).
+/// 줄인 것이 아니라 아예 다른 모양이다: 평가·메모·담당자 이름이 없다.
 ///
-/// 그래서 [Stage] 로 되돌리려 하지 않는다. 서버가 준 문장을 그대로 그린다.
+/// 인적성·일정은 [models/applicant_extra.dart], 로그인해서 받는 자기 지원
+/// 목록은 [models/applicant_me.dart] 에 있다.
 library;
 
-/// 링크 하나로 보는 지원 한 건. `PortalStatusOut`.
-class PortalStatus {
-  const PortalStatus({
-    required this.token,
-    required this.applicantName,
-    required this.postingTitle,
-    required this.stageLabel,
-    required this.submittedAt,
-  });
-
-  /// 이 현황을 연 링크의 토큰. 앱이 다시 물어보려면 들고 있어야 한다
-  final String token;
-
-  final String applicantName;
-  final String postingTitle;
-
-  /// 사람이 읽을 단계 — "접수 완료" · "서류 검토 중" 같은 말이 그대로 온다
-  final String stageLabel;
-
-  final DateTime submittedAt;
-}
-
-extension PortalStatusJson on PortalStatus {
-  static PortalStatus fromJson(
-    Map<String, dynamic> json, {
-    required String token,
-  }) => PortalStatus(
-    token: token,
-    applicantName: json['applicant_name'] as String? ?? '',
-    postingTitle: json['posting_title'] as String? ?? '',
-    stageLabel: json['stage_label'] as String? ?? '확인 중',
-    submittedAt:
-        DateTime.tryParse(json['submitted_at'] as String? ?? '') ??
-        DateTime.now(),
-  );
-}
-
-/// 면접이 어디쯤인지. `InterviewPublicOut.status`.
+/// 면접이 어디쯤인지.
+///
+/// **AI 면접인지 실시간 면접인지는 이 값으로 못 가린다** — 세션 테이블에 종류
+/// 컬럼이 없고 두 방식이 같은 세션·같은 토큰을 공유한다(백엔드 확인,
+/// 2026-09-08). 앱은 AI 면접만 붙이므로 늘 `/public/interview/{token}` 으로
+/// 가고, 이 값으로는 "동의부터인지 이어서인지" 만 고른다.
 enum InterviewStatus {
   /// 아직 시작 전 — 동의가 필요할 수도 있다
   pending('pending'),
@@ -75,7 +40,6 @@ enum InterviewStatus {
       );
 }
 
-/// 지원자가 보는 면접 한 건. `InterviewPublicOut`.
 class InterviewPublic {
   const InterviewPublic({
     required this.token,
@@ -96,7 +60,8 @@ class InterviewPublic {
   final String applicantName;
   final String postingTitle;
 
-  /// 아직 동의를 안 했다. 동의 없이는 시작할 수 없다
+  /// 아직 동의를 안 했다. **동의 없이는 `/start` 가 422 로 막는다** —
+  /// 지원 폼의 개인정보 동의와 별개다(그때는 녹음이 없었다)
   final bool consentRequired;
 
   /// 지금 답할 질문. 진행 중이 아니면 null

@@ -11,7 +11,6 @@ library;
 import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
-import '../data/applicant_demo.dart';
 import '../data/applicant_portal_repository.dart';
 import '../models/applicant_extra.dart';
 import '../theme/tokens.dart';
@@ -31,7 +30,7 @@ class AptitudeScreen extends StatefulWidget {
 
 class _AptitudeScreenState extends State<AptitudeScreen> {
   late final ApplicantPortalRepository _portal =
-      widget.portal ?? applicantPortal();
+      widget.portal ?? ApplicantPortalRepository();
 
   AptitudePublic? _data;
   String? _error;
