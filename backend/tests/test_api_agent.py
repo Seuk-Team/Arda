@@ -244,10 +244,14 @@ class FakeAgentResult:
     model: str = "anthropic:claude-haiku-4-5-20251001"
     backend: str = "anthropic"
     cost_usd: float = 0.00035
+    # 실행된 도구 결과 (동명이인 선택지 재료). 실제 AgentResult 에도 있다.
+    tool_results: list = None
 
     def __post_init__(self):
         if self.tool_calls is None:
             self.tool_calls = []
+        if self.tool_results is None:
+            self.tool_results = []
 
 
 class TestChat:
@@ -683,3 +687,136 @@ class TestSummarizeEdgeCases:
                 f"/api/v1/agent/applications/{application.id}/summarize"
             )
         assert resp.status_code == 200
+
+
+# ── 동명이인 선택지 (choices) ────────────────────────────────
+
+
+def _twin(db, application):
+    """fixture 지원자와 **같은 이름** 의 두 번째 지원자. 라우터 이름 조회가 2건이 된다."""
+    from datetime import UTC, datetime
+    from app.models import Application
+    twin = Application(
+        job_posting_id=application.job_posting_id,
+        name=application.name,
+        email="test-dohyun-2@fixture.local",
+        phone="010-0000-0000",
+        education="고려대 전자",
+        career_years=7,
+        skills=["Java"],
+        current_stage="screening",
+        privacy_agreed_at=datetime.now(UTC),
+        source="form",
+    )
+    db.add(twin)
+    db.flush()
+    return twin
+
+
+class TestChoices:
+    """동명이인이면 되묻기만 하지 않고 **선택지 버튼** 재료(choices) 를 준다 (2026-09-08).
+    버튼을 누르면 원래 요청 + application_id 가 다시 오고, 서버는 이름 조회를 건너뛴다."""
+
+    def test_router_duplicate_name_returns_choices(self, db, admin_user, application):
+        from app.agent.intent_router import DirectAction
+        from app.api.agent import _handle_direct
+        twin = _twin(db, application)
+        intent = DirectAction(
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "screening"},
+            is_write=True,
+        )
+        original = f"{application.name}을 서류심사 단계로 변경해줘"
+        resp = _handle_direct(intent, db, admin_user, original=original)
+        assert resp.pending_action is None
+        assert "골라" in resp.reply
+        ids = {c.application_id for c in resp.choices}
+        assert ids == {application.id, twin.id}
+        for c in resp.choices:
+            assert c.message == original
+            assert f"(ID {c.application_id})" in c.label
+        # 라벨은 사람이 구분할 수 있게 학력·단계·경력을 담는다
+        twin_label = next(c.label for c in resp.choices if c.application_id == twin.id)
+        assert "고려대 전자" in twin_label and "서류 검토" in twin_label and "경력 7년" in twin_label
+
+    def test_router_selected_id_skips_lookup(self, db, admin_user, application):
+        from app.agent.intent_router import DirectAction
+        from app.api.agent import _handle_direct
+        twin = _twin(db, application)
+        intent = DirectAction(
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "screening"},
+            is_write=True,
+        )
+        # twin 은 screening 이라 다음 칸인 interview 로 — 같은 단계면 "이미" 안내로 빠진다
+        intent.args["to_stage"] = "interview"
+        resp = _handle_direct(intent, db, admin_user, application_id=twin.id)
+        # 동명이인이 있어도 되묻지 않고 고른 사람으로 카드가 만들어진다
+        assert resp.choices == []
+        assert resp.pending_action is not None
+        assert resp.pending_action.arguments["application_id"] == twin.id
+
+    def test_router_selected_unknown_id(self, db, admin_user, application):
+        from app.agent.intent_router import DirectAction
+        from app.api.agent import _handle_direct
+        intent = DirectAction(
+            "change_stage",
+            {"_name_lookup": application.name, "to_stage": "screening"},
+            is_write=True,
+        )
+        resp = _handle_direct(intent, db, admin_user, application_id=999_999)
+        assert resp.pending_action is None and "찾지 못했" in resp.reply
+
+    def test_llm_path_builds_choices_from_tool_results(self, client: TestClient):
+        rows = [
+            {"id": 11, "name": "백지안", "current_stage": "interview", "career_years": 5,
+             "email": "jian.baek@example.com"},
+            {"id": 28, "name": "백지안", "current_stage": "applied", "career_years": 5,
+             "email": "jian.baek@example.com"},
+            {"id": 3, "name": "서지호", "current_stage": "applied", "career_years": 2},
+        ]
+        fake = FakeAgentResult(
+            reply="⚠️ 동명이인이 있습니다. 어떤 백지안 님의 이력서를 보시겠어요?",
+            tool_results=[{"name": "search_applications", "input": {"q": "백지안"},
+                           "output": {"results": rows, "count": 3}}],
+        )
+        with patch("app.api.agent.run_agent", return_value=fake):
+            resp = client.post("/api/v1/agent/chat", json={
+                "message": "백지안 이력서 좀 보여줄래?",
+                "history": [],
+            })
+        assert resp.status_code == 200
+        choices = resp.json()["choices"]
+        # 같은 이름이 둘인 백지안만 — 서지호는 선택지가 아니다
+        assert [c["application_id"] for c in choices] == [11, 28]
+        assert all(c["message"] == "백지안 이력서 좀 보여줄래?" for c in choices)
+        assert "면접" in choices[0]["label"] and "접수" in choices[1]["label"]
+
+    def test_llm_path_no_choices_without_duplicate_notice(self, client: TestClient):
+        rows = [{"id": 11, "name": "백지안"}, {"id": 28, "name": "백지안"}]
+        fake = FakeAgentResult(
+            reply="백지안 님 이력서입니다.",
+            tool_results=[{"name": "search_applications", "input": {},
+                           "output": {"results": rows, "count": 2}}],
+        )
+        with patch("app.api.agent.run_agent", return_value=fake):
+            resp = client.post("/api/v1/agent/chat", json={
+                "message": "백지안 이력서 좀 보여줄래?", "history": [],
+            })
+        assert resp.json()["choices"] == []
+
+    def test_llm_path_selected_id_is_passed_to_model(self, client: TestClient):
+        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()) as mock_run:
+            resp = client.post("/api/v1/agent/chat", json={
+                "message": "백지안 이력서 좀 보여줄래?", "history": [], "application_id": 28,
+            })
+        assert resp.status_code == 200
+        sent = mock_run.call_args.kwargs["message"]
+        assert sent.startswith("백지안 이력서 좀 보여줄래?") and "ID: 28" in sent
+
+    def test_response_has_empty_choices_by_default(self, client: TestClient):
+        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+            resp = client.post("/api/v1/agent/chat", json={
+                "message": "김도현에 대해 어떻게 생각해?", "history": [],
+            })
+        assert resp.json()["choices"] == []
