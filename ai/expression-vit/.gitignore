@@ -1,0 +1,6 @@
+.venv/
+data/
+runs/
+__pycache__/
+train.log
+eval.txt
