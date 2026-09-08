@@ -34,5 +34,14 @@ api.seuk.suvisdev.cloud {
 		reverse_proxy n8n:5678
 	}
 
-	reverse_proxy api:8000
+	# 배포 중 api 컨테이너가 recreate 되는 15~30초 창을 재시도로 흡수한다 —
+	# 없으면 그 창 동안 502 가 뜬다. Step 2 (절반 무중단 배포) 가 실패해도
+	# 여기서 잡히므로 안전망 역할을 겸한다.
+	# fail_duration 0s: 단일 replica 라 한 번 실패했다고 upstream 을 죽었다고
+	# 마킹하면 다음 요청도 무조건 502 로 간다. 마킹하지 않는다.
+	reverse_proxy api:8000 {
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		fail_duration 0s
+	}
 }
