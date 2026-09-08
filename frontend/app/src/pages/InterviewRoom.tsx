@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { applications, interviews } from '../api/endpoints'
+import { applications, interviews, postings } from '../api/endpoints'
 import type { InterviewSessionDetail } from '../api/types'
 import styles from './InterviewRoom.module.css'
 import { PHASE_LABEL, useInterviewRoom } from './useInterviewRoom'
@@ -34,7 +34,10 @@ export default function InterviewRoom() {
         setDetail(d)
         try {
           const app = await applications.detail(d.application_id, ac.signal)
-          setWho({ name: app.name, posting: app.posting_title })
+          /* 공고 제목은 지원서에 안 실려 온다 — 공고를 한 번 더 읽는다.
+             이름부터 먼저 띄우지 않고 둘을 모아 한 번에 넣는다. */
+          const posting = await postings.get(app.job_posting_id, ac.signal)
+          setWho({ name: app.name, posting: posting.title })
         } catch {
           /* 이름을 못 읽어도 면접은 된다 */
         }
