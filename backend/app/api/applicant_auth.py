@@ -44,12 +44,13 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_applicant_email
 from app.api.portal import STAGE_LABEL
-from app.models import Application, JobPosting
+from app.models import Application, InterviewSession, JobPosting
 from app.schemas.applicant_auth import (
     ApplicantLoginRequest,
     ApplicantLoginResponse,
     ApplicantMeOut,
     MyApplicationOut,
+    MyInterviewOut,
 )
 from app.security import APPLICANT_EXPIRES_MINUTES, create_applicant_token
 
@@ -155,12 +156,26 @@ def applicant_me(
     ).all()
 
     titles = {}
+    sessions: dict[int, list[InterviewSession]] = {}
     if rows:
         ids = {r.job_posting_id for r in rows}
         titles = {
             p.id: p.title
             for p in db.scalars(select(JobPosting).where(JobPosting.id.in_(ids))).all()
         }
+        # 지금 들어갈 수 있는 면접만 싣는다. **끝났거나 만료된 것은 빼고**,
+        # 아직 시작 안 한 것(pending)과 진행 중인 것만 준다 — 들어가 봐야
+        # 막히는 문을 화면에 보여 주지 않는다.
+        app_ids = [r.id for r in rows]
+        for s in db.scalars(
+            select(InterviewSession)
+            .where(
+                InterviewSession.application_id.in_(app_ids),
+                InterviewSession.status.in_(("pending", "in_progress")),
+            )
+            .order_by(InterviewSession.id)
+        ).all():
+            sessions.setdefault(s.application_id, []).append(s)
 
     return ApplicantMeOut(
         email=email,
@@ -174,6 +189,12 @@ def applicant_me(
                 # 먼저 말하면, 사람이 전할 말을 화면이 앞지른다.
                 stage_label=STAGE_LABEL.get(r.current_stage, "확인 중"),
                 applied_at=r.created_at,
+                interviews=[
+                    MyInterviewOut(
+                        token=s.token, status=s.status, expires_at=s.expires_at
+                    )
+                    for s in sessions.get(r.id, [])
+                ],
             )
             for r in rows
         ],

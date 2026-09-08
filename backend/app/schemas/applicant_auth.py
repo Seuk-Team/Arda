@@ -36,6 +36,23 @@ class MyApplicationOut(BaseModel):
     posting_title: str
     stage_label: str
     applied_at: datetime
+    # 지금 들어갈 수 있는 면접. 없으면 빈 목록이다.
+    interviews: list["MyInterviewOut"] = []
+
+
+class MyInterviewOut(BaseModel):
+    """지원자가 들어갈 수 있는 면접 하나.
+
+    **토큰을 내려준다.** 지원자 본인 토큰으로 조회한 자기 면접이라 새로 여는
+    비밀이 아니고, 이 값이 없으면 메일을 못 찾은 지원자는 면접에 못 들어간다 —
+    "메일함을 뒤지세요"가 유일한 길이 되는 것을 막는다.
+
+    **끝났거나 만료된 면접은 목록에 없다.** 들어가 봐야 막히는 문을 보여 주지 않는다.
+    """
+
+    token: str
+    status: str
+    expires_at: datetime | None
 
 
 class ApplicantMeOut(BaseModel):

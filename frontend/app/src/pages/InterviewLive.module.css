@@ -1,0 +1,151 @@
+/* 지원자 쪽 실시간 면접. **폰 세로가 기본**이다 (ADR-0031 전제).
+   토큰은 전부 tokens.css. */
+
+.page {
+  /* `100vh` 가 아니라 `dvh` 다 — 폰 브라우저는 주소창이 접히면서 vh 가 바뀌어
+     아래 버튼이 화면 밖으로 밀린다. dvh 는 그 변화를 따라간다. */
+  height: 100dvh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  box-sizing: border-box;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.logo {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.seed {
+  color: var(--accent-text);
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 붙기 전에는 회색, 붙으면 초록. **빨강을 쓰지 않는다** —
+   아직 안 붙은 것은 오류가 아니다. */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-sub);
+}
+
+.dotLive {
+  background: var(--ok);
+}
+
+/* 세로로 쌓는다. 폰에서 가로로 두면 둘 다 작아진다. */
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.remoteWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border);
+}
+
+/* 면접관 영상. **뒤집지 않는다** — 상대를 뒤집으면 글씨가 뒤집혀 보인다.
+   `contain` 인 이유는 `cover` 가 얼굴을 잘라내기 때문이다. */
+.remote {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--bg-sunken);
+}
+
+/* 내 모습. 여기만 거울처럼 뒤집는다. */
+.local {
+  width: 100%;
+  max-height: 26vh;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  transform: scaleX(-1);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  text-align: center;
+  background: var(--bg-sunken);
+}
+
+.overlayTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.overlayBody {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: center;
+}
+
+/* 폰에서 누르기 좋게 (05-design §9 터치 44px) */
+.actions :global(.btn) {
+  min-height: 44px;
+  flex: 1;
+  max-width: 200px;
+}
+
+/* 가로가 넓으면(태블릿·PC) 나란히 둔다 — 세로로 쌓으면 영상이 눌린다. */
+@media (min-width: 720px) and (orientation: landscape) {
+  .stage {
+    flex-direction: row;
+  }
+
+  .local {
+    width: 260px;
+    max-height: none;
+    align-self: flex-end;
+  }
+}

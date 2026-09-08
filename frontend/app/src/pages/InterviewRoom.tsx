@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { applications, interviews, postings } from '../api/endpoints'
 import type { InterviewSessionDetail } from '../api/types'
 import styles from './InterviewRoom.module.css'
-import { PHASE_LABEL, useInterviewRoom } from './useInterviewRoom'
+import { phaseLabel, useInterviewRoom } from './useInterviewRoom'
 
 /* 채용자용 실시간 면접 화면 (docs/02_tasks/실시간-면접-시그널링.md).
 
@@ -19,7 +19,7 @@ export default function InterviewRoom() {
   /* 훅이 돌려주는 것을 통째로 들고 다니지 않고 바로 푼다 — 상태와 ref 가
      한 덩어리로 있으면 React 컴파일러가 상태를 읽는 것까지 ref 접근으로 본다. */
   const { phase, error, muted, toggleMute, leave, localRef, remoteRef } =
-    useInterviewRoom(valid ? id : null)
+    useInterviewRoom({ role: 'recruiter', sessionId: valid ? id : null })
   const [detail, setDetail] = useState<InterviewSessionDetail | null>(null)
   /* 누구를 면접하는지. 세션 상세에는 이름이 없어 지원자를 한 번 더 읽는다. */
   const [who, setWho] = useState<{ name: string; posting: string } | null>(null)
@@ -81,7 +81,7 @@ export default function InterviewRoom() {
         </div>
         <div className={styles.state} aria-live="polite">
           <span className={`${styles.dot} ${phase === 'live' ? styles.dotLive : ''}`} />
-          {PHASE_LABEL[phase]}
+          {phaseLabel('recruiter', phase)}
         </div>
       </header>
 
@@ -92,7 +92,7 @@ export default function InterviewRoom() {
 
           {waiting && (
             <div className={styles.overlay}>
-              <p className={styles.overlayTitle}>{PHASE_LABEL[phase]}</p>
+              <p className={styles.overlayTitle}>{phaseLabel('recruiter', phase)}</p>
               {error ? (
                 <p className={styles.overlayBody}>{error}</p>
               ) : (

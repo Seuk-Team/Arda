@@ -11,6 +11,7 @@ import Apply from './pages/Apply'
 import Schedule from './pages/Schedule'
 import Interview from './pages/Interview'
 import InterviewRoom from './pages/InterviewRoom'
+import InterviewLive from './pages/InterviewLive'
 import MyApplications from './pages/MyApplications'
 import Aptitude from './pages/Aptitude'
 import Dashboard from './pages/Dashboard'
@@ -54,6 +55,9 @@ export default function App() {
             **담당자 로그인(`/login`)과 다른 자리다.** 같은 화면에 두면 지원자가
             담당자 계정으로 들어가려다 막힌다. 토큰도 자리를 나눠 뒀다. */}
         <Route path="/my" element={<MyApplications />} />
+        {/* 지원자 쪽 실시간 면접 — 면접관과 얼굴을 보고 말한다.
+            채용자 쪽은 /interview-room/:sessionId 다. 로그인 밖 — 토큰이 곧 자격. */}
+        <Route path="/interview-live/:token" element={<InterviewLive />} />
         {/* 사전 성향 설문 — 메일 링크의 토큰 접근 (ADR-0027) */}
         <Route path="/aptitude/:token" element={<Aptitude />} />
         {/* 아르 3D 모션 검토용. 내비 미노출·데이터 접근 없음 → 로그인 게이트 밖 */}
