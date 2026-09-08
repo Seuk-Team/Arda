@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
 import '../auth/applicant_store.dart';
+import '../data/applicant_demo.dart';
 import '../data/applicant_portal_repository.dart';
 import '../models/applicant_portal.dart';
 import '../routes.dart';
@@ -69,7 +70,7 @@ class ApplicantHomeScreen extends StatefulWidget {
 
 class _ApplicantHomeScreenState extends State<ApplicantHomeScreen> {
   late final ApplicantPortalRepository _portal =
-      widget.portal ?? ApplicantPortalRepository();
+      widget.portal ?? applicantPortal();
   late final ApplicantStore _store = widget.store ?? const ApplicantStore();
 
   Future<List<ApplicantCard>>? _future;

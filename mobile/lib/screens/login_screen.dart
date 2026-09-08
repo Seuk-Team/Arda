@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,6 +6,7 @@ import '../api/api_error.dart';
 import '../auth/applicant_store.dart';
 import '../auth/auth_service.dart';
 import '../auth/current_user.dart';
+import '../data/applicant_demo.dart';
 import '../data/applicant_portal_repository.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
@@ -360,7 +362,7 @@ class _ApplicantFormState extends State<_ApplicantForm> {
   final _birth = TextEditingController();
 
   late final ApplicantPortalRepository _portal =
-      widget.portal ?? ApplicantPortalRepository();
+      widget.portal ?? applicantPortal();
   late final ApplicantStore _store = widget.store ?? const ApplicantStore();
 
   bool _sending = false;
@@ -414,6 +416,16 @@ class _ApplicantFormState extends State<_ApplicantForm> {
       if (!mounted) return;
       setState(() {
         _error = e.message;
+        _sending = false;
+      });
+    } catch (e) {
+      // 저장소가 죽는 것처럼 **예상 못 한 실패**. 여기서 안 받으면 스피너가
+      // 영영 돌고 사용자가 할 수 있는 일이 없다 (2026-09-08 실기기에서 겪었다).
+      // `on Exception` 이 아니라 통째로 받는 이유: Error 도 같이 와야 한다
+      if (!mounted) return;
+      if (kDebugMode) debugPrint('[applicant] 로그인 실패: $e');
+      setState(() {
+        _error = '로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.';
         _sending = false;
       });
     }

@@ -102,15 +102,28 @@ class ApplicantStore {
   }
 
   /// 넣는다. **같은 것이 이미 있으면 맨 앞으로 올린다** — 방금 넣은 링크가
-  /// 목록 아래에 묻히면 "안 들어갔나" 싶어 또 붙여넣게 된다
+  /// 목록 아래에 묻히면 "안 들어갔나" 싶어 또 붙여넣게 된다.
+  ///
+  /// [read] 가 준 목록을 **고치지 않는다.** 저장된 것이 없거나 읽기가 실패하면
+  /// `const []` 가 오는데, 거기에 `removeWhere` 를 부르면 `UnsupportedError` 다
+  /// (2026-09-08 실기기에서 첫 로그인이 이걸로 멈췄다 — Error 라 `on ApiError`
+  /// 에도 안 걸려 스피너만 영영 돌았다).
   Future<List<ApplicantToken>> add(ApplicantToken token) async {
-    final next = [token, ...(await read())..removeWhere((t) => t == token)];
+    final existing = await read();
+    final next = <ApplicantToken>[
+      token,
+      for (final t in existing)
+        if (t != token) t,
+    ];
     await _write(next);
     return next;
   }
 
   Future<List<ApplicantToken>> remove(ApplicantToken token) async {
-    final next = (await read())..removeWhere((t) => t == token);
+    final next = <ApplicantToken>[
+      for (final t in await read())
+        if (t != token) t,
+    ];
     await _write(next);
     return next;
   }
