@@ -60,6 +60,14 @@ async def lifespan(app: FastAPI):
             "기본 JWT 시크릿으로 서명한다. 로컬이 아니면 APP_ENV=production 을 설정해야 한다"
         )
 
+    # 실시간 면접 시그널링은 방 목록을 **이 프로세스 메모리에** 둔다. 워커가
+    # 2개 이상이면 지원자와 채용자가 서로 다른 프로세스에 붙어 영영 못 만난다.
+    # 늘리는 사람이 로그만 보고도 알 수 있게 남긴다 (app/api/interview_rtc.py).
+    logger.info(
+        "startup: 실시간 면접 시그널링은 단일 프로세스 전제 — uvicorn --workers 를 "
+        "2 이상으로 올리려면 interview_rtc 의 방 저장소를 먼저 Redis 로 바꿔야 한다"
+    )
+
     # G2 — SQS 클라이언트 예열. 별도 스레드로 돌려 부팅을 막지 않는다
     # (--reload 개발 중에는 저장할 때마다 재기동한다). 이유는 mail.warm_up 참고.
     threading.Thread(target=mail.warm_up, daemon=True).start()
@@ -224,6 +232,7 @@ from app.api.evaluations import router as evaluations_router  # noqa: E402
 from app.api.files import router as files_router  # noqa: E402
 from app.api.integrity import router as integrity_router  # noqa: E402
 from app.api.interviews import router as interviews_router  # noqa: E402
+from app.api.interview_rtc import router as interview_rtc_router  # noqa: E402
 from app.api.notes import router as notes_router  # noqa: E402
 from app.api.portal import router as portal_router  # noqa: E402
 from app.api.postings import router as postings_router  # noqa: E402
@@ -244,6 +253,7 @@ app.include_router(evaluations_router)
 app.include_router(files_router)
 app.include_router(integrity_router)
 app.include_router(interviews_router)
+app.include_router(interview_rtc_router)
 app.include_router(notes_router)
 app.include_router(portal_router)
 app.include_router(postings_router)
