@@ -6,7 +6,7 @@
 
 | 파일 | 뜻 | 상태 |
 |---|---|---|
-| `stage-changed.json` | 단계 변경 → 렌더링 조회 → **SMTP** 발송 → 결과 기록(sent/failed). ADR-0031 시연 경로 | **초안** — 백엔드 내부 경로 2개(우정 몫)가 생기면 import 후 실측, export 로 덮어쓴다 |
+| `stage-changed.json` | 단계 변경 → 렌더링 조회 → **SMTP** 발송 → 결과 기록(sent/failed). ADR-0031 시연 경로 | **활성** — 백엔드 내부 경로 2개(`/api/v1/internal/email-logs/{id}/render`·`/result`) 구현됨(2026-09-08). 실측 후 export 로 이 파일 덮어쓴다 |
 
 ## 흐름 (워크플로 1개)
 

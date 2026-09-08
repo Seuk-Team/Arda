@@ -331,12 +331,53 @@ def create_custom_log(
 
 
 def publish(email_log_id: int) -> None:
-    """이미 커밋된 `email_logs` 행의 id 를 큐에 싣는다."""
+    """이미 커밋된 `email_logs` 행의 id 를 발송 경로에 실어 보낸다.
+
+    `MAIL_DISPATCH` (ADR-0031 · 2026-09-08) 로 두 갈래:
+    - `worker` (기본): SQS 에 실어 워커가 SES 로 보낸다 (기존 흐름 그대로)
+    - `n8n`         : n8n 워크플로 웹훅에 POST 로 보낸다 (ADR-0030). 워크플로가
+                      곧바로 우리 API `/internal/email-logs/{id}/render` 를 부르고
+                      SMTP 노드로 발송한 뒤 `/result` 로 상태를 되돌려 준다.
+
+    두 경로가 같은 `email_logs` 행을 두 번 보내지 않도록 여기 한 곳에서만 갈린다 —
+    바깥에서는 아무 것도 바뀐 게 없다.
+    """
+    dispatch = os.getenv("MAIL_DISPATCH", "worker").strip().lower()
+    if dispatch == "n8n":
+        _publish_to_n8n(email_log_id)
+        return
     _sqs().send_message(
         QueueUrl=_queue_url(),
         MessageBody=json.dumps({"email_log_id": email_log_id}),
     )
-    logger.info("메일 큐 발행 email_log_id=%s", email_log_id)
+    logger.info("메일 큐 발행 email_log_id=%s (worker → SQS)", email_log_id)
+
+
+# n8n 웹훅 URL. compose 안 통신이라 https 가 아니라 http 로, 인증 없이 부른다.
+# Basic Auth 는 밖에서 편집 화면 접근용, 안쪽 웹훅 경로는 열려 있다(의도한 것 —
+# infra/n8n/README "웹훅은 docker 네트워크 안에서 부른다" 참고).
+_N8N_WEBHOOK_URL_DEFAULT = "http://n8n:5678/n8n/webhook/stage-changed"
+
+
+def _publish_to_n8n(email_log_id: int) -> None:
+    """n8n 웹훅 하나로 POST — body 는 { "email_log_id": <id> } 만 실어 보낸다.
+
+    나머지 값(제목·본문·수신자·결과 기록)은 워크플로가 우리 내부 API 를 부른다.
+    실패해도 예외를 던져 호출부의 정책(=stage_service.publish_all 이 예외를 로그만
+    남기고 삼킴)에 따라 처리 — 단계 변경 자체는 이미 성공이다.
+    """
+    # requests 는 표준 라이브러리가 아니라 프로젝트 의존이다. 실패 시 timeout 이 도는
+    # 시간 이상은 붙잡지 않는다 — 담당자 화면이 그만큼 늦어지지 않도록.
+    import httpx  # 지연 임포트 — worker 흐름이면 이 import 자체를 안 탄다
+
+    url = os.getenv("N8N_WEBHOOK_URL", _N8N_WEBHOOK_URL_DEFAULT).strip() or _N8N_WEBHOOK_URL_DEFAULT
+    resp = httpx.post(
+        url,
+        json={"email_log_id": email_log_id},
+        timeout=5.0,
+    )
+    resp.raise_for_status()
+    logger.info("메일 웹훅 발행 email_log_id=%s (n8n → %s)", email_log_id, url)
 
 
 def enqueue(db, application_id: int, to_email: str, stage: str) -> EmailLog:
