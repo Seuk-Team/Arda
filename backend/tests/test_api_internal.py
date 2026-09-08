@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.main import app
-from app.models import Application, EmailLog, JobPosting
+from app.models import Application, EmailLog, JobPosting, User
 
 
 @pytest.fixture()
@@ -28,9 +28,16 @@ def client(db: Session, monkeypatch) -> TestClient:
 
 
 @pytest.fixture()
-def sample_log(db: Session) -> EmailLog:
-    """지원자·공고·로그 최소 세팅. system 발송·applied 단계."""
-    posting = JobPosting(title="테스트 공고", description="본문", status="open", created_by=1)
+def sample_log(db: Session, admin_user: User) -> EmailLog:
+    """지원자·공고·로그 최소 세팅. system 발송·applied 단계.
+
+    **`created_by` 에 상수를 박지 않는다.** `created_by=1` 로 두면 빈 테스트 DB
+    에는 id 1 인 사용자가 없어 FK 위반으로 죽는다 — 로컬에 시드가 있으면 통과하고
+    CI(빈 DB)에서만 깨져서 원인을 찾기 어렵다. conftest 의 `admin_user` 를 쓴다.
+    """
+    posting = JobPosting(
+        title="테스트 공고", description="본문", status="open", created_by=admin_user.id
+    )
     db.add(posting)
     db.flush()
 
