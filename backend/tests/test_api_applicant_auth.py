@@ -175,7 +175,10 @@ class TestMe:
 
         # **필드가 늘면 여기서 걸린다.** 그게 이 테스트의 목적이다 —
         # 지원자에게 나가는 것이 조용히 늘어나는 일이 없게.
-        allowed = {"id", "posting_title", "stage_label", "applied_at", "interviews"}
+        allowed = {
+            "id", "posting_title", "stage_label", "applied_at",
+            "interviews", "aptitudes", "schedules",
+        }
         assert set(body["applications"][0]) == allowed
         assert "ai_summary" not in body
 
@@ -284,3 +287,92 @@ class TestMyInterviews:
 
         tokens = [x["token"] for app in body["applications"] for x in app["interviews"]]
         assert tokens == []
+
+
+class TestMyOtherTokens:
+    """인적성·일정도 같이 내린다 (2026-09-08, 앱 요청).
+
+    **로그인이 유일한 문이면 이것들이 여기 없을 때 갈 길이 없다.** 앱에는
+    메일함이 없어서, 빠뜨리면 ADR-0031 이 없애려던 "앱인데 메일을 거쳐야 한다"가
+    그 두 탭에 그대로 남는다. 면접 토큰과 같은 근거다.
+    """
+
+    def _aptitude(self, db: Session, application: Application, admin_user: User, status: str):
+        from app.models import AptitudeSession
+
+        row = AptitudeSession(
+            application_id=application.id,
+            token=f"apt-{status}-{application.id}",
+            status=status,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+            created_by=admin_user.id,
+        )
+        db.add(row)
+        db.flush()
+        return row
+
+    def _schedule(self, db: Session, application: Application, admin_user: User, status: str):
+        from app.models import ScheduleProposal
+
+        row = ScheduleProposal(
+            application_id=application.id,
+            token=f"sch-{status}-{application.id}",
+            status=status,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+            created_by=admin_user.id,
+        )
+        db.add(row)
+        db.flush()
+        return row
+
+    def test_인적성은_pending_만_온다(
+        self, client, db: Session, application: Application, admin_user: User
+    ):
+        a = _applicant(db, application)
+        pending = self._aptitude(db, a, admin_user, "pending")
+        self._aptitude(db, a, admin_user, "done")
+
+        token = create_applicant_token(a.email)
+        body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
+
+        assert [x["token"] for x in body["applications"][0]["aptitudes"]] == [pending.token]
+
+    def test_일정은_확정된_것도_온다(
+        self, client, db: Session, application: Application, admin_user: User
+    ):
+        """확정 뒤에도 **언제로 잡혔는지 다시 볼 일**이 있다 — 면접·인적성과 다르다."""
+        a = _applicant(db, application)
+        proposed = self._schedule(db, a, admin_user, "proposed")
+        confirmed = self._schedule(db, a, admin_user, "confirmed")
+        self._schedule(db, a, admin_user, "expired")
+
+        token = create_applicant_token(a.email)
+        body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
+
+        got = {x["token"] for x in body["applications"][0]["schedules"]}
+        assert got == {proposed.token, confirmed.token}
+
+    def test_남의_것은_안_온다(
+        self, client, db: Session, application: Application, posting, admin_user: User
+    ):
+        """**이게 무너지면 남의 인적성·일정 링크가 열린다.**"""
+        a = _applicant(db, application)
+        other = Application(
+            job_posting_id=posting.id,
+            name="남",
+            email="other-tokens@fixture.local",
+            phone="010-0000-0000",
+            privacy_agreed_at=datetime.now(UTC),
+            birth_date=date(1990, 1, 1),
+        )
+        db.add(other)
+        db.flush()
+        self._aptitude(db, other, admin_user, "pending")
+        self._schedule(db, other, admin_user, "proposed")
+
+        token = create_applicant_token(a.email)
+        body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
+
+        for app_row in body["applications"]:
+            assert app_row["aptitudes"] == []
+            assert app_row["schedules"] == []

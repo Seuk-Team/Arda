@@ -36,8 +36,26 @@ class MyApplicationOut(BaseModel):
     posting_title: str
     stage_label: str
     applied_at: datetime
-    # 지금 들어갈 수 있는 면접. 없으면 빈 목록이다.
+    # 지금 들어갈 수 있는 것들. 없으면 빈 목록이다.
+    #
+    # **로그인이 유일한 문이면 이것들이 여기 없을 때 갈 길이 없다.** 앱에는
+    # 메일함이 없고, 그러면 ADR-0031 이 없애려던 "앱인데 메일을 거쳐야 한다"가
+    # 그대로 남는다. 셋 다 본인 토큰으로 조회한 자기 것이라 근거가 같다.
     interviews: list["MyInterviewOut"] = []
+    aptitudes: list["MyTokenLinkOut"] = []
+    schedules: list["MyTokenLinkOut"] = []
+
+
+class MyTokenLinkOut(BaseModel):
+    """지원자가 지금 들어갈 수 있는 토큰 경로 하나 — 인적성·일정에 쓴다.
+
+    면접(`MyInterviewOut`)과 모양이 같다. 셋 다 `application_id` + `token` +
+    `status` + `expires_at` 구조라 따로 만들 이유가 없다.
+    """
+
+    token: str
+    status: str
+    expires_at: datetime | None
 
 
 class MyInterviewOut(BaseModel):
