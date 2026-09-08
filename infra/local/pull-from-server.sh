@@ -26,7 +26,7 @@ cors="$(grep -E '^CORS_ORIGINS=' "$HERE/.env.backend" | tail -1 | cut -d= -f2- |
   echo ""
   echo "# ---- infra/local/pull-from-server.sh 가 붙인 로컬 덮어쓰기 ($(date -u +%FT%TZ)) — 뒤 줄이 이긴다 ----"
   echo "PUBLIC_APP_BASE_URL=http://localhost:5173"
-  echo "CORS_ORIGINS=${cors:+$cors,}http://localhost:5173,http://localhost:8080"
+  echo "CORS_ORIGINS=${cors:+$cors,}http://localhost:5173,http://localhost:4173,http://localhost:8080"   # 5173 dev · 4173 vite preview(프로덕션 번들)
 } >> "$HERE/.env.backend"
 
 echo "[3/4] DB pg_dump (서버 db 컨테이너에서 바로)"

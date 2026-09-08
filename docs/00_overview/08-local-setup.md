@@ -152,7 +152,9 @@ bash infra/local/pull-from-server.sh                          # 서버 → 로�
 docker compose -f infra/local/docker-compose.yml up -d --build # 첫 빌드 5~10분 (임베딩 모델·mediapipe)
 bash infra/local/restore.sh                                   # DB 통째 교체 + n8n 볼륨 복원 + alembic current
 bash infra/local/smoke.sh                                     # 12개 항목 자동 검증
-cd frontend/app && VITE_API_BASE=http://localhost:8080 npm run dev   # 프론트는 호스트에서
+cd frontend/app && npm run dev -- --mode localstack               # 프론트 dev (.env.localstack 이 VITE_API_BASE=localhost:8080)
+# 운영과 같은 프로덕션 번들로 검증하려면 (DEV 로그인 우회·목데이터 폴백이 없는 진짜 화면):
+cd frontend/app && npm run build -- --mode localstack && npm run preview -- --port 4173
 ```
 
 | 주소 | 무엇 |
@@ -161,7 +163,8 @@ cd frontend/app && VITE_API_BASE=http://localhost:8080 npm run dev   # 프론트
 | http://localhost:8080/n8n/ | n8n 편집 화면 (Basic Auth 는 운영과 같은 계정 — 볼륨을 통째 복원했으므로 워크플로·SMTP 자격 증명·owner 계정 그대로) |
 | http://localhost:8000 · :5000 · :5678 | api · lie-detection · n8n 직접 (디버그용, 127.0.0.1 만) |
 | localhost:5434 | db (psql 직접 접속용. 5432 는 이 PC 의 네이티브 PG, 5433 은 2절의 개발 DB) |
-| http://localhost:5173 | 프론트 dev 서버 |
+| http://localhost:5173 | 프론트 dev 서버 (DEV 모드: 로그인 우회·목데이터 폴백이 켜져 있어 **스택 검증용으론 부적합**) |
+| http://localhost:4173 | 프론트 **프로덕션 번들** preview — 실제 로그인·실제 API 만 탄다. 스택 검증은 여기서 |
 
 **운영과 다른 점 (의도한 것)** — `PUBLIC_APP_BASE_URL`·`CORS_ORIGINS` 에 localhost 를 덧붙인 것뿐(`pull-from-server.sh` 가 `.env.backend` 끝에 붙인다). `S3_ENDPOINT_URL` 은 비어 있어 **실제 S3 버킷**을 쓴다 — 이력서 읽기(요약·앵커)는 그대로 되고, 로컬에서 업로드하면 운영 버킷에 들어가니 업로드 테스트는 MinIO 로 바꾼 뒤(2절 값 참고) 한다. 앵커 게시는 GitHub Actions 라 로컬과 무관.
 
