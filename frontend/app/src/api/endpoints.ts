@@ -229,3 +229,20 @@ export const aptitude = {
   detail: (applicationId: number, signal?: AbortSignal) =>
     api.get<AptitudeDetail>(`/applications/${applicationId}/aptitude`, { signal }),
 }
+
+/* 지원자 본인용 (ADR-0031). **담당자 토큰과 섞이지 않게 `applicant: true` 로 부른다.** */
+import type { ApplicantLoginOut, ApplicantMe } from './types'
+
+export const applicantAuth = {
+  /* 실패는 전부 401 한 가지다 — 없는 이메일·틀린 생년월일을 서버가 구별해 주지
+     않는다. 화면에서도 사유를 지어내면 안 된다. 5회 틀리면 429(15분). */
+  login: (email: string, birth_date: string) =>
+    api.post<ApplicantLoginOut>(
+      '/public/applicant/login',
+      { email, birth_date },
+      { auth: false },
+    ),
+
+  me: (signal?: AbortSignal) =>
+    api.get<ApplicantMe>('/applicant/me', { applicant: true, signal }),
+}

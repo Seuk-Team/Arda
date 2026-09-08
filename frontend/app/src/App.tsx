@@ -11,6 +11,7 @@ import Apply from './pages/Apply'
 import Schedule from './pages/Schedule'
 import Interview from './pages/Interview'
 import InterviewRoom from './pages/InterviewRoom'
+import MyApplications from './pages/MyApplications'
 import Aptitude from './pages/Aptitude'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
@@ -49,6 +50,10 @@ export default function App() {
         <Route path="/schedule/:token" element={<Schedule />} />
         {/* 지원자용 AI 면접 — 메일 링크 착지점. 로그인 밖 */}
         <Route path="/interview/:token" element={<Interview />} />
+        {/* 지원자 본인 화면 (ADR-0031) — 이메일 + 생년월일로 들어온다.
+            **담당자 로그인(`/login`)과 다른 자리다.** 같은 화면에 두면 지원자가
+            담당자 계정으로 들어가려다 막힌다. 토큰도 자리를 나눠 뒀다. */}
+        <Route path="/my" element={<MyApplications />} />
         {/* 사전 성향 설문 — 메일 링크의 토큰 접근 (ADR-0027) */}
         <Route path="/aptitude/:token" element={<Aptitude />} />
         {/* 아르 3D 모션 검토용. 내비 미노출·데이터 접근 없음 → 로그인 게이트 밖 */}

@@ -16,6 +16,11 @@
     ADMIN_PASSWORD=<비밀번호> python scripts/ingest_dummy_applications.py ingest \
         --records records.json --api http://localhost:8000 --admin <admin이메일>
 
+    # 이미 로그인한 브라우저의 토큰을 그대로 쓸 수도 있다. **비밀번호가 셸에
+    # 안 남는다.** 짧게 만료되므로 흘려도 피해가 작다 — 이쪽을 권한다.
+    ADMIN_TOKEN=<JWT> python scripts/ingest_dummy_applications.py ingest \
+        --records records.json --api <주소> --admin <admin이메일>
+
     # 비용·시간을 먼저 재고 싶으면 (요약 1건마다 Claude 3회 호출 — ADR-0011)
     ... ingest --records records.json --limit 3
 
@@ -237,13 +242,23 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     if args.limit:
         records = records[: args.limit]
 
-    password = os.getenv("ADMIN_PASSWORD")
-    if not password:
-        sys.exit("ADMIN_PASSWORD 환경변수가 필요하다 (공고 생성에 로그인이 필요하다)")
-
+    # 로그인은 둘 중 하나로 한다. **`ADMIN_TOKEN` 이 우선이다** —
+    # 이미 로그인한 브라우저에서 꺼낸 토큰을 그대로 쓰면 비밀번호가 셸 환경변수에
+    # 올라가지 않는다. 짧게 만료되는 값이라 흘려도 피해가 작다.
+    token = os.getenv("ADMIN_TOKEN")
     api = Api(args.api)
-    api.login(args.admin, password)
-    print(f"로그인 완료: {args.admin}")
+    if token:
+        api.token = token
+        print("ADMIN_TOKEN 으로 진행한다 (로그인 생략)")
+    else:
+        password = os.getenv("ADMIN_PASSWORD")
+        if not password:
+            sys.exit(
+                "ADMIN_TOKEN 또는 ADMIN_PASSWORD 환경변수가 필요하다 "
+                "(공고 생성에 로그인이 필요하다)"
+            )
+        api.login(args.admin, password)
+        print(f"로그인 완료: {args.admin}")
 
     posting_ids: dict[str, int] = {}
     ok = 0
