@@ -368,6 +368,10 @@ class _ApplicantFormState extends State<_ApplicantForm> {
   bool _sending = false;
   String? _error;
 
+  /// 개발용 링크 칸 ([applicantLinkEntry] 일 때만 산다)
+  final _link = TextEditingController();
+  bool _entering = false;
+
   @override
   void initState() {
     super.initState();
@@ -381,7 +385,55 @@ class _ApplicantFormState extends State<_ApplicantForm> {
   void dispose() {
     _email.dispose();
     _birth.dispose();
+    _link.dispose();
     super.dispose();
+  }
+
+  /// 담당자가 웹에서 만든 링크로 **진짜 서버에** 들어간다.
+  ///
+  /// 종류를 가리지 않는다 — 면접·인적성·일정·지원 현황 링크가 다 들어오고,
+  /// 여러 번 넣으면 쌓인다(탭마다 자기 링크를 쓴다).
+  Future<void> _enterByLink() async {
+    if (_entering) return;
+    final parsed = parseApplicantLink(_link.text);
+    if (parsed == null) {
+      setState(() => _error = '링크를 알아보지 못했습니다.');
+      return;
+    }
+    setState(() {
+      _entering = true;
+      _error = null;
+    });
+    try {
+      // **저장 전에 서버에 물어본다** — 죽은 링크를 넣어 두면 다음에 켤 때마다
+      // 오류 화면으로 떨어진다
+      switch (parsed.kind) {
+        case ApplicantTokenKind.portal:
+          await _portal.status(parsed.token);
+        case ApplicantTokenKind.interview:
+          await _portal.interview(parsed.token);
+        case ApplicantTokenKind.aptitude:
+          await _portal.aptitude(parsed.token);
+        case ApplicantTokenKind.schedule:
+          await _portal.schedule(parsed.token);
+      }
+      await _store.add(parsed);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, Routes.applicantHome);
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _entering = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      if (kDebugMode) debugPrint('[applicant] 링크 입장 실패: $e');
+      setState(() {
+        _error = '들어가지 못했습니다.';
+        _entering = false;
+      });
+    }
   }
 
   bool get _canSubmit =>
@@ -483,6 +535,62 @@ class _ApplicantFormState extends State<_ApplicantForm> {
                 : const Text('로그인'),
           ),
         ),
+
+        // 개발용. 릴리스 빌드에서는 상수가 false 라 통째로 빠진다
+        if (applicantLinkEntry) ...[
+          const SizedBox(height: AppSpace.s5),
+          const Divider(color: AppColors.borderSoft, height: 1),
+          const SizedBox(height: AppSpace.s4),
+          const Text(
+            '개발용 — 링크로 입장',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              fontWeight: AppType.wSemiBold,
+              color: AppColors.warnText,
+            ),
+          ),
+          const SizedBox(height: AppSpace.s1),
+          const Text(
+            '담당자가 만든 면접·인적성·일정 링크를 붙여넣으면 그 링크로 들어갑니다. '
+            '여러 번 넣으면 탭마다 채워집니다.',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              height: 1.5,
+              color: AppColors.textSub,
+            ),
+          ),
+          const SizedBox(height: AppSpace.s3),
+          _Field(
+            label: '링크',
+            controller: _link,
+            hint: 'https://…/interview/…',
+            keyboardType: TextInputType.url,
+            onSubmitted: (_) => _enterByLink(),
+          ),
+          const SizedBox(height: AppSpace.s2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () async {
+                final data = await Clipboard.getData(Clipboard.kTextPlain);
+                final text = data?.text?.trim();
+                if (text == null || text.isEmpty) return;
+                _link.text = text;
+              },
+              child: const Text('붙여넣기'),
+            ),
+          ),
+          const SizedBox(height: AppSpace.s2),
+          SizedBox(
+            height: AppLayout.minTouchTarget,
+            child: OutlinedButton(
+              onPressed: _entering ? null : _enterByLink,
+              child: Text(_entering ? '들어가는 중…' : '링크로 입장'),
+            ),
+          ),
+        ],
       ],
     );
   }

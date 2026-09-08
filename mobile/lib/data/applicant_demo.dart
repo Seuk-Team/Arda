@@ -1,4 +1,15 @@
-/// 지원자 화면을 서버 없이 보기 위한 데모 (2026-09-08).
+/// 지원자 로그인이 서버에 생길 때까지의 임시 문 둘 (2026-09-08).
+///
+/// 둘 다 **디버그 빌드에서만 산다.** 하는 일이 정반대다:
+///
+///   [applicantDemoMode]  서버를 캔 데이터로 **대신한다** — 화면을 보여 줄 때
+///   [applicantLinkEntry] 진짜 링크로 **진짜 서버에 들어간다** — 붙여서 테스트할 때
+///
+/// 백엔드를 테스트하려면 뒤엣것이다. 앞엣것은 서버에 아무것도 안 보낸다.
+///
+/// ── 이하는 데모 ──────────────────────────────────────
+///
+/// 지원자 화면을 서버 없이 보기 위한 데모.
 ///
 /// **지울 것이다.** 지원자 로그인이 서버에 생기면 이 파일과 [applicantPortal]
 /// 의 분기를 같이 지운다.
@@ -38,6 +49,22 @@ import '../models/applicant_portal.dart';
 import 'applicant_portal_repository.dart';
 
 const applicantDemoMode = kDebugMode && bool.fromEnvironment('APPLICANT_DEMO');
+
+/// 링크를 붙여넣어 **진짜 서버로** 들어가는 문.
+///
+/// 지원자 로그인(이메일 + 생년월일)이 서버에 없어서, 그 전까지는 지원자
+/// 화면에 들어갈 길이 하나도 없다. 그런데 **면접·인적성·일정 공개 API 는 다
+/// 살아 있다** — 막힌 것은 문 하나뿐이다. 그래서 담당자가 웹에서 만든 링크를
+/// 그대로 붙여넣어 들어가게 열어 둔다: 카메라도, 동의·시작·답변·종료도,
+/// 서버에 남는 기록도 전부 진짜다.
+///
+/// 켜는 법: `flutter build apk --debug --dart-define=APPLICANT_LINK=true`
+///
+/// 데모와 같이 켜면 데모가 이긴다 — 저장소가 캔 데이터를 주므로 링크를 넣어도
+/// 서버에 안 간다. 테스트할 때는 데모를 끄고 이것만 켠다.
+///
+/// 진짜 로그인이 생기면 이 플래그와 로그인 화면의 그 칸을 같이 지운다.
+const applicantLinkEntry = kDebugMode && bool.fromEnvironment('APPLICANT_LINK');
 
 /// 지원자 화면이 쓰는 저장소. 데모가 켜져 있으면 서버 대신 캔 데이터를 준다
 ApplicantPortalRepository applicantPortal() =>
