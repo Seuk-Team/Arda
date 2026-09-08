@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import secrets
+import threading
 import time
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -47,7 +48,8 @@ router = APIRouter(prefix="/api/v1", tags=["interview-rtc"])
 _DEFAULT_ICE = '[{"urls": "stun:stun.l.google.com:19302"}]'
 
 
-def ice_servers() -> list[dict]:
+def _static_ice_servers() -> list[dict]:
+    """환경변수에 박힌 목록. TURN 자동 발급이 없거나 실패했을 때의 바닥."""
     raw = os.getenv("RTC_ICE_SERVERS", "").strip() or _DEFAULT_ICE
     try:
         parsed = json.loads(raw)
@@ -56,6 +58,69 @@ def ice_servers() -> list[dict]:
         log.warning("RTC_ICE_SERVERS 파싱 실패 — 기본 STUN 으로 간다")
         return json.loads(_DEFAULT_ICE)
     return parsed if isinstance(parsed, list) else json.loads(_DEFAULT_ICE)
+
+
+# Cloudflare TURN 자동 발급 (2026-09-08, 이슈 #70). Cloudflare 의 TURN credential 은
+# **최대 24시간**짜리라 손으로 갱신하면 매일 만료된다. 서버가 필요할 때 키로 발급받아
+# 캐시하고, 만료 4시간 전에 새로 받는다 — Cloudflare 가 권하는 방식(세션마다 단기 자격)
+# 을 하루 단위로 굵게 자른 것. 부르는 쪽(입장권·WebSocket hello)은 바뀌지 않는다.
+#
+# 실패 정책: 발급이 안 되면 (키 없음·네트워크·400) **정적 RTC_ICE_SERVERS → 기본 STUN**
+# 으로 내려간다. 캐시가 아직 유효하면 그것을 계속 쓴다. 면접이 설정 때문에 멈추지 않게.
+_CF_TURN_URL = "https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate-ice-servers"
+_TURN_TTL_DEFAULT = 86400          # Cloudflare 상한. 넘기면 400 invalid argument (2026-09-08 실측)
+_TURN_REFRESH_MARGIN = 4 * 3600    # 만료 4시간 전부터 갱신
+_turn_cache: dict = {"servers": None, "expires_at": 0.0}
+_turn_lock = threading.Lock()
+
+
+def _cloudflare_ice_servers() -> list[dict] | None:
+    key_id = os.getenv("TURN_KEY_ID", "").strip()
+    token = os.getenv("TURN_KEY_API_TOKEN", "").strip()
+    if not key_id or not token:
+        return None
+
+    now = time.time()
+    if _turn_cache["servers"] and now < _turn_cache["expires_at"] - _TURN_REFRESH_MARGIN:
+        return _turn_cache["servers"]
+
+    with _turn_lock:
+        if _turn_cache["servers"] and now < _turn_cache["expires_at"] - _TURN_REFRESH_MARGIN:
+            return _turn_cache["servers"]
+        try:
+            ttl = int(os.getenv("TURN_CREDENTIAL_TTL", "").strip() or _TURN_TTL_DEFAULT)
+        except ValueError:
+            ttl = _TURN_TTL_DEFAULT
+        try:
+            import httpx  # 지연 임포트 — 키가 없는 배포는 이 경로를 안 탄다
+
+            resp = httpx.post(
+                _CF_TURN_URL.format(key_id=key_id),
+                json={"ttl": ttl},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5.0,
+            )
+            resp.raise_for_status()
+            servers = resp.json().get("iceServers")
+            if not isinstance(servers, list) or not servers:
+                raise ValueError("응답에 iceServers 배열이 없다")
+        except Exception:
+            log.warning(
+                "Cloudflare TURN credential 발급 실패 — 정적 RTC_ICE_SERVERS/STUN 으로 간다",
+                exc_info=True,
+            )
+            if _turn_cache["servers"] and now < _turn_cache["expires_at"]:
+                return _turn_cache["servers"]  # 아직 안 죽은 캐시는 계속 쓴다
+            return None
+        _turn_cache["servers"] = servers
+        _turn_cache["expires_at"] = now + ttl
+        log.info("Cloudflare TURN credential 발급 ttl=%ss", ttl)
+        return servers
+
+
+def ice_servers() -> list[dict]:
+    """클라이언트에 줄 ICE 서버 목록. Cloudflare 자동 발급 → 정적 설정 → 기본 STUN."""
+    return _cloudflare_ice_servers() or _static_ice_servers()
 
 
 # ── 채용자 입장권 ────────────────────────────────────────────────────────────

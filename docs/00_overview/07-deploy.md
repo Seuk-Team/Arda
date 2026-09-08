@@ -212,6 +212,28 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 
 **AWS 종료 시 이전**: API·큐·메일·관측·GPU 는 compose 하나로 로컬 서버(또는 온프레미스 GPU PC). S3 는 MinIO(코드는 이미 `S3_ENDPOINT_URL` 스위치). 앵커 게시([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md))는 GitHub Actions Secret 로 유지 — 이전 대상 아님.
 
+## 실시간 면접 TURN — Cloudflare (2026-09-08, 이슈 #70)
+
+**왜**: 실시간 면접(#65·#67)은 지원자 폰 ⟷ 채용자 PC 가 WebRTC 로 직접 붙는다. 같은 와이파이면 STUN 만으로 붙지만 **LTE·회사 방화벽처럼 다른 망이면 TURN(중계)** 이 있어야 한다. 지원자는 자기 폰(셀룰러)으로 들어오는 전제라 사실상 필수.
+
+**무엇**: Cloudflare Realtime **TURN Server** (대시보드 Realtime → TURN Server). 무료 구간 월 1,000GB relay — 1:1 면접 1건 ≈ 100MB 라 시연·발표 전 구간 무료. 같은 EC2 에 coturn 을 올리는 대안은 t3.medium 이 컨테이너 6개로 이미 빠듯하고 UDP 포트 범위를 열어야 해서 접었다([ADR-0031](../03_decision/0031-aws-최소화.md) 표면적 원칙과도 부합 — 자격 증명만 옮기면 어느 서버에서든 같다).
+
+**credential 은 24시간짜리다.** Cloudflare 가 발급하는 TURN username/credential 은 TTL 최대 86400초. 손으로 `RTC_ICE_SERVERS` 에 박아 두면 **매일 만료**된다. 그래서 api 가 **필요할 때 직접 발급**한다(`backend/app/api/interview_rtc.py` `ice_servers()`): 서버 `.env` 에 키 두 개만 두면 첫 요청 때 받아 캐시하고 만료 4시간 전에 새로 받는다. 부르는 쪽(입장권·WebSocket hello)은 그대로.
+
+```bash
+# 서버 ~/arda/backend/.env — Cloudflare TURN Server → Create TURN Key 에서 받은 두 값
+TURN_KEY_ID=…
+TURN_KEY_API_TOKEN=…
+```
+넣고 `up -d --force-recreate api`. 폴백 순서: **자동 발급 → 정적 `RTC_ICE_SERVERS` → 기본 STUN** (설정 때문에 면접이 멈추지 않는다). 확인은 api 로그의 `Cloudflare TURN credential 발급 ttl=86400s`, 실패 시 `발급 실패 — 정적 RTC_ICE_SERVERS/STUN 으로 간다` 경고.
+
+**함정 (2026-09-08 실측)**
+- `ttl` 을 86400 넘게 보내면 `400 {"error":"invalid argument"}`. 30일 같은 값은 안 된다 — 그래서 자동 발급이 답이다.
+- Key ID 가 틀리거나 폐기된 키면 `404 {"error":"cannot find specified key"}`.
+- API Token 이 터미널·채팅 로그에 찍히면 폐기하고 새로 만든다 (`curl -v` 는 Authorization 헤더를 그대로 보여 준다 — 확인엔 `-i` 를 쓴다). 응답의 username/credential 은 24시간이면 죽는 파생값이라 노출돼도 치명적이지 않다.
+- 첫 시도는 정적 값으로 갔다: `RTC_ICE_SERVERS` 를 채워 두는 것도 유효하지만 하루 뒤 만료된다는 뜻이다. 자동 발급 키가 서버에 들어가기 전까지의 임시.
+- uvicorn 워커는 1개 유지 — 시그널링 방 목록이 프로세스 메모리다(파일 머리말). 늘리면 지원자·채용자가 서로 다른 프로세스에 붙어 못 만난다.
+
 ## n8n — 알림·메일 자동화 계층 (2026-09-07 도입, ADR-0030 1단계)
 
 **왜**: 메일 파이프라인이 SQS·SES·워커 코드에 묶여 있어 AWS 를 떠나면(예산 $400 · 10/27) 같이 멈춘다. 알림 계층을 n8n 워크플로로 떼어 **트리거는 우리 API 웹훅, 발송은 노드 하나 교체**로 공급자가 바뀌게 한다. 근거·대안·정하지 못한 것은 [ADR-0030](../03_decision/0030-n8n-알림-자동화-분리.md). n8n Cloud 는 쓰지 않는다 — 지원자 개인정보가 외부 SaaS 를 거친다.

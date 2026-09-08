@@ -265,3 +265,96 @@ class TestRelay:
             assert s.token in interview_rtc._ROOMS
 
         assert s.token not in interview_rtc._ROOMS
+
+
+class TestIceServers:
+    """Cloudflare TURN 자동 발급 (2026-09-08, 이슈 #70) — 키 유무·캐시·실패 폴백."""
+
+    @pytest.fixture(autouse=True)
+    def _reset(self, monkeypatch):
+        interview_rtc._turn_cache.update(servers=None, expires_at=0.0)
+        monkeypatch.delenv("TURN_KEY_ID", raising=False)
+        monkeypatch.delenv("TURN_KEY_API_TOKEN", raising=False)
+        monkeypatch.delenv("TURN_CREDENTIAL_TTL", raising=False)
+        monkeypatch.delenv("RTC_ICE_SERVERS", raising=False)
+        yield
+        interview_rtc._turn_cache.update(servers=None, expires_at=0.0)
+
+    @staticmethod
+    def _fake_post(calls, *, fail=False, servers=None):
+        class _Resp:
+            def raise_for_status(self):
+                if fail:
+                    raise RuntimeError("500")
+
+            def json(self):
+                return {"iceServers": servers if servers is not None else [
+                    {"urls": ["stun:stun.cloudflare.com:3478"]},
+                    {"urls": ["turn:turn.cloudflare.com:3478?transport=udp"], "username": "u", "credential": "c"},
+                ]}
+
+        def post(url, **kw):
+            calls.append((url, kw))
+            return _Resp()
+
+        return post
+
+    def test_키가_없으면_정적_설정을_쓴다(self, monkeypatch):
+        monkeypatch.setenv("RTC_ICE_SERVERS", '[{"urls":"turn:static"}]')
+        assert interview_rtc.ice_servers() == [{"urls": "turn:static"}]
+
+    def test_키가_있으면_Cloudflare_에서_받아_캐시한다(self, monkeypatch):
+        import httpx
+
+        monkeypatch.setenv("TURN_KEY_ID", "kid")
+        monkeypatch.setenv("TURN_KEY_API_TOKEN", "tok")
+        calls: list = []
+        monkeypatch.setattr(httpx, "post", self._fake_post(calls))
+
+        first = interview_rtc.ice_servers()
+        second = interview_rtc.ice_servers()
+
+        assert first[1]["username"] == "u" and first == second
+        assert len(calls) == 1, "두 번째 호출은 캐시를 써야 한다"
+        url, kw = calls[0]
+        assert "/keys/kid/credentials/generate-ice-servers" in url
+        assert kw["headers"]["Authorization"] == "Bearer tok"
+        assert kw["json"] == {"ttl": 86400}
+
+    def test_발급이_실패하면_정적_설정으로_내려간다(self, monkeypatch):
+        import httpx
+
+        monkeypatch.setenv("TURN_KEY_ID", "kid")
+        monkeypatch.setenv("TURN_KEY_API_TOKEN", "tok")
+        monkeypatch.setenv("RTC_ICE_SERVERS", '[{"urls":"turn:static"}]')
+        monkeypatch.setattr(httpx, "post", self._fake_post([], fail=True))
+
+        assert interview_rtc.ice_servers() == [{"urls": "turn:static"}]
+
+    def test_만료_4시간_전이면_다시_발급한다(self, monkeypatch):
+        import httpx
+
+        monkeypatch.setenv("TURN_KEY_ID", "kid")
+        monkeypatch.setenv("TURN_KEY_API_TOKEN", "tok")
+        calls: list = []
+        monkeypatch.setattr(httpx, "post", self._fake_post(calls))
+
+        interview_rtc.ice_servers()
+        # 캐시를 만료 1시간 전으로 당겨 놓는다 → 갱신 마진(4시간) 안이므로 새로 받아야 한다
+        interview_rtc._turn_cache["expires_at"] = interview_rtc.time.time() + 3600
+        interview_rtc.ice_servers()
+
+        assert len(calls) == 2
+
+    def test_실패해도_아직_유효한_캐시는_계속_쓴다(self, monkeypatch):
+        import httpx
+
+        monkeypatch.setenv("TURN_KEY_ID", "kid")
+        monkeypatch.setenv("TURN_KEY_API_TOKEN", "tok")
+        good: list = []
+        monkeypatch.setattr(httpx, "post", self._fake_post(good))
+        cached = interview_rtc.ice_servers()
+
+        interview_rtc._turn_cache["expires_at"] = interview_rtc.time.time() + 3600  # 갱신 시점
+        monkeypatch.setattr(httpx, "post", self._fake_post([], fail=True))
+        assert interview_rtc.ice_servers() == cached
