@@ -1,7 +1,7 @@
 {
-  "name": "stage-changed → 지원자 메일 (ADR-0030 · 초안)",
+  "name": "stage-changed → 지원자 메일 (ADR-0031 · n8n + SMTP)",
   "meta": {
-    "arda_note": "초안 (2026-09-07). 백엔드 내부 경로 /internal/email-logs/{id}/render · /result 가 아직 없어 실측 전이다. n8n 에서 import → 노드 확인 → export 로 이 파일을 덮어쓴다. 저장소가 진실."
+    "arda_note": "시연 경로 (ADR-0031 결정 5, 2026-09-08). n8n 화면에서 import → SMTP 자격 증명 이름을 'SMTP 발송' 으로 붙임 → 활성화. 백엔드 내부 경로 /internal/email-logs/{id}/render · /result 는 우정 몫. 저장소가 진실 — 화면 편집 후 export 해서 이 파일 덮어쓰고 커밋."
   },
   "nodes": [
     {
@@ -40,27 +40,28 @@
     {
       "parameters": {
         "fromEmail": "={{ $json.from_email }}",
-        "toAddresses": ["={{ $json.to }}"],
+        "toEmail": "={{ $json.to }}",
         "subject": "={{ $json.subject }}",
-        "body": "={{ $json.body_html || $json.body_text }}",
-        "isBodyHtml": "={{ !!$json.body_html }}",
-        "additionalFields": {
-          "replyToAddresses": ["={{ $json.reply_to }}"]
+        "emailFormat": "={{ $json.body_html ? 'html' : 'text' }}",
+        "text": "={{ $json.body_text }}",
+        "html": "={{ $json.body_html }}",
+        "options": {
+          "replyTo": "={{ $json.reply_to }}"
         }
       },
       "id": "1a000000-0000-4000-8000-000000000003",
-      "name": "SES 발송",
-      "type": "n8n-nodes-base.awsSes",
-      "typeVersion": 1,
+      "name": "SMTP 발송",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
       "position": [480, 0],
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 5000,
       "onError": "continueErrorOutput",
       "credentials": {
-        "aws": { "name": "arda-server (SES 발송만)" }
+        "smtp": { "name": "SMTP 발송" }
       },
-      "notes": "공급자를 바꾸려면 이 노드만 SMTP(Send Email) 노드로 교체한다 — 2단계(로컬) 의 요점. 재시도 3회 · 5초 간격은 워커와 같다."
+      "notes": "SMTP 계정은 n8n Credentials 화면에서 붙인다 (ADR-0031). 지메일이면 host=smtp.gmail.com·port=587·secure=STARTTLS. 학원 도메인이면 학원 관리자 값 4개. 자격 증명은 이 JSON 에 안 들어감 — n8n_data 볼륨에 암호화되어 저장."
     },
     {
       "parameters": {
@@ -74,7 +75,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"status\": \"sent\", \"provider_message_id\": $json.MessageId } }}",
+        "jsonBody": "={{ { \"status\": \"sent\", \"provider_message_id\": ($json.messageId || $json.response || 'smtp-sent') } }}",
         "options": {}
       },
       "id": "1a000000-0000-4000-8000-000000000004",
@@ -82,7 +83,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [720, -120],
-      "notes": "영수증 방식 — email_logs.provider_message_id(#58) 에 SES MessageId 를 남긴다. 결과 API 는 멱등이어야 한다(ADR-0030 정하지 못한 것 2)."
+      "notes": "영수증 방식 — email_logs.provider_message_id(#58) 에 SMTP 응답의 messageId 또는 response 문자열을 남긴다. 결과 API 는 멱등이어야 한다(ADR-0030 정하지 못한 것 2)."
     },
     {
       "parameters": {
@@ -109,8 +110,8 @@
   ],
   "connections": {
     "Webhook stage-changed": { "main": [[{ "node": "렌더링 조회", "type": "main", "index": 0 }]] },
-    "렌더링 조회": { "main": [[{ "node": "SES 발송", "type": "main", "index": 0 }]] },
-    "SES 발송": {
+    "렌더링 조회": { "main": [[{ "node": "SMTP 발송", "type": "main", "index": 0 }]] },
+    "SMTP 발송": {
       "main": [
         [{ "node": "결과 기록 sent", "type": "main", "index": 0 }],
         [{ "node": "결과 기록 failed", "type": "main", "index": 0 }]
