@@ -67,10 +67,13 @@
 | 11c | Discord `#github` 웹후크 재등록 | 저장소 이관 때 끊김. 서버 소유자(woojeongalex) 권한 필요 — 요청 중 |
 | 11d | AWS Budgets 알림 (월 $150, 85%) · 서버 `deploy-arda.sh` 를 `infra/` 로 회수 | 예산 $400·10/27 안에서 GPU 켜고 끄기. 스크립트는 서버에만 있어 저장소에 사본이 없다 |
 | 12 | 온프레미스 판 — 프론트 서빙 | ~~W3~~ **일정 재조정(09/07): W4 중간 점검에서 발표 전 착수 여부 결정** — W3 는 운영 안정화에 썼다. Vercel 대신 FastAPI `StaticFiles` 또는 nginx. **덤: 같은 출처가 되어 CORS 가 필요 없어진다.** ~1시간 |
-| 13 | 온프레미스 판 — 메일 SMTP 전환 | W3. `mail.py` 의 boto3 SES → `smtplib`. **SES 도 SMTP 를 제공하므로 SaaS 판과 코드가 하나로 합쳐진다.** 반나절 |
-| 14 | 온프레미스 판 — 메일 큐 | W3. SQS → `EmailLog` 테이블 폴링. `create_log`/`publish` 분리(08/31)로 교체 지점이 이미 좁다. 반나절 |
+| 13 | **[ADR-0031] 메일 SMTP 전환** — n8n + SMTP 시연 경로 확정(09-08) · 워커는 SMTP 20줄 비상 폴백 | W3~W4. `mail.py` 의 SES 는 리허설 통과 뒤 삭제. **정상 흐름은 n8n → SMTP 로만** — 워커 안 지남. 반나절 |
+| 14 | **[ADR-0031] 큐 스위치** — SQS → Redis 또는 Postgres LISTEN/NOTIFY (`QUEUE_BACKEND=sqs\|redis\|pg`) | W4 초. `create_log`/`publish` 분리(08/31)로 교체 지점이 이미 좁다. 우정님 판단 |
 | 15 | `docker-compose.onprem.yml` + 한 번 실제로 띄우기 | W3. 12~14 뒤. **띄워 봐야 "AWS 없이 돈다"가 주장이 아니라 사실이 된다** |
 | 17 | **n8n 컨테이너 (ADR-0030 1단계)** — 09/07 PR | compose `n8n` + Caddy `/n8n/*` Basic Auth(**팀 전원 공유**, 09/07 팀장 결정) + 볼륨 백업·`N8nHealthy` 지표·알람 + 워크플로 초안 `infra/n8n/stage-changed.json`. 서버 설치 절차는 [07-deploy "n8n"](../00_overview/07-deploy.md). **실발송 검증은 백엔드 내부 API 2개·`MAIL_DISPATCH` 스위치 뒤** — 그때까지 메일은 워커. 13·14(SMTP·DB 폴링)는 n8n 이 실패하면 돌아올 길로 남긴다 |
+| 18 | **[ADR-0031] 관측 self-host** — `push-metrics.sh` 를 CloudWatch put-metric-data 대신 `~/metrics.log` append + 임계 넘으면 SMTP send (또는 Discord). CloudFormation 스택 폐기 준비 | W4 초. 관측 지표 축적은 로그 파일이면 충분(주 1회 훑는 용도) |
+| 19 | **[ADR-0031] AWS 콘솔 폐기 대상 5종** — SQS 큐 · CloudWatch 지표·알람 · SNS 토픽·구독 · CloudFormation 스택 `arda-alarms` · IAM `arda-metrics-write` 정책 | 2026-10-27 이후, 대체 경로 리허설 2회 통과 뒤. 콘솔 작업 (사용자 몫) |
+| 20 | **[ADR-0031] S3 → MinIO 로컬 실측** — compose 로 MinIO 컨테이너 띄우고 `S3_ENDPOINT_URL` 만 갈아 끼워 이력서 업로드·조회 1회 | W5 초. 코드 변경 0. "AWS 없이도 돈다" 마지막 조각 |
 | 16 | GPU 서버 (g4dn.xlarge, 켜고 끄기) | **상시 아님.** 예산 $400·10/27 이라 24시간(월 ≈$470) 불가, 8h×20일 ≈$105. 로컬 STT·qwen 시연 때만. 쿼터 승인 대기. 거짓말 탐지는 CPU 라 여기 안 올린다(t3.medium 으로 해결). 운영 에이전트는 Anthropic Haiku 유지 |
 
 ## 6. 리스크

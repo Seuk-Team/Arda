@@ -15,5 +15,6 @@
 - `.env.example` — 서버 `~/arda/.env`(compose 가 읽는 것) 의 키 이름. 앱 설정은 `backend/.env.example`.
 - AWS: EC2 `arda-api` t3.medium(api·워커·db·caddy·lie-detection·n8n, 2026-09-07 ↑) · S3(이력서 · DB 백업) · SES(메일) · SQS(메일 큐) · CloudWatch/SNS(경보). 권한 모델은 07-deploy "주의" 절.
 - **예산 총 $400 · 2026-10-27 까지.** GPU(g4dn.xlarge)는 켜고 끄기 전제 — 24시간이면 월 ≈$470 로 초과.
+- **AWS 최소화 방향 ([ADR-0031](../docs/03_decision/0031-aws-최소화.md), 2026-09-08)**: EC2·S3·IAM(S3 만) 3개로 축소. SES → n8n+SMTP · SQS → Redis/PG · CloudWatch → 자체 스크립트 · SNS → SMTP · CloudFormation 폐기. 07-deploy "AWS 표면적" 절.
 - K8s는 쓰지 않는다 ([ADR-0001](../docs/03_decision/0001-k8s-제외.md)).
 - 시크릿은 서버 `.env` — repo 에 커밋 금지. `.env.example` 은 `backend/`.

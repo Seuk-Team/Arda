@@ -36,7 +36,7 @@
                                                      PostgreSQL db      ├ EC2 (docker compose)
                                                      SQS 워커 worker    ┘
 파일: 브라우저 ── presigned URL ──> S3 (서버 미경유)
-메일: api → SQS 큐 → worker → SES (샌드박스 — 해제 신청 08/27 거절, 검증된 수신자만 발송 가능)
+메일: api → SQS 큐 → worker → SES  ← [ADR-0031](../03_decision/0031-aws-최소화.md) 로 **n8n + SMTP** 로 이전 예정 (SES 는 리허설 통과 뒤 삭제)
 ```
 
 - EC2: 서울, **t3.medium(4GB) + 스왑 2G, 디스크 29GB** (2026-09-07 — 거짓말 탐지 서비스가 분석 1건에 574MiB 를 써서 t3.small 2GB 로는 api·worker 와 같이 못 돈다. 월 +$17. 이전: t3.small ← t3.micro), 고정 IP(Elastic IP). ~~SSH는 팀장 PC에서만 열려 있다.~~ SSH 키는 이탈한 팀장 PC 에만 있었다 — **접속은 EC2 Instance Connect 로**(아래 "주의" 절). 보안그룹의 `deploy PC`(221.148.97.238/32) SSH 규칙은 그 PC 것이라 지워도 된다.
@@ -195,6 +195,22 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 **밖에서 찌르는 확인 — [`.github/workflows/health-monitor.yml`](../../.github/workflows/health-monitor.yml) (09-07)**: GitHub 러너가 15분마다 `api…/health` 와 `seuk.suvisdev.cloud/` 를 부른다(30초 간격 2회 실패해야 알림). 실패하면 이슈 "🔴 외부 헬스체크 실패" 를 열거나 열린 이슈에 코멘트(assignee suvisdev), 복구되면 코멘트 달고 자동으로 닫는다. 서버 안 지표와 조합: **둘 다 울리면 서버, 이것만 울리면 DNS·TLS·Caddy·보안그룹.** 비용 0.
 
 **알람 템플릿 갱신(09-07)**: 메모리·자동 복구 알람이 추가돼 파라미터 `InstanceId` 가 생겼다. 반영은 CloudFormation → `arda-alarms` → **업데이트** → 기존 템플릿 교체 → 파일 업로드 → `InstanceId` 에 `arda-api` 의 i-… 입력. 09-07 저녁에 `arda-n8n-down` 이 하나 더 붙어 **알람 6개** — 같은 절차로 한 번 더.
+
+## AWS 표면적 (2026-09-08 결정 — ADR-0031)
+
+**목표**: EC2 · S3 · IAM(S3 만) 3개로 축소. 나머지 5종은 self-host 대안 스위치 뒤에 두고 폐기. 예산 $400 · 10/27 이후에도 서비스가 이어 돌 수 있게. 결정 근거·대안·일정은 [ADR-0031](../03_decision/0031-aws-최소화.md).
+
+| 지금 | 대체 | 스위치 | 상태 |
+|---|---|---|---|
+| SES | **n8n + SMTP** (시연 경로) · 워커 SMTP 20줄(비상 폴백) | `MAIL_DISPATCH=n8n` + `MAIL_TRANSPORT=smtp` | W3 착수 · W4 초 전환 · W5 초 SES 삭제 |
+| SQS | Redis 또는 Postgres LISTEN/NOTIFY | `QUEUE_BACKEND=sqs\|redis\|pg` (기본 sqs) | W4 초 전환 · 우정님 판단 |
+| CloudWatch | `~/metrics.log` 파일 append + `~/status.sh` | 폐기 — `push-metrics.sh` 재작성 | W4 초 전환 |
+| SNS 이메일 경보 | 관측 스크립트가 임계 넘으면 SMTP send (또는 Discord) | 폐기 | W4 초 전환 |
+| CloudFormation | (필요 없음) | 스택 삭제 · YAML 파일도 제거 | 10-27 이후 |
+| IAM 정책 (metrics-write · SQS) | (필요 없음) | 삭제 · `arda-server` 는 S3 두 버킷만 | 10-27 이후 |
+| GPU | g4dn.xlarge on/off (EC2 카테고리) · 또는 로컬 GPU PC | `GPU_TARGET=aws\|local` | `infra/gpu/` PR |
+
+**AWS 종료 시 이전**: API·큐·메일·관측·GPU 는 compose 하나로 로컬 서버(또는 온프레미스 GPU PC). S3 는 MinIO(코드는 이미 `S3_ENDPOINT_URL` 스위치). 앵커 게시([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md))는 GitHub Actions Secret 로 유지 — 이전 대상 아님.
 
 ## n8n — 알림·메일 자동화 계층 (2026-09-07 도입, ADR-0030 1단계)
 
