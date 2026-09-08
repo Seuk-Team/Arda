@@ -5,7 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 Widget _host(AppTab current, {ValueChanged<AppTab>? onSelected}) => MaterialApp(
   home: Scaffold(
-    bottomNavigationBar: AppBottomNav(current: current, onSelected: onSelected),
+    bottomNavigationBar: AppBottomNav(
+      tabs: AppTab.values,
+      current: current,
+      onSelected: onSelected,
+    ),
   ),
 );
 

@@ -33,7 +33,13 @@ enum ApplicantTokenKind {
   portal('portal'),
 
   /// `/interview/<t>` — AI 면접
-  interview('interview');
+  interview('interview'),
+
+  /// `/aptitude/<t>` — 인적성 검사
+  aptitude('aptitude'),
+
+  /// `/schedule/<t>` — 면접 시간 조율
+  schedule('schedule');
 
   const ApplicantTokenKind(this.value);
 
@@ -128,6 +134,16 @@ class ApplicantStore {
     return next;
   }
 
+  /// 종류별로 하나씩 골라 준다. 같은 종류가 여럿이면 **맨 앞**(가장 최근에
+  /// 넣은 것)이다 — 화면은 한 번에 하나만 보여 준다
+  static Map<ApplicantTokenKind, String> byKind(List<ApplicantToken> tokens) {
+    final out = <ApplicantTokenKind, String>{};
+    for (final t in tokens) {
+      out.putIfAbsent(t.kind, () => t.token);
+    }
+    return out;
+  }
+
   /// 지원자로서 나가기. **최선 노력이다** — 실패해도 던지지 않는다
   /// ([TokenStore.clear] 와 같은 이유: 나갈 방법이 없으면 안 된다)
   Future<void> clear() async {
@@ -174,18 +190,18 @@ ApplicantToken? parseApplicantLink(String input) {
       if (s.isNotEmpty) s,
   ];
 
+  // 경로의 마지막 앞 조각이 종류다: /interview/<t> · /aptitude/<t> ·
+  // /schedule/<t> · /applications/status/<t>
+  const byPath = {
+    'interview': ApplicantTokenKind.interview,
+    'aptitude': ApplicantTokenKind.aptitude,
+    'schedule': ApplicantTokenKind.schedule,
+    'status': ApplicantTokenKind.portal,
+  };
   for (var i = 0; i < parts.length - 1; i++) {
-    if (parts[i] == 'interview') {
-      return ApplicantToken(
-        kind: ApplicantTokenKind.interview,
-        token: parts[i + 1],
-      );
-    }
-    if (parts[i] == 'status') {
-      return ApplicantToken(
-        kind: ApplicantTokenKind.portal,
-        token: parts[i + 1],
-      );
+    final kind = byPath[parts[i]];
+    if (kind != null) {
+      return ApplicantToken(kind: kind, token: parts[i + 1]);
     }
   }
 

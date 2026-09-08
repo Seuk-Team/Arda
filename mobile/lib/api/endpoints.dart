@@ -124,4 +124,16 @@ abstract final class Endpoints {
       '/public/interview/$token/answer';
   static String interviewFinish(String token) =>
       '/public/interview/$token/finish';
+
+  /// 인적성 검사 — 조회·제출. **재제출은 서버가 막는다**
+  static String aptitude(String token) => '/public/aptitude/$token';
+  static String aptitudeSubmit(String token) =>
+      '/public/aptitude/$token/submit';
+
+  /// 면접 시간 조율 — 후보 시간 조회·확정, 그리고 아르에게 묻기.
+  /// 담당자용 아르(`/agent/chat`)와 완전히 별개다: 도구도 대화 이력도 없다
+  static String schedule(String token) => '/public/schedule/$token';
+  static String scheduleConfirm(String token) =>
+      '/public/schedule/$token/confirm';
+  static String scheduleFaq(String token) => '/public/schedule/$token/faq';
 }

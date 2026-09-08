@@ -38,16 +38,36 @@ import '../data/camera_service.dart';
 import '../models/applicant_portal.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_top_bar.dart';
+import 'applicant_shell.dart';
 
 class InterviewScreen extends StatefulWidget {
   const InterviewScreen({
     super.key,
     required this.token,
+    this.showChrome = true,
+    this.active = true,
     this.portal,
     this.camera,
   });
 
-  final String token;
+  /// 없으면 담당자가 아직 면접을 안 만든 것이다
+  final String? token;
+
+  /// 상단 바를 이 화면이 그리는가. **셸 안에서는 false** — 셸이 이미 제목과
+  /// 탭바를 들고 있어 여기서 또 그리면 바가 둘이 된다
+  final bool showChrome;
+
+  /// 지금 화면에 보이는가.
+  ///
+  /// **탭 안에서는 이걸 꼭 넘겨야 한다.** 셸의 [IndexedStack] 은 탭을 옮겨도
+  /// 이 화면을 살려 두는데, 그러면 다른 탭을 보는 내내 카메라가 잡혀 있다.
+  /// 배터리도 문제지만 더 나쁜 것은 **그 사이 다른 앱이 카메라를 가져가면**
+  /// 컨트롤러가 죽어, 면접 탭으로 돌아왔을 때 검은 화면이 남는 것이다
+  /// (2026-09-08 실기기에서 겪었다 — 기본 카메라 앱을 열었다 닫으니 그랬다).
+  ///
+  /// 앱 전체가 백그라운드로 가는 것은 [didChangeAppLifecycleState] 가 잡지만,
+  /// **탭 전환은 그 신호가 오지 않는다.**
+  final bool active;
 
   /// 테스트가 가짜를 넣는 자리. 카메라는 실기기가 없으면 못 여니
   /// **테스트에서는 반드시 가짜를 넣어야 한다**
@@ -81,7 +101,7 @@ class _InterviewScreenState extends State<InterviewScreen>
     WidgetsBinding.instance.addObserver(this);
     _camera.addListener(_onCamera);
     _answer.addListener(_onTyping);
-    _load();
+    if (widget.token != null) _load();
   }
 
   @override
@@ -122,17 +142,32 @@ class _InterviewScreenState extends State<InterviewScreen>
     }
   }
 
-  /// 지금 카메라가 켜져 있어야 하는가. **동의가 끝난 순간부터 종료까지다**
-  bool get _wantsCamera => switch (_data?.status) {
-    InterviewStatus.pending => _data?.consentRequired == false,
-    InterviewStatus.inProgress => true,
-    _ => false,
-  };
+  /// 지금 카메라가 켜져 있어야 하는가. **동의가 끝난 순간부터 종료까지**,
+  /// 그리고 이 화면이 실제로 보이는 동안만이다
+  bool get _wantsCamera =>
+      widget.active &&
+      switch (_data?.status) {
+        InterviewStatus.pending => _data?.consentRequired == false,
+        InterviewStatus.inProgress => true,
+        _ => false,
+      };
+
+  /// 탭이 바뀌면 여기로 온다 — 보이게 됐으면 다시 열고, 가려졌으면 놓는다
+  @override
+  void didUpdateWidget(InterviewScreen old) {
+    super.didUpdateWidget(old);
+    if (old.active == widget.active) return;
+    if (_wantsCamera) {
+      _camera.start();
+    } else {
+      _camera.stop();
+    }
+  }
 
   Future<void> _load() async {
     setState(() => _error = null);
     try {
-      final data = await _portal.interview(widget.token);
+      final data = await _portal.interview(widget.token!);
       if (!mounted) return;
       _apply(data);
     } on ApiError catch (e) {
@@ -179,31 +214,39 @@ class _InterviewScreenState extends State<InterviewScreen>
   Future<void> _submitAnswer() async {
     final text = _answer.text.trim();
     if (text.isEmpty) return;
-    await _send(() => _portal.answer(widget.token, text));
+    await _send(() => _portal.answer(widget.token!, text));
     if (mounted) _answer.clear();
   }
 
   Future<void> _finish() async {
     final ok = await showInterviewFinishSheet(context);
     if (ok != true || !mounted) return;
-    await _send(() => _portal.finish(widget.token));
+    await _send(() => _portal.finish(widget.token!));
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = _data;
+    final body = _content();
+    if (!widget.showChrome) return body;
     return Scaffold(
       appBar: const AppTopBar(title: 'AI 면접', showBack: true),
-      body: SafeArea(
-        child: data == null
-            ? _Center(
-                child: _error == null
-                    ? const _Loading()
-                    : _Failed(message: _error!, onRetry: _load),
-              )
-            : _body(data),
-      ),
+      body: SafeArea(child: body),
     );
+  }
+
+  Widget _content() {
+    if (widget.token == null) {
+      return const ApplicantMissing(what: 'AI 면접');
+    }
+    final data = _data;
+    if (data == null) {
+      return _Center(
+        child: _error == null
+            ? const _Loading()
+            : _Failed(message: _error!, onRetry: _load),
+      );
+    }
+    return _body(data);
   }
 
   Widget _body(InterviewPublic data) {
@@ -241,12 +284,12 @@ class _InterviewScreenState extends State<InterviewScreen>
         switch (data.status) {
           InterviewStatus.pending when data.consentRequired => _Consent(
             busy: _sending,
-            onAgree: () => _send(() => _portal.consent(widget.token)),
+            onAgree: () => _send(() => _portal.consent(widget.token!)),
           ),
           InterviewStatus.pending => _Ready(
             busy: _sending,
             ready: _camera.status == CameraStatus.live,
-            onStart: () => _send(() => _portal.start(widget.token)),
+            onStart: () => _send(() => _portal.start(widget.token!)),
           ),
           InterviewStatus.inProgress => _Question(
             data: data,
@@ -278,32 +321,35 @@ class _CameraBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 3:4 — 얼굴이 들어가는 비율이고, 폭에 맞춰 커진다. 예전에는 240 고정이라
+    // 폰에서 우표만 했다 (2026-09-08)
     return ClipRRect(
       borderRadius: AppShape.card,
-      child: Container(
-        height: 240,
-        width: double.infinity,
-        color: AppColors.bgSunken,
-        child: switch (camera.status) {
-          CameraStatus.live => Stack(
-            fit: StackFit.expand,
-            children: [
-              FittedBox(
-                fit: BoxFit.cover,
-                child: _Sized(child: camera.buildPreview()),
-              ),
-              const Positioned(
-                left: AppSpace.s3,
-                top: AppSpace.s3,
-                child: _LiveDot(),
-              ),
-            ],
-          ),
-          CameraStatus.starting => const Center(
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          _ => _CameraBlocked(camera: camera),
-        },
+      child: AspectRatio(
+        aspectRatio: 3 / 4,
+        child: Container(
+          color: AppColors.bgSunken,
+          child: switch (camera.status) {
+            CameraStatus.live => Stack(
+              fit: StackFit.expand,
+              children: [
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: _Sized(child: camera.buildPreview()),
+                ),
+                const Positioned(
+                  left: AppSpace.s3,
+                  top: AppSpace.s3,
+                  child: _LiveDot(),
+                ),
+              ],
+            ),
+            CameraStatus.starting => const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            _ => _CameraBlocked(camera: camera),
+          },
+        ),
       ),
     );
   }
@@ -551,7 +597,42 @@ class _Question extends StatelessWidget {
             height: 1.6,
             color: AppColors.text,
           ),
-          decoration: const InputDecoration(hintText: '답변을 입력해 주세요'),
+          decoration: const InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: AppColors.bgSunken,
+            hintText: '답변을 입력해 주세요',
+            hintStyle: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.sm,
+              color: AppColors.textSub,
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: AppSpace.s3,
+              vertical: AppSpace.s3,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: AppShape.ctl,
+              borderSide: BorderSide(
+                color: AppColors.border,
+                width: AppShape.borderW,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: AppShape.ctl,
+              borderSide: BorderSide(
+                color: AppColors.border,
+                width: AppShape.borderW,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: AppShape.ctl,
+              borderSide: BorderSide(
+                color: AppColors.accent,
+                width: AppShape.borderW,
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: AppSpace.s3),
 

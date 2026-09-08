@@ -8,6 +8,7 @@ import 'package:arda/api/api_error.dart';
 import 'package:arda/auth/applicant_store.dart';
 import 'package:arda/data/applicant_portal_repository.dart';
 import 'package:arda/data/camera_service.dart';
+import 'package:arda/models/applicant_extra.dart';
 import 'package:arda/models/applicant_portal.dart';
 import 'package:flutter/material.dart';
 
@@ -44,15 +45,23 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   FakeApplicantPortalRepository({
     Map<String, PortalStatus>? statuses,
     Map<String, InterviewPublic>? interviews,
+    Map<String, AptitudePublic>? aptitudes,
+    Map<String, SchedulePublic>? schedules,
     List<ApplicantToken>? loginTokens,
+    this.arAnswer = '아르 답변입니다.',
     this.lookupMessage = '입력하신 주소로 지원 현황 조회 링크를 보냈습니다.',
     this.error,
   }) : statuses = statuses ?? const {},
        interviews = {...?interviews},
+       aptitudes = {...?aptitudes},
+       schedules = {...?schedules},
        loginTokens = loginTokens ?? const [];
 
   final Map<String, PortalStatus> statuses;
   final Map<String, InterviewPublic> interviews;
+  final Map<String, AptitudePublic> aptitudes;
+  final Map<String, SchedulePublic> schedules;
+  final String arAnswer;
 
   /// 로그인이 돌려줄 토큰들. **비어 있으면 진짜와 같이 501 로 실패한다** —
   /// 서버에 아직 지원자 로그인이 없다
@@ -148,6 +157,69 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
       token,
       (i) => _copy(i, status: InterviewStatus.done, currentQuestion: null),
     );
+  }
+
+  @override
+  Future<AptitudePublic> aptitude(String token) async {
+    calls.add('aptitude:$token');
+    if (error != null) throw error!;
+    final found = aptitudes[token];
+    if (found == null) throw const ServerError(404, '유효하지 않은 링크입니다');
+    return found;
+  }
+
+  @override
+  Future<AptitudePublic> submitAptitude(
+    String token,
+    Map<String, int> answers,
+  ) async {
+    calls.add('submitAptitude:$token:${answers.length}');
+    if (error != null) throw error!;
+    final base = aptitudes[token];
+    if (base == null) throw const ServerError(404, '유효하지 않은 링크입니다');
+    final next = AptitudePublic(
+      token: token,
+      status: AptitudeStatus.submitted,
+      applicantName: base.applicantName,
+      postingTitle: base.postingTitle,
+    );
+    aptitudes[token] = next;
+    return next;
+  }
+
+  @override
+  Future<SchedulePublic> schedule(String token) async {
+    calls.add('schedule:$token');
+    if (error != null) throw error!;
+    final found = schedules[token];
+    if (found == null) throw const ServerError(404, '유효하지 않은 링크입니다');
+    return found;
+  }
+
+  @override
+  Future<SchedulePublic> confirmSlot(String token, int slotId) async {
+    calls.add('confirmSlot:$token:$slotId');
+    if (error != null) throw error!;
+    final base = schedules[token];
+    if (base == null) throw const ServerError(404, '유효하지 않은 링크입니다');
+    final next = SchedulePublic(
+      token: token,
+      status: ScheduleStatus.confirmed,
+      applicantName: base.applicantName,
+      postingTitle: base.postingTitle,
+      currentStage: base.currentStage,
+      slots: base.slots,
+      confirmedSlot: base.slots.firstWhere((s) => s.id == slotId),
+    );
+    schedules[token] = next;
+    return next;
+  }
+
+  @override
+  Future<String> askAr(String token, String question) async {
+    calls.add('askAr:$token:$question');
+    if (error != null) throw error!;
+    return arAnswer;
   }
 
   InterviewPublic _need(String token) {

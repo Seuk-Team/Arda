@@ -111,7 +111,11 @@ class _HomeShellState extends State<HomeShell> {
       // 엄지가 닿는 오른쪽 아래에 둔다 — 파고든 화면(상세)은 하단이 동작 버튼
       // 자리라 상단 바 오른쪽 아바타가 그 자리를 대신한다
       floatingActionButton: _ArButton(onPressed: () => showArSheet(context)),
-      bottomNavigationBar: AppBottomNav(current: _current, onSelected: _go),
+      bottomNavigationBar: AppBottomNav(
+        tabs: AppTab.values,
+        current: _current,
+        onSelected: _go,
+      ),
     );
   }
 }

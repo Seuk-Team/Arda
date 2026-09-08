@@ -11,7 +11,7 @@ import 'models/job_posting.dart';
 import 'models/stage_history.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
-import 'screens/applicant_home_screen.dart';
+import 'screens/applicant_shell.dart';
 import 'screens/applicants_screen.dart';
 import 'screens/interview_screen.dart';
 import 'screens/evaluation_queue_screen.dart';
@@ -125,8 +125,7 @@ class ArdaApp extends StatelessWidget {
         Routes.postingNew: (_) => const PostingFormScreen(),
         // 지원자 갈래 (2026-09-08) — 탭 셸 밖이다. 로그인한 사람이 없고
         // 링크 토큰이 신분이라 CurrentUserScope 를 읽지 않는다
-        Routes.applicantHome: (_) =>
-            const _MaybeDemo(child: ApplicantHomeScreen()),
+        Routes.applicantHome: (_) => const _MaybeDemo(child: ApplicantShell()),
       },
       // 지원자·상세는 "어느 공고/누구"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
       onGenerateRoute: (settings) {

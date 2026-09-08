@@ -33,6 +33,7 @@ import 'package:flutter/foundation.dart';
 
 import '../api/api_error.dart';
 import '../auth/applicant_store.dart';
+import '../models/applicant_extra.dart';
 import '../models/applicant_portal.dart';
 import 'applicant_portal_repository.dart';
 
@@ -44,14 +45,18 @@ ApplicantPortalRepository applicantPortal() =>
 
 const _demoPortalToken = 'demo-portal';
 const _demoInterviewToken = 'demo-interview';
+const _demoAptitudeToken = 'demo-aptitude';
+const _demoScheduleToken = 'demo-schedule';
 
-/// 데모가 로그인할 때 돌려주는 것 — 지원 현황 한 건 + 면접 한 건
+/// 데모가 로그인할 때 돌려주는 것 — 탭 넷이 다 채워진다
 const demoTokens = [
   ApplicantToken(kind: ApplicantTokenKind.portal, token: _demoPortalToken),
   ApplicantToken(
     kind: ApplicantTokenKind.interview,
     token: _demoInterviewToken,
   ),
+  ApplicantToken(kind: ApplicantTokenKind.aptitude, token: _demoAptitudeToken),
+  ApplicantToken(kind: ApplicantTokenKind.schedule, token: _demoScheduleToken),
 ];
 
 /// 서버 흉내. **상태가 남는다** — 동의하면 다음에 물었을 때 동의된 상태고,
@@ -167,6 +172,122 @@ class DemoPortalRepository implements ApplicantPortalRepository {
     );
   }
 
+  // ── 인적성 ──────────────────────────────────────────
+
+  static var _aptitudeSubmitted = false;
+
+  /// 문항은 서버 상수를 흉내 낸 것이다. **실제 문항이 아니다** — 진짜는
+  /// `backend/app/api/aptitude.py` 의 QUESTIONS 가 정한다
+  static const _aptitudeQuestions = [
+    AptitudeQuestion(key: 'q1', text: '새로운 방식을 시도하는 것을 즐긴다.'),
+    AptitudeQuestion(key: 'q2', text: '맡은 일은 기한 안에 끝내는 편이다.'),
+    AptitudeQuestion(key: 'q3', text: '여러 사람과 함께 일할 때 힘이 난다.'),
+    AptitudeQuestion(key: 'q4', text: '의견이 부딪혀도 끝까지 이야기해 푸는 편이다.'),
+    AptitudeQuestion(key: 'q5', text: '예상치 못한 변화에도 침착한 편이다.'),
+  ];
+
+  static const _likert = {
+    1: '전혀 아니다',
+    2: '아니다',
+    3: '보통',
+    4: '그렇다',
+    5: '매우 그렇다',
+  };
+
+  @override
+  Future<AptitudePublic> aptitude(String token) async {
+    await _wait();
+    return _aptitudeNow(token);
+  }
+
+  @override
+  Future<AptitudePublic> submitAptitude(
+    String token,
+    Map<String, int> answers,
+  ) async {
+    await _wait();
+    _aptitudeSubmitted = true;
+    return _aptitudeNow(token);
+  }
+
+  AptitudePublic _aptitudeNow(String token) {
+    if (token != _demoAptitudeToken) {
+      throw const ServerError(404, '유효하지 않은 링크입니다');
+    }
+    return AptitudePublic(
+      token: token,
+      status: _aptitudeSubmitted
+          ? AptitudeStatus.submitted
+          : AptitudeStatus.pending,
+      applicantName: _name,
+      postingTitle: _posting,
+      questions: _aptitudeSubmitted ? const [] : _aptitudeQuestions,
+      likertLabels: _aptitudeSubmitted ? const {} : _likert,
+    );
+  }
+
+  // ── 면접 시간 조율 ──────────────────────────────────
+
+  static int? _confirmedSlotId;
+
+  /// 후보 시간 셋 — 내일부터 사흘, 오후로
+  static List<ScheduleSlot> get _slots {
+    final base = DateTime.now().add(const Duration(days: 1));
+    return [
+      for (var i = 0; i < 3; i++)
+        ScheduleSlot(
+          id: 100 + i,
+          startAt: DateTime(base.year, base.month, base.day + i, 14),
+          endAt: DateTime(base.year, base.month, base.day + i, 15),
+        ),
+    ];
+  }
+
+  @override
+  Future<SchedulePublic> schedule(String token) async {
+    await _wait();
+    return _scheduleNow(token);
+  }
+
+  @override
+  Future<SchedulePublic> confirmSlot(String token, int slotId) async {
+    await _wait();
+    _confirmedSlotId = slotId;
+    return _scheduleNow(token);
+  }
+
+  SchedulePublic _scheduleNow(String token) {
+    if (token != _demoScheduleToken) {
+      throw const ServerError(404, '유효하지 않은 링크입니다');
+    }
+    final picked = _confirmedSlotId;
+    return SchedulePublic(
+      token: token,
+      status: picked == null
+          ? ScheduleStatus.proposed
+          : ScheduleStatus.confirmed,
+      applicantName: _name,
+      postingTitle: _posting,
+      currentStage: 'screening',
+      slots: _slots,
+      confirmedSlot: picked == null
+          ? null
+          : _slots.firstWhere(
+              (s) => s.id == picked,
+              orElse: () => _slots.first,
+            ),
+    );
+  }
+
+  @override
+  Future<String> askAr(String token, String question) async {
+    await _wait();
+    // 진짜 아르는 공고 내용을 읽고 답한다. 데모는 **답을 지어내지 않는다** —
+    // 무엇을 답하는 자리인지만 보여 준다
+    return '데모에서는 실제 답변을 만들지 않습니다. '
+        '연결되면 공고 내용을 바탕으로 답합니다. (물어보신 것: $question)';
+  }
+
   /// 처음부터 다시 — 데모를 두 번 보고 싶을 때
   static void reset() {
     _consented = false;
@@ -174,5 +295,7 @@ class DemoPortalRepository implements ApplicantPortalRepository {
     _finished = false;
     _answered = 0;
     _pacing = null;
+    _aptitudeSubmitted = false;
+    _confirmedSlotId = null;
   }
 }

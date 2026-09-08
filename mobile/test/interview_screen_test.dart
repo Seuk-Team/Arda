@@ -52,6 +52,18 @@ host({InterviewPublic? interview, CameraStatus opensAs = CameraStatus.live}) {
   );
 }
 
+/// 화면을 폰 폭에 세로로 길게 잡는다.
+///
+/// 기본 테스트 화면(800x600)은 가로로 넓고 세로가 짧아, 카메라 미리보기가
+/// 3:4 로 커진 뒤로는 그 아래 버튼이 리스트에 아예 안 만들어진다(ListView 는
+/// 화면 밖을 늦게 만든다). **폭은 폰 그대로 두고 높이만 넉넉히** 잡아 한 화면에
+/// 다 놓는다 — 여기서 보려는 것은 배치가 아니라 동작이다.
+void usePhone(WidgetTester tester) {
+  tester.view.physicalSize = const Size(390, 1400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
 /// 앱을 벗어난다. **한 칸씩 옮겨야 한다** — resumed 에서 paused 로 건너뛰면
 /// 프레임워크가 단언에 걸린다
 Future<void> _leaveApp(WidgetTester tester) async {
@@ -79,6 +91,7 @@ Future<void> _returnToApp(WidgetTester tester) async {
 void main() {
   group('동의', () {
     testWidgets('동의 전에는 카메라를 켜지 않는다', (tester) async {
+      usePhone(tester);
       final h = host();
       await tester.pumpWidget(h.widget);
       await tester.pumpAndSettle();
@@ -89,6 +102,7 @@ void main() {
     });
 
     testWidgets('안내에 카메라 이야기가 있다 — 실제 동작과 맞아야 한다', (tester) async {
+      usePhone(tester);
       final h = host();
       await tester.pumpWidget(h.widget);
       await tester.pumpAndSettle();
@@ -97,6 +111,7 @@ void main() {
     });
 
     testWidgets('동의하면 바로 카메라를 켠다', (tester) async {
+      usePhone(tester);
       final h = host();
       await tester.pumpWidget(h.widget);
       await tester.pumpAndSettle();
@@ -112,6 +127,7 @@ void main() {
 
   group('준비', () {
     testWidgets('카메라가 켜져야 시작할 수 있다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(consentRequired: false),
         opensAs: CameraStatus.denied,
@@ -132,6 +148,7 @@ void main() {
     });
 
     testWidgets('카메라가 켜지면 시작할 수 있다', (tester) async {
+      usePhone(tester);
       final h = host(interview: interviewOf(consentRequired: false));
       await tester.pumpWidget(h.widget);
       await tester.pumpAndSettle();
@@ -145,6 +162,7 @@ void main() {
     });
 
     testWidgets('영구 거부면 설정으로 보낸다 — 다시 물어도 창이 안 뜬다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(consentRequired: false),
         opensAs: CameraStatus.deniedForever,
@@ -159,6 +177,7 @@ void main() {
     });
 
     testWidgets('한 번 거부한 것은 다시 물을 수 있다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(consentRequired: false),
         opensAs: CameraStatus.denied,
@@ -187,6 +206,7 @@ void main() {
     }
 
     testWidgets('질문과 미리보기가 같이 있다', (tester) async {
+      usePhone(tester);
       await startedAt(tester);
 
       expect(find.text('질문 1'), findsOneWidget);
@@ -195,6 +215,7 @@ void main() {
     });
 
     testWidgets('답변이 비면 제출할 수 없다', (tester) async {
+      usePhone(tester);
       await startedAt(tester);
 
       final button = tester.widget<FilledButton>(
@@ -207,6 +228,7 @@ void main() {
     });
 
     testWidgets('답변을 내면 다음 질문으로 넘어간다 — 카메라는 그대로 켜져 있다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(
           status: InterviewStatus.inProgress,
@@ -233,6 +255,7 @@ void main() {
     });
 
     testWidgets('제출하면 입력창이 비워진다 — 앞 답이 남으면 다음 답에 섞인다', (tester) async {
+      usePhone(tester);
       await startedAt(tester);
 
       await tester.enterText(find.byType(TextField), '답변입니다');
@@ -247,6 +270,7 @@ void main() {
     });
 
     testWidgets('진행 보조가 뜬다 — 경고가 아니라 배려다', (tester) async {
+      usePhone(tester);
       await startedAt(tester);
 
       await tester.enterText(find.byType(TextField), '짧은 답');
@@ -258,6 +282,7 @@ void main() {
     });
 
     testWidgets('면접 중에 카메라가 끊기면 조용히 넘기지 않는다', (tester) async {
+      usePhone(tester);
       final camera = await startedAt(tester);
 
       camera.push(CameraStatus.failed);
@@ -270,6 +295,7 @@ void main() {
 
   group('종료', () {
     testWidgets('확인 시트를 거치고, 취소하면 아무 일도 없다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(
           status: InterviewStatus.inProgress,
@@ -293,6 +319,7 @@ void main() {
     });
 
     testWidgets('종료하면 카메라를 놓는다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(
           status: InterviewStatus.inProgress,
@@ -320,6 +347,7 @@ void main() {
 
   group('앱을 벗어날 때', () {
     testWidgets('나가면 놓고 돌아오면 다시 연다 — 안 그러면 검은 화면이 남는다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(
           status: InterviewStatus.inProgress,
@@ -342,6 +370,7 @@ void main() {
     });
 
     testWidgets('동의 전이면 돌아와도 켜지 않는다', (tester) async {
+      usePhone(tester);
       final h = host();
       await tester.pumpWidget(h.widget);
       await tester.pumpAndSettle();
@@ -353,8 +382,88 @@ void main() {
     });
   });
 
+  // 2026-09-08 실기기: 면접 탭에서 다른 탭으로 옮겨도 카메라가 잡혀 있었다.
+  // 셸의 IndexedStack 이 화면을 살려 두는데 탭 전환은 앱 생명주기 신호가 안
+  // 온다 — 그 사이 다른 앱이 카메라를 가져가면 돌아왔을 때 검은 화면이 남는다.
+  group('탭이 가려질 때', () {
+    Widget host({
+      required bool active,
+      required FakeApplicantPortalRepository portal,
+      required FakeCameraService camera,
+    }) => MaterialApp(
+      home: Scaffold(
+        body: InterviewScreen(
+          token: 'tok',
+          showChrome: false,
+          active: active,
+          portal: portal,
+          camera: camera,
+        ),
+      ),
+    );
+
+    testWidgets('가려지면 놓고, 다시 보이면 연다', (tester) async {
+      usePhone(tester);
+      final portal = FakeApplicantPortalRepository(
+        interviews: {
+          'tok': interviewOf(
+            status: InterviewStatus.inProgress,
+            consentRequired: false,
+            question: '질문',
+            seq: 1,
+          ),
+        },
+      );
+      final camera = FakeCameraService();
+
+      await tester.pumpWidget(
+        host(active: true, portal: portal, camera: camera),
+      );
+      await tester.pumpAndSettle();
+      expect(camera.status, CameraStatus.live);
+      final startsBefore = camera.starts;
+
+      await tester.pumpWidget(
+        host(active: false, portal: portal, camera: camera),
+      );
+      await tester.pumpAndSettle();
+      expect(camera.stops, 1);
+      expect(camera.status, CameraStatus.idle);
+
+      await tester.pumpWidget(
+        host(active: true, portal: portal, camera: camera),
+      );
+      await tester.pumpAndSettle();
+      expect(camera.starts, startsBefore + 1);
+      expect(camera.status, CameraStatus.live);
+    });
+
+    testWidgets('가려진 채로 열리면 아예 안 켠다', (tester) async {
+      usePhone(tester);
+      final portal = FakeApplicantPortalRepository(
+        interviews: {
+          'tok': interviewOf(
+            status: InterviewStatus.inProgress,
+            consentRequired: false,
+            question: '질문',
+            seq: 1,
+          ),
+        },
+      );
+      final camera = FakeCameraService();
+
+      await tester.pumpWidget(
+        host(active: false, portal: portal, camera: camera),
+      );
+      await tester.pumpAndSettle();
+
+      expect(camera.starts, 0);
+    });
+  });
+
   group('만료·오류', () {
     testWidgets('만료된 링크는 그렇다고 말하고 카메라를 안 켠다', (tester) async {
+      usePhone(tester);
       final h = host(
         interview: interviewOf(
           status: InterviewStatus.expired,
@@ -369,6 +478,7 @@ void main() {
     });
 
     testWidgets('못 불러오면 다시 시도할 자리를 준다 — 앱엔 새로고침이 없다', (tester) async {
+      usePhone(tester);
       // 'tok' 을 안 넣어 뒀으니 가짜가 404 를 던진다
       final portal = FakeApplicantPortalRepository();
       final camera = FakeCameraService();

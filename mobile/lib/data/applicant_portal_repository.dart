@@ -14,12 +14,18 @@
 ///   POST /public/interview/{t}/start        시작
 ///   POST /public/interview/{t}/answer       답변
 ///   POST /public/interview/{t}/finish       종료
+///   GET  /public/aptitude/{t}               인적성 문항·상태
+///   POST /public/aptitude/{t}/submit        인적성 제출
+///   GET  /public/schedule/{t}               면접 후보 시간
+///   POST /public/schedule/{t}/confirm       시간 확정
+///   POST /public/schedule/{t}/faq           아르에게 묻기
 library;
 
 import '../api/api_client.dart';
 import '../api/endpoints.dart';
 import '../api/api_error.dart';
 import '../auth/applicant_store.dart';
+import '../models/applicant_extra.dart';
 import '../models/applicant_portal.dart';
 
 class ApplicantPortalRepository {
@@ -120,5 +126,58 @@ class ApplicantPortalRepository {
       authenticated: false,
     );
     return InterviewPublicJson.fromJson(json, token: token);
+  }
+
+  Future<AptitudePublic> aptitude(String token) async {
+    final json = await _client.get(Endpoints.aptitude(token));
+    return AptitudePublicJson.fromJson(json, token: token);
+  }
+
+  /// 인적성 제출. **전 문항 한 번씩, 재제출 없다** — 서버가 부분 제출을 거절한다
+  /// (반쯤 남은 설문은 통계를 왜곡한다).
+  Future<AptitudePublic> submitAptitude(
+    String token,
+    Map<String, int> answers,
+  ) async {
+    final json = await _client.post(
+      Endpoints.aptitudeSubmit(token),
+      body: {
+        'answers': [
+          for (final e in answers.entries) {'key': e.key, 'value': e.value},
+        ],
+      },
+      authenticated: false,
+    );
+    return AptitudePublicJson.fromJson(json, token: token);
+  }
+
+  Future<SchedulePublic> schedule(String token) async {
+    final json = await _client.get(Endpoints.schedule(token));
+    return SchedulePublicJson.fromJson(json, token: token);
+  }
+
+  /// 시간 고르기 → **그 자리에서 확정된다** (ADR-0016: 담당자 승인 없음).
+  /// 되돌릴 수 없어서 화면이 먼저 물어본다
+  Future<SchedulePublic> confirmSlot(String token, int slotId) async {
+    final json = await _client.post(
+      Endpoints.scheduleConfirm(token),
+      body: {'slot_id': slotId},
+      authenticated: false,
+    );
+    return SchedulePublicJson.fromJson(json, token: token);
+  }
+
+  /// 아르에게 묻기 — 공고 내용 기반 FAQ.
+  ///
+  /// **대화 이력이 없다**(서버가 stateless). 한 번 물으면 한 번 답한다 —
+  /// 앞 질문을 기억하지 않으므로 화면도 "이어지는 대화" 처럼 굴면 안 된다.
+  /// 연봉·평가·다른 지원자는 서버 프롬프트가 답하지 않는다.
+  Future<String> askAr(String token, String question) async {
+    final json = await _client.post(
+      Endpoints.scheduleFaq(token),
+      body: {'question': question},
+      authenticated: false,
+    );
+    return json['answer'] as String? ?? '';
   }
 }
