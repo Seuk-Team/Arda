@@ -235,11 +235,12 @@ curl -sf localhost:5678/healthz || curl -sf localhost:5678/n8n/healthz   # 둘 �
 ```
 그 뒤 브라우저 `https://api.seuk.suvisdev.cloud/n8n/` → Basic Auth → n8n owner 계정 만들기(팀 공유) → 워크플로 import(`infra/n8n/stage-changed.json`).
 
-**Credentials 등록 (ADR-0031 시연 경로)**: Credentials → **SMTP** → 이름 `SMTP 발송` — host·port·user·password·secure 값을 넣는다.
-  - 지메일 앱 비밀번호 예: `smtp.gmail.com` · `587` · `<지메일 주소>` · `<앱 비밀번호>` · secure=STARTTLS
-  - 학원 도메인이면 학원 관리자에게 4개 값 요청
+**Credentials 등록 (ADR-0031 시연 경로 — 지메일 앱 비밀번호로 확정)**: Credentials → **SMTP** → 이름 `SMTP 발송`.
+  - `Host` = `smtp.gmail.com` · `Port` = `587` · `SSL/TLS` = **StartTLS**
+  - `User` = 지메일 주소 · `Password` = **앱 비밀번호 16자리**(구글 계정 → 보안 → 2단계 인증 필수 → 앱 비밀번호 → "메일" 선택)
   - 자격 증명은 `n8n_data` 볼륨에 `N8N_ENCRYPTION_KEY` 로 암호화 저장 — 이 키 잃으면 백업 복원해도 못 푼다(위 절)
   - 테스트 발송으로 검증 주소 1통 도착 확인 → 워크플로 활성화
+  - **왜 지메일**: 팀원 각자가 나중에 포트폴리오로 돌릴 때 자기 지메일 앱 비밀번호만 갈아 끼우면 되는 이식성(팀장 결정 2026-09-08)
 
 키 이름 목록은 [infra/.env.example](../../infra/.env.example).
 백업·지표 스크립트도 새 판으로 교체(위 두 절의 `curl … -o ~/backup-arda-db.sh` · `~/push-metrics.sh` 두 줄 그대로) — n8n 볼륨 백업과 `N8nHealthy` 지표가 들어 있다. `~/status.sh` 도 같은 방법. 경보는 CloudFormation `arda-alarms` 스택 **업데이트**(알람 6개).
