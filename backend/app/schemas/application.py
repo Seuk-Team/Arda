@@ -32,7 +32,7 @@ class ApplicationCreate(BaseModel):
     name: str
     email: str
     phone: str
-    # 앱 로그인의 비밀번호가 된다 (ADR-0031). **없으면 로그인이 안 될 뿐 접수는 된다** —
+    # 앱 로그인의 비밀번호가 된다 (ADR-0033). **없으면 로그인이 안 될 뿐 접수는 된다** —
     # 필수로 바꾸면 옛 지원 폼과 앱이 동시에 깨진다.
     birth_date: date | None = None
     education: str | None = None

@@ -1,4 +1,4 @@
-"""지원자 앱 로그인 요청·응답 (ADR-0031)."""
+"""지원자 앱 로그인 요청·응답 (ADR-0033)."""
 
 from datetime import datetime
 
@@ -39,7 +39,7 @@ class MyApplicationOut(BaseModel):
     # 지금 들어갈 수 있는 것들. 없으면 빈 목록이다.
     #
     # **로그인이 유일한 문이면 이것들이 여기 없을 때 갈 길이 없다.** 앱에는
-    # 메일함이 없고, 그러면 ADR-0031 이 없애려던 "앱인데 메일을 거쳐야 한다"가
+    # 메일함이 없고, 그러면 ADR-0033 이 없애려던 "앱인데 메일을 거쳐야 한다"가
     # 그대로 남는다. 셋 다 본인 토큰으로 조회한 자기 것이라 근거가 같다.
     interviews: list["MyInterviewOut"] = []
     aptitudes: list["MyTokenLinkOut"] = []

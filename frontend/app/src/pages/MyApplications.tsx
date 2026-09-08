@@ -4,7 +4,7 @@ import { applicantAuth } from '../api/endpoints'
 import type { ApplicantMe } from '../api/types'
 import styles from './MyApplications.module.css'
 
-/* 지원자 본인 화면 (ADR-0031) — 이메일 + 생년월일 8자리로 들어온다.
+/* 지원자 본인 화면 (ADR-0033) — 이메일 + 생년월일 8자리로 들어온다.
 
    **담당자 로그인(`/login`)과 완전히 다른 화면이다.** 같은 자리에 두면 지원자가
    담당자 계정으로 들어가려다 막히고, 담당자는 반대로 헤맨다. 실제로 그렇게 한 번

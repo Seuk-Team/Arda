@@ -424,7 +424,7 @@ export interface AptitudeSessionOut {
   created_at: string
 }
 
-/* ── 지원자 본인 로그인 (ADR-0031) ─────────────────────────────── */
+/* ── 지원자 본인 로그인 (ADR-0033) ─────────────────────────────── */
 
 export interface ApplicantLoginOut {
   access_token: string

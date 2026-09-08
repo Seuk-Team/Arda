@@ -230,7 +230,7 @@ export const aptitude = {
     api.get<AptitudeDetail>(`/applications/${applicationId}/aptitude`, { signal }),
 }
 
-/* 지원자 본인용 (ADR-0031). **담당자 토큰과 섞이지 않게 `applicant: true` 로 부른다.** */
+/* 지원자 본인용 (ADR-0033). **담당자 토큰과 섞이지 않게 `applicant: true` 로 부른다.** */
 import type { ApplicantLoginOut, ApplicantMe } from './types'
 
 export const applicantAuth = {
