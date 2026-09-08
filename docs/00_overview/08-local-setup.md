@@ -136,3 +136,37 @@ VITE_DEV_POLL=1
 ②는 `vite.config.ts` 가 읽어 `server.watch.usePolling` 을 켠다. CPU 를 쓰므로 기본은 꺼져 있다.
 
 **증상 구분법**: 브라우저 콘솔에 넣은 `console.log` 가 안 찍히면 십중팔구 이것이다. 코드에 분명히 있는데 안 찍힌다면 그 파일이 서버에 안 올라간 것이다.
+
+## 5. 운영 그대로 로컬 전체 스택 — `infra/local/` (2026-09-08, ADR-0031 W5 · infra 큐 15)
+
+2절은 **개발용** 최소 스택(db·api·MinIO)이다. 이 절은 **운영(EC2)과 같은 스택**을 PC 한 대에 그대로 띄우는 것 — "AWS 를 떠나도 돈다"([ADR-0031](../03_decision/0031-aws-최소화.md)) 를 주장이 아니라 사실로 만드는 절차다. 시연 리허설·복원 리허설·"코드가 운영 설정에서 도는가" 검증에 쓴다.
+
+**무엇이 뜨나**: db(pgvector) · api · lie-detection · n8n · caddy(http://localhost:8080) — 운영 compose 의 사본([infra/local/docker-compose.yml](../../infra/local/docker-compose.yml))이고 차이는 TLS 없음·포트뿐이다. worker 는 기본 꺼짐(운영 SQS 를 이 PC 가 먹지 않게, `--profile sqs` 로만).
+
+**무엇을 가져오나**: 서버의 `.env` 두 벌 · DB `pg_dump` · n8n 볼륨(워크플로·자격 증명·owner 계정). 전부 `infra/local/` 에 놓이고 `.gitignore` 되어 있다. **운영 데이터 사본이다 — 지원자 실제 이메일이 들어 있고 `MAIL_DISPATCH=n8n` 이라 단계를 바꾸면 진짜 메일이 나간다.** 테스트는 이메일이 팀원 것으로 바뀐 지원자로만.
+
+**전제**: `ssh arda` 가 된다(관리자 PC 의 `~/.ssh/config`), Docker Desktop, WSL 또는 Git Bash.
+
+```bash
+bash infra/local/pull-from-server.sh                          # 서버 → 로컬 (시크릿 값은 화면에 안 찍힌다)
+docker compose -f infra/local/docker-compose.yml up -d --build # 첫 빌드 5~10분 (임베딩 모델·mediapipe)
+bash infra/local/restore.sh                                   # DB 통째 교체 + n8n 볼륨 복원 + alembic current
+bash infra/local/smoke.sh                                     # 12개 항목 자동 검증
+cd frontend/app && VITE_API_BASE=http://localhost:8080 npm run dev   # 프론트는 호스트에서
+```
+
+| 주소 | 무엇 |
+|---|---|
+| http://localhost:8080 | caddy — 운영의 `api.seuk.suvisdev.cloud` 자리. `/health` · `/api/v1/*` · `/ai/*` · `/n8n/*` |
+| http://localhost:8080/n8n/ | n8n 편집 화면 (Basic Auth 는 운영과 같은 계정 — 볼륨을 통째 복원했으므로 워크플로·SMTP 자격 증명·owner 계정 그대로) |
+| http://localhost:8000 · :5000 · :5678 | api · lie-detection · n8n 직접 (디버그용, 127.0.0.1 만) |
+| localhost:5434 | db (psql 직접 접속용. 5432 는 이 PC 의 네이티브 PG, 5433 은 2절의 개발 DB) |
+| http://localhost:5173 | 프론트 dev 서버 |
+
+**운영과 다른 점 (의도한 것)** — `PUBLIC_APP_BASE_URL`·`CORS_ORIGINS` 에 localhost 를 덧붙인 것뿐(`pull-from-server.sh` 가 `.env.backend` 끝에 붙인다). `S3_ENDPOINT_URL` 은 비어 있어 **실제 S3 버킷**을 쓴다 — 이력서 읽기(요약·앵커)는 그대로 되고, 로컬에서 업로드하면 운영 버킷에 들어가니 업로드 테스트는 MinIO 로 바꾼 뒤(2절 값 참고) 한다. 앵커 게시는 GitHub Actions 라 로컬과 무관.
+
+**함정**
+- `restore.sh` 는 로컬 볼륨의 `arda` DB 를 **DROP** 한다. 2절의 5433 개발 DB 와는 별개 볼륨이라 거기엔 영향 없다.
+- n8n 볼륨은 `N8N_ENCRYPTION_KEY` 가 서버와 같아야 자격 증명이 풀린다 — `.env` 를 서버에서 같이 가져오므로 자동으로 맞는다. 키를 바꾼 뒤 옛 볼륨을 넣으면 SMTP 자격 증명만 깨진다.
+- 첫 `up --build` 에서 backend 이미지가 HF 임베딩 모델을 굽는다(인터넷 필요, 수 분). 두 번째부터는 캐시.
+- 다시 최신으로 맞추려면 `pull-from-server.sh` → `restore.sh` 만 다시. 코드는 `git pull` 뒤 `up -d --build`.

@@ -13,6 +13,7 @@
 - `backup-arda-db.sh` — 운영 DB + n8n 볼륨 매일 백업 → S3 `arda-db-backups-seuk` (`db/`·`n8n/`, 2026-09-07). 서버 `~/backup-arda-db.sh` 로 복사해 cron 이 돈다. 설치·복원은 07-deploy "DB 백업" 절.
 - `n8n/` — 알림·메일 자동화 워크플로 JSON([ADR-0030](../docs/03_decision/0030-n8n-알림-자동화-분리.md)). compose `n8n` 서비스 + Caddy `/n8n/*`(Basic Auth, 팀 전원 공유). 화면에서 고쳤으면 export 해서 여기 커밋 — 저장소가 진실. 설치·시크릿은 07-deploy "n8n" 절, 키 이름은 `.env.example`.
 - `.env.example` — 서버 `~/arda/.env`(compose 가 읽는 것) 의 키 이름. 앱 설정은 `backend/.env.example`.
+- `local/` — **운영 스택을 PC 한 대에 그대로** 띄우는 compose·Caddyfile·스크립트(2026-09-08, ADR-0031 W5). `pull-from-server.sh` 가 서버의 .env·DB 덤프·n8n 볼륨을 가져오고(전부 gitignore), `restore.sh`·`smoke.sh` 로 복원·검증. 절차는 [08-local-setup §5](../docs/00_overview/08-local-setup.md).
 - AWS: EC2 `arda-api` t3.medium(api·워커·db·caddy·lie-detection·n8n, 2026-09-07 ↑) · S3(이력서 · DB 백업) · SES(메일) · SQS(메일 큐) · CloudWatch/SNS(경보). 권한 모델은 07-deploy "주의" 절.
 - **예산 총 $400 · 2026-10-27 까지.** GPU(g4dn.xlarge)는 켜고 끄기 전제 — 24시간이면 월 ≈$470 로 초과.
 - **AWS 최소화 방향 ([ADR-0031](../docs/03_decision/0031-aws-최소화.md), 2026-09-08)**: EC2·S3·IAM(S3 만) 3개로 축소. SES → n8n+SMTP · SQS → Redis/PG · CloudWatch → 자체 스크립트 · SNS → SMTP · CloudFormation 폐기. 07-deploy "AWS 표면적" 절.

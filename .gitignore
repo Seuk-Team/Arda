@@ -26,3 +26,12 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# 로컬 전체 스택 (infra/local) — 서버에서 가져온 시크릿·데이터. 절대 커밋하지 않는다
+infra/local/.env
+infra/local/.env.backend
+infra/local/*.sql.gz
+infra/local/*.tar.gz
+
+# 로컬 전체 스택(infra/local) 용 프론트 모드 — 시크릿 없음, 커밋한다
+!frontend/app/.env.localstack
