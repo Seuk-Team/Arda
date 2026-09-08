@@ -24,6 +24,7 @@ import logging
 import os
 import threading
 import time
+from collections import deque
 
 import numpy as np
 
@@ -41,8 +42,22 @@ SAMPLE_WIDTH = 2  # 16-bit
 # 묻기 시작하는 감각에 맞춘 값이고, 실측으로 조정할 자리다.
 SILENCE_END_SEC = 0.8
 # 이보다 조용하면 무음으로 본다. 마이크·환경에 따라 달라서 절대값으로 두지 않고
-# 접속 초반의 배경 소음에서 기준을 잡는다(`_SpeechDetector`).
+# 배경 소음에서 기준을 잡는다(`_SpeechDetector`).
 NOISE_MARGIN = 2.5
+# 보정에 쓸 조각 수(50ms 단위). 0.5초쯤이면 방 소음의 중앙값이 잡힌다.
+CALIB_CHUNKS = 10
+# **이보다 작은 값은 소리로 세지 않는다.** 폰은 `getUserMedia` 직후 첫 버퍼들을
+# 0 으로 주는데, 그것으로 바닥값을 잡으면 임계값이 125 로 앉아 생활 소음에도
+# 계속 "말하는 중"이 된다(2026-09-08 운영 실측).
+MIN_NOISE = 50.0
+# 바닥값을 다시 잡을 때 보는 최근 조각 수(50ms × 40 = 2초)와 백분위.
+# 하위 백분위라 창에 말소리가 섞여도 조용한 쪽이 바닥으로 남는다.
+NOISE_WINDOW = 40
+NOISE_PERCENTILE = 25
+# 소리가 한 번도 안 내려갈 때 바닥값을 조각마다 올리는 비율(50ms 당 0.4% = 초당 8%).
+# 진짜 말은 낱말 사이에서 내려가 이 값이 쌓이지 않는다. 쌓이는 것은 바닥값이
+# 잘못 잡혀 생활 소음을 말로 보고 있을 때뿐이고, 그때 몇 초 만에 빠져나온다.
+NOISE_CREEP = 1.004
 # 이 길이 아래는 답변으로 보지 않는다 — 기침·문 닫는 소리로 질문이 넘어가면 안 된다.
 MIN_SPEECH_SEC = 0.7
 # 아무리 길어도 여기서 끊는다. 무제한이면 워커 한 자리가 영영 잡힌다.
@@ -94,20 +109,63 @@ def _rms(pcm: bytes) -> float:
 class _SpeechDetector:
     """말이 끝났는지 판정한다.
 
-    임계값을 고정하지 않는 이유: 지원자마다 마이크와 방 소음이 다르다. 접속 직후
-    조용한 구간에서 배경 소음을 재고, 그 몇 배를 넘으면 말하는 것으로 본다.
+    임계값을 고정하지 않는 이유: 지원자마다 마이크와 방 소음이 다르다. 그래서
+    배경 소음을 재서 그 몇 배를 넘으면 말하는 것으로 본다.
+
+    ## 접속 초반만 재면 안 된다 (2026-09-08 운영 실측)
+
+    폰으로 돌렸더니 **질문 1에서 안 넘어갔다.** 화면이 "듣고 있습니다"에 멈추고
+    `transcript` 가 전부 `null` 이었다(woojeongalex 보고, 세션 4).
+
+    원인은 **보정 구간이 마이크 예열에 걸린 것**이다. `getUserMedia` 직후 첫
+    버퍼들이 0 으로 오는 일이 폰에서 흔한데, 그 0 들만 보고 바닥값을 잡으면
+    `max(50, 0) = 50` 이 되어 임계값이 **125** 로 앉는다. 그 뒤 진짜 생활 소음
+    (int16 기준 수백)이 들어오면 **`loud` 가 영영 참**이라 침묵 판정이 시작조차
+    되지 않는다. 상한(180초)으로만 끊긴다.
+
+    그래서 두 가지를 바꿨다.
+
+    1. **무음 조각은 보정에 넣지 않는다** — 예열 버퍼에 걸리지 않게
+    2. **바닥값을 계속 따라가게 한다** — 조용한 구간이 나올 때마다 갱신하므로
+       방 소음이 달라져도, 처음 보정이 틀렸어도 스스로 회복한다
+
+    임계값 숫자를 올려서 해결하지 않은 이유: 그러면 이번엔 목소리가 작은
+    지원자를 못 잡는다. 어느 쪽으로도 짐작하지 않으려면 바닥값이 따라가야 한다.
     """
 
     def __init__(self) -> None:
-        self._noise = None
+        self._noise: float | None = None
         self._calib: list[float] = []
+        self._recent: deque[float] = deque(maxlen=NOISE_WINDOW)
         self._speaking = False
         self._silence_started: float | None = None
         self._speech_started: float | None = None
+        self._logged = 0.0
 
     @property
     def speaking(self) -> bool:
         return self._speaking
+
+    @property
+    def noise(self) -> float | None:
+        """지금 바닥값. 로그·시험에서 본다."""
+        return self._noise
+
+    def _relevel(self, level: float, now: float) -> None:
+        """조용한 값들로 바닥값을 다시 잡는다.
+
+        하위 백분위를 쓴다 — 창 안에 말소리가 섞여 있어도 조용한 쪽이 바닥이다.
+        """
+        self._recent.append(level)
+        if len(self._recent) < NOISE_WINDOW:
+            return
+        floor = float(np.percentile(self._recent, NOISE_PERCENTILE))
+        # 예열 무음(0 근처)만 담긴 창으로 바닥을 내리지 않는다
+        if floor >= MIN_NOISE:
+            self._noise = floor
+        if now - self._logged >= 10:
+            self._logged = now
+            logger.debug("소리 기준: 바닥 %.0f · 임계 %.0f", self._noise, self._noise * NOISE_MARGIN)
 
     def feed(self, pcm: bytes) -> str | None:
         """오디오 조각 하나. 반환: 'begin' · 'end' · None."""
@@ -116,17 +174,33 @@ class _SpeechDetector:
         level = _rms(pcm)
         now = time.monotonic()
 
-        # 접속 초반 0.5초쯤을 배경 소음으로 삼는다
+        # 접속 초반. **무음은 세지 않는다** — 마이크가 아직 안 켜진 구간이다.
         if self._noise is None:
-            self._calib.append(level)
-            if len(self._calib) < 8:
+            if level >= MIN_NOISE:
+                self._calib.append(level)
+            if len(self._calib) < CALIB_CHUNKS:
                 return None
-            self._noise = max(50.0, float(np.median(self._calib)))
+            self._noise = max(MIN_NOISE, float(np.median(self._calib)))
+            logger.info("소리 기준 잡음: 바닥 %.0f · 임계 %.0f",
+                        self._noise, self._noise * NOISE_MARGIN)
             return None
 
         loud = level > self._noise * NOISE_MARGIN
 
+        # 말하고 있지 않은 동안의 값이 곧 배경 소음이다. 이것이 처음 보정이
+        # 틀렸을 때의 회복 경로다.
+        if not loud and not self._speaking:
+            self._relevel(level, now)
+
         if loud:
+            # **갇힘 탈출.** 소리가 한 번도 내려가지 않으면 그건 말이 아니라
+            # 바닥값이 낮게 잡힌 것이다 — 진짜 말은 낱말 사이에서 반드시 내려간다.
+            # 조용해질 때까지 기다리는 위 갱신은 이 상태에서 영영 돌지 않으므로,
+            # 여기서 바닥값을 조금씩 올려 스스로 빠져나온다. `level / NOISE_MARGIN`
+            # 로 상한을 두어 지나치게 올라가지 않는다(올린 순간 조용으로 바뀐다).
+            if self._speaking:
+                self._noise = min(self._noise * NOISE_CREEP, level / NOISE_MARGIN)
+
             self._silence_started = None
             if not self._speaking:
                 self._speaking = True
@@ -312,6 +386,21 @@ async def fetch_state(client, token: str) -> dict:
     r = await client.get(f"{BACKEND_URL}/api/v1/public/interview/{token}", timeout=10)
     r.raise_for_status()
     return r.json()
+
+
+async def finish_interview(client, token: str) -> None:
+    """면접을 닫는다. **`done` 을 보내는 쪽이 부른다.**
+
+    안 부르면 세션이 `in_progress` 로 남아 담당자 화면에서 "아직 보는 중"과
+    "끝난 것"이 구별되지 않는다(2026-09-08 woojeongalex 보고, 세션 4).
+    질문이 떨어진 것을 아는 쪽이 여기이므로 여기서 닫는 것이 자연스럽다.
+
+    실패해도 면접 진행에는 영향이 없다 — 지원자는 이미 다 답했다.
+    """
+    r = await client.post(
+        f"{BACKEND_URL}/api/v1/public/interview/{token}/finish", timeout=10
+    )
+    r.raise_for_status()
 
 
 async def submit_answer(client, token: str, transcript: str) -> dict:
