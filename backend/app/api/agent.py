@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.agent.backends import get_summary_backend
 from app.agent.entity_resolver import resolve_entities
 from app.agent.intent_router import DirectAction, classify
+from app.company import prompt_context as company_prompt_context
 from app.agent.interview_probe import cover_letter_of, generate_probes
 from app.agent.prompts import render
 from app.agent.runtime import _describe_action, run_agent
@@ -203,6 +204,9 @@ def chat(
     레버 ②). 확신도 높은 것만 라우팅하고 애매하면 그대로 LLM 흐름으로 이어감.
     """
     system_prompt, _ = render("agent", user_name=user.name, user_role=user.role)
+    # 회사 절 — company_profile 이 채워져 있으면 시스템 프롬프트 뒤에 붙는다.
+    # 아르가 회사 관련 질문에 이 절만 근거로 답한다 (지어내지 않는다).
+    system_prompt = system_prompt + company_prompt_context(db)
     message = resolve_entities(body.message)
 
     # 레버 ② — 규칙 라우터 먼저. 매치되면 LLM 안 부르고 즉시 응답

@@ -27,7 +27,10 @@ logger = logging.getLogger(__name__)
 
 REGION = os.getenv("AWS_REGION", "ap-northeast-2")
 
-# 회사명은 스키마에 없다. 01-erd.md 에 회사 테이블이 없어 환경변수로 둔다.
+# 회사명 폴백. **정식 값은 `company_profile.name` 이다** (마이그레이션 0013).
+# 이 상수는 프로파일 행이 아직 안 채워졌을 때만 쓰인다. render()·build_signature()
+# 는 이제 db 를 받아 `app.company.name_for(db)` 를 우선 쓴다 — DB 값이 있으면
+# 그것, 없으면 이 환경변수(기본 "Arda").
 COMPANY_NAME = os.getenv("COMPANY_NAME", "Arda")
 
 # 에이전트 이름. 프롬프트(agent/prompts/agent.v1.md)의 "이름: 아르" 와 같아야 한다.
@@ -173,7 +176,11 @@ def get_template(db, stage: str) -> tuple[str, str, str]:
 
 
 def sender_name(
-    stage: str, actor_kind: str = "system", actor_name: str | None = None
+    stage: str,
+    actor_kind: str = "system",
+    actor_name: str | None = None,
+    *,
+    company_name: str = COMPANY_NAME,
 ) -> str:
     """발신자를 사람 말로 쓴 이름. 서명과 From 표시 이름이 **같은 문자열**을 쓴다.
 
@@ -188,17 +195,21 @@ def sender_name(
     비워 두거나 지어내지 않는다.
     """
     if actor_kind == "agent" and stage not in ("accepted", "rejected"):
-        return f"{COMPANY_NAME} 채용 에이전트 {AGENT_NAME}"
+        return f"{company_name} 채용 에이전트 {AGENT_NAME}"
     if actor_name:
-        return f"{COMPANY_NAME} 채용 담당자 {actor_name}"
-    return f"{COMPANY_NAME} 채용팀"
+        return f"{company_name} 채용 담당자 {actor_name}"
+    return f"{company_name} 채용팀"
 
 
 def build_signature(
-    stage: str, actor_kind: str = "system", actor_name: str | None = None
+    stage: str,
+    actor_kind: str = "system",
+    actor_name: str | None = None,
+    *,
+    company_name: str = COMPANY_NAME,
 ) -> str:
     """{서명} 자리에 들어갈 한 줄 (G4 결정 6)."""
-    return sender_name(stage, actor_kind, actor_name) + " 드림"
+    return sender_name(stage, actor_kind, actor_name, company_name=company_name) + " 드림"
 
 
 def fill(source: str, values: dict[str, str]) -> str:
@@ -248,12 +259,15 @@ def render(
     """
     subject, body, _ = get_template(db, stage)
 
+    from app.company import name_for  # 순환 import 방지
+
+    company_name = name_for(db)
     values = {
         "지원자명": applicant_name,
         "공고명": posting_title,
-        "회사명": COMPANY_NAME,
+        "회사명": company_name,
         "면접일시": interview_at or INTERVIEW_AT_UNKNOWN,
-        "서명": build_signature(stage, actor_kind, actor_name),
+        "서명": build_signature(stage, actor_kind, actor_name, company_name=company_name),
     }
     return fill(subject, values), fill(body, values)
 

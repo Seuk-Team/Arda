@@ -20,6 +20,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Numeric,
+    Integer,
     SmallInteger,
     String,
     Text,
@@ -118,9 +119,47 @@ class JobPosting(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+    # 상세 필드 (0013 마이그레이션). 전부 nullable — 값이 없으면 아르가 "미공개" 로 안내.
+    location: Mapped[str | None] = mapped_column(String(200))
+    employment_type: Mapped[str | None] = mapped_column(String(30))
+    experience_min: Mapped[int | None] = mapped_column(SmallInteger)
+    experience_max: Mapped[int | None] = mapped_column(SmallInteger)
+    # 급여는 만원 단위 정수. 협의는 둘 다 NULL. 상한만 NULL 이면 "최소 X 이상".
+    salary_min: Mapped[int | None] = mapped_column(Integer)
+    salary_max: Mapped[int | None] = mapped_column(Integer)
+    remote_policy: Mapped[str | None] = mapped_column(String(100))
+    requirements: Mapped[str | None] = mapped_column(Text)
+    preferred: Mapped[str | None] = mapped_column(Text)
+    benefits: Mapped[str | None] = mapped_column(Text)
 
     __table_args__ = (
         CheckConstraint(_in("status", POSTING_STATUSES), name="ck_job_postings_status"),
+    )
+
+
+# ── company_profile — 회사 소개 (단일 행, 0013) ─────────────────────
+# 아르 시스템 프롬프트에 회사 배경으로 붙고, 메일 {회사명} 치환의 원본이 된다.
+# 다른 회사가 이 코드를 갈아 끼울 때 이 표만 채우면 대부분의 회사 관련 답변이
+# 자동으로 그 회사의 것으로 바뀐다. 자세한 절 구성은 docs/06_company/00-회사-소개.md.
+class CompanyProfile(Base):
+    __tablename__ = "company_profile"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    # 빈 문자열 = "아직 정하지 않음". NULL 은 마이그레이션이 막는다.
+    name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
+    tagline: Mapped[str | None] = mapped_column(String(200))
+    hr_email: Mapped[str | None] = mapped_column(String(255))
+    website: Mapped[str | None] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    # 회사 전체 이야기 — 아르 프롬프트 뒤에 그대로 붙는 마크다운.
+    narrative: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_company_profile_singleton"),
     )
 
 
