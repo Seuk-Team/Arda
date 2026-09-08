@@ -1,6 +1,6 @@
 /// 지원자 로그인이 서버에 생길 때까지의 임시 문 둘 (2026-09-08).
 ///
-/// 둘 다 **디버그 빌드에서만 산다.** 하는 일이 정반대다:
+/// 둘 다 **빌드할 때 이름을 대고 켜야만 산다.** 하는 일이 정반대다:
 ///
 ///   [applicantDemoMode]  서버를 캔 데이터로 **대신한다** — 화면을 보여 줄 때
 ///   [applicantLinkEntry] 진짜 링크로 **진짜 서버에 들어간다** — 붙여서 테스트할 때
@@ -25,22 +25,24 @@
 /// 목데이터가 조용히 진짜인 척한 사고가 이미 한 번 있었다(더보기 평가 현황
 /// 배지가 배정 건수와 무관하게 늘 '2' 였다). 그래서 둘을 건다:
 ///
-///  - [applicantDemoMode] 에 `kDebugMode` 를 같이 묶는다. 릴리스 빌드에서는
-///    상수가 false 로 접혀 이 코드가 통째로 빠진다.
+///  - **기본값이 false 다.** `flutter build apk --release` 만 하면 이 문이
+///    아예 없다. 켜려면 빌드할 때 이름을 대야 한다.
 ///  - 켜져 있으면 화면 모서리에 **'데모' 리본**이 뜬다. 진짜 데이터로 착각할
 ///    수 없다.
+///
+/// `kDebugMode` 로도 묶어 뒀었는데 뺐다(2026-09-08). 팀에 **나눠 줄 APK 는
+/// 릴리스**라야 하는데(디버그는 186MB 에 느리다) 릴리스에서는 상수가 false 로
+/// 접혀 문이 사라졌다 — 쓸 수 없는 안전장치는 안전장치가 아니다.
 ///
 /// ## 켜는 법
 ///
 /// ```
-/// flutter run --dart-define=APPLICANT_DEMO=true
+/// flutter build apk --release --dart-define=APPLICANT_DEMO=true
 /// ```
 ///
 /// **카메라는 진짜다.** 데모가 대신하는 것은 서버뿐이라, 면접 화면에서 보는
 /// 미리보기·권한·수명은 실제 동작 그대로다.
 library;
-
-import 'package:flutter/foundation.dart';
 
 import '../api/api_error.dart';
 import '../auth/applicant_store.dart';
@@ -48,7 +50,7 @@ import '../models/applicant_extra.dart';
 import '../models/applicant_portal.dart';
 import 'applicant_portal_repository.dart';
 
-const applicantDemoMode = kDebugMode && bool.fromEnvironment('APPLICANT_DEMO');
+const applicantDemoMode = bool.fromEnvironment('APPLICANT_DEMO');
 
 /// 링크를 붙여넣어 **진짜 서버로** 들어가는 문.
 ///
@@ -64,7 +66,7 @@ const applicantDemoMode = kDebugMode && bool.fromEnvironment('APPLICANT_DEMO');
 /// 서버에 안 간다. 테스트할 때는 데모를 끄고 이것만 켠다.
 ///
 /// 진짜 로그인이 생기면 이 플래그와 로그인 화면의 그 칸을 같이 지운다.
-const applicantLinkEntry = kDebugMode && bool.fromEnvironment('APPLICANT_LINK');
+const applicantLinkEntry = bool.fromEnvironment('APPLICANT_LINK');
 
 /// 지원자 화면이 쓰는 저장소. 데모가 켜져 있으면 서버 대신 캔 데이터를 준다
 ApplicantPortalRepository applicantPortal() =>
