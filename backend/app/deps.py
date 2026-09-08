@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import InterviewerAssignment, User
-from app.security import decode_access_token
+from app.security import TYP_APPLICANT, TYP_STAFF, decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -22,7 +22,15 @@ def get_current_user(
         payload = decode_access_token(creds.credentials)
     except Exception:
         raise HTTPException(http.HTTP_401_UNAUTHORIZED, "유효하지 않은 토큰입니다")
-    user = db.get(User, int(payload["sub"]))
+    # **지원자 토큰을 여기서 막는다.** 아래는 `sub` 로 User 를 찾을 뿐이라,
+    # 종류를 안 보면 지원자 토큰의 sub 가 어떤 User 의 id 와 같기만 해도
+    # 그 사람이 된다. 같은 키로 서명하므로 서명 검증은 이걸 못 막는다.
+    if payload.get("typ") != TYP_STAFF:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "유효하지 않은 토큰입니다")
+    try:
+        user = db.get(User, int(payload["sub"]))
+    except (TypeError, ValueError):
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "유효하지 않은 토큰입니다")
     if user is None:
         raise HTTPException(http.HTTP_401_UNAUTHORIZED, "유효하지 않은 토큰입니다")
     # 비활성 계정은 **이미 발급된 토큰도** 막는다 (A4). 로그인에서만 막으면
@@ -102,3 +110,28 @@ def assert_can_evaluate(db: Session, user: User, application_id: int) -> None:
         raise HTTPException(
             http.HTTP_403_FORBIDDEN, "본인에게 배정된 지원자만 평가할 수 있습니다"
         )
+
+
+# ── 지원자 인증 ────────────────────────────────────────────────────────
+# 지원자는 `users` 행이 없다. 직원과 **완전히 다른 축**이라 의존성을 따로 둔다 —
+# 하나로 합치면 어느 한쪽 분기를 빠뜨렸을 때 조용히 권한이 넘어간다.
+
+
+def get_current_applicant_email(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    """지원자 토큰에서 이메일을 꺼낸다. DB 를 보지 않는다 — 무엇을 볼지는 부르는 쪽이 정한다."""
+    if creds is None:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "로그인이 필요합니다")
+    try:
+        payload = decode_access_token(creds.credentials)
+    except Exception:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "다시 로그인해 주세요")
+    # 직원 토큰으로 지원자 경로를 타는 것도 막는다. 통과시키면 직원의 이메일과
+    # 같은 주소로 지원한 사람의 지원서가 열린다.
+    if payload.get("typ") != TYP_APPLICANT:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "다시 로그인해 주세요")
+    email = payload.get("sub")
+    if not isinstance(email, str) or not email:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "다시 로그인해 주세요")
+    return email

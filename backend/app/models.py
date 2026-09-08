@@ -133,8 +133,11 @@ class Application(Base):
         BigInteger, ForeignKey("job_postings.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(50), nullable=False)
-    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 앱 로그인의 비밀번호 자리다 (이메일 + 생년월일 8자리, ADR-0031).
+    # **값이 없으면 로그인이 안 된다** — 옛 지원서는 비워 두고 막는 쪽으로 떨어진다.
+    birth_date: Mapped[date | None] = mapped_column(Date)
     education: Mapped[str | None] = mapped_column(String(100))
     career_years: Mapped[int | None] = mapped_column(SmallInteger)
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(String))

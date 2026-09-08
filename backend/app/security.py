@@ -37,13 +37,46 @@ def verify_password(raw: str, hashed: str) -> bool:
     return bcrypt.checkpw(raw.encode(), hashed.encode())
 
 
+# 토큰 종류. **같은 비밀키로 서명하므로 이 값이 유일한 구분선이다.**
+#
+# 지원자 토큰이 직원 토큰으로 통하면 지원자가 남의 지원서를 전부 보게 된다.
+# `get_current_user` 는 예전에 `sub` 로 User 를 찾기만 했으므로, 지원자 토큰의
+# `sub` 가 우연히 어떤 User 의 id 와 같기만 해도 그 사람이 됐다.
+# 그래서 **토큰마다 종류를 박고 양쪽에서 종류를 확인한다** (deps.py).
+TYP_STAFF = "staff"
+TYP_APPLICANT = "applicant"
+
+# 지원자 토큰은 짧게 둔다. 비밀번호가 생년월일이라 유출 시 되돌릴 방법이 없고,
+# 지원자가 하는 일(현황 확인)은 오래 열어 둘 이유가 없다.
+APPLICANT_EXPIRES_MINUTES = 60 * 2
+
+
 def create_access_token(user_id: int, role: str) -> str:
     payload = {
         "sub": str(user_id),
         "role": role,
+        "typ": TYP_STAFF,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRES_MINUTES),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def create_applicant_token(email: str) -> str:
+    """지원자용. **`sub` 가 이메일이지 User id 가 아니다.**
+
+    지원자는 `users` 행이 없다. 한 사람이 여러 공고에 지원할 수 있으므로
+    지원서 id 가 아니라 이메일로 묶는다 — 로그인 한 번으로 자기 지원 전부를 본다.
+    """
+    return jwt.encode(
+        {
+            "sub": email,
+            "typ": TYP_APPLICANT,
+            "exp": datetime.now(timezone.utc)
+            + timedelta(minutes=APPLICANT_EXPIRES_MINUTES),
+        },
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM,
+    )
 
 
 def decode_access_token(token: str) -> dict:
