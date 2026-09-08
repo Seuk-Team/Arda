@@ -666,3 +666,40 @@
 .historyArrow {
   color: var(--text);
 }
+
+
+/* 시스템(메일 이력) 접기 헤더 — <details><summary> 기본 마커를 지우고 h2 자체를 눌러 여닫는다.
+   상태별 개수(발송·실패·대기) 를 접힌 상태에서도 한 번에 본다 (2026-09-08 팀장 요청). */
+.sysSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  cursor: pointer;
+  list-style: none;                 /* Firefox */
+  margin-bottom: var(--sp-3);
+}
+.sysSummary::-webkit-details-marker { display: none; }  /* Safari */
+.sysSummary h2 { margin: 0; flex: none; }
+details[open] .sysSummary { margin-bottom: var(--sp-3); }
+details:not([open]) .sysSummary { margin-bottom: 0; }
+
+.sysCounts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.sysDot {
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  font-weight: 600;
+}
+
+.sysList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}

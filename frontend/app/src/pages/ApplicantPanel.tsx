@@ -247,9 +247,18 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
 
           <MailHistorySection applicationId={applicationId} refreshKey={mailHistoryKey} />
 
-          <AptitudeSection applicationId={applicationId} />
+          {/* 성향 설문은 서류 검토(screening) 이후 단계에서만 담당자에게 보여준다 —
+              접수 직후 화면을 성향 원문으로 채우면 정작 검토할 이력·자소서가
+              밀린다 (2026-09-08 팀장 요청). */}
+          {['screening', 'interview', 'accepted', 'rejected'].includes(detail.current_stage) && (
+            <AptitudeSection applicationId={applicationId} />
+          )}
 
-          <InterviewSection applicationId={applicationId} />
+          {/* AI 면접은 면접(interview) 단계에 진입한 뒤에만 보여준다. 접수·서류
+              단계에서 'AI 면접 만들기' 버튼을 노출하면 순서가 뒤엉킨다. */}
+          {['interview', 'accepted', 'rejected'].includes(detail.current_stage) && (
+            <InterviewSection applicationId={applicationId} />
+          )}
 
           <div className={styles.sec}>
             <div className={styles.secRow}>
@@ -417,6 +426,7 @@ const IV_STATUS_LABEL: Record<string, string> = {
    통계·원문이고, 그래서 원문을 요약과 나란히 펼 수 있게 둔다.
    미응답은 불이익이 아니다 — 문구도 그렇게 쓴다. */
 function AptitudeSection({ applicationId }: { applicationId: number }) {
+
   const [detail, setDetail] = useState<AptitudeDetail | null>(null)
   const [failed, setFailed] = useState(false)
   const [sending, setSending] = useState(false)
@@ -544,6 +554,7 @@ function AptitudeSection({ applicationId }: { applicationId: number }) {
 }
 
 function InterviewSection({ applicationId }: { applicationId: number }) {
+
   const [sessions, setSessions] = useState<InterviewSession[] | null>(null)
   const [creating, setCreating] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -759,20 +770,35 @@ function MailHistorySection({ applicationId, refreshKey }: { applicationId: numb
 
   if (!history || history.length === 0) return null
 
+  // 요약 배지 — 접힌 상태에서도 상태별 개수를 한 번에 본다
+  const sent = history.filter((m) => m.status === 'sent').length
+  const failed = history.filter((m) => m.status === 'failed').length
+  const queued = history.filter((m) => m.status === 'queued').length
+
   return (
-    <div className={styles.sec}>
-      <h2>시스템</h2>
-      {history.map((m) => (
-        <div key={m.id} className={styles.mailLogRow}>
-          <span className={`${styles.mailStatus} ${m.status === 'failed' ? styles.mailFailed : m.status === 'sent' ? styles.mailSent : ''}`}>
-            {MAIL_STATUS_LABEL[m.status] ?? m.status}
-          </span>
-          <span className={styles.mailLogDate}>{fmtDate(m.sent_at ?? m.created_at)}</span>
-          <span className={styles.mailLogBody}>
-            {m.subject ?? `${STAGE_LABEL[m.stage as Stage] ?? m.stage} 자동 안내`}
-          </span>
-        </div>
-      ))}
-    </div>
+    <details className={styles.sec}>
+      <summary className={styles.sysSummary}>
+        <h2>시스템</h2>
+        <span className={styles.sysCounts}>
+          <span className={styles.badge}>{history.length}건</span>
+          {sent > 0 && <span className={`${styles.sysDot} ${styles.mailSent}`}>발송 {sent}</span>}
+          {failed > 0 && <span className={`${styles.sysDot} ${styles.mailFailed}`}>실패 {failed}</span>}
+          {queued > 0 && <span className={styles.sysDot}>대기 {queued}</span>}
+        </span>
+      </summary>
+      <div className={styles.sysList}>
+        {history.map((m) => (
+          <div key={m.id} className={styles.mailLogRow}>
+            <span className={`${styles.mailStatus} ${m.status === 'failed' ? styles.mailFailed : m.status === 'sent' ? styles.mailSent : ''}`}>
+              {MAIL_STATUS_LABEL[m.status] ?? m.status}
+            </span>
+            <span className={styles.mailLogDate}>{fmtDate(m.sent_at ?? m.created_at)}</span>
+            <span className={styles.mailLogBody}>
+              {m.subject ?? `${STAGE_LABEL[m.stage as Stage] ?? m.stage} 자동 안내`}
+            </span>
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }

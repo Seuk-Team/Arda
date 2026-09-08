@@ -186,3 +186,11 @@ h1, h2, h3 { text-wrap: balance; }
   white-space: nowrap;
   border: 0;
 }
+
+/* ── 스크롤바를 숨긴다 (2026-09-08 팀장 요청) ─────────────────
+   시각적으로만 감춘다 — 마우스 휠·트랙패드·키보드 스크롤은 그대로 동작한다.
+   각 스크롤 컨테이너의 `overflow-y: auto` 는 유지된다. */
+html { scrollbar-width: none; }             /* Firefox */
+html::-webkit-scrollbar { width: 0; height: 0; display: none; }  /* Chromium/Safari */
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
+* { scrollbar-width: none; }
