@@ -6,7 +6,7 @@
 
 | 파일 | 뜻 | 상태 |
 |---|---|---|
-| `stage-changed.json` | 단계 변경 → 렌더링 조회 → SES 발송 → 결과 기록(sent/failed). 워커 경로의 n8n 판 | **초안** — 백엔드 내부 경로 2개가 생기면 import 해서 실측, export 로 덮어쓴다 |
+| `stage-changed.json` | 단계 변경 → 렌더링 조회 → **SMTP** 발송 → 결과 기록(sent/failed). ADR-0031 시연 경로 | **초안** — 백엔드 내부 경로 2개(우정 몫)가 생기면 import 후 실측, export 로 덮어쓴다 |
 
 ## 흐름 (워크플로 1개)
 
@@ -14,7 +14,7 @@
 api: stage_service.publish_all (MAIL_DISPATCH=n8n)
   → POST http://n8n:5678/n8n/webhook/stage-changed   { email_log_id }
   → GET  /internal/email-logs/{id}/render            (X-Service-Token)  ← 우리 API 가 제목·본문·수신자
-  → SES 발송 (재시도 3회 · 5초)                       ← 공급자 바꾸려면 이 노드만 SMTP 로
+  → SMTP 발송 (재시도 3회 · 5초, ADR-0031)             ← 공급자 바꾸려면 이 노드의 자격 증명만 바꿈
   → POST /internal/email-logs/{id}/result            { status, provider_message_id | error }
 ```
 
@@ -30,7 +30,8 @@ api: stage_service.publish_all (MAIL_DISPATCH=n8n)
 
 | 자격 증명 이름 | 종류 | 권한 |
 |---|---|---|
-| `arda-server (SES 발송만)` | AWS | 서버 `.env` 의 `arda-server` 키와 같은 것 — SES 발송·S3 버킷 하나·SQS 만 |
+| `SMTP 발송` | SMTP | 발송 계정(host·port·user·password·secure). 지메일이면 `smtp.gmail.com:587` + 앱 비밀번호, 학원 도메인이면 학원 관리자 값. **자격 증명은 `n8n_data` 볼륨에 `N8N_ENCRYPTION_KEY` 로 암호화 저장 — 이 키 잃으면 백업 복원해도 못 푼다.** |
+| ~~`arda-server (SES 발송만)`~~ | ~~AWS~~ | ~~SES 는 ADR-0031 리허설 통과 뒤 워커에서 삭제. 이 자격 증명도 그때 제거.~~ |
 
 ## 워크플로 안에서 쓰는 환경변수 (compose 가 넣는다)
 
@@ -41,4 +42,4 @@ api: stage_service.publish_all (MAIL_DISPATCH=n8n)
 
 ## 로컬에서 띄우기 (2단계 준비)
 
-같은 compose 를 로컬 PC 에서 띄우고 `SES 발송` 노드만 SMTP 노드로 바꾼다 — "AWS 없이 돈다" 실증(ADR-0030 일정 2). 로컬 SMTP 계정은 미정(ADR "정하지 못한 것" 3).
+SMTP 계정 값만 로컬용으로 갈아 끼우면 같은 워크플로가 로컬에서도 돈다 — "AWS 없이 돈다" 실증(ADR-0031 일정 W5 초). SMTP 계정 결정은 ADR-0031 "정하지 못한 것 1" — 2026-09-08 오늘 결정.
