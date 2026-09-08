@@ -12,6 +12,8 @@ import Schedule from './pages/Schedule'
 import Interview from './pages/Interview'
 import InterviewRoom from './pages/InterviewRoom'
 import InterviewLive from './pages/InterviewLive'
+import InterviewAi from './pages/InterviewAi'
+import InterviewWatch from './pages/InterviewWatch'
 import MyApplications from './pages/MyApplications'
 import Aptitude from './pages/Aptitude'
 import Dashboard from './pages/Dashboard'
@@ -58,6 +60,9 @@ export default function App() {
         {/* 지원자 쪽 실시간 면접 — 면접관과 얼굴을 보고 말한다.
             채용자 쪽은 /interview-room/:sessionId 다. 로그인 밖 — 토큰이 곧 자격. */}
         <Route path="/interview-live/:token" element={<InterviewLive />} />
+        {/* AI 면접 — 아르가 묻고 얼굴을 실시간으로 본다 (ADR-0029).
+            지원자 쪽. 로그인 밖 — 토큰이 곧 자격이다. */}
+        <Route path="/interview-ai/:token" element={<InterviewAi />} />
         {/* 사전 성향 설문 — 메일 링크의 토큰 접근 (ADR-0027) */}
         <Route path="/aptitude/:token" element={<Aptitude />} />
         {/* 아르 3D 모션 검토용. 내비 미노출·데이터 접근 없음 → 로그인 게이트 밖 */}
@@ -74,6 +79,8 @@ export default function App() {
               사이드바가 있으면 지원자 얼굴이 그만큼 작아지고, 면접 중에
               다른 데로 새는 길이 화면에 남는다. */}
           <Route path="/interview-room/:sessionId" element={<InterviewRoom />} />
+          {/* AI 면접이 도는 동안 담당자가 판정을 보는 화면. 카메라를 켜지 않는다. */}
+          <Route path="/interview-watch/:sessionId" element={<InterviewWatch />} />
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/postings" element={<Postings />} />

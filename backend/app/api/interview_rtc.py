@@ -176,7 +176,15 @@ ROLES = ("applicant", "recruiter")
 
 # 상대에게 **그대로 넘기는** 것들. 서버는 내용을 들여다보지 않는다 —
 # SDP 는 WebRTC 가 읽을 것이지 우리가 해석할 것이 아니다.
-RELAY_TYPES = frozenset({"offer", "answer", "ice", "bye"})
+#
+# `verdict` 는 2026-09-08 에 붙었다 — **AI 면접의 실시간 판정을 담당자 화면으로
+# 나르는 길**이다. 판정은 지원자 기기에서 `/ai/ws/live` 로 받는데, 서버에는
+# 그것을 담당자에게 보낼 통로가 따로 없었다. 이미 있는 방을 쓴다.
+#
+# **지원자 화면에는 이 값을 띄우지 않는다** (ADR-0029, `ai/lie-detection/app.py`
+# 주석): 판정을 실시간으로 보여 주면 그 자체가 답변을 바꾼다. 서버는 그저
+# 나르기만 하고, 안 띄우는 것은 화면 쪽 약속이다.
+RELAY_TYPES = frozenset({"offer", "answer", "ice", "bye", "verdict"})
 
 # 한 쪽지의 상한. SDP 는 보통 5KB 안쪽이고 ICE 는 훨씬 작다. 상한이 없으면
 # 방에 붙은 것만으로 메모리를 밀어 넣을 수 있다.
