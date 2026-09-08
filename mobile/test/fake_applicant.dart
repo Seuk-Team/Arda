@@ -44,13 +44,20 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
   FakeApplicantPortalRepository({
     Map<String, PortalStatus>? statuses,
     Map<String, InterviewPublic>? interviews,
+    List<ApplicantToken>? loginTokens,
     this.lookupMessage = '입력하신 주소로 지원 현황 조회 링크를 보냈습니다.',
     this.error,
   }) : statuses = statuses ?? const {},
-       interviews = {...?interviews};
+       interviews = {...?interviews},
+       loginTokens = loginTokens ?? const [];
 
   final Map<String, PortalStatus> statuses;
   final Map<String, InterviewPublic> interviews;
+
+  /// 로그인이 돌려줄 토큰들. **비어 있으면 진짜와 같이 501 로 실패한다** —
+  /// 서버에 아직 지원자 로그인이 없다
+  final List<ApplicantToken> loginTokens;
+
   final String lookupMessage;
 
   /// 주면 모든 호출이 이걸로 실패한다
@@ -58,6 +65,19 @@ class FakeApplicantPortalRepository implements ApplicantPortalRepository {
 
   /// 무엇을 불렀는지 — 순서까지 본다
   final calls = <String>[];
+
+  @override
+  Future<List<ApplicantToken>> login({
+    required String email,
+    required String birthdate,
+  }) async {
+    calls.add('login:$email:$birthdate');
+    if (error != null) throw error!;
+    if (loginTokens.isEmpty) {
+      throw const ServerError(501, '지원자 로그인은 아직 준비 중입니다.');
+    }
+    return loginTokens;
+  }
 
   @override
   Future<String> requestLookupLink(String email) async {

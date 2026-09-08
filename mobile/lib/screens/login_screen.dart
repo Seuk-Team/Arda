@@ -26,7 +26,11 @@ import '../theme/tokens.dart';
 /// 한 앱을 담당자와 지원자가 같이 쓴다. 그런데 **지원자에게는 계정이 없다** —
 /// 서버에 지원자용 로그인이 아예 없고, 공개 경로는 전부 토큰 방식이다
 /// (`토큰이 곧 인증이다`, backend/app/api/portal.py). 그래서 지원자 탭은
-/// 비밀번호를 묻지 않고 **메일로 받은 링크**를 받는다.
+/// **지원할 때 쓴 이메일 + 생년월일 8자리**로 들어온다.
+///
+/// **그 로그인은 서버에 아직 없다**(2026-09-08) — 화면만 먼저 만들어 뒀고,
+/// 백엔드가 생기면 [ApplicantPortalRepository.login] 만 진짜 호출로 바뀐다.
+/// 링크 붙여넣기는 뺐다: 링크는 앱을 설치할 때 주는 것이다.
 ///
 /// 두 탭은 저장소도 도착지도 다르다: 담당자는 JWT → 탭 셸, 지원자는 링크
 /// 토큰 → 지원자 홈. 섞이면 남의 신분으로 요청이 나간다.
@@ -332,14 +336,15 @@ class _StaffFormState extends State<_StaffForm> {
   }
 }
 
-/// 지원자 — 메일로 받은 링크로 들어온다 (2026-09-08).
+/// 지원자 — 지원할 때 쓴 이메일 + 생년월일 8자리 (2026-09-08).
 ///
-/// **타이핑을 시키지 않는다.** 토큰이 포털 43자·면접 22자에 대소문자가 섞여
-/// 있어 손으로 치면 거의 틀린다. 그래서 [붙여넣기] 를 크게 두고, 입력창은
-/// 링크 전체든 토큰만이든 다 받는다([parseApplicantLink]).
+/// **서버에 아직 없다.** 백엔드가 아는 지원자 확인 방법은 지금 "이메일로 링크를
+/// 보낸다" 하나뿐이고 `applications` 에 생년월일 컬럼이 없다. 화면을 먼저 만들어
+/// 두고 [ApplicantPortalRepository.login] 이 진짜 호출이 되면 그대로 살아난다 —
+/// 이 위젯은 고칠 것이 없다.
 ///
-/// 링크를 잃은 사람을 위해 **메일로 다시 받기**도 같이 둔다 — 포털 링크는
-/// 7일이면 죽어서, 이 길이 없으면 다시 들어올 방법이 없다.
+/// 링크 붙여넣기는 뺐다: 링크는 **앱을 설치할 때 주는 것**이라 앱 안에서 다시
+/// 받을 자리가 없다.
 class _ApplicantForm extends StatefulWidget {
   const _ApplicantForm({this.portal, this.store});
 
@@ -351,98 +356,65 @@ class _ApplicantForm extends StatefulWidget {
 }
 
 class _ApplicantFormState extends State<_ApplicantForm> {
-  final _link = TextEditingController();
   final _email = TextEditingController();
+  final _birth = TextEditingController();
 
   late final ApplicantPortalRepository _portal =
       widget.portal ?? ApplicantPortalRepository();
   late final ApplicantStore _store = widget.store ?? const ApplicantStore();
 
-  bool _entering = false;
-  bool _mailing = false;
+  bool _sending = false;
   String? _error;
-
-  /// 서버가 준 안내 문장. **찾았든 못 찾았든 같은 말이 온다** — 앱이 결과를
-  /// 나눠 그리면 그것만으로 "이 사람이 여기 지원했는가" 를 확인하는 도구가 된다
-  String? _mailNotice;
 
   @override
   void initState() {
     super.initState();
-    _link.addListener(() {
-      if (_error != null) setState(() => _error = null);
-    });
+    _email.addListener(_onChanged);
+    _birth.addListener(_onChanged);
   }
+
+  void _onChanged() => setState(() => _error = null);
 
   @override
   void dispose() {
-    _link.dispose();
     _email.dispose();
+    _birth.dispose();
     super.dispose();
   }
 
-  Future<void> _paste() async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text?.trim();
-    if (text == null || text.isEmpty) {
-      setState(() => _error = '복사해 둔 링크가 없습니다.');
-      return;
-    }
-    _link.text = text;
-  }
+  bool get _canSubmit =>
+      !_sending &&
+      _email.text.trim().isNotEmpty &&
+      _birth.text.length == _birthLength;
 
-  Future<void> _enter() async {
-    if (_entering) return;
-    final parsed = parseApplicantLink(_link.text);
-    if (parsed == null) {
-      setState(() => _error = '링크를 알아보지 못했습니다. 메일에서 받은 주소를 그대로 붙여넣어 주세요.');
+  Future<void> _submit() async {
+    if (!_canSubmit) return;
+    // 8자리를 채웠어도 날짜가 아닐 수 있다(19981345). 왕복 한 번을 아끼고,
+    // 무엇이 틀렸는지도 여기서 더 정확히 말해 줄 수 있다
+    if (!_looksLikeBirthdate(_birth.text)) {
+      setState(() => _error = '생년월일을 다시 확인해 주세요. 예: 19980315');
       return;
     }
 
     setState(() {
-      _entering = true;
+      _sending = true;
       _error = null;
     });
     try {
-      // **저장 전에 서버에 물어본다.** 죽은 링크를 넣어 두면 다음에 앱을 켤
-      // 때마다 오류 화면으로 떨어진다
-      switch (parsed.kind) {
-        case ApplicantTokenKind.portal:
-          await _portal.status(parsed.token);
-        case ApplicantTokenKind.interview:
-          await _portal.interview(parsed.token);
+      final tokens = await _portal.login(
+        email: _email.text.trim(),
+        birthdate: _birth.text,
+      );
+      for (final token in tokens) {
+        await _store.add(token);
       }
-      await _store.add(parsed);
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, Routes.applicantHome);
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
-        _entering = false;
-      });
-    }
-  }
-
-  Future<void> _mail() async {
-    if (_mailing || _email.text.trim().isEmpty) return;
-    setState(() {
-      _mailing = true;
-      _error = null;
-      _mailNotice = null;
-    });
-    try {
-      final message = await _portal.requestLookupLink(_email.text.trim());
-      if (!mounted) return;
-      setState(() {
-        _mailNotice = message;
-        _mailing = false;
-      });
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _mailing = false;
+        _sending = false;
       });
     }
   }
@@ -453,39 +425,41 @@ class _ApplicantFormState extends State<_ApplicantForm> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
-          '메일로 받은 링크를 붙여넣어 주세요.',
-          style: TextStyle(
-            fontFamily: AppType.fontFamily,
-            fontSize: AppType.sm,
-            color: AppColors.textSub,
-          ),
+        _Field(
+          label: '이메일',
+          controller: _email,
+          hint: '지원할 때 쓴 이메일',
+          keyboardType: TextInputType.emailAddress,
+          autofillHints: const [AutofillHints.username],
         ),
         const SizedBox(height: AppSpace.s4),
         _Field(
-          label: '면접·지원 현황 링크',
-          controller: _link,
-          hint: 'https://…/interview/…',
-          keyboardType: TextInputType.url,
-          onSubmitted: (_) => _enter(),
+          label: '생년월일 8자리',
+          controller: _birth,
+          hint: '예: 19980315',
+          // 비밀번호 자리라 가린다. 대신 8자리를 다 채우기 전에는 버튼이 안
+          // 살아나고, 날짜가 아니면 보내기 전에 잡아 준다
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            // maxLength 를 안 쓰는 이유: 입력창 아래 카운터가 붙어 칸 높이가 는다
+            LengthLimitingTextInputFormatter(_birthLength),
+          ],
+          onSubmitted: _canSubmit ? (_) => _submit() : null,
         ),
-        const SizedBox(height: AppSpace.s2),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(onPressed: _paste, child: const Text('붙여넣기')),
-        ),
-
+        // 실패 문구는 버튼 위 (담당자 탭과 같은 이유)
         if (_error != null) ...[
-          const SizedBox(height: AppSpace.s2),
+          const SizedBox(height: AppSpace.s4),
           _ErrorNote(_error!),
         ],
-        const SizedBox(height: AppSpace.s3),
+        const SizedBox(height: AppSpace.s4),
 
         SizedBox(
           height: AppLayout.minTouchTarget,
           child: FilledButton(
-            onPressed: _entering ? null : _enter,
-            child: _entering
+            onPressed: _canSubmit ? _submit : null,
+            child: _sending
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -494,53 +468,31 @@ class _ApplicantFormState extends State<_ApplicantForm> {
                       color: AppColors.bgElev,
                     ),
                   )
-                : const Text('입장'),
-          ),
-        ),
-
-        const SizedBox(height: AppSpace.s5),
-        const Divider(color: AppColors.borderSoft, height: 1),
-        const SizedBox(height: AppSpace.s4),
-
-        const Text(
-          '링크를 잃어버리셨나요?',
-          style: TextStyle(
-            fontFamily: AppType.fontFamily,
-            fontSize: AppType.sm,
-            fontWeight: AppType.wSemiBold,
-            color: AppColors.text,
-          ),
-        ),
-        const SizedBox(height: AppSpace.s3),
-        _Field(
-          label: '지원할 때 쓴 이메일',
-          controller: _email,
-          hint: 'name@example.com',
-          keyboardType: TextInputType.emailAddress,
-          onSubmitted: (_) => _mail(),
-        ),
-        if (_mailNotice != null) ...[
-          const SizedBox(height: AppSpace.s3),
-          Text(
-            _mailNotice!,
-            style: const TextStyle(
-              fontFamily: AppType.fontFamily,
-              fontSize: AppType.caption,
-              color: AppColors.textSub,
-            ),
-          ),
-        ],
-        const SizedBox(height: AppSpace.s3),
-        SizedBox(
-          height: AppLayout.minTouchTarget,
-          child: OutlinedButton(
-            onPressed: _mailing ? null : _mail,
-            child: Text(_mailing ? '보내는 중…' : '메일로 링크 받기'),
+                : const Text('로그인'),
           ),
         ),
       ],
     );
   }
+}
+
+/// `19980315`
+const _birthLength = 8;
+
+/// 8자리가 진짜 날짜인가.
+///
+/// [DateTime] 은 넘치는 값을 다음 달로 넘겨 버려서(2월 30일 → 3월 2일) 만든 뒤
+/// 되돌려 비교해야 걸러진다.
+bool _looksLikeBirthdate(String text) {
+  if (text.length != _birthLength) return false;
+  final year = int.tryParse(text.substring(0, 4));
+  final month = int.tryParse(text.substring(4, 6));
+  final day = int.tryParse(text.substring(6, 8));
+  if (year == null || month == null || day == null) return false;
+  if (year < 1900 || year > DateTime.now().year) return false;
+
+  final parsed = DateTime(year, month, day);
+  return parsed.year == year && parsed.month == month && parsed.day == day;
 }
 
 /// 아르 마크 — 앱 UI 초안(2026-09-01)이 로고 위에 더한 것.
@@ -617,6 +569,7 @@ class _Field extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType,
     this.autofillHints,
+    this.inputFormatters,
     this.onSubmitted,
   });
 
@@ -626,6 +579,10 @@ class _Field extends StatelessWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final List<String>? autofillHints;
+
+  /// 생년월일처럼 모양이 정해진 칸에 쓴다 — 숫자만·8자리
+  final List<TextInputFormatter>? inputFormatters;
+
   final ValueChanged<String>? onSubmitted;
 
   @override
@@ -649,6 +606,7 @@ class _Field extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           autofillHints: autofillHints,
+          inputFormatters: inputFormatters,
           onSubmitted: onSubmitted,
           style: const TextStyle(
             fontFamily: AppType.fontFamily,

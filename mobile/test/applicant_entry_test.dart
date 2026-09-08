@@ -1,26 +1,23 @@
-// 로그인 두 탭 + 지원자 입장 (2026-09-08).
+// 로그인 두 탭 + 지원자 로그인 (2026-09-08).
 //
 // 담당자 탭이 그대로인지가 먼저다 — 지원자 갈래를 붙이면서 매일 쓰는 쪽을
-// 망가뜨리면 안 된다. 그 다음이 지원자 입장이다.
+// 망가뜨리면 안 된다. 그 다음이 지원자 로그인이다.
+//
+// **지원자 로그인은 서버에 아직 없다.** 그래서 여기서 보는 것은 화면 규칙이다:
+// 무엇을 채워야 버튼이 살아나는지, 이상한 생년월일을 보내기 전에 잡는지,
+// 서버가 거절하면 무엇을 보여 주는지.
 
-import 'package:arda/models/applicant_portal.dart';
+import 'package:arda/auth/applicant_store.dart';
 import 'package:arda/routes.dart';
 import 'package:arda/screens/login_screen.dart';
 import 'package:arda/theme/tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_applicant.dart';
 import 'fake_auth.dart';
 
-final _interview = InterviewPublic(
-  token: 'tok',
-  status: InterviewStatus.pending,
-  applicantName: '김도현',
-  postingTitle: '프론트엔드 개발자 (React)',
-  consentRequired: true,
-);
+const _token = ApplicantToken(kind: ApplicantTokenKind.portal, token: 'p1');
 
 Widget host({
   FakeApplicantPortalRepository? portal,
@@ -35,18 +32,29 @@ Widget host({
   routes: {Routes.applicantHome: (_) => const Scaffold(body: Text('지원자 홈'))},
 );
 
-/// 붙여넣기 버튼이 읽는 클립보드를 가짜로 채운다
-void setClipboard(WidgetTester tester, String? text) {
-  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-    SystemChannels.platform,
-    (call) async {
-      if (call.method == 'Clipboard.getData') {
-        return text == null ? null : <String, dynamic>{'text': text};
-      }
-      return null;
-    },
-  );
+/// 지원자 탭으로 옮긴다
+Future<void> toApplicant(WidgetTester tester) async {
+  await tester.tap(find.text('지원자'));
+  await tester.pumpAndSettle();
 }
+
+/// 이메일·생년월일을 채운다. [birth] 를 비우면 이메일만 채운다
+Future<void> fill(
+  WidgetTester tester, {
+  String email = 'a@b.com',
+  String birth = '19980315',
+}) async {
+  await tester.enterText(find.byType(TextField).first, email);
+  if (birth.isNotEmpty) {
+    await tester.enterText(find.byType(TextField).last, birth);
+  }
+  await tester.pumpAndSettle();
+}
+
+/// 로그인 버튼. 두 탭 모두 이름이 같아 화면에 하나뿐이다
+FilledButton loginButton(WidgetTester tester) => tester.widget<FilledButton>(
+  find.ancestor(of: find.text('로그인'), matching: find.byType(FilledButton)),
+);
 
 void main() {
   group('탭', () {
@@ -54,162 +62,152 @@ void main() {
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
 
-      // '비밀번호' 는 라벨과 힌트 둘 다에 있다 — 버튼으로 가른다
-      expect(find.text('로그인'), findsOneWidget);
-      expect(find.text('입장'), findsNothing);
+      expect(find.text('생년월일 8자리'), findsNothing);
+      // '비밀번호' 는 라벨과 힌트 둘 다에 있다
+      expect(find.text('비밀번호'), findsWidgets);
     });
 
-    testWidgets('지원자로 넘기면 비밀번호를 묻지 않는다 — 계정이 없다', (tester) async {
+    testWidgets('지원자는 비밀번호 대신 생년월일이다', (tester) async {
       await tester.pumpWidget(host());
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
+      await toApplicant(tester);
 
+      expect(find.text('생년월일 8자리'), findsOneWidget);
       expect(find.text('비밀번호'), findsNothing);
-      expect(find.text('입장'), findsOneWidget);
-      expect(find.text('메일로 링크 받기'), findsOneWidget);
+    });
+
+    testWidgets('링크를 넣는 자리는 없다 — 링크는 앱을 설치할 때 준다', (tester) async {
+      await tester.pumpWidget(host());
+      await toApplicant(tester);
+
+      expect(find.text('붙여넣기'), findsNothing);
+      expect(find.text('입장'), findsNothing);
+      expect(find.text('메일로 링크 받기'), findsNothing);
     });
 
     testWidgets('담당자로 돌아올 수 있다', (tester) async {
       await tester.pumpWidget(host());
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
+      await toApplicant(tester);
       await tester.tap(find.text('담당자'));
       await tester.pumpAndSettle();
 
-      expect(find.text('로그인'), findsOneWidget);
-      expect(find.text('입장'), findsNothing);
-    });
-  });
-
-  group('지원자 입장', () {
-    testWidgets('링크를 넣으면 서버에 확인하고 저장한 뒤 홈으로 간다', (tester) async {
-      final portal = FakeApplicantPortalRepository(
-        interviews: {'tok': _interview},
-      );
-      final store = FakeApplicantStore();
-      await tester.pumpWidget(host(portal: portal, store: store));
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(
-        find.byType(TextField).first,
-        'https://seuk.suvisdev.cloud/interview/tok',
-      );
-      await tester.tap(find.text('입장'));
-      await tester.pumpAndSettle();
-
-      // **저장 전에 물어본다** — 죽은 링크를 넣어 두면 다음에 켤 때마다 오류다
-      expect(portal.calls, contains('interview:tok'));
-      expect(store.tokens.single.token, 'tok');
-      expect(find.text('지원자 홈'), findsOneWidget);
+      expect(find.text('비밀번호'), findsWidgets);
+      expect(find.text('생년월일 8자리'), findsNothing);
     });
 
-    testWidgets('못 알아보는 링크는 서버에 묻지도 않는다', (tester) async {
-      final portal = FakeApplicantPortalRepository();
-      final store = FakeApplicantStore();
-      await tester.pumpWidget(host(portal: portal, store: store));
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextField).first, 'https://x.dev');
-      await tester.tap(find.text('입장'));
-      await tester.pumpAndSettle();
-
-      expect(portal.calls, isEmpty);
-      expect(store.tokens, isEmpty);
-      expect(find.textContaining('알아보지 못했습니다'), findsOneWidget);
-    });
-
-    testWidgets('서버가 거절하면 저장하지 않는다', (tester) async {
-      // 'tok' 을 안 넣어 뒀으니 가짜가 404 를 던진다
-      final portal = FakeApplicantPortalRepository();
-      final store = FakeApplicantStore();
-      await tester.pumpWidget(host(portal: portal, store: store));
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextField).first, '/interview/tok');
-      await tester.tap(find.text('입장'));
-      await tester.pumpAndSettle();
-
-      expect(store.tokens, isEmpty);
-      expect(find.text('유효하지 않은 링크입니다'), findsOneWidget);
-      expect(find.text('지원자 홈'), findsNothing);
-    });
-
-    testWidgets('붙여넣기가 입력창을 채운다 — 43자를 손으로 치게 하지 않는다', (tester) async {
-      setClipboard(tester, 'https://x.dev/interview/tok');
-      await tester.pumpWidget(host());
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('붙여넣기'));
-      await tester.pumpAndSettle();
-
-      expect(
-        tester.widget<TextField>(find.byType(TextField).first).controller!.text,
-        'https://x.dev/interview/tok',
-      );
-    });
-
-    testWidgets('복사해 둔 것이 없으면 그렇다고 말한다', (tester) async {
-      setClipboard(tester, null);
-      await tester.pumpWidget(host());
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('붙여넣기'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('복사해 둔 링크가 없습니다.'), findsOneWidget);
-    });
-  });
-
-  group('링크 다시 받기', () {
-    testWidgets('서버가 준 안내를 그대로 보여 준다 — 결과를 나눠 그리지 않는다', (tester) async {
-      final portal = FakeApplicantPortalRepository(
-        lookupMessage: '입력하신 주소로 지원 현황 조회 링크를 보냈습니다.',
-      );
-      await tester.pumpWidget(host(portal: portal));
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byType(TextField).last, 'a@b.com');
-      // 800x600 테스트 화면에서는 카드 아래가 잘린다 — 실제 폰에서는 스크롤하면
-      // 닿는 자리라 보이게 만든 뒤 누른다
-      await tester.ensureVisible(find.text('메일로 링크 받기'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('메일로 링크 받기'));
-      await tester.pumpAndSettle();
-
-      expect(portal.calls, contains('lookup:a@b.com'));
-      expect(find.text('입력하신 주소로 지원 현황 조회 링크를 보냈습니다.'), findsOneWidget);
-    });
-
-    testWidgets('이메일이 비면 아무것도 안 보낸다', (tester) async {
-      final portal = FakeApplicantPortalRepository();
-      await tester.pumpWidget(host(portal: portal));
-      await tester.tap(find.text('지원자'));
-      await tester.pumpAndSettle();
-
-      await tester.ensureVisible(find.text('메일로 링크 받기'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('메일로 링크 받기'));
-      await tester.pumpAndSettle();
-
-      expect(portal.calls, isEmpty);
-    });
-  });
-
-  group('모양', () {
     testWidgets('고른 탭만 시안색이다 (§2)', (tester) async {
       await tester.pumpWidget(host());
       await tester.pumpAndSettle();
 
-      final staff = tester.widget<Text>(find.text('담당자'));
-      final applicant = tester.widget<Text>(find.text('지원자'));
-      expect(staff.style!.color, AppColors.accentText);
-      expect(applicant.style!.color, AppColors.textSub);
+      expect(
+        tester.widget<Text>(find.text('담당자')).style!.color,
+        AppColors.accentText,
+      );
+      expect(
+        tester.widget<Text>(find.text('지원자')).style!.color,
+        AppColors.textSub,
+      );
+    });
+  });
+
+  group('지원자 로그인', () {
+    testWidgets('둘 다 채워야 버튼이 살아난다', (tester) async {
+      await tester.pumpWidget(host());
+      await toApplicant(tester);
+      expect(loginButton(tester).onPressed, isNull);
+
+      await fill(tester, birth: '');
+      expect(loginButton(tester).onPressed, isNull);
+
+      await fill(tester);
+      expect(loginButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('8자리를 다 안 채우면 잠겨 있다', (tester) async {
+      await tester.pumpWidget(host());
+      await toApplicant(tester);
+
+      await fill(tester, birth: '1998031');
+      expect(loginButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('숫자만 들어간다 — 8자리 날짜 칸이다', (tester) async {
+      await tester.pumpWidget(host());
+      await toApplicant(tester);
+
+      await fill(tester, birth: '1998-03-15');
+      expect(
+        tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+        '19980315',
+      );
+    });
+
+    testWidgets('날짜가 아니면 서버에 보내지 않는다', (tester) async {
+      final portal = FakeApplicantPortalRepository();
+      await tester.pumpWidget(host(portal: portal));
+      await toApplicant(tester);
+
+      // 13월은 없다. DateTime 은 넘치면 다음 해로 넘겨 버려서 되돌려 봐야 잡힌다
+      await fill(tester, birth: '19981345');
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(portal.calls, isEmpty);
+      expect(find.textContaining('생년월일을 다시 확인해 주세요'), findsOneWidget);
+    });
+
+    testWidgets('2월 30일도 잡는다', (tester) async {
+      final portal = FakeApplicantPortalRepository();
+      await tester.pumpWidget(host(portal: portal));
+      await toApplicant(tester);
+
+      await fill(tester, birth: '19980230');
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(portal.calls, isEmpty);
+    });
+
+    testWidgets('서버가 아직 없어서 준비 중이라고 답한다', (tester) async {
+      // loginTokens 를 안 준 가짜 = 진짜와 같이 501
+      final portal = FakeApplicantPortalRepository();
+      final store = FakeApplicantStore();
+      await tester.pumpWidget(host(portal: portal, store: store));
+      await toApplicant(tester);
+
+      await fill(tester);
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(portal.calls, contains('login:a@b.com:19980315'));
+      expect(find.text('지원자 로그인은 아직 준비 중입니다.'), findsOneWidget);
+      expect(store.tokens, isEmpty);
+      expect(find.text('지원자 홈'), findsNothing);
+    });
+
+    testWidgets('서버가 생기면 토큰을 저장하고 홈으로 간다', (tester) async {
+      final portal = FakeApplicantPortalRepository(loginTokens: const [_token]);
+      final store = FakeApplicantStore();
+      await tester.pumpWidget(host(portal: portal, store: store));
+      await toApplicant(tester);
+
+      await fill(tester);
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(store.tokens.single, _token);
+      expect(find.text('지원자 홈'), findsOneWidget);
+    });
+
+    testWidgets('이메일 앞뒤 공백은 떼고 보낸다 — 복사하면 딸려 온다', (tester) async {
+      final portal = FakeApplicantPortalRepository(loginTokens: const [_token]);
+      await tester.pumpWidget(host(portal: portal));
+      await toApplicant(tester);
+
+      await fill(tester, email: '  a@b.com  ');
+      await tester.tap(find.text('로그인'));
+      await tester.pumpAndSettle();
+
+      expect(portal.calls, contains('login:a@b.com:19980315'));
     });
   });
 }
