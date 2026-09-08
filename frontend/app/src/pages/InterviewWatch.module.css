@@ -176,3 +176,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 100·0 이 떴을 때만 나오는 줄. **경고색을 쓴다** — 위 `caveat` 이 늘 붙어
+   있는 설명이라면 이건 "지금 이 값은 특히 믿지 말라"는 그때그때의 신호다.
+   숫자 자체는 여전히 색으로 판정하지 않는다. */
+.saturated {
+  font-size: var(--font-sm);
+  color: var(--danger);
+  margin: 0;
+  padding: var(--sp-3);
+  border-left: 2px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+  line-height: 1.65;
+  word-break: keep-all;
+}

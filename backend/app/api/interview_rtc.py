@@ -337,3 +337,21 @@ async def interview_rtc(
         remaining = room.peers.get(peer_role)
         if remaining is not None:
             await _send(remaining, {"type": "peer-leave", "role": role})
+
+
+async def push_to_recruiter(token: str, payload: dict) -> bool:
+    """방에 앉아 있는 **채용자에게만** 한 줄 민다. 보냈으면 True.
+
+    거짓말 탐지 워커가 실시간 판정을 흘려보내는 자리다 (`api/internal.py`).
+    지원자에게는 보내지 않는다 — ADR-0029 의 "판정을 지원자에게 보여 주지
+    않는다"가 여기서 지켜진다. **지원자 기기를 아예 지나가지 않는다.**
+
+    담당자가 화면을 안 열었으면 조용히 False 다. 그것 때문에 면접이 멈추거나
+    워커가 재시도하면 안 된다.
+    """
+    room = _ROOMS.get(token)
+    target = room.peers.get("recruiter") if room else None
+    if target is None:
+        return False
+    await _send(target, payload)
+    return True
