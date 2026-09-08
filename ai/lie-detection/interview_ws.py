@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 
 import numpy as np
@@ -60,6 +61,22 @@ LIVE_EVERY_SEC = 1.0
 # 모델을 학습시킬 때 쓴 표본율. 마이크는 16kHz 로 보내므로 판정 직전에 맞춘다 —
 # 어긋난 채로 MFCC 를 뽑으면 모델이 통째로 다른 값을 보게 된다.
 TRAIN_SR = 22_050
+
+# ── 전사 (ADR-0032) ──────────────────────────────────────────
+# **비어 있으면 꺼진 채로 돈다.** 설정을 넣어야 켜지는 것이 팀 방식이고, GPU 가
+# 꺼져 있는 대부분의 시간에 1GB 짜리 모델을 물고 있을 이유가 없다.
+#   켤 때: STT_MODEL=large-v3-turbo  (GPU 면 STT_DEVICE=cuda STT_COMPUTE_TYPE=float16)
+STT_MODEL = os.getenv("STT_MODEL", "").strip()
+# **`auto` 로 두지 않는다.** GPU 가 보이면 CUDA 를 고르는데, CUDA 런타임이 없는
+# 기계에서는 모델을 올린 뒤 첫 전사에서야 `cublas64_12.dll not found` 로 터진다.
+# 켜야 할 곳에서 명시하는 편이 낫다.
+STT_DEVICE = os.getenv("STT_DEVICE", "cpu")
+STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "default")
+# 면접은 한국어다. 빈 값이면 whisper 가 스스로 알아내지만 그만큼 느리고, 짧은
+# 발화에서는 엉뚱한 언어로 새기도 한다.
+STT_LANGUAGE = os.getenv("STT_LANGUAGE", "ko")
+# 1 이면 탐색을 안 한다. 실시간이라 정확도보다 지연이 중요하다.
+STT_BEAM_SIZE = int(os.getenv("STT_BEAM_SIZE", "1"))
 
 
 def _rms(pcm: bytes) -> float:
@@ -307,15 +324,56 @@ async def submit_answer(client, token: str, transcript: str) -> dict:
     return r.json()
 
 
+_stt = None
+_stt_lock = threading.Lock()
+
+
+def _stt_model():
+    """faster-whisper 모델. 처음 부를 때 한 번만 올린다(수십 초 · ~1GB).
+
+    락은 로드 구간만 감싼다 — 두 요청이 동시에 들어와 모델을 두 번 올리면
+    메모리가 두 배로 든다.
+    """
+    global _stt
+    if _stt is None:
+        with _stt_lock:
+            if _stt is None:
+                from faster_whisper import WhisperModel
+
+                logger.info("전사 모델 로딩: %s (%s)", STT_MODEL, STT_DEVICE)
+                _stt = WhisperModel(
+                    STT_MODEL, device=STT_DEVICE, compute_type=STT_COMPUTE_TYPE
+                )
+    return _stt
+
+
 def transcribe(pcm: bytes) -> str:
-    """음성 → 글.
+    """음성 → 글. **CPU 로 약 0.55배**(35초 음성에 19초) 걸리므로 스레드에서 부른다.
 
-    **아직 비어 있다.** faster-whisper 는 백엔드 `app/agent/stt.py` 에 이미 있고
-    모델이 1.5GB 라 이 이미지에 또 넣으면 같은 것이 두 곳에 생긴다. GPU 서버가
-    준비되면 그쪽에서 채운다 — 그때까지 이 함수만 갈아 끼우면 된다.
+    `STT_MODEL` 이 비어 있으면 꺼진 채로 자리표시자를 돌려준다 — 팀이 쓰는 방식
+    그대로다(설정을 안 넣으면 켜지지 않는다). GPU 가 꺼져 있는 대부분의 시간에
+    1GB 를 물고 있을 이유가 없다(ADR-0032).
 
-    빈 문자열을 돌려주면 백엔드가 답변을 저장하지 못하므로, 지금은 자리표시자를
-    보내 흐름(질문 → 답변 → 다음 질문)이 도는지 확인할 수 있게 한다.
+    **말이 안 담겼으면 빈 문자열을 돌려준다.** 기침이나 잡음을 답변으로 저장하면
+    그 질문은 답한 것이 되어 다시 물어볼 길이 없어진다.
     """
     seconds = len(pcm) / (SAMPLE_RATE * SAMPLE_WIDTH)
-    return f"[전사 미구현 · 발화 {seconds:.1f}초]"
+    if not STT_MODEL:
+        return f"[전사 꺼짐 · 발화 {seconds:.1f}초]"
+
+    usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
+    audio = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+
+    segments, _ = _stt_model().transcribe(
+        audio,
+        language=STT_LANGUAGE or None,
+        beam_size=STT_BEAM_SIZE,
+        # **whisper 는 무음에 말을 지어낸다.** 실측: 무음 3초·잡음 3초 모두
+        # "감사합니다." 를 냈다. 그대로 두면 기침이 답변으로 저장되고 그 질문은
+        # 답한 것이 되어 다시 물어볼 길이 없어진다. VAD 로 말이 없는 구간을
+        # 먼저 잘라내면 낼 조각 자체가 없어진다.
+        vad_filter=True,
+        # 앞 조각을 참고하면 한 번 지어낸 말이 뒤로 번진다. 답변마다 새로 시작한다.
+        condition_on_previous_text=False,
+    )
+    return " ".join(s.text.strip() for s in segments).strip()

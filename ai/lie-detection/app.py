@@ -254,7 +254,18 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     # 말이 끝났다 — 전사하고 다음 질문을 받아 온다
     await ws.send_json({"type": "processing"})
     pcm, rows = session.take_answer()
-    transcript = transcribe(pcm)
+    # 전사는 CPU 로 발화 길이의 절반쯤 걸린다. 이벤트 루프에서 부르면 그 동안
+    # 이 워커의 모든 면접이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
+    transcript = await asyncio.to_thread(transcribe, pcm)
+
+    if not transcript:
+        # 말이 안 담긴 것을 답변으로 저장하면 그 질문은 "답한 것"이 되어
+        # 다시 물어볼 길이 없어진다. 저장하지 않고 같은 질문을 계속 듣는다.
+        logger.info("전사 결과가 비어 답변으로 세지 않는다: token=%s", session.token[:8])
+        await ws.send_json(
+            {"type": "retry", "message": "말이 들리지 않았어요. 다시 답변해 주세요"}
+        )
+        return
 
     signal = session.signal(rows)
     if signal:
