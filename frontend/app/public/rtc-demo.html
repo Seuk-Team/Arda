@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>실시간 면접 — 지원자 쪽 참조 구현</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 16px; background: #0d1117; color: #e6edf3;
+    font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 16px; color: #8b949e; font-size: 13px; }
+  video { width: 100%; background: #161b22; border-radius: 8px; display: block; }
+  video.me { transform: scaleX(-1); }
+  .row { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+  input {
+    flex: 1; min-width: 200px; padding: 10px; border-radius: 6px;
+    border: 1px solid #30363d; background: #161b22; color: inherit; font: inherit;
+  }
+  button {
+    padding: 10px 16px; border-radius: 6px; border: 1px solid #30363d;
+    background: #21262d; color: inherit; font: inherit; cursor: pointer;
+    min-height: 44px;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  #state { color: #8b949e; font-size: 13px; margin: 8px 0; }
+  #log {
+    margin-top: 12px; padding: 10px; background: #161b22; border-radius: 6px;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #8b949e;
+    max-height: 220px; overflow-y: auto; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+
+<h1>실시간 면접 — 지원자 쪽</h1>
+<p class="sub">
+  프로토콜 참조 구현입니다. 원본 문서는 <code>docs/02_tasks/실시간-면접-시그널링.md</code>.
+  <strong>이 페이지는 앱이 나오기 전까지의 대역이자, 앱을 만들 때 보는 예제입니다.</strong>
+</p>
+
+<div class="row">
+  <input id="token" placeholder="면접 토큰 (메일 링크 뒤의 그 값)">
+  <button id="join">면접 참여</button>
+</div>
+
+<div id="state">대기 중</div>
+
+<video id="remote" autoplay playsinline></video>
+<video id="me" class="me" autoplay playsinline muted style="margin-top:8px; max-width:240px"></video>
+
+<div id="log"></div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────
+   지원자 쪽이 하는 일은 넷뿐입니다.
+
+     1. 카메라·마이크를 켠다
+     2. 시그널링 WebSocket 에 붙는다 (토큰만 있으면 된다 — 입장권은 채용자용)
+     3. 채용자가 건 offer 에 answer 로 답한다   ← **지원자는 offer 를 만들지 않는다**
+     4. ICE 후보를 서로 주고받는다
+
+   그 뒤로 영상·음성은 서버를 거치지 않고 두 기기가 직접 주고받습니다.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const $ = (id) => document.getElementById(id)
+const log = (m) => { $('log').textContent += m + '\n'; $('log').scrollTop = 1e9 }
+const setState = (m) => { $('state').textContent = m }
+
+let ws = null
+let pc = null
+let stream = null
+
+/* 같은 출처의 API 를 본다. 앱에서는 여기가 고정 주소가 된다. */
+function signalingUrl(token) {
+  const u = new URL(`/api/v1/ws/interview/${encodeURIComponent(token)}/rtc`, location.origin)
+  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
+  return u.toString()
+}
+
+const send = (msg) => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)) }
+
+/* PeerConnection 은 **매번 새로 만듭니다.** 채용자가 나갔다 들어올 때 헌 것을
+   재활용하면 ICE 상태가 남아 안 붙습니다. */
+function newPeer(iceServers) {
+  pc?.close()
+  pc = new RTCPeerConnection({ iceServers })
+  stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+
+  pc.onicecandidate = (e) => { if (e.candidate) send({ type: 'ice', candidate: e.candidate.toJSON() }) }
+  pc.ontrack = (e) => { $('remote').srcObject = e.streams[0]; setState('연결됨') }
+  pc.onconnectionstatechange = () => {
+    log('연결 상태: ' + pc.connectionState)
+    /* failed 는 대개 망 문제입니다 — 서로 다른 망이면 TURN 없이는 못 붙습니다. */
+    if (pc.connectionState === 'failed') setState('연결 실패 — 서로 다른 망이면 붙지 않을 수 있습니다')
+  }
+  return pc
+}
+
+$('join').onclick = async () => {
+  const token = $('token').value.trim()
+  if (!token) return
+
+  $('join').disabled = true
+  setState('카메라를 켜는 중')
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      /* `ideal` 로 줍니다 — `exact` 면 못 맞추는 기기에서 아예 실패합니다. */
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+    })
+    $('me').srcObject = stream
+  } catch (e) {
+    setState('카메라·마이크를 사용할 수 없습니다. 권한을 허용해 주세요')
+    $('join').disabled = false
+    return
+  }
+
+  setState('서버에 붙는 중')
+  ws = new WebSocket(signalingUrl(token))
+  let iceServers = []
+
+  ws.onopen = () => log('WebSocket 열림')
+  ws.onclose = (e) => { log('WebSocket 닫힘 code=' + e.code); setState('연결이 끊겼습니다'); $('join').disabled = false }
+  ws.onerror = () => setState('서버에 연결하지 못했습니다')
+
+  ws.onmessage = async (ev) => {
+    let msg
+    try { msg = JSON.parse(ev.data) } catch { return }
+    if (msg.type !== 'pong') log('← ' + msg.type + (msg.code ? ' (' + msg.code + ')' : ''))
+
+    switch (msg.type) {
+      case 'hello':
+        /* **ICE 서버 목록을 여기 박지 마세요.** 서버가 줍니다 — TURN 이
+           나중에 생겨도 앱을 다시 배포하지 않아도 되게 하려는 것입니다. */
+        iceServers = msg.ice_servers || []
+        setState(msg.peer_present ? '면접관과 연결하는 중' : '면접관을 기다리는 중')
+        break
+
+      case 'peer-join':
+        setState('면접관과 연결하는 중')
+        break
+
+      case 'peer-leave':
+        pc?.close(); pc = null
+        $('remote').srcObject = null
+        setState('면접관이 나갔습니다')
+        break
+
+      case 'offer': {
+        /* 거는 쪽은 항상 채용자입니다. 지원자는 받아서 answer 만 냅니다. */
+        const conn = newPeer(iceServers)
+        await conn.setRemoteDescription({ type: 'offer', sdp: msg.sdp })
+        const answer = await conn.createAnswer()
+        await conn.setLocalDescription(answer)
+        send({ type: 'answer', sdp: answer.sdp })
+        break
+      }
+
+      case 'ice':
+        /* offer/answer 가 끝나기 전에 후보가 먼저 오면 던집니다. 치명적이지
+           않습니다 — 다음 후보로 붙습니다. */
+        if (pc && msg.candidate) await pc.addIceCandidate(msg.candidate).catch(() => {})
+        break
+
+      case 'error':
+        setState(msg.message || '오류')
+        break
+    }
+  }
+
+  /* 중간 프록시가 조용한 연결을 끊습니다. 25초쯤마다 보냅니다. */
+  setInterval(() => send({ type: 'ping' }), 25000)
+}
+
+/* 창을 닫을 때 카메라를 끕니다. 안 끄면 탭에 녹화 표시가 남습니다. */
+window.addEventListener('pagehide', () => {
+  send({ type: 'bye' })
+  stream?.getTracks().forEach((t) => t.stop())
+})
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
 import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
@@ -602,6 +603,14 @@ function InterviewSection({ applicationId }: { applicationId: number }) {
                 {IV_STATUS_LABEL[s.status] ?? s.status}
               </span>
               <button type="button" className={styles.ivCopy} onClick={() => copyUrl(s.url)}>링크 복사</button>
+              {/* 실시간 면접(사람 ↔ 사람). 끝난 면접에는 안 보인다 —
+                  들어가 봐야 방이 안 열린다(서버가 session_closed 로 막는다).
+                  같은 세션·같은 토큰을 쓰므로 AI 면접과 자리를 나누지 않는다. */}
+              {!isDone && (
+                <Link className={styles.ivCopy} to={`/interview-room/${s.id}`}>
+                  면접방 입장
+                </Link>
+              )}
               {isDone && (
                 <button type="button" className={styles.ivExpand} onClick={() => toggleExpand(s)}>
                   {isExpanded ? '닫기' : 'Q&A 보기'}

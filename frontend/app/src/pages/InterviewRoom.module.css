@@ -1,0 +1,233 @@
+/* 채용자용 실시간 면접 화면.
+   토큰은 전부 tokens.css (05-design 확정값).
+
+   **다른 화면과 달리 카드가 주인공이 아니다.** 지원자 얼굴이 주인공이라
+   여백을 줄이고 남는 자리를 영상에 준다. */
+
+.page {
+  height: 100vh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  box-sizing: border-box;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.who {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.posting {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+
+/* 연결 상태 점. 붙기 전에는 회색이고 붙으면 초록이다 —
+   **빨강을 쓰지 않는다.** 아직 안 붙은 것은 오류가 아니다. */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-sub);
+}
+
+.dotLive {
+  background: var(--ok);
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--sp-3);
+}
+
+.remoteWrap {
+  position: relative;
+  min-height: 0;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border);
+}
+
+/* 지원자 영상. **좌우를 뒤집지 않는다** — 거울로 보이는 게 자연스러운 건
+   자기 모습일 때뿐이고, 상대를 뒤집으면 글씨가 뒤집혀 보인다.
+   `contain` 인 이유는 `cover` 가 얼굴을 잘라내기 때문이다. */
+.remote {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--bg-sunken);
+}
+
+/* 내 모습. 작게, 구석에. 여기는 뒤집는다. */
+.local {
+  position: absolute;
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  width: 22%;
+  max-width: 240px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-elev);
+  transform: scaleX(-1);
+  box-shadow: var(--sh-card);
+}
+
+/* 아직 안 붙었을 때 덮는 안내. 영상 자리를 비워 두면 "고장났나" 싶다. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  text-align: center;
+  background: var(--bg-sunken);
+}
+
+.overlayTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.overlayBody {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.link {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-2) var(--sp-3);
+  overflow-x: auto;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.panel,
+.card {
+  background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.panelTitle,
+.cardTitle {
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.questions {
+  margin: 0;
+  padding-left: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.question {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.empty {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+/* 좁은 화면 — 옆 패널을 아래로 내린다. 채용자는 PC 가 기본이지만
+   노트북 화면에서 영상이 눌리지 않게 한다. */
+@media (max-width: 900px) {
+  .stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+
+  .side {
+    max-height: 30vh;
+  }
+}
