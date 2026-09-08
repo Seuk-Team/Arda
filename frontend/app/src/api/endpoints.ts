@@ -200,8 +200,12 @@ export const interviews = {
 
 export const agent = {
   /* 자연어 한 마디. 대화 이력은 화면이 들고 매번 같이 보낸다 (서버는 저장하지 않는다) */
-  chat: (message: string, history: AgentHistoryMessage[], signal?: AbortSignal) =>
-    api.post<AgentChatResponse>('/agent/chat', { message, history } satisfies AgentChatRequest, { signal }),
+  chat: (message: string, history: AgentHistoryMessage[], signal?: AbortSignal, applicationId?: number) =>
+    api.post<AgentChatResponse>(
+      '/agent/chat',
+      { message, history, application_id: applicationId ?? null } satisfies AgentChatRequest,
+      { signal },
+    ),
 
   /* 확인 카드에서 [확인]을 눌렀을 때만 부른다. 쓰기 도구는 이 경로로만 실행된다 */
   confirm: (tool_name: string, args: Record<string, unknown>, signal?: AbortSignal) =>

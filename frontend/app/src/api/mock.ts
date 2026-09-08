@@ -183,7 +183,7 @@ function detail(a: ApplicationListItem): ApplicationDetail {
 
 const AGENT_REPLY: AgentChatResponse = {
   reply: '지금은 **로컬 목 데이터** 모드예요 — 서버 없이 화면만 확인하는 상태입니다.\n- 조회 화면은 고정된 더미로 채워집니다\n- 단계 변경 같은 쓰기 작업은 실서버가 있어야 동작해요',
-  tool_calls: [], pending_action: null,
+  tool_calls: [], pending_action: null, choices: [],
   input_tokens: 0, output_tokens: 0, model: 'mock', cost_usd: 0,
 }
 

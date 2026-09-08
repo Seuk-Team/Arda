@@ -233,12 +233,23 @@ export interface AgentPendingAction {
 export interface AgentChatRequest {
   message: string
   history: AgentHistoryMessage[]
+  /* 동명이인 선택지 버튼으로 고른 지원자 — 서버가 이름 조회를 건너뛰고 이 id 로 진행한다 */
+  application_id?: number | null
+}
+
+/* 담당자가 골라야 답이 이어지는 갈림길 하나 (동명이인). 버튼으로 그린다.
+   누르면 message(원래 요청) 를 application_id 와 함께 다시 보낸다. */
+export interface AgentChoice {
+  label: string
+  application_id: number
+  message: string
 }
 
 export interface AgentChatResponse {
   reply: string
   tool_calls: AgentToolCall[]
   pending_action: AgentPendingAction | null
+  choices: AgentChoice[]
   input_tokens: number
   output_tokens: number
   model: string

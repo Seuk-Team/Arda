@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
 import { ApiError } from '../api/client'
 import { agent } from '../api/endpoints'
-import type { AgentHistoryMessage, AgentPendingAction, AgentToolCall } from '../api/types'
+import type { AgentChoice, AgentHistoryMessage, AgentPendingAction, AgentToolCall } from '../api/types'
 import { STAGE_LABEL } from '../lib/stage'
 import { useToast } from './Toast'
 import Sprout from './Sprout'
@@ -189,6 +189,9 @@ export default function ArChat({
      안 되므로, 성공한 왕복만 한 쌍씩 쌓는다 (실패한 요청은 넣지 않는다). */
   const [history, setHistory] = useState<AgentHistoryMessage[]>([])
   const [pending, setPending] = useState<AgentPendingAction | null>(null)
+  /* 동명이인 선택지 — 서버가 choices 를 주면 아르 말풍선 아래 버튼으로. 다음 요청이
+     나가면 비운다 (버튼이 남아 있으면 이미 지나간 질문에 답하게 된다). */
+  const [choices, setChoices] = useState<AgentChoice[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState<'chat' | 'confirm' | null>(null)
   /* 성공·실패 직후 잠깐 짓는 표정. 지나면 평상시 모션으로 돌아간다 */
@@ -232,7 +235,7 @@ export default function ArChat({
   useEffect(() => {
     const el = streamRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [items, pending, busy])
+  }, [items, pending, choices, busy])
 
   /* 요청 중에 패널이 닫히면 fetch 를 놓아 준다 */
   const abortRef = useRef<AbortController | null>(null)
@@ -263,24 +266,38 @@ export default function ArChat({
     }
 
     setDraft('')
+    await submit(message, message)
+  }
+
+  /* 선택지 버튼 — 말풍선엔 고른 사람을, 서버엔 원래 요청 + id 를 보낸다. 담당자가
+     "ID 28" 을 손으로 치던 것을 없앤다 (2026-09-08). */
+  function choose(c: AgentChoice) {
+    if (busy) return
+    void submit(c.message, `${c.label} 선택`, c.application_id)
+  }
+
+  /* message: 서버로 가는 글 · shown: 말풍선·이력에 남는 글. 보통은 같고 선택지만 다르다 */
+  async function submit(message: string, shown: string, applicationId?: number) {
     setPending(null)
+    setChoices([])
     setFlash(null)
-    push({ kind: 'user', text: message })
+    push({ kind: 'user', text: shown })
     setBusy('chat')
 
     const ctrl = new AbortController()
     abortRef.current = ctrl
 
     try {
-      const res = await agent.chat(message, history, ctrl.signal)
+      const res = await agent.chat(message, history, ctrl.signal, applicationId)
 
       if (res.tool_calls.length > 0) push({ kind: 'log', lines: res.tool_calls.map(logLine) })
       if (res.reply.trim()) push({ kind: 'ar', text: res.reply })
       if (res.pending_action) setPending(res.pending_action)
+      if (res.choices?.length) setChoices(res.choices)
 
       /* 이력의 assistant 자리는 비울 수 없다 — 답변이 없으면 확인 요청 문장을 대신 넣는다 */
       const assistant = res.reply.trim() || res.pending_action?.description || '(확인 대기)'
-      setHistory((prev) => [...prev, { role: 'user', content: message }, { role: 'assistant', content: assistant }])
+      setHistory((prev) => [...prev, { role: 'user', content: shown }, { role: 'assistant', content: assistant }])
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       push({ kind: 'error', text: errorText(err) })
@@ -350,6 +367,26 @@ export default function ArChat({
           // 데이터는 그대로 남기고 렌더링만 스킵해서 필요시 되살릴 수 있게 둔다.
           return null
         })}
+
+        {/* 동명이인 선택지 — 아르 말풍선 아래, 아이콘 자리만큼 들여서 버튼 줄 */}
+        {choices.length > 0 && (
+          <div className={styles.arRow} role="group" aria-label="지원자 선택">
+            <span className={styles.arIcon} aria-hidden="true" />
+            <div className={styles.choices}>
+              {choices.map((c) => (
+                <button
+                  key={c.application_id}
+                  type="button"
+                  className={`btn btn-secondary ${styles.choiceBtn}`}
+                  disabled={locked}
+                  onClick={() => choose(c)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 쓰기 도구는 여기서 멈춘다. 앰버 점선 = AI 제안 (§1 불변 규약) */}
         {pending && (
