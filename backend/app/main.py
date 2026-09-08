@@ -231,6 +231,7 @@ from app.api.emails import router as emails_router  # noqa: E402
 from app.api.evaluations import router as evaluations_router  # noqa: E402
 from app.api.files import router as files_router  # noqa: E402
 from app.api.integrity import router as integrity_router  # noqa: E402
+from app.api.internal import router as internal_router  # noqa: E402
 from app.api.interviews import router as interviews_router  # noqa: E402
 from app.api.interview_rtc import router as interview_rtc_router  # noqa: E402
 from app.api.notes import router as notes_router  # noqa: E402
@@ -252,6 +253,7 @@ app.include_router(emails_router)
 app.include_router(evaluations_router)
 app.include_router(files_router)
 app.include_router(integrity_router)
+app.include_router(internal_router)
 app.include_router(interviews_router)
 app.include_router(interview_rtc_router)
 app.include_router(notes_router)
