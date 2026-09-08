@@ -57,9 +57,15 @@ class _HomeShellState extends State<HomeShell> {
   /// 흔든다 — 취소하고 나온 것까지 다시 받으면 헛걸음이다
   final _postingsReload = ValueNotifier(0);
 
+  /// 더보기의 평가 현황 배지에 붙는 수. **대시보드가 받아 온 것을 그대로 쓴다** —
+  /// 같은 것을 더보기가 또 물으면 앱을 켤 때마다 왕복이 하나 는다.
+  /// 아직 못 받았으면 null 이고, 그때는 배지를 그리지 않는다
+  final _reviewWaiting = ValueNotifier<int?>(null);
+
   @override
   void dispose() {
     _postingsReload.dispose();
+    _reviewWaiting.dispose();
     super.dispose();
   }
 
@@ -95,9 +101,10 @@ class _HomeShellState extends State<HomeShell> {
             onOpenReviews: () => _go(AppTab.more),
             onOpenApplicants: () => _go(AppTab.applicants),
             onOpenPostings: () => _go(AppTab.postings),
+            onReviewWaiting: (n) => _reviewWaiting.value = n,
           ),
           const CalendarScreen(),
-          const MoreScreen(),
+          MoreScreen(reviewCount: _reviewWaiting),
         ],
       ),
       // 05-design §0.5: 아르는 **전 화면 공통 진입점**이다. 탭이 있는 화면에서는

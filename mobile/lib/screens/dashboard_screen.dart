@@ -34,6 +34,7 @@ class DashboardScreen extends StatefulWidget {
     this.onOpenReviews,
     this.onOpenApplicants,
     this.onOpenPostings,
+    this.onReviewWaiting,
     this.repository,
   });
 
@@ -46,6 +47,10 @@ class DashboardScreen extends StatefulWidget {
   final VoidCallback? onOpenReviews;
   final VoidCallback? onOpenApplicants;
   final VoidCallback? onOpenPostings;
+
+  /// 받아 온 '내 리뷰 대기' 수를 셸에 알린다 — 더보기의 평가 현황 배지가
+  /// 같은 수를 쓴다. 같은 요청을 두 번 하지 않으려고 흘려 준다
+  final ValueChanged<int>? onReviewWaiting;
 
   /// 테스트가 가짜를 넣는 자리 (큐 8 4단계)
   final DashboardRepository? repository;
@@ -85,8 +90,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// `ignore()` 이유는 postings_screen.dart 참고
-  Future<DashboardData> _load(int userId) =>
-      _repo.load(userId: userId, today: widget.today)..ignore();
+  Future<DashboardData> _load(int userId) {
+    final future = _repo.load(userId: userId, today: widget.today);
+    // 받아 온 뒤에 알린다 — 실패하면 아무 말도 안 한다(더보기 배지가 안 뜬다).
+    // 파생된 future 도 실패를 들고 있어 같이 흘려보낸다
+    future.then((d) => widget.onReviewWaiting?.call(d.reviewWaiting)).ignore();
+    return future..ignore();
+  }
 
   void _reload() {
     final id = _loadedFor;
