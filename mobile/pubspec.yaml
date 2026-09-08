@@ -49,6 +49,20 @@ dependencies:
   # 서버가 presigned URL 을 주고 앱은 그것만 연다 — 앱 안에서 보려면 PDF 렌더러가
   # 또 필요하고 이미지·docx 는 각각 다르다. 웹도 presigned URL 을 그냥 연다.
   url_launcher: ^6.3.1
+  #
+  # camera: 지원자 면접 화면의 실시간 미리보기 (2026-09-08).
+  # **한 번 찍어 올리는 것이 아니라 면접 내내 켜져 있어야 한다** — 다시 찍기가
+  # 없고, 본인 확인이 끊기지 않는 것이 이 기능의 핵심이다(에이전트 도메인 요청서).
+  #
+  # permission_handler: camera 플러그인도 초기화할 때 권한을 묻지만, 그것만으로는
+  # **거부당한 뒤에 할 수 있는 일이 없다.** 상태를 미리 보고(묻지 않고), 영구
+  # 거부면 설정 화면으로 보내려면 이쪽이 필요하다.
+  #
+  # **permission_handler 는 12 에 묶어 둔다.** 13 은 compileSdk 37 을 요구하는데
+  # 지금 AGP(9.0.1)가 권장하는 최대치가 36 이라 `checkDebugAarMetadata` 에서
+  # 빌드가 깨진다. 툴체인이 올라가면 그때 같이 올린다
+  camera: ^0.12.1
+  permission_handler: ^12.0.0
 
 dev_dependencies:
   flutter_test:

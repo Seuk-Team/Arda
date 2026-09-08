@@ -46,4 +46,16 @@ abstract final class Routes {
 
   /// 지원자 상세. 인자로 Applicant 를 받는다
   static const applicantDetail = '/applicants/detail';
+
+  // ── 지원자 갈래 (2026-09-08) ─────────────────────────
+  //
+  // 한 앱을 담당자와 지원자가 같이 쓴다. **지원자 화면은 탭 셸 밖이다** —
+  // 하단 탭바도 아르 버튼도 없다. 지원자는 담당자 UI 를 한 조각도 보면
+  // 안 되고, 로그인한 사람도 없다(토큰이 곧 인증이다).
+
+  /// 지원자 홈 — 내 지원 현황 · 내 면접. 인자 없음(저장된 링크로 그린다)
+  static const applicantHome = '/applicant';
+
+  /// AI 면접. 인자로 면접 토큰(String) 을 받는다
+  static const interview = '/applicant/interview';
 }

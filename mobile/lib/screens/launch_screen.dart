@@ -5,20 +5,37 @@
 ///
 /// **네트워크가 끊긴 것은 로그아웃이 아니다.** 지하철에서 앱을 켰다고 토큰을
 /// 버리면 안 되므로, 못 닿았을 때는 다시 시도할 자리를 준다(05-design §6 오류).
+///
+/// ## 2026-09-08 — 갈래가 셋이 됐다
+///
+/// 한 앱을 담당자와 지원자가 같이 쓴다:
+///
+///   담당자 JWT 있음  → 탭 셸(홈)
+///   지원자 링크 있음  → 지원자 홈
+///   둘 다 없음       → 로그인 화면(두 탭)
+///
+/// **담당자를 먼저 본다.** 둘 다 저장돼 있으면 담당자로 간다 — 담당자 토큰은
+/// 12시간이라 그것이 살아 있다는 것은 방금 로그인했다는 뜻이고, 지원자 링크는
+/// 7일씩 남아 있어 오래된 쪽일 확률이 높다. 양쪽 다 빠져나갈 문이 있다:
+/// 담당자는 더보기 → 로그아웃, 지원자는 홈의 '다른 링크로 들어가기'.
 library;
 
 import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
+import '../auth/applicant_store.dart';
 import '../auth/auth_service.dart';
 import '../auth/current_user.dart';
 import '../routes.dart';
 import '../theme/tokens.dart';
 
 class LaunchScreen extends StatefulWidget {
-  const LaunchScreen({super.key, this.auth});
+  const LaunchScreen({super.key, this.auth, this.applicantStore});
 
   final AuthService? auth;
+
+  /// 테스트가 가짜를 넣는 자리
+  final ApplicantStore? applicantStore;
 
   @override
   State<LaunchScreen> createState() => _LaunchScreenState();
@@ -26,6 +43,8 @@ class LaunchScreen extends StatefulWidget {
 
 class _LaunchScreenState extends State<LaunchScreen> {
   late final AuthService _auth = widget.auth ?? AuthService();
+  late final ApplicantStore _applicants =
+      widget.applicantStore ?? const ApplicantStore();
 
   /// 서버에 못 닿았을 때만 채워진다. 토큰이 없거나 만료된 경우는
   /// 화면을 그리지 않고 곧장 로그인으로 넘어간다
@@ -41,11 +60,20 @@ class _LaunchScreenState extends State<LaunchScreen> {
     setState(() => _error = null);
     try {
       final user = await _auth.restore();
+      if (user != null) {
+        if (!mounted) return;
+        CurrentUserScope.notifierOf(context)?.value = user;
+        Navigator.pushReplacementNamed(context, Routes.home);
+        return;
+      }
+
+      // 담당자가 아니면 지원자로 들어온 적이 있는지 본다. 서버에 묻지 않는다 —
+      // 링크가 죽었는지는 지원자 홈이 카드마다 알려 준다
+      final applicant = await _applicants.read();
       if (!mounted) return;
-      if (user != null) CurrentUserScope.notifierOf(context)?.value = user;
       Navigator.pushReplacementNamed(
         context,
-        user == null ? Routes.login : Routes.home,
+        applicant.isEmpty ? Routes.login : Routes.applicantHome,
       );
     } on ApiError catch (e) {
       // 여기 오는 것은 사실상 NetworkError 뿐이다 — AuthExpired 는 restore 가
