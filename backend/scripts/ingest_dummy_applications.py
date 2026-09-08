@@ -40,6 +40,7 @@ from pathlib import Path
 _LABELS = {
     "이메일": "email",
     "연락처": "phone",
+    "생년월일": "birth_date",  # 앱 로그인 비밀번호가 된다 (ADR-0031)
     "최종 학력": "education",
     "경력 연차": "career_raw",
     "기술 스택": "skills_raw",
@@ -280,6 +281,8 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                     "name": record["name"],
                     "email": record["email"],
                     "phone": record["phone"],
+                    # 없으면 접수는 되지만 **그 사람은 앱에 로그인할 수 없다**
+                    "birth_date": record.get("birth_date"),
                     "education": record.get("education"),
                     "career_years": record.get("career_years"),
                     "skills": record.get("skills") or None,
