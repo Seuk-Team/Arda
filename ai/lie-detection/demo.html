@@ -71,6 +71,36 @@ h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
 .bar-truth { background: linear-gradient(90deg, #228822, #44cc44); }
 
 #file-label { font-size: 0.78rem; color: #444; text-align: center; min-height: 16px; }
+
+/* 모드 전환 */
+.tabs { display: flex; gap: 8px; margin-bottom: 4px; }
+.tabs button {
+  flex: 1; padding: 10px; border: 1px solid #2a2a3a; background: #14141e;
+  color: #666; border-radius: 10px; cursor: pointer; font-size: 0.88rem;
+}
+.tabs button.on { border-color: #4a4aff; color: #fff; background: #1a1a2e; }
+
+/* 카메라 실시간 */
+#cam-wrap { display: none; border-radius: 12px; overflow: hidden; background: #000; position: relative; }
+#cam { width: 100%; max-height: 72vh; display: block; transform: scaleX(-1); }
+#live-panel { display: none; background: #1a1a24; border-radius: 12px; padding: 24px; }
+
+.pill {
+  display: inline-block; padding: 5px 12px; border-radius: 999px;
+  font-size: 0.75rem; background: #12121a; color: #666; border: 1px solid #262633;
+}
+.pill.on { background: #1a1a3a; color: #8888ff; border-color: #3a3a6a; }
+
+.big { font-size: 2.6rem; font-weight: 700; text-align: center; margin: 14px 0 4px; color: #555; }
+.big.lie   { color: #ff5555; }
+.big.truth { color: #44dd44; }
+.big-sub { text-align: center; font-size: 0.75rem; color: #555; margin-bottom: 18px; }
+
+/* 최근 판정 흐름 */
+#trace { display: flex; align-items: flex-end; gap: 2px; height: 44px; background: #111; border-radius: 6px; padding: 4px; }
+#trace div { flex: 1; min-width: 2px; border-radius: 1px; background: #333; }
+
+.note { font-size: 0.72rem; color: #444; line-height: 1.6; margin-top: 16px; border-top: 1px solid #22222e; padding-top: 12px; }
 </style>
 </head>
 <body>
@@ -81,6 +111,11 @@ h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
 <div class="main">
   <!-- 왼쪽 -->
   <div class="left">
+    <div class="tabs">
+      <button id="tab-file" class="on">영상 파일</button>
+      <button id="tab-cam">카메라 실시간</button>
+    </div>
+
     <label class="upload-area" for="file-input">
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.5">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -95,10 +130,43 @@ h1 { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
     <div id="video-wrap">
       <video id="preview" controls></video>
     </div>
+
+    <div id="cam-wrap">
+      <video id="cam" autoplay muted playsinline></video>
+    </div>
   </div>
 
   <!-- 오른쪽 -->
   <div class="right">
+    <button id="cam-btn" style="display:none;width:100%;padding:14px;background:#3a3aff;color:#fff;border:none;border-radius:10px;font-size:1rem;cursor:pointer;">카메라 켜기</button>
+
+    <div id="live-panel">
+      <span class="pill" id="live-state">준비 중</span>
+
+      <div class="big" id="live-big">–</div>
+      <div class="big-sub" id="live-sub">말을 시작하면 1초마다 갱신됩니다</div>
+
+      <div class="row">
+        <div class="row-label"><span>거짓 확률</span><strong id="live-lie-pct">-</strong></div>
+        <div class="bar-bg"><div class="bar-fill bar-lie" id="live-lie-bar" style="width:0%;transition:width .3s"></div></div>
+      </div>
+      <div class="row">
+        <div class="row-label"><span>진실 확률</span><strong id="live-truth-pct">-</strong></div>
+        <div class="bar-bg"><div class="bar-fill bar-truth" id="live-truth-bar" style="width:0%;transition:width .3s"></div></div>
+      </div>
+
+      <div style="font-size:0.78rem;color:#555;margin:18px 0 8px;letter-spacing:.05em;">최근 30초 흐름</div>
+      <div id="trace"></div>
+
+      <div style="font-size:0.78rem;color:#555;margin:18px 0 8px;letter-spacing:.05em;">지금 보고 있는 것</div>
+      <div id="live-obs"></div>
+
+      <p class="note">
+        모델은 법정 영상 121개로 배웠습니다(교차검증 76%). 웹캠·짧은 발화는 학습 조건과
+        달라 실제 정확도는 확인되지 않았습니다. <b>이 숫자는 지원자에게 보여 주지 않습니다.</b>
+      </p>
+    </div>
+
     <button id="analyze-btn" disabled>분석 시작</button>
     <div id="loading"><span class="spinner"></span>분석 중... (30초~1분)</div>
 
@@ -203,6 +271,190 @@ btn.addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+
+/* ─────────────────────── 카메라 실시간 ─────────────────────── */
+
+const $ = id => document.getElementById(id);
+const AUDIO_MS = 50;      // 오디오 한 조각. 서버가 이 단위로 말/침묵을 가른다
+const FRAME_MS = 200;     // 영상 5장/초. 서버는 이보다 더 자주 봐도 쓰지 않는다
+const SR = 16000;         // 서버가 기대하는 표본율 (PROTOCOL.md)
+const TRACE_LEN = 30;
+
+let live = null;          // { ws, stream, ctx, timer } — 켜져 있으면 채워진다
+const trace = [];
+
+// 오디오를 Int16 로 바꿔 50ms 씩 모아 보내는 워크릿. 파일로 두면 배포에 하나가
+// 더 붙으므로 여기서 만들어 쓴다.
+const WORKLET = `
+class PCM extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = []; this.n = 0;
+                  this.need = Math.round(sampleRate * ${AUDIO_MS} / 1000); }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (!ch) return true;
+    const out = new Int16Array(ch.length);
+    for (let i = 0; i < ch.length; i++) {
+      const s = Math.max(-1, Math.min(1, ch[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    this.buf.push(out); this.n += out.length;
+    if (this.n >= this.need) {
+      const all = new Int16Array(this.n); let o = 0;
+      for (const b of this.buf) { all.set(b, o); o += b.length; }
+      this.port.postMessage(all.buffer, [all.buffer]);
+      this.buf = []; this.n = 0;
+    }
+    return true;
+  }
+}
+registerProcessor('pcm', PCM);`;
+
+function wsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return proto + '//' + location.host + location.pathname.replace(/\/$/, '') + '/ws/live';
+}
+
+function send(ws, kind, payload) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  const packet = new Uint8Array(1 + payload.byteLength);
+  packet[0] = kind;
+  packet.set(new Uint8Array(payload), 1);
+  ws.send(packet);
+}
+
+function setMode(cam) {
+  $('tab-cam').classList.toggle('on', cam);
+  $('tab-file').classList.toggle('on', !cam);
+  document.querySelector('.upload-area').style.display = cam ? 'none' : 'block';
+  $('file-label').style.display = cam ? 'none' : 'block';
+  $('video-wrap').style.display = (!cam && selectedFile) ? 'block' : 'none';
+  $('analyze-btn').style.display = cam ? 'none' : 'block';
+  $('result').style.display = 'none';
+  $('cam-wrap').style.display  = cam ? 'block' : 'none';
+  $('cam-btn').style.display   = cam ? 'block' : 'none';
+  $('live-panel').style.display = cam ? 'block' : 'none';
+  if (!cam) stopLive();
+}
+
+$('tab-file').onclick = () => setMode(false);
+$('tab-cam').onclick  = () => setMode(true);
+
+$('cam-btn').onclick = () => (live ? stopLive() : startLive());
+
+async function startLive() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480 }, audio: true,
+    });
+  } catch (e) {
+    alert('카메라·마이크를 열 수 없습니다: ' + e.name);
+    return;
+  }
+  $('cam').srcObject = stream;
+
+  const ws = new WebSocket(wsUrl());
+  ws.binaryType = 'arraybuffer';
+  ws.onmessage = e => onLive(JSON.parse(e.data));
+  ws.onclose = () => { if (live) stopLive(); };
+  try {
+    await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = no; });
+  } catch {
+    stream.getTracks().forEach(t => t.stop());
+    alert('서버에 연결하지 못했습니다');
+    return;
+  }
+
+  // 오디오
+  const ctx = new AudioContext({ sampleRate: SR });
+  const blob = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }));
+  await ctx.audioWorklet.addModule(blob);
+  URL.revokeObjectURL(blob);
+  const node = new AudioWorkletNode(ctx, 'pcm');
+  node.port.onmessage = e => send(ws, 0x01, e.data);
+  ctx.createMediaStreamSource(stream).connect(node);
+  // 워크릿에 목적지가 없으면 브라우저가 그래프를 안 돌린다. 소리는 내지 않는다.
+  const mute = ctx.createGain(); mute.gain.value = 0;
+  node.connect(mute).connect(ctx.destination);
+
+  // 영상
+  const canvas = document.createElement('canvas');
+  canvas.width = 480; canvas.height = 360;
+  const g = canvas.getContext('2d');
+  const timer = setInterval(() => {
+    if (!$('cam').videoWidth) return;
+    g.drawImage($('cam'), 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(b => b && b.arrayBuffer().then(a => send(ws, 0x02, a)),
+                  'image/jpeg', 0.6);
+  }, FRAME_MS);
+
+  live = { ws, stream, ctx, timer };
+  $('cam-btn').textContent = '카메라 끄기';
+  $('cam-btn').style.background = '#552222';
+  setState('듣는 중', false);
+}
+
+function stopLive() {
+  if (!live) return;
+  clearInterval(live.timer);
+  live.stream.getTracks().forEach(t => t.stop());
+  live.ctx.close();
+  if (live.ws.readyState === WebSocket.OPEN) live.ws.close();
+  live = null;
+  $('cam').srcObject = null;
+  $('cam-btn').textContent = '카메라 켜기';
+  $('cam-btn').style.background = '#3a3aff';
+  setState('준비 중', false);
+  trace.length = 0; drawTrace();
+}
+
+function setState(text, on) {
+  const el = $('live-state');
+  el.textContent = text;
+  el.classList.toggle('on', on);
+}
+
+function onLive(m) {
+  if (m.type === 'speaking') { setState('말하는 중', true); return; }
+  if (m.type === 'quiet')    { setState('듣는 중', false); return; }
+  if (m.type !== 'live') return;
+
+  if (!m.ok) { $('live-sub').textContent = m.reason; return; }
+
+  $('live-big').textContent = m.lie_pct + '%';
+  $('live-big').className   = 'big ' + (m.pred === 1 ? 'lie' : 'truth');
+  $('live-sub').textContent = m.pred === 1 ? '거짓 쪽' : '진실 쪽';
+
+  $('live-lie-bar').style.width   = m.lie_pct + '%';
+  $('live-truth-bar').style.width = m.truth_pct + '%';
+  $('live-lie-pct').textContent   = m.lie_pct + '%';
+  $('live-truth-pct').textContent = m.truth_pct + '%';
+
+  trace.push(m.lie_pct);
+  if (trace.length > TRACE_LEN) trace.shift();
+  drawTrace();
+
+  const obs = $('live-obs');
+  obs.innerHTML = '';
+  const color = { high: '#ff6666', low: '#ffaa44', normal: '#555' };
+  (m.signals || []).forEach(s => {
+    const row = document.createElement('div');
+    row.style = 'display:flex;justify-content:space-between;font-size:0.8rem;padding:4px 8px;border-radius:6px;margin-bottom:2px;background:#12121a;';
+    row.innerHTML = `<span style="color:#aaa">${s.key}</span><span style="color:${color[s.flag] || '#888'}">${s.value}</span>`;
+    obs.appendChild(row);
+  });
+}
+
+function drawTrace() {
+  const el = $('trace');
+  el.innerHTML = '';
+  trace.forEach(v => {
+    const bar = document.createElement('div');
+    bar.style.height = Math.max(4, v) + '%';
+    bar.style.background = v >= 50 ? '#ff4444' : '#44cc44';
+    el.appendChild(bar);
+  });
+}
 </script>
 </body>
 </html>

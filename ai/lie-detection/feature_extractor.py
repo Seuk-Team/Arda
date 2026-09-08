@@ -124,6 +124,56 @@ def extract_visual(video_path, max_frames=300):
     return np.concatenate([arr.mean(axis=0), arr.std(axis=0)]), arr, np.array(timestamps)
 
 
+# 얼굴 신호를 "많다·적다"로 부르는 기준. 파일 분석과 실시간이 **같은 값**을 봐야
+# 같은 사람이 매체에 따라 다른 말을 듣지 않는다.
+EAR_BLINK  = 0.22   # 이 값 이하면 눈 감은 것
+BLINK_FAST = 0.5    # 회/초 — 이보다 잦으면 빠름
+BLINK_SLOW = 0.1    # 회/초 — 이보다 드물면 거의 안 깜빡임
+POSE_MOVE  = 0.05   # 고개 흔들림(표준편차)
+MAR_TIGHT  = 0.03   # 입술 다뭄
+MAR_OPEN   = 0.15   # 입 벌림
+ASYMM_HIGH = 0.04   # 좌우 눈 비대칭
+
+
+def face_signals(arr, seconds):
+    """얼굴 행 묶음 → 사람이 읽는 관찰 목록.
+
+    `analyze_timeseries` 가 구간마다 하는 일을 임의의 한 구간에 대해 한다.
+    실시간 창(4초)에도 그대로 쓰려고 떼어 놨다.
+
+    `arr` 열 순서: ear_l, ear_r, mar, brow_l, brow_r, asymm, pose
+    """
+    if len(arr) < 3 or seconds <= 0:
+        return []
+
+    ear_avg = (arr[:, 0] + arr[:, 1]) / 2
+    blinks  = int(np.sum(np.diff((ear_avg < EAR_BLINK).astype(int)) == 1))
+    rate    = blinks / seconds
+
+    out = []
+    if rate > BLINK_FAST:
+        out.append({"key": "눈 깜빡임", "value": f"{rate:.1f}회/초 (빠름)", "flag": "high"})
+    elif rate < BLINK_SLOW:
+        out.append({"key": "눈 깜빡임", "value": f"{rate:.1f}회/초 (거의 안 깜빡임)", "flag": "low"})
+    else:
+        out.append({"key": "눈 깜빡임", "value": f"{rate:.1f}회/초 (정상)", "flag": "normal"})
+
+    if float(arr[:, 6].std()) > POSE_MOVE:
+        out.append({"key": "고개 움직임", "value": "많음", "flag": "high"})
+
+    mar_avg = float(arr[:, 2].mean())
+    if mar_avg < MAR_TIGHT:
+        out.append({"key": "입", "value": "입술 강하게 다뭄", "flag": "high"})
+    elif mar_avg > MAR_OPEN:
+        out.append({"key": "입", "value": "입 크게 벌림", "flag": "high"})
+
+    asymm = float(arr[:, 5].mean())
+    if asymm > ASYMM_HIGH:
+        out.append({"key": "얼굴 비대칭", "value": f"{asymm:.3f} (높음)", "flag": "high"})
+
+    return out
+
+
 def analyze_timeseries(video_path):
     """
     시간대별 눈 깜빡임, 입 움직임, 고개 움직임을 분석해 사람이 읽기 좋은 관찰 목록 반환.
@@ -136,7 +186,6 @@ def analyze_timeseries(video_path):
     _, arr, timestamps = result
     # arr columns: ear_l, ear_r, mar, brow_l, brow_r, asymm, pose
 
-    EAR_BLINK  = 0.22   # 이 값 이하면 눈 감은 것
     WINDOW_SEC = 5       # 분석 구간 (초)
     total_sec  = float(timestamps[-1]) if len(timestamps) else 0
     observations = []
@@ -149,40 +198,9 @@ def analyze_timeseries(video_path):
             t += WINDOW_SEC
             continue
 
-        seg = arr[mask]
-        ear_avg = (seg[:, 0] + seg[:, 1]) / 2
-
-        # 눈 깜빡임 횟수 (EAR이 임계값 아래로 내려가는 횟수)
-        blinks = int(np.sum(np.diff((ear_avg < EAR_BLINK).astype(int)) == 1))
-        blink_rate = blinks / WINDOW_SEC  # 회/초
-
-        mar_avg   = float(seg[:, 2].mean())
-        pose_std  = float(seg[:, 6].std())
-        asymm_avg = float(seg[:, 5].mean())
-
         t_label = f"{int(t)}~{int(t+WINDOW_SEC)}초"
-
-        # 눈 깜빡임
-        if blink_rate > 0.5:
-            observations.append({"time": t_label, "key": "눈 깜빡임", "value": f"{blink_rate:.1f}회/초 (빠름)", "flag": "high"})
-        elif blink_rate < 0.1:
-            observations.append({"time": t_label, "key": "눈 깜빡임", "value": f"{blink_rate:.1f}회/초 (거의 안 깜빡임)", "flag": "low"})
-        else:
-            observations.append({"time": t_label, "key": "눈 깜빡임", "value": f"{blink_rate:.1f}회/초 (정상)", "flag": "normal"})
-
-        # 고개 움직임
-        if pose_std > 0.05:
-            observations.append({"time": t_label, "key": "고개 움직임", "value": "많음", "flag": "high"})
-
-        # 입 긴장
-        if mar_avg < 0.03:
-            observations.append({"time": t_label, "key": "입", "value": "입술 강하게 다뭄", "flag": "high"})
-        elif mar_avg > 0.15:
-            observations.append({"time": t_label, "key": "입", "value": "입 크게 벌림", "flag": "high"})
-
-        # 얼굴 비대칭
-        if asymm_avg > 0.04:
-            observations.append({"time": t_label, "key": "얼굴 비대칭", "value": f"{asymm_avg:.3f} (높음)", "flag": "high"})
+        for sig in face_signals(arr[mask], WINDOW_SEC):
+            observations.append({"time": t_label, **sig})
 
         t += WINDOW_SEC
 

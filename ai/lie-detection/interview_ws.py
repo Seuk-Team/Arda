@@ -50,6 +50,17 @@ MAX_SPEECH_SEC = 180
 # 표정은 매 프레임 보지 않는다. 초당 몇 장이면 신호가 충분하고, 그 이상은 CPU 만 쓴다.
 FRAME_STRIDE = 3
 
+# ── 말하는 동안 굴러가는 판정 ──────────────────────────────────
+# 한 번 판정할 때 보는 최근 구간. 짧으면 피치·MFCC 통계가 표본 부족으로 튀고,
+# 길면 방금 한 말이 앞의 말에 묻힌다. 4초는 문장 하나가 대체로 들어가는 길이다.
+LIVE_WINDOW_SEC = 4.0
+# 갱신 주기. 창 4초를 1초마다 보므로 같은 소리를 네 번 겹쳐 보는 셈이고,
+# 그래서 값이 한 프레임에 튀지 않는다. 측정상 한 번에 약 185ms 걸린다.
+LIVE_EVERY_SEC = 1.0
+# 모델을 학습시킬 때 쓴 표본율. 마이크는 16kHz 로 보내므로 판정 직전에 맞춘다 —
+# 어긋난 채로 MFCC 를 뽑으면 모델이 통째로 다른 값을 보게 된다.
+TRAIN_SR = 22_050
+
 
 def _rms(pcm: bytes) -> float:
     """조각의 소리 크기. `audioop` 은 Python 3.13 에서 빠졌고, numpy 로 같은 값을 낸다."""
@@ -76,6 +87,10 @@ class _SpeechDetector:
         self._speaking = False
         self._silence_started: float | None = None
         self._speech_started: float | None = None
+
+    @property
+    def speaking(self) -> bool:
+        return self._speaking
 
     def feed(self, pcm: bytes) -> str | None:
         """오디오 조각 하나. 반환: 'begin' · 'end' · None."""
@@ -126,6 +141,19 @@ class _SpeechDetector:
         return "end" if spoke >= MIN_SPEECH_SEC else None
 
 
+def face_row_of_jpeg(jpeg: bytes) -> list | None:
+    """JPEG 한 장 → 얼굴 특징 7개. 얼굴이 없거나 못 읽으면 None. 약 2ms."""
+    import cv2
+
+    buf = np.frombuffer(jpeg, dtype=np.uint8)
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    if img is None:
+        return None
+    from feature_extractor import face_row
+
+    return face_row(img)
+
+
 class InterviewSession:
     """연결 하나. 미디어를 받아 신호를 만들고, 질문은 백엔드에서 가져온다."""
 
@@ -146,15 +174,7 @@ class InterviewSession:
         self._frame_count += 1
         if self._frame_count % FRAME_STRIDE:
             return
-        import cv2
-
-        buf = np.frombuffer(jpeg, dtype=np.uint8)
-        img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-        if img is None:
-            return
-        from feature_extractor import face_row
-
-        row = face_row(img)
+        row = face_row_of_jpeg(jpeg)
         if row is not None:
             self.frames.append(row)
 
@@ -179,6 +199,96 @@ class InterviewSession:
             "head_movement": round(float(arr[:, 6].std()), 4),
             "asymmetry": round(float(arr[:, 5].mean()), 4),
         }
+
+
+_model = None
+
+
+def model():
+    """`model.pkl` 을 한 번만 읽는다. 파일 분석(`/analyze`)과 실시간이 같은 것을 본다."""
+    global _model
+    if _model is None:
+        import pathlib
+        import pickle
+
+        _model = pickle.loads(
+            (pathlib.Path(__file__).parent / "model.pkl").read_bytes()
+        )
+    return _model
+
+
+def score(pcm: bytes, rows: list, seconds: float) -> dict:
+    """음성 조각 + 얼굴 행들 → 판정.
+
+    **모자란 재료를 0 으로 채우지 않는다.** 파일 경로는 음성이 없으면 `zeros(86)`
+    을 넣는데, 그건 "분석 못 했다"를 "특징이 전부 0 인 사람"으로 바꿔 놓는 짓이다.
+    실시간에서는 판정을 미루는 편이 틀린 숫자를 내는 것보다 낫다 — 그래서
+    안 되는 이유를 그대로 돌려준다.
+    """
+    import librosa
+
+    from feature_extractor import extract_audio_from_array, face_signals
+
+    if len(rows) < 5:
+        return {"ok": False, "reason": "얼굴이 잘 안 보여요"}
+
+    usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
+    y16 = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+    if y16.size < SAMPLE_RATE:
+        return {"ok": False, "reason": "소리가 아직 짧아요"}
+
+    y = librosa.resample(y16, orig_sr=SAMPLE_RATE, target_sr=TRAIN_SR)
+    audio = extract_audio_from_array(y, TRAIN_SR)
+    if audio is None:
+        return {"ok": False, "reason": "소리가 아직 짧아요"}
+
+    arr = np.array(rows)
+    visual = np.concatenate([arr.mean(axis=0), arr.std(axis=0)])
+    feat = np.concatenate([audio, visual]).reshape(1, -1)
+
+    m = model()
+    proba = m.predict_proba(feat)[0]
+    return {
+        "ok": True,
+        "pred": int(m.predict(feat)[0]),
+        "truth_pct": round(float(proba[0]) * 100, 1),
+        "lie_pct": round(float(proba[1]) * 100, 1),
+        "signals": face_signals(arr, seconds),
+    }
+
+
+class LiveScorer:
+    """최근 몇 초만 들고 있다가 주기적으로 판정한다.
+
+    **쌓아 두지 않는다** — 창 밖으로 나간 소리와 얼굴은 버린다. 면접 하나가 끝날
+    때까지 모아 두면 그게 곧 녹화이고, ADR-0029 는 영상을 저장하지 않기로 했다.
+    """
+
+    def __init__(self, window_sec: float = LIVE_WINDOW_SEC) -> None:
+        self.window_sec = window_sec
+        self._max_bytes = int(window_sec * SAMPLE_RATE * SAMPLE_WIDTH)
+        self._pcm = bytearray()
+        self._rows: list[tuple[float, list]] = []
+        self._last_scored = 0.0
+
+    def add_audio(self, pcm: bytes) -> None:
+        self._pcm += pcm
+        if len(self._pcm) > self._max_bytes:
+            del self._pcm[: len(self._pcm) - self._max_bytes]
+
+    def add_face(self, row: list, now: float) -> None:
+        self._rows.append((now, row))
+        cutoff = now - self.window_sec
+        self._rows = [r for r in self._rows if r[0] >= cutoff]
+
+    def due(self, now: float) -> bool:
+        if now - self._last_scored < LIVE_EVERY_SEC:
+            return False
+        self._last_scored = now
+        return True
+
+    def snapshot(self) -> tuple[bytes, list]:
+        return bytes(self._pcm), [row for _, row in self._rows]
 
 
 async def fetch_state(client, token: str) -> dict:
