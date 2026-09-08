@@ -1,0 +1,26 @@
+# 로컬 전체 스택용 Caddyfile — infra/Caddyfile(운영) 과 라우팅이 같고 TLS 만 없다.
+# 운영 Caddyfile 을 고치면 여기도 같은 커밋에서 맞춘다.
+http://localhost:8080 {
+	# 거짓말 탐지 — /ai/analyze 가 서비스의 /analyze 로 (handle_path 가 앞을 뗀다)
+	handle_path /ai/* {
+		request_body {
+			max_size 200MB
+		}
+		reverse_proxy lie-detection:5000 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+			}
+		}
+	}
+
+	# n8n 편집 화면·웹훅. handle_path + N8N_PATH=/n8n/ 조합 (운영과 동일, 07-deploy n8n 함정 절)
+	handle_path /n8n/* {
+		basic_auth {
+			{env.N8N_BASIC_AUTH_USER} {env.N8N_BASIC_AUTH_HASH}
+		}
+		reverse_proxy n8n:5678
+	}
+
+	reverse_proxy api:8000
+}

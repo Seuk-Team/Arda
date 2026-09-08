@@ -1,0 +1,130 @@
+# 운영(EC2) 스택을 로컬 PC 에서 **그대로** 띄우는 compose (ADR-0031 W5 · infra 큐 15).
+#
+# 원본은 infra/docker-compose.prod.yml. 차이는 셋뿐이다:
+#   1. caddy 가 TLS 없이 http://localhost:8080 — 라우팅(/ai/* · /n8n/* · 나머지 api)은 동일
+#   2. n8n 의 바깥 주소가 localhost:8080 — 편집 화면·웹훅 URL 만 바뀌고 N8N_PATH 등은 같다
+#   3. db 호스트 포트 5434 (5432 는 이 PC 의 네이티브 PG, 5433 은 개발용 arda-pgvector)
+#
+# 시크릿·데이터는 저장소에 없다. 같은 폴더의 pull-from-server.sh 가 서버에서 가져온다:
+#   .env          ← 서버 ~/arda/.env         (compose 가 읽는 값: DB_PASSWORD·N8N_*·ARDA_SERVICE_TOKEN)
+#   .env.backend  ← 서버 ~/arda/backend/.env (api·worker 가 읽는 값) + 로컬 덮어쓰기 몇 줄
+#   db.sql.gz     ← 서버 DB pg_dump
+#   n8n.tar.gz    ← 서버 n8n 볼륨 (워크플로·자격 증명, N8N_ENCRYPTION_KEY 가 같아야 풀린다)
+#
+# 띄우기 (WSL 또는 Git Bash, 저장소 루트에서):
+#   bash infra/local/pull-from-server.sh      # 서버 → 로컬 (ssh arda 가 되어야 한다)
+#   docker compose -f infra/local/docker-compose.yml up -d --build
+#   bash infra/local/restore.sh               # DB·n8n 볼륨 복원
+#   bash infra/local/smoke.sh                 # 검증
+#   (프론트) cd frontend/app && VITE_API_BASE=http://localhost:8080 npm run dev
+#
+# ⚠️ 운영 데이터 사본이다. 지원자 실제 이메일이 들어 있고 MAIL_DISPATCH=n8n 이라
+#    단계를 바꾸면 **진짜 메일이 나간다**. 테스트는 이메일이 팀원 것으로 바뀐 지원자로만.
+# ⚠️ worker 는 기본 꺼짐(profile sqs). 켜면 이 PC 가 운영 SQS 메시지를 소비한다.
+
+name: arda-local
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run infra/local/pull-from-server.sh first}
+      POSTGRES_DB: arda
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d arda"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ../../backend
+    env_file: ./.env.backend
+    command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "127.0.0.1:8000:8000"
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 운영과 같은 SQS 폴링 워커. 로컬에서 켜면 운영 큐를 먹으므로 기본 꺼짐.
+  #   docker compose -f infra/local/docker-compose.yml --profile sqs up -d worker
+  worker:
+    build: ../../backend
+    env_file: ./.env.backend
+    command: /app/.venv/bin/python -m app.worker
+    profiles: ["sqs"]
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+
+  lie-detection:
+    build: ../../ai/lie-detection
+    ports:
+      - "127.0.0.1:5000:5000"   # 로컬 디버그용. 운영은 caddy /ai/* 로만 연다
+    logging: *default-logging
+
+  n8n:
+    image: n8nio/n8n:2.37.11
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_HOST: localhost
+      N8N_PROTOCOL: http
+      N8N_PORT: "5678"
+      N8N_PATH: /n8n/
+      WEBHOOK_URL: http://localhost:8080/n8n/
+      N8N_EDITOR_BASE_URL: http://localhost:8080/n8n/
+      N8N_PROXY_HOPS: "1"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?run infra/local/pull-from-server.sh first}
+      GENERIC_TIMEZONE: Asia/Seoul
+      TZ: Asia/Seoul
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "336"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      ARDA_INTERNAL_URL: http://api:8000
+      ARDA_SERVICE_TOKEN: ${ARDA_SERVICE_TOKEN:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    mem_limit: 768m
+    logging: *default-logging
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-arda}
+      N8N_BASIC_AUTH_HASH: ${N8N_BASIC_AUTH_HASH:?run infra/local/pull-from-server.sh first}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    logging: *default-logging
+    depends_on:
+      - api
+      - lie-detection
+      - n8n
+
+volumes:
+  pgdata:
+  n8n_data:
+  caddy_data:
