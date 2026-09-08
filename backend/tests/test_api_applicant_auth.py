@@ -173,7 +173,9 @@ class TestMe:
         token = create_applicant_token(a.email)
         body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
 
-        allowed = {"id", "posting_title", "stage_label", "applied_at"}
+        # **필드가 늘면 여기서 걸린다.** 그게 이 테스트의 목적이다 —
+        # 지원자에게 나가는 것이 조용히 늘어나는 일이 없게.
+        allowed = {"id", "posting_title", "stage_label", "applied_at", "interviews"}
         assert set(body["applications"][0]) == allowed
         assert "ai_summary" not in body
 
@@ -210,3 +212,75 @@ class TestMe:
         )
         res = client.get(ME, headers={"Authorization": f"Bearer {expired}"})
         assert res.status_code == 401
+
+
+class TestMyInterviews:
+    """면접 입장 경로 (ADR-0031 후속).
+
+    **지원자가 로그인해 놓고도 면접에 못 들어가는 것**이 원래 구멍이었다 —
+    메일함에서 링크를 찾는 것이 유일한 길이었다. 그래서 자기 면접의 토큰을
+    같이 내린다. 본인 토큰으로 조회한 자기 면접이라 새로 여는 비밀이 아니다.
+    """
+
+    def _session(self, db: Session, application: Application, admin_user: User, status: str):
+        from app.models import InterviewSession
+
+        row = InterviewSession(
+            application_id=application.id,
+            token=f"tok-{status}-{application.id}",
+            status=status,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+            created_by=admin_user.id,
+        )
+        db.add(row)
+        db.flush()
+        return row
+
+    def test_들어갈_수_있는_면접의_토큰이_온다(
+        self, client, db: Session, application: Application, admin_user: User
+    ):
+        a = _applicant(db, application)
+        s = self._session(db, a, admin_user, "pending")
+
+        token = create_applicant_token(a.email)
+        body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
+
+        ivs = body["applications"][0]["interviews"]
+        assert [x["token"] for x in ivs] == [s.token]
+        assert ivs[0]["status"] == "pending"
+
+    def test_끝났거나_만료된_면접은_안_온다(
+        self, client, db: Session, application: Application, admin_user: User
+    ):
+        """들어가 봐야 막히는 문을 화면에 보여 주지 않는다."""
+        a = _applicant(db, application)
+        self._session(db, a, admin_user, "done")
+        self._session(db, a, admin_user, "expired")
+
+        token = create_applicant_token(a.email)
+        body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
+
+        assert body["applications"][0]["interviews"] == []
+
+    def test_남의_면접은_안_온다(
+        self, client, db: Session, application: Application, admin_user: User, posting
+    ):
+        """**이게 무너지면 남의 면접방에 들어갈 수 있다.**"""
+        a = _applicant(db, application)
+        other = Application(
+            job_posting_id=posting.id,
+            name="남",
+            email="someone-else@fixture.local",
+            phone="010-0000-0000",
+            privacy_agreed_at=datetime.now(UTC),
+            birth_date=date(1990, 1, 1),
+        )
+        db.add(other)
+        db.flush()
+        self._session(db, other, admin_user, "in_progress")
+
+        token = create_applicant_token(a.email)
+        body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
+
+        tokens = [x["token"] for app in body["applications"] for x in app["interviews"]]
+        assert tokens == []

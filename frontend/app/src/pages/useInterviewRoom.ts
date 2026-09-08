@@ -1,28 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, wsUrl } from '../api/client'
 
-/* 실시간 면접 — 채용자 쪽 (docs/02_tasks/실시간-면접-시그널링.md).
+/* 실시간 면접 (docs/02_tasks/실시간-면접-시그널링.md) — 양쪽이 이 훅 하나를 쓴다.
 
-   **서버는 신호만 나른다.** 영상·음성은 두 브라우저가 직접 주고받는다(WebRTC).
-   여기서 하는 일은 셋뿐이다 — 카메라를 켜고, 서버를 통해 상대와 쪽지를 주고받아
-   연결을 맺고, 붙은 뒤에는 상태만 지켜본다.
+   **서버는 신호만 나른다.** 영상·음성은 두 브라우저가 직접 주고받고(WebRTC),
+   서버는 연결을 맺는 쪽지(SDP·ICE)만 상대에게 넘긴다.
 
-   페이지에서 떼어 낸 이유는 **정리가 까다로워서**다. 카메라 트랙과
-   PeerConnection 과 WebSocket 이 각자 따로 살아서, 하나라도 안 끊으면
-   면접이 끝난 뒤에도 카메라 표시가 남거나 서버 방이 안 비워진다. */
+   두 자리가 하는 일이 다르다.
+
+   | | 채용자 | 지원자 |
+   |---|---|---|
+   | 붙는 법 | 입장권(60초·1회용)을 REST 로 먼저 받는다 | 메일 링크의 토큰만 |
+   | offer | **만든다** | 절대 만들지 않는다 — 받아서 answer 만 낸다 |
+
+   거는 쪽을 하나로 고정한 이유는 glare 다 — 양쪽이 동시에 걸면 협상이 꼬인다.
+   그리고 **누가 걸지는 서버가 정해 준다**(`hello.should_offer`).
+
+   페이지에서 떼어 낸 이유는 정리가 까다로워서다. 카메라 트랙과 PeerConnection 과
+   WebSocket 이 각자 따로 살아서, 하나라도 안 끊으면 면접이 끝난 뒤에도 카메라
+   표시가 남거나 서버 방이 안 비워진다. */
 
 export type RoomPhase =
   /* 입장권을 받고 카메라를 켜는 중 */
   | 'preparing'
-  /* 붙었지만 지원자가 아직 안 들어옴 */
+  /* 붙었지만 상대가 아직 안 들어옴 */
   | 'waiting'
   /* 서로 쪽지를 주고받는 중 */
   | 'connecting'
   /* 영상·음성이 오간다 */
   | 'live'
-  /* 지원자가 나갔다 — 다시 들어오면 저절로 이어진다 */
+  /* 상대가 나갔다 — 다시 들어오면 저절로 이어진다 */
   | 'peer-left'
   | 'error'
+
+export type RoomRole = 'recruiter' | 'applicant'
 
 type Signal = {
   type: string
@@ -42,7 +53,15 @@ const FATAL_CODES = new Set(['session_closed', 'replaced'])
 
 const PING_MS = 25_000
 
-export function useInterviewRoom(sessionId: number | null) {
+export type RoomOptions =
+  | { role: 'recruiter'; sessionId: number | null }
+  | { role: 'applicant'; token: string | null }
+
+export function useInterviewRoom(opts: RoomOptions) {
+  const role = opts.role
+  const sessionId = opts.role === 'recruiter' ? opts.sessionId : null
+  const token = opts.role === 'applicant' ? opts.token : null
+
   const [phase, setPhase] = useState<RoomPhase>('preparing')
   const [error, setError] = useState<string | null>(null)
   /* 마이크를 껐는지. 영상은 끄지 않는다 — 얼굴이 안 보이면 면접이 아니다. */
@@ -85,7 +104,7 @@ export function useInterviewRoom(sessionId: number | null) {
     if (localRef.current) localRef.current.srcObject = null
   }, [send, teardownPeer])
 
-  /* PeerConnection 은 **매번 새로 만든다.** 지원자가 나갔다 들어올 때 헌 것을
+  /* PeerConnection 은 **매번 새로 만든다.** 상대가 나갔다 들어올 때 헌 것을
      재활용하면 ICE 상태가 남아 안 붙는다. */
   const newPeer = useCallback(() => {
     teardownPeer()
@@ -123,22 +142,31 @@ export function useInterviewRoom(sessionId: number | null) {
   }, [newPeer, send])
 
   useEffect(() => {
-    if (sessionId === null) return
+    if (role === 'recruiter' && sessionId === null) return
+    if (role === 'applicant' && !token) return
     aliveRef.current = true
 
     ;(async () => {
-      let ticket: { ticket: string; token: string; ice_servers: RTCIceServer[] }
-      try {
-        /* **입장권은 접속 직전에 받는다.** 60초·1회용이라 미리 받아 두면 만료된다. */
-        ticket = await api.post(`/interview-sessions/${sessionId}/rtc-ticket`)
-      } catch {
-        if (!aliveRef.current) return
-        setError('면접방에 들어갈 수 없습니다. 세션을 확인해 주세요')
-        setPhase('error')
-        return
+      let wsToken = token ?? ''
+      let query = ''
+
+      if (role === 'recruiter') {
+        try {
+          /* **입장권은 접속 직전에 받는다.** 60초·1회용이라 미리 받아 두면 만료된다. */
+          const t = await api.post<{ ticket: string; token: string; ice_servers: RTCIceServer[] }>(
+            `/interview-sessions/${sessionId}/rtc-ticket`,
+          )
+          if (!aliveRef.current) return
+          wsToken = t.token
+          query = `?ticket=${encodeURIComponent(t.ticket)}`
+          iceServersRef.current = t.ice_servers ?? []
+        } catch {
+          if (!aliveRef.current) return
+          setError('면접방에 들어갈 수 없습니다. 세션을 확인해 주세요')
+          setPhase('error')
+          return
+        }
       }
-      if (!aliveRef.current) return
-      iceServersRef.current = ticket.ice_servers ?? []
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -162,9 +190,7 @@ export function useInterviewRoom(sessionId: number | null) {
         return
       }
 
-      const ws = new WebSocket(
-        `${wsUrl(`/ws/interview/${ticket.token}/rtc`)}?ticket=${encodeURIComponent(ticket.ticket)}`,
-      )
+      const ws = new WebSocket(`${wsUrl(`/ws/interview/${wsToken}/rtc`)}${query}`)
       wsRef.current = ws
 
       ws.onmessage = (ev) => {
@@ -189,17 +215,30 @@ export function useInterviewRoom(sessionId: number | null) {
         switch (msg.type) {
           case 'hello':
             if (msg.ice_servers?.length) iceServersRef.current = msg.ice_servers
-            /* 거는 쪽을 **서버가 정해 준다** — 양쪽이 동시에 걸면 협상이 꼬인다. */
+            /* 거는 쪽을 **서버가 정해 준다** — 양쪽이 동시에 걸면 협상이 꼬인다.
+               지원자에게는 이 값이 오지 않으므로 그냥 기다린다. */
             if (msg.should_offer) await makeOffer()
-            else setPhase('waiting')
+            else setPhase(msg.peer_present ? 'connecting' : 'waiting')
             break
           case 'peer-join':
-            await makeOffer()
+            /* **채용자만 건다.** 지원자는 상대가 들어와도 offer 를 만들지 않는다. */
+            if (role === 'recruiter') await makeOffer()
+            else setPhase('connecting')
             break
           case 'peer-leave':
             teardownPeer()
             setPhase('peer-left')
             break
+          case 'offer': {
+            /* 지원자 쪽 경로다. 받은 offer 로 새 연결을 만들고 answer 를 낸다. */
+            if (!msg.sdp) break
+            const conn = newPeer()
+            await conn.setRemoteDescription({ type: 'offer', sdp: msg.sdp })
+            const answer = await conn.createAnswer()
+            await conn.setLocalDescription(answer)
+            send({ type: 'answer', sdp: answer.sdp })
+            break
+          }
           case 'answer':
             if (pc && msg.sdp) {
               await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp })
@@ -215,7 +254,7 @@ export function useInterviewRoom(sessionId: number | null) {
               setError(msg.message ?? '면접방에 들어갈 수 없습니다')
               setPhase('error')
             }
-            /* `no_peer` 는 오류가 아니다 — 지원자가 아직 안 들어온 것뿐이다. */
+            /* `no_peer` 는 오류가 아니다 — 상대가 아직 안 들어온 것뿐이다. */
             break
         }
       }
@@ -225,7 +264,7 @@ export function useInterviewRoom(sessionId: number | null) {
       aliveRef.current = false
       cleanup()
     }
-  }, [sessionId, cleanup, makeOffer, send, teardownPeer])
+  }, [role, sessionId, token, cleanup, makeOffer, newPeer, send, teardownPeer])
 
   const toggleMute = useCallback(() => {
     const tracks = streamRef.current?.getAudioTracks() ?? []
@@ -244,9 +283,20 @@ export function useInterviewRoom(sessionId: number | null) {
 
 export const PHASE_LABEL: Record<RoomPhase, string> = {
   preparing: '준비 중',
-  waiting: '지원자를 기다리는 중',
+  waiting: '상대를 기다리는 중',
   connecting: '연결하는 중',
   live: '연결됨',
-  'peer-left': '지원자가 나갔습니다',
+  'peer-left': '상대가 나갔습니다',
   error: '연결 실패',
+}
+
+/* 자리마다 말이 다르다. "상대"라고만 쓰면 누가 안 왔는지 알 수 없다. */
+export function phaseLabel(role: RoomRole, phase: RoomPhase): string {
+  if (phase === 'waiting') {
+    return role === 'recruiter' ? '지원자를 기다리는 중' : '면접관을 기다리는 중'
+  }
+  if (phase === 'peer-left') {
+    return role === 'recruiter' ? '지원자가 나갔습니다' : '면접관이 나갔습니다'
+  }
+  return PHASE_LABEL[phase]
 }

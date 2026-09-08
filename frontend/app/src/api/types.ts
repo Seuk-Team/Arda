@@ -432,6 +432,14 @@ export interface ApplicantLoginOut {
   expires_in: number
 }
 
+/* 지원자가 지금 들어갈 수 있는 면접. **끝났거나 만료된 것은 서버가 안 준다** —
+   들어가 봐야 막히는 문을 화면에 보여 주지 않기 위해서다. */
+export interface MyInterview {
+  token: string
+  status: string
+  expires_at: string | null
+}
+
 /* 지원자가 보는 자기 지원 한 건.
    **단계는 내부값이 아니라 사람이 읽을 말(`stage_label`)로만 온다** —
    `rejected` 를 "불합격"으로 앞질러 말하지 않기 위해서다. */
@@ -440,6 +448,7 @@ export interface MyApplication {
   posting_title: string
   stage_label: string
   applied_at: string
+  interviews: MyInterview[]
 }
 
 export interface ApplicantMe {
