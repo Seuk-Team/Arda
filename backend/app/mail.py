@@ -356,7 +356,9 @@ def publish(email_log_id: int) -> None:
 # n8n 웹훅 URL. compose 안 통신이라 https 가 아니라 http 로, 인증 없이 부른다.
 # Basic Auth 는 밖에서 편집 화면 접근용, 안쪽 웹훅 경로는 열려 있다(의도한 것 —
 # infra/n8n/README "웹훅은 docker 네트워크 안에서 부른다" 참고).
-_N8N_WEBHOOK_URL_DEFAULT = "http://n8n:5678/n8n/webhook/stage-changed"
+# **경로에 /n8n 접두어 없음** — n8n 은 웹훅을 항상 루트에 등록한다(N8N_PATH 와 무관).
+# 2026-09-08 실측: /n8n/webhook/... 는 404, /webhook/... 만 동작.
+_N8N_WEBHOOK_URL_DEFAULT = "http://n8n:5678/webhook/stage-changed"
 
 
 def _publish_to_n8n(email_log_id: int) -> None:

@@ -87,6 +87,11 @@ services:
       N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
       N8N_RUNNERS_ENABLED: "true"
+      # 워크플로 표현식 안에서 $env.XXX 접근 허용 (2026-09-08 실측 확정).
+      # n8n 2.x 기본은 차단(true) 이라 워크플로가 ARDA_INTERNAL_URL·ARDA_SERVICE_TOKEN 을
+      # 못 읽어 렌더링 조회 노드가 "access to env vars denied" 로 죽는다.
+      # 팀 공유 인스턴스라 우리 워크플로만 있고 다른 팀 워크플로가 host env 를 읽을 위험 없음.
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       # 워크플로가 우리 API 를 부를 때 쓰는 값 — 표현식 {{ $env.ARDA_INTERNAL_URL }} 로 읽는다
       ARDA_INTERNAL_URL: http://api:8000
       ARDA_SERVICE_TOKEN: ${ARDA_SERVICE_TOKEN:-}
