@@ -32,6 +32,10 @@ export default function Interview() {
      ADR-0026 대로 **영상 자체를 우리가 보관하지는 않는다**: 답변 파일은 전사가
      끝나면 그 목적이 다하고, 진위 분석(ADR-0029)은 설정이 있을 때만 부른다. */
   const [withVideo, setWithVideo] = useState(true)
+  /* 중간에 그만둘 때 한 번 더 묻는 자리. `window.confirm` 을 쓰지 않는 이유는
+     **무엇이 사라지는지 적을 자리가 없어서**다 — 되돌릴 수 없는 행동인데
+     브라우저 기본 대화상자는 "확인하시겠습니까?" 한 줄이 전부다. */
+  const [confirmQuit, setConfirmQuit] = useState(false)
   const rec = useAnswerRecorder(withVideo)
 
   const load = useCallback(async () => {
@@ -67,6 +71,35 @@ export default function Interview() {
       await load()
     } catch (err) {
       setNotice(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  /* 면접 종료. **되돌릴 수 없다** — 서버가 상태를 `done` 으로 굳히고 같은
+     토큰으로는 다시 답할 수 없다.
+
+     그래도 이 버튼이 반드시 있어야 하는 이유: 끝내는 길이 화면에 없으면
+     지원자는 창을 닫는 수밖에 없고, 그러면 세션이 `in_progress` 로 영영
+     남아 담당자가 **"아직 보는 중"과 "그만둔 것"을 구별하지 못한다.**
+     답을 다 해도 마찬가지라 서버는 처음부터 이 경로를 열어 뒀다. */
+  async function finish() {
+    setPending(true)
+    setNotice(null)
+    try {
+      /* 녹음 중이면 먼저 멈춘다 — 안 그러면 면접이 끝난 뒤에도 카메라·마이크가
+         켜진 채로 남는다. 페이지를 떠나지 않으므로 자동 정리가 안 걸린다. */
+      if (rec.state === 'recording') rec.stop()
+      const next = await api.post<InterviewPublic>(
+        `/public/interview/${token}/finish`,
+        {},
+        { auth: false },
+      )
+      setPacing(null)
+      setConfirmQuit(false)
+      setState({ kind: 'ready', data: next })
+    } catch (err) {
+      setNotice(describeError(err))
     } finally {
       setPending(false)
     }
@@ -234,7 +267,28 @@ export default function Interview() {
                 </div>
               )}
 
-              {d.status === 'in_progress' && (
+              {/* 질문을 다 소진했는데 세션은 아직 `in_progress` 다 — 서버가
+                  마지막 답변만으로 끝내지 않기 때문이다(끝내는 것은 지원자의 몫).
+                  **이 화면이 없으면 여기가 막다른 길이 된다**: 질문도 없고
+                  버튼도 없어서 창을 닫는 것 말고 할 수 있는 게 없다. */}
+              {d.status === 'in_progress' && d.current_question === null && (
+                <div className={styles.card}>
+                  <h2 className={styles.cardTitle}>질문이 모두 끝났습니다</h2>
+                  <p className={styles.noticeBody}>
+                    {d.applicant_name}님, 수고하셨습니다.
+                    아래 버튼을 누르면 면접이 마무리됩니다. 종료 후에는 답변을 수정할 수 없습니다.
+                  </p>
+                  {notice && <p className={styles.error} role="alert">{notice}</p>}
+                  <div className={styles.actions}>
+                    <button type="button" className="btn btn-primary" disabled={pending}
+                      onClick={finish}>
+                      {pending ? '종료 중…' : '면접 종료'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {d.status === 'in_progress' && d.current_question !== null && (
                 <div className={styles.card}>
                   {/* 진행 보조 — 아르가 앞 답변을 듣고 건네는 말.
                       **경고처럼 보이게 하지 않는다.** 지적이 아니라 배려다. */}
@@ -347,6 +401,35 @@ export default function Interview() {
                   )}
 
                   {notice && <p className={styles.error} role="alert">{notice}</p>}
+
+                  {/* 중간에 그만두기. 녹음 중에는 감춘다 — 말하는 도중에 누를
+                      버튼이 아니고, 마이크가 켜진 채로 화면이 바뀌는 것도 막는다. */}
+                  {rec.state !== 'recording' && (
+                    confirmQuit ? (
+                      <div className={styles.confirmQuit}>
+                        <p className={styles.noticeBody}>
+                          지금 끝내면 남은 질문에는 답할 수 없고, 이 링크로 다시 들어올 수 없습니다.
+                          여기까지 하신 답변은 그대로 전달됩니다.
+                        </p>
+                        <div className={styles.actions}>
+                          {/* 되돌릴 수 없는 쪽을 기본(primary)으로 두지 않는다. */}
+                          <button type="button" className="btn btn-secondary" disabled={pending}
+                            onClick={finish}>
+                            {pending ? '종료 중…' : '면접 종료'}
+                          </button>
+                          <button type="button" className="btn btn-primary" disabled={pending}
+                            onClick={() => setConfirmQuit(false)}>
+                            계속 진행
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button type="button" className={styles.quit}
+                        onClick={() => setConfirmQuit(true)}>
+                        면접 그만하기
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </>

@@ -272,3 +272,41 @@
   from { opacity: 1; }
   to { opacity: 0.55; }
 }
+
+/* 중간에 그만두기. 주된 행동이 아니라 아래에 조용히 둔다 — 그래도 **반드시
+   있어야 한다**: 끝내는 길이 없으면 지원자는 창을 닫고, 그러면 담당자 쪽에서
+   "아직 보는 중"과 "그만둔 것"이 구별되지 않는다. */
+.quit {
+  align-self: center;
+  background: none;
+  border: none;
+  padding: var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.quit:hover {
+  color: var(--text);
+}
+
+.quit:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: var(--r-ctl);
+}
+
+/* 종료 확인. 브라우저 기본 confirm 을 안 쓰는 이유는 **무엇이 사라지는가**를
+   적을 자리가 필요해서다. 빨강을 쓰지 않는다 — 그만두는 것은 잘못이 아니라
+   지원자의 선택이고, 경고처럼 칠하면 겁을 주는 화면이 된다. */
+.confirmQuit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+}
