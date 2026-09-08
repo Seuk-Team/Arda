@@ -1,0 +1,7 @@
+# GPU 로 학습한다. CUDA 판 torch 는 PyPI 기본이 아니라 별도 인덱스에서 받는다.
+#   uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#   uv pip install -r requirements.txt
+torch>=2.4
+torchvision>=0.19
+transformers>=4.40
+pillow>=10.0

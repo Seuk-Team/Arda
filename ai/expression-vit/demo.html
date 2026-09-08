@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>표정 분류 — ViT</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0d0d12; color: #e0e0e0;
+       min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 32px 16px; }
+h1 { font-size: 1.5rem; color: #fff; }
+.sub { color: #555; font-size: 0.82rem; margin: 6px 0 24px; }
+
+.main { display: flex; gap: 24px; width: 100%; max-width: 1000px; align-items: flex-start; }
+.left { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.right { width: 340px; flex-shrink: 0; }
+@media (max-width: 860px) { .main { flex-direction: column; } .right { width: 100%; } }
+
+.tabs { display: flex; gap: 8px; }
+.tabs button { flex: 1; padding: 10px; border: 1px solid #2a2a3a; background: #14141e;
+               color: #666; border-radius: 10px; cursor: pointer; font-size: 0.88rem; }
+.tabs button.on { border-color: #4a4aff; color: #fff; background: #1a1a2e; }
+
+.drop { border: 2px dashed #2a2a3a; border-radius: 12px; padding: 32px; text-align: center; cursor: pointer; }
+.drop:hover { border-color: #4a4aff; background: #14141e; }
+.drop input { display: none; }
+.drop p { color: #555; font-size: 0.88rem; }
+.drop span { color: #6666ff; }
+
+.stage { border-radius: 12px; overflow: hidden; background: #000; display: none; }
+.stage img, .stage video { width: 100%; max-height: 62vh; display: block; object-fit: contain; }
+#cam { transform: scaleX(-1); }
+
+button.go { width: 100%; padding: 13px; background: #3a3aff; color: #fff; border: none;
+            border-radius: 10px; font-size: 0.95rem; cursor: pointer; }
+button.go:hover { background: #5555ff; }
+button.go:disabled { background: #222; color: #444; cursor: not-allowed; }
+
+.panel { background: #1a1a24; border-radius: 12px; padding: 22px; margin-top: 14px; }
+.top { font-size: 2rem; font-weight: 700; text-align: center; color: #6688ff; margin-bottom: 4px; }
+.top-sub { text-align: center; font-size: 0.75rem; color: #555; margin-bottom: 20px; }
+
+.row { margin-bottom: 12px; }
+.row-label { display: flex; justify-content: space-between; align-items: baseline;
+             font-size: 0.8rem; color: #999; margin-bottom: 5px; }
+.row-label b { color: #ddd; font-size: 0.9rem; }
+.bar-bg { background: #111; border-radius: 6px; height: 11px; overflow: hidden; }
+.bar { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #3355cc, #6688ff);
+       transition: width .3s; }
+.trust { font-size: 0.68rem; margin-left: 6px; }
+.t-hi { color: #44cc66; } .t-mid { color: #ccaa44; } .t-lo { color: #cc5555; }
+
+.note { font-size: 0.72rem; color: #444; line-height: 1.65; margin-top: 18px;
+        border-top: 1px solid #22222e; padding-top: 12px; }
+.hint { font-size: 0.75rem; color: #555; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>표정 분류</h1>
+<p class="sub">FER2013 · ViT-base · 전체 정확도 69.8%</p>
+
+<div class="main">
+  <div class="left">
+    <div class="tabs">
+      <button id="tab-file" class="on">사진 올리기</button>
+      <button id="tab-cam">카메라</button>
+    </div>
+
+    <label class="drop" for="file" id="drop">
+      <p>얼굴 사진을 <span>끌어다 놓거나 눌러서 선택</span></p>
+      <input type="file" id="file" accept="image/*">
+    </label>
+
+    <div class="stage" id="stage-img"><img id="shot" alt=""></div>
+    <div class="stage" id="stage-cam"><video id="cam" autoplay muted playsinline></video></div>
+
+    <button class="go" id="cam-btn" style="display:none">카메라 켜기</button>
+    <p class="hint" id="hint">얼굴이 화면을 꽉 채울수록 잘 맞습니다</p>
+  </div>
+
+  <div class="right">
+    <div class="panel" id="panel" style="display:none">
+      <div class="top" id="top">–</div>
+      <div class="top-sub" id="top-sub"></div>
+      <div id="bars"></div>
+      <p class="note">
+        옆의 <b>믿을만함</b>은 이 표정을 평가에서 실제로 맞힌 비율입니다.
+        웃음 90% · 놀람 82% 는 믿을 만하고, <b>무서움 47% · 역겨움 32% 는 낮습니다.</b>
+        긴장·불안 계열이 낮으므로 단독 판단 근거로 쓰지 마세요.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let live = null;
+
+function show(el, on) { $(el).style.display = on ? 'block' : 'none'; }
+
+function render(data) {
+  const r = data.results;
+  $('top').textContent = r[0].label;
+  $('top-sub').textContent = r[0].pct + '%';
+  $('bars').innerHTML = '';
+  r.forEach(x => {
+    const cls = x.recall >= 75 ? 't-hi' : x.recall >= 55 ? 't-mid' : 't-lo';
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML =
+      `<div class="row-label"><span><b>${x.label}</b>` +
+      `<span class="trust ${cls}">믿을만함 ${x.recall}%</span></span>` +
+      `<span>${x.pct}%</span></div>` +
+      `<div class="bar-bg"><div class="bar" style="width:${x.pct}%"></div></div>`;
+    $('bars').appendChild(div);
+  });
+  show('panel', true);
+}
+
+async function send(blob) {
+  const fd = new FormData();
+  fd.append('image', blob, 'shot.jpg');
+  const res = await fetch('/predict', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.error) return alert(data.error);
+  render(data);
+}
+
+// ── 사진 ──
+$('file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $('shot').src = URL.createObjectURL(f);
+  show('stage-img', true);
+  send(f);
+});
+$('drop').addEventListener('dragover', e => { e.preventDefault(); $('drop').style.borderColor = '#4a4aff'; });
+$('drop').addEventListener('dragleave', () => { $('drop').style.borderColor = ''; });
+$('drop').addEventListener('drop', e => {
+  e.preventDefault(); $('drop').style.borderColor = '';
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  $('shot').src = URL.createObjectURL(f);
+  show('stage-img', true);
+  send(f);
+});
+
+// ── 탭 ──
+function setMode(cam) {
+  $('tab-cam').classList.toggle('on', cam);
+  $('tab-file').classList.toggle('on', !cam);
+  show('drop', !cam);
+  show('stage-img', !cam && !!$('shot').src);
+  show('stage-cam', cam);
+  show('cam-btn', cam);
+  $('hint').textContent = cam
+    ? '카메라를 켜면 1초에 두 번씩 표정을 봅니다'
+    : '얼굴이 화면을 꽉 채울수록 잘 맞습니다';
+  if (!cam) stopCam();
+}
+$('tab-file').onclick = () => setMode(false);
+$('tab-cam').onclick = () => setMode(true);
+
+// ── 카메라 ──
+$('cam-btn').onclick = () => (live ? stopCam() : startCam());
+
+async function startCam() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+  } catch (e) {
+    return alert('카메라를 열 수 없습니다: ' + e.name);
+  }
+  $('cam').srcObject = stream;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 480; canvas.height = 480;
+  const g = canvas.getContext('2d');
+  let busy = false;
+
+  // 0.5초에 한 번. 더 자주 보내도 모델이 그만큼 못 따라온다.
+  const timer = setInterval(() => {
+    const v = $('cam');
+    if (!v.videoWidth || busy) return;
+    busy = true;
+    // 가운데 정사각형만 잘라 보낸다 — 얼굴이 화면을 채운 사진으로 학습된 모델이라
+    // 좌우 배경이 넓게 들어가면 값이 흐려진다.
+    const side = Math.min(v.videoWidth, v.videoHeight);
+    g.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side,
+                0, 0, canvas.width, canvas.height);
+    canvas.toBlob(b => b && send(b).finally(() => { busy = false; }), 'image/jpeg', 0.8);
+  }, 500);
+
+  live = { stream, timer };
+  $('cam-btn').textContent = '카메라 끄기';
+  $('cam-btn').style.background = '#552222';
+}
+
+function stopCam() {
+  if (!live) return;
+  clearInterval(live.timer);
+  live.stream.getTracks().forEach(t => t.stop());
+  $('cam').srcObject = null;
+  live = null;
+  $('cam-btn').textContent = '카메라 켜기';
+  $('cam-btn').style.background = '#3a3aff';
+}
+</script>
+</body>
+</html>
