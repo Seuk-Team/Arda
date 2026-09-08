@@ -11,11 +11,15 @@ import time
 import numpy as np
 
 from interview_ws import (
+    LIVE_EVERY_SEC,
     MIN_SPEECH_SEC,
     SAMPLE_RATE,
+    SAMPLE_WIDTH,
     SILENCE_END_SEC,
     InterviewSession,
+    LiveScorer,
     _SpeechDetector,
+    score,
 )
 
 CHUNK_SEC = 0.05
@@ -121,3 +125,53 @@ class TestSession:
         for _ in range(6):
             s.add_frame(b"not a jpeg")
         assert s.frames == []
+
+
+class TestLiveScorer:
+    """말하는 동안 굴러가는 판정. 창 밖으로 나간 것은 버려야 한다."""
+
+    def test_창_길이만큼만_소리를_들고_있다(self):
+        s = LiveScorer(window_sec=1.0)
+        for _ in range(60):  # 3초치를 넣어도
+            s.add_audio(LOUD)
+        assert len(s.snapshot()[0]) == int(1.0 * SAMPLE_RATE * SAMPLE_WIDTH)
+
+    def test_창_밖의_얼굴은_버린다(self):
+        s = LiveScorer(window_sec=2.0)
+        s.add_face([0.0] * 7, now=100.0)
+        s.add_face([1.0] * 7, now=101.0)
+        s.add_face([2.0] * 7, now=103.0)  # 이 시점에 100.0 은 창 밖
+        rows = s.snapshot()[1]
+        assert rows == [[1.0] * 7, [2.0] * 7]
+
+    def test_주기보다_자주는_판정하지_않는다(self):
+        s = LiveScorer()
+        assert s.due(100.0) is True
+        assert s.due(100.0 + LIVE_EVERY_SEC / 2) is False
+        assert s.due(100.0 + LIVE_EVERY_SEC) is True
+
+
+class TestScore:
+    """재료가 모자라면 **판정을 내지 않는다.** 0 으로 채운 숫자가 나가면
+    사람은 그것을 판정으로 읽는다."""
+
+    def test_얼굴이_없으면_판정하지_않는다(self):
+        out = score(LOUD * 100, rows=[], seconds=4.0)
+        assert out["ok"] is False and "얼굴" in out["reason"]
+
+    def test_소리가_짧으면_판정하지_않는다(self):
+        rows = [[0.2, 0.2, 0.05, 10.0, 10.0, 0.0, 0.0]] * 10
+        out = score(LOUD, rows=rows, seconds=4.0)  # 0.05초
+        assert out["ok"] is False and "소리" in out["reason"]
+
+    def test_재료가_있으면_확률과_얼굴신호를_같이_낸다(self):
+        rng = np.random.default_rng(1)
+        pcm = (rng.normal(0, 3000, SAMPLE_RATE * 3)).astype(np.int16).tobytes()
+        rows = [
+            [0.25 + i * 0.001, 0.25, 0.05, 10.0, 10.0, 0.01, 0.0] for i in range(30)
+        ]
+        out = score(pcm, rows=rows, seconds=4.0)
+        assert out["ok"] is True
+        assert out["pred"] in (0, 1)
+        assert abs(out["truth_pct"] + out["lie_pct"] - 100.0) < 0.2
+        assert any(s["key"] == "눈 깜빡임" for s in out["signals"])

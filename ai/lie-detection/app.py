@@ -10,11 +10,12 @@ gevent 계열 워커가 필요하고, 그러면 gunicorn 설정과 배포가 같
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
-import pickle
 import tempfile
+import time
 import warnings
 from pathlib import Path
 
@@ -28,7 +29,12 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from feature_extractor import analyze_timeseries, extract_features
 from interview_ws import (
     InterviewSession,
+    LiveScorer,
+    _SpeechDetector,
+    face_row_of_jpeg,
     fetch_state,
+    model,
+    score,
     submit_answer,
     transcribe,
 )
@@ -37,8 +43,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _HERE = Path(__file__).parent
-model = pickle.load(open(_HERE / "model.pkl", "rb"))
 DEMO_HTML = (_HERE / "demo.html").read_text(encoding="utf-8")
+
+# 뜰 때 한 번 읽어 둔다. 모델이 없거나 깨졌으면 첫 요청이 아니라 지금 죽는 편이 낫다.
+model()
 
 app = FastAPI(title="Arda 거짓말 탐지")
 
@@ -76,8 +84,9 @@ async def analyze(video: UploadFile | None = None):
         )
 
     feat2d = feat.reshape(1, -1)
-    pred = int(model.predict(feat2d)[0])
-    proba = model.predict_proba(feat2d)[0]
+    m = model()
+    pred = int(m.predict(feat2d)[0])
+    proba = m.predict_proba(feat2d)[0]
 
     return {
         "pred": pred,
@@ -93,6 +102,76 @@ async def analyze(video: UploadFile | None = None):
 # 보내면서 매번 JSON 머리말을 붙이는 것보다 싸다.
 KIND_AUDIO = 0x01
 KIND_VIDEO = 0x02
+
+
+@app.websocket("/ws/live")
+async def live(ws: WebSocket):
+    """카메라를 켠 채 **말하는 동안** 계속 판정한다. 데모 화면 전용.
+
+    면접이 아니다 — 토큰도, 백엔드 연동도, 저장도 없다. 만든 사람이 "이 숫자가
+    말이 되나"를 눈으로 보는 자리다. 실제 면접에서 이 값을 지원자 화면으로
+    내려보내지 않는다(ADR-0029): 판정을 실시간으로 보여 주면 그 자체가 답변을
+    바꾼다.
+
+    프레임 형식은 `/ws/interview` 와 같다(PROTOCOL.md).
+    """
+    await ws.accept()
+    detector = _SpeechDetector()
+    scorer = LiveScorer()
+    busy = False
+
+    async def run_score() -> None:
+        nonlocal busy
+        try:
+            pcm, rows = scorer.snapshot()
+            # 판정은 CPU 로 약 185ms 걸린다. 여기서 그냥 부르면 그 동안 이 워커의
+            # **모든 연결**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
+            result = await asyncio.to_thread(score, pcm, rows, scorer.window_sec)
+            await ws.send_json({"type": "live", **result})
+        except Exception:
+            logger.exception("실시간 판정 실패")
+        finally:
+            busy = False
+
+    try:
+        while True:
+            msg = await ws.receive()
+            if msg.get("type") == "websocket.disconnect":
+                break
+
+            data = msg.get("bytes")
+            if not data:
+                continue
+
+            kind, payload, now = data[0], data[1:], time.monotonic()
+
+            if kind == KIND_VIDEO:
+                row = face_row_of_jpeg(payload)
+                if row is not None:
+                    scorer.add_face(row, now)
+                continue
+
+            if kind != KIND_AUDIO:
+                continue
+
+            scorer.add_audio(payload)
+            was_speaking = detector.speaking
+            detector.feed(payload)
+            # `feed` 의 반환값이 아니라 상태로 본다 — 너무 짧은 발화는 'end' 를
+            # 내지 않고 조용히 끝나서, 반환값만 보면 화면이 계속 "말하는 중"이다.
+            if detector.speaking != was_speaking:
+                await ws.send_json(
+                    {"type": "speaking" if detector.speaking else "quiet"}
+                )
+
+            if detector.speaking and not busy and scorer.due(now):
+                busy = True
+                asyncio.create_task(run_score())
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.exception("실시간 데모 처리 중 오류")
 
 
 @app.websocket("/ws/interview/{token}")
