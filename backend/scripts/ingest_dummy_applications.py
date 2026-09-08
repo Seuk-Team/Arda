@@ -51,6 +51,9 @@ _APPLY_LINE = re.compile(r"^(?P<title>.+?)\s*지원\s*$")
 # "5년" / "10년" / "신입"
 _YEARS = re.compile(r"(\d+)\s*년")
 
+# 머리말 항목표가 끝나는 지점. 이 줄을 만나면 그 뒤는 본문이다.
+_SECTIONS = {"경력 사항", "프로젝트", "학력"}
+
 
 def _pdf_text(path: Path) -> str:
     try:
@@ -69,7 +72,12 @@ def _parse_resume(text: str) -> dict:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     out: dict = {"name": lines[0] if lines else ""}
 
-    for line in lines[1:8]:
+    # 머리말 항목표는 **첫 섹션 제목 앞까지**다. 줄 번호로 자르면 항목이 하나만
+    # 늘어도 마지막 라벨이 조용히 잘린다 — 2026-09-08 에 생년월일·주소를 넣었더니
+    # 기술 스택이 전부 빈 목록이 됐고, 오류 없이 통과해서 알아채기 어려웠다.
+    for line in lines[1:]:
+        if line in _SECTIONS:
+            break
         matched = _APPLY_LINE.match(line)
         if matched and "posting_title" not in out:
             out["posting_title"] = matched.group("title").strip()
@@ -92,14 +100,16 @@ def _parse_resume(text: str) -> dict:
 
 def cmd_parse(args: argparse.Namespace) -> int:
     src = Path(args.src)
-    resumes = sorted(src.glob("*_이력서.pdf"))
+    # `*_이력서` 가 아니라 `*이력서` 다. 동명이인 시연용 파일이
+    # `프론트_홍서우_(2)이력서.pdf` 처럼 앞에 밑줄이 없어 통째로 빠졌었다.
+    resumes = sorted(src.glob("*이력서.pdf"))
     if not resumes:
         sys.exit(f"이력서 PDF 를 찾지 못했다: {src}")
 
     records = []
     for resume_path in resumes:
-        stem = resume_path.stem[: -len("_이력서")]
-        cover_path = src / f"{stem}_자소서.pdf"
+        stem = resume_path.stem[: -len("이력서")]
+        cover_path = src / f"{stem}자소서.pdf"
         if not cover_path.exists():
             print(f"  [건너뜀] 자소서 없음: {stem}")
             continue
@@ -110,7 +120,12 @@ def cmd_parse(args: argparse.Namespace) -> int:
             {"kind": "resume", "path": str(resume_path)},
             {"kind": "cover_letter", "path": str(cover_path)},
         ]
-        missing = [f for f in ("name", "email", "phone", "posting_title") if not record.get(f)]
+        # `skills` 도 본다. 빈 목록이어도 투입은 성공하고 화면에도 아무 오류가
+        # 안 뜨지만 **검색·필터가 통째로 헛돈다** — 이 조용한 실패를 한 번 겪었다.
+        missing = [
+            f for f in ("name", "email", "phone", "posting_title", "skills")
+            if not record.get(f)
+        ]
         if missing:
             print(f"  [경고] {stem}: 필드 누락 {missing}")
         records.append(record)
