@@ -10,6 +10,10 @@ const BASE = import.meta.env.VITE_API_BASE ?? ''
 const PREFIX = '/api/v1'
 
 const TOKEN_KEY = 'arda-token'
+/* 지원자 토큰. **담당자 토큰과 자리를 나눈다** — 한 브라우저에서 담당자로 보다가
+   지원자 화면을 열면 서로를 덮어써서 둘 중 하나가 조용히 로그아웃된다.
+   서버도 토큰 종류를 갈라 보므로(ADR-0031) 섞이면 그냥 401 이 난다. */
+const APPLICANT_TOKEN_KEY = 'arda-applicant-token'
 
 export function getToken(): string | null {
   try {
@@ -17,6 +21,23 @@ export function getToken(): string | null {
   } catch {
     // 사생활 보호 모드 등에서 접근 자체가 던진다. 토큰이 없는 것과 같게 다룬다.
     return null
+  }
+}
+
+export function getApplicantToken(): string | null {
+  try {
+    return localStorage.getItem(APPLICANT_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setApplicantToken(token: string | null) {
+  try {
+    if (token === null) localStorage.removeItem(APPLICANT_TOKEN_KEY)
+    else localStorage.setItem(APPLICANT_TOKEN_KEY, token)
+  } catch {
+    /* 저장 못 해도 이번 세션은 굴러가야 한다 */
   }
 }
 
@@ -61,6 +82,8 @@ interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>
   /* 공개 엔드포인트(C·F 일부)는 토큰을 붙이지 않는다 */
   auth?: boolean
+  /* 지원자 토큰으로 부른다 (ADR-0031). 담당자 토큰과 섞이지 않게 따로 고른다. */
+  applicant?: boolean
   signal?: AbortSignal
 }
 
@@ -89,12 +112,12 @@ async function devMock(method: string, path: string, query?: RequestOptions['que
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, auth = true, signal } = options
+  const { method = 'GET', body, query, auth = true, applicant = false, signal } = options
 
   const headers: Record<string, string> = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   if (auth) {
-    const token = getToken()
+    const token = applicant ? getApplicantToken() : getToken()
     if (token) headers.Authorization = `Bearer ${token}`
   }
 
@@ -129,6 +152,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       if (typeof data?.request_id === 'string') requestId = data.request_id
     } catch {
       /* 본문이 JSON 이 아니면 위 기본값을 쓴다 */
+    }
+    if (res.status === 401 && applicant) {
+      /* 지원자 쪽 401 은 **지원자 토큰만** 지운다. 여기서 담당자 토큰을 건드리면
+         담당자가 보던 화면이 같이 로그아웃된다. 목 폴백도 태우지 않는다 —
+         지원자 로그인은 실패가 곧 정보라 가짜 성공을 만들면 안 된다. */
+      setApplicantToken(null)
+      throw new ApiError(code, message, res.status, requestId)
     }
     if (res.status === 401) {
       /* 목이 받아 주면 토큰은 건드리지 않는다 — 로컬에서 실서버가 살아나면

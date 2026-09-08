@@ -423,3 +423,27 @@ export interface AptitudeSessionOut {
   submitted_at: string | null
   created_at: string
 }
+
+/* ── 지원자 본인 로그인 (ADR-0031) ─────────────────────────────── */
+
+export interface ApplicantLoginOut {
+  access_token: string
+  token_type: string
+  expires_in: number
+}
+
+/* 지원자가 보는 자기 지원 한 건.
+   **단계는 내부값이 아니라 사람이 읽을 말(`stage_label`)로만 온다** —
+   `rejected` 를 "불합격"으로 앞질러 말하지 않기 위해서다. */
+export interface MyApplication {
+  id: number
+  posting_title: string
+  stage_label: string
+  applied_at: string
+}
+
+export interface ApplicantMe {
+  email: string
+  name: string
+  applications: MyApplication[]
+}

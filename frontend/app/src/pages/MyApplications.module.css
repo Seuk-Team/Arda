@@ -1,0 +1,173 @@
+/* 지원자 본인 화면. 폰에서 여는 것이 기본이라 좁은 폭을 기준으로 짠다
+   (05-design §9). 토큰은 전부 tokens.css. */
+
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-6) var(--sp-4) var(--sp-8);
+}
+
+.column {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.logo {
+  font-size: var(--font-h1);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.seed {
+  color: var(--accent-text);
+}
+
+.card {
+  background: var(--bg-elev);
+  backdrop-filter: var(--glass);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.cardTitle {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  text-shadow: var(--ts-heading);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.help {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+.label {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--text-sub);
+  margin-bottom: calc(var(--sp-2) * -1 + 2px);
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  /* 폰에서 누르기 좋은 높이 (05-design §9 터치 44px) */
+  min-height: 44px;
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  /* **16px 아래로 내리지 않는다** — iOS 사파리가 그보다 작은 입력칸에
+     자동으로 화면을 확대해서, 폰에서 화면이 튄다. */
+  font-size: 16px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+  border-color: var(--accent-text);
+  background: var(--bg-elev);
+}
+
+.input::placeholder {
+  color: var(--text-sub);
+}
+
+.error {
+  font-size: var(--font-sm);
+  color: var(--danger);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.foot {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  margin: 0;
+  text-align: center;
+}
+
+.link {
+  background: none;
+  border: none;
+  padding: var(--sp-2);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+  align-self: center;
+}
+
+.link:hover {
+  color: var(--text);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: var(--r-ctl);
+}
+
+/* 지원 한 건 */
+.posting {
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  margin: 0;
+  word-break: keep-all;
+}
+
+/* 단계. **서버가 준 문구를 그대로 쓴다** — 화면에서 "불합격" 같은 말을
+   만들지 않는다(ADR-0031·portal 과 같은 규칙). 색으로도 판정하지 않는다:
+   초록/빨강을 칠하면 문구가 안 말한 것을 색이 말하게 된다. */
+.stage {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  word-break: keep-all;
+}
+
+.applied {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  margin: 0;
+}
+
+.skeleton {
+  height: 20px;
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  animation: pulse var(--dur-slow) var(--ease) infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 1; }
+  to { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
