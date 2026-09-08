@@ -28,8 +28,10 @@ STT_BACKEND = os.getenv("STT_BACKEND", "openai").strip().lower()
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
 WHISPER_PRICE_PER_MINUTE = 0.006
 
-# 로컬 전사 설정. large-v3 는 품질이 가장 좋지만 ~3GB 를 내려받는다.
-LOCAL_MODEL = os.getenv("WHISPER_LOCAL_MODEL", "large-v3")
+# 로컬 전사 설정. large-v3-turbo 는 large-v3 와 같은 인코더에 디코더를 4층으로
+# 줄인 것이라 훨씬 빠르고 가볍다(ADR-0032). 개발 PC CPU 에서 int8 로 실측:
+# 35.6초 음성 → 19.5초, 메모리 ~1.0GB.
+LOCAL_MODEL = os.getenv("WHISPER_LOCAL_MODEL", "large-v3-turbo")
 LOCAL_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
 LOCAL_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8_float16")
 
