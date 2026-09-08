@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { wsUrl } from '../api/client'
+import { api, ApiError, wsUrl } from '../api/client'
 
 /* AI 면접 — 아르가 묻고, 얼굴을 실시간으로 본다.
 
@@ -110,6 +110,32 @@ export function useAiInterview(token: string | null) {
     aliveRef.current = true
 
     ;(async () => {
+      /* **소켓에 붙기 전에 동의·시작을 REST 로 끝낸다** (PROTOCOL.md).
+         안 하면 세션이 `pending` 이라 소켓이 "진행 중인 면접이 아닙니다" 로
+         끊는다 — 화면에서는 카메라만 켜지고 질문이 영영 안 온다.
+
+         둘 다 **이미 했으면 그냥 지나간다**: 동의는 두 번 해도 200 이고,
+         시작은 이미 `in_progress` 면 409 다. 그래서 응답을 보고 막지 않는다
+         — 새로고침으로 다시 들어온 경우가 정상 경로다. */
+      try {
+        await api.post(`/public/interview/${token}/consent`, { agreed: true }, { auth: false })
+      } catch {
+        /* 이미 동의했으면 여기로 온다. 진행에 지장 없다. */
+      }
+      try {
+        await api.post(`/public/interview/${token}/start`, {}, { auth: false })
+      } catch (err) {
+        /* 409 는 "이미 시작됨" 이라 정상이다. 그 밖(질문 없음 422·만료 410)은
+           소켓을 열어 봐야 같은 이유로 막히므로 여기서 멈춘다. */
+        if (err instanceof ApiError && err.status !== 409) {
+          if (!aliveRef.current) return
+          setError(err.message)
+          setPhase('error')
+          return
+        }
+      }
+      if (!aliveRef.current) return
+
       let stream: MediaStream
       try {
         stream = await navigator.mediaDevices.getUserMedia({
