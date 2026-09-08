@@ -51,7 +51,7 @@ export default function App() {
         <Route path="/schedule/:token" element={<Schedule />} />
         {/* 지원자용 AI 면접 — 메일 링크 착지점. 로그인 밖 */}
         <Route path="/interview/:token" element={<Interview />} />
-        {/* 지원자 본인 화면 (ADR-0031) — 이메일 + 생년월일로 들어온다.
+        {/* 지원자 본인 화면 (ADR-0033) — 이메일 + 생년월일로 들어온다.
             **담당자 로그인(`/login`)과 다른 자리다.** 같은 화면에 두면 지원자가
             담당자 계정으로 들어가려다 막힌다. 토큰도 자리를 나눠 뒀다. */}
         <Route path="/my" element={<MyApplications />} />

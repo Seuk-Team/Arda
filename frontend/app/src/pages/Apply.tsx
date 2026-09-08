@@ -253,7 +253,7 @@ export default function Apply() {
         <Field label="이름" value={name} onChange={setName} autoComplete="name" placeholder="홍길동" disabled={pending} />
         <Field label="이메일" value={email} onChange={setEmail} type="email" autoComplete="email" placeholder="name@example.com" disabled={pending} />
         <Field label="연락처" value={phone} onChange={setPhone} type="tel" autoComplete="tel" placeholder="010-0000-0000" disabled={pending} />
-        {/* 생년월일은 **지원 현황 조회의 비밀번호가 된다** (ADR-0031).
+        {/* 생년월일은 **지원 현황 조회의 비밀번호가 된다** (ADR-0033).
             그래서 무엇에 쓰이는지 그 자리에서 말해 준다 — 안 적으면 왜 받는지
             모른 채 내게 되고, 나중에 로그인하라고 하면 뭘 넣어야 할지 모른다.
 
@@ -301,7 +301,7 @@ export default function Apply() {
           {/* **수집 항목을 적어 둔다.** 2026-09-08 에 생년월일이 늘었는데
               문구가 "개인정보 수집·이용에 동의합니다" 한 줄이면, 무엇에
               동의하는지 모른 채 체크하게 된다 — 항목이 바뀌면 문구가 먼저
-              바뀌는 것이 순서다 (ADR-0031 「정하지 못한 것」). */}
+              바뀌는 것이 순서다 (ADR-0033 「정하지 못한 것」). */}
           <span>
             <strong>이름 · 이메일 · 연락처 · 생년월일 · 학력 · 경력 · 제출 서류</strong>를
             채용 전형 진행과 결과 안내를 위해 수집·이용하는 데 동의합니다.

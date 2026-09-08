@@ -12,7 +12,7 @@ const PREFIX = '/api/v1'
 const TOKEN_KEY = 'arda-token'
 /* 지원자 토큰. **담당자 토큰과 자리를 나눈다** — 한 브라우저에서 담당자로 보다가
    지원자 화면을 열면 서로를 덮어써서 둘 중 하나가 조용히 로그아웃된다.
-   서버도 토큰 종류를 갈라 보므로(ADR-0031) 섞이면 그냥 401 이 난다. */
+   서버도 토큰 종류를 갈라 보므로(ADR-0033) 섞이면 그냥 401 이 난다. */
 const APPLICANT_TOKEN_KEY = 'arda-applicant-token'
 
 export function getToken(): string | null {
@@ -82,7 +82,7 @@ interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>
   /* 공개 엔드포인트(C·F 일부)는 토큰을 붙이지 않는다 */
   auth?: boolean
-  /* 지원자 토큰으로 부른다 (ADR-0031). 담당자 토큰과 섞이지 않게 따로 고른다. */
+  /* 지원자 토큰으로 부른다 (ADR-0033). 담당자 토큰과 섞이지 않게 따로 고른다. */
   applicant?: boolean
   signal?: AbortSignal
 }
