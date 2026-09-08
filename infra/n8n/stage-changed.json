@@ -1,7 +1,7 @@
 {
   "name": "stage-changed → 지원자 메일 (ADR-0031 · n8n + SMTP)",
   "meta": {
-    "arda_note": "시연 경로 (ADR-0031 결정 5, 2026-09-08). n8n 화면에서 import → SMTP 자격 증명 이름을 'SMTP 발송' 으로 붙임 → 활성화. 백엔드 내부 경로 /internal/email-logs/{id}/render · /result 는 우정 몫. 저장소가 진실 — 화면 편집 후 export 해서 이 파일 덮어쓰고 커밋."
+    "arda_note": "시연 경로 (ADR-0031 결정 5, 2026-09-08). n8n 화면에서 import → SMTP 자격 증명 이름을 'SMTP 발송' 으로 붙임 → 활성화. 백엔드 내부 경로 /api/v1/internal/email-logs/{id}/render · /result 는 우정 몫. 저장소가 진실 — 화면 편집 후 export 해서 이 파일 덮어쓰고 커밋."
   },
   "nodes": [
     {
@@ -21,7 +21,7 @@
     },
     {
       "parameters": {
-        "url": "={{ $env.ARDA_INTERNAL_URL }}/internal/email-logs/{{ $json.body.email_log_id }}/render",
+        "url": "={{ $env.ARDA_INTERNAL_URL }}/api/v1/internal/email-logs/{{ $json.body.email_log_id }}/render",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -66,7 +66,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.ARDA_INTERNAL_URL }}/internal/email-logs/{{ $('Webhook stage-changed').item.json.body.email_log_id }}/result",
+        "url": "={{ $env.ARDA_INTERNAL_URL }}/api/v1/internal/email-logs/{{ $('Webhook stage-changed').item.json.body.email_log_id }}/result",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -88,7 +88,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.ARDA_INTERNAL_URL }}/internal/email-logs/{{ $('Webhook stage-changed').item.json.body.email_log_id }}/result",
+        "url": "={{ $env.ARDA_INTERNAL_URL }}/api/v1/internal/email-logs/{{ $('Webhook stage-changed').item.json.body.email_log_id }}/result",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

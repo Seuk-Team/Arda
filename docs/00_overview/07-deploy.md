@@ -273,7 +273,7 @@ docker compose -f ~/arda/docker-compose.prod.yml up -d n8n
 - 웹훅은 docker 네트워크 안(`http://n8n:5678/n8n/webhook/…`)에서만 부른다. 밖에서 부르면 Basic Auth 에 막힌다 — 의도한 것.
 - 메모리 상한 768MB 를 넘으면 n8n 만 죽고 `restart: unless-stopped` 로 다시 뜬다. api·worker 는 영향 없음.
 
-**아직 안 되는 것 (백엔드 몫, ADR-0030 결정 2·3)**: 내부 경로 `/internal/email-logs/{id}/render`·`/result` + 서비스 토큰(`ARDA_SERVICE_TOKEN`) + `MAIL_DISPATCH=worker|n8n` 스위치 + `publish_all` 분기. 이것이 오기 전까지 n8n 은 떠 있되 **메일은 계속 워커가 보낸다**(기본값 `worker`). 1단계 완료 기준은 "최종 합격 메일이 n8n 경로로 도착 + `provider_message_id` 기록".
+**백엔드 내부 API + 스위치 (2026-09-08 구현됨)**: `GET /api/v1/internal/email-logs/{id}/render` · `POST /api/v1/internal/email-logs/{id}/result` (서비스 토큰 `ARDA_SERVICE_TOKEN` 로 보호) · `mail.publish()` 에 `MAIL_DISPATCH=worker|n8n` 분기. **기본값은 여전히 `worker`** — 서버 `.env` 에 `MAIL_DISPATCH=n8n` 을 명시해야 전환됨. 1단계 완료 기준은 "최종 합격 메일이 n8n 경로로 도착 + `provider_message_id` 기록".
 
 ## 1회성 DB 이행
 
