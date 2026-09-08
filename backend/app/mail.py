@@ -214,13 +214,20 @@ def fill(source: str, values: dict[str, str]) -> str:
 
 
 def fill_body(source: str, values: dict[str, str]) -> str:
-    """본문 치환 — `{서명}` 이 없으면 끝에 붙인 뒤 채운다.
+    """본문 치환 — `{서명}` 도 렌더된 서명 텍스트도 없으면 끝에 붙인 뒤 채운다.
 
     수동·에이전트 발송의 본문은 사람이 그때그때 쓴다. 아르에게는 "서명을 쓰지
     말라"고 시켜 두었고(프롬프트), 담당자도 대개 안 쓴다. 그대로 두면 **서명 없는
     메일**이 나간다 — 받는 쪽에서는 누가 보냈는지 알 수 없다.
+
+    **2026-09-08 fix**: 담당자 UI 미리보기(POST /applications/{id}/emails/preview)
+    는 이미 렌더된 서명 텍스트를 담아 화면에 보여주고, 담당자가 그대로 submit 하면
+    본문에 `{서명}` 플레이스홀더는 없지만 실제 서명 텍스트는 이미 들어 있다. 그때
+    자동 추가하면 서명이 두 번 나간다 — 플레이스홀더도, 렌더된 서명도 없을 때만
+    끝에 붙인다.
     """
-    if "{서명}" not in source:
+    signature = values.get("서명", "")
+    if "{서명}" not in source and not (signature and signature in source):
         source = source.rstrip() + "\n\n{서명}"
     return fill(source, values)
 
