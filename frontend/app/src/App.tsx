@@ -10,6 +10,7 @@ import Login from './pages/Login'
 import Apply from './pages/Apply'
 import Schedule from './pages/Schedule'
 import Interview from './pages/Interview'
+import InterviewRoom from './pages/InterviewRoom'
 import Aptitude from './pages/Aptitude'
 import Dashboard from './pages/Dashboard'
 import Postings from './pages/Postings'
@@ -60,6 +61,10 @@ export default function App() {
           }
         />
         <Route element={<RequireAuth />}>
+          {/* 채용자용 실시간 면접방. **로그인은 필요하지만 Layout 밖이다** —
+              사이드바가 있으면 지원자 얼굴이 그만큼 작아지고, 면접 중에
+              다른 데로 새는 길이 화면에 남는다. */}
+          <Route path="/interview-room/:sessionId" element={<InterviewRoom />} />
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/postings" element={<Postings />} />

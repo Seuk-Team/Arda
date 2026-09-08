@@ -155,3 +155,16 @@ export const api = {
   delete: <T>(path: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
     request<T>(path, { ...options, method: 'DELETE' }),
 }
+
+/* WebSocket 주소를 만든다. **`api.*` 와 같은 곳을 보게 하려는 것**이 목적이다 —
+   화면마다 주소를 조립하면 로컬·배포에서 한쪽만 틀린 채로 오래 간다.
+
+   `BASE` 가 절대 주소면(배포) 그 호스트로 직접 붙고, 비어 있으면(로컬)
+   지금 페이지의 출처로 붙어 vite 프록시를 탄다. Vercel rewrite 는 WebSocket 을
+   넘기지 못하므로 **배포에서는 반드시 절대 주소여야 한다.** */
+export function wsUrl(path: string): string {
+  const base = BASE || window.location.origin
+  const url = new URL(PREFIX + path, base)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}

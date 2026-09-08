@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target,
           changeOrigin: true,
+          /* 실시간 면접 시그널링이 WebSocket 이라 프록시가 업그레이드를 넘겨야 한다.
+             없으면 로컬에서만 조용히 안 붙는다. */
+          ws: true,
         },
       },
     },
