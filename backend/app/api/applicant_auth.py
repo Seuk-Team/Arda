@@ -44,13 +44,20 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_applicant_email
 from app.api.portal import STAGE_LABEL
-from app.models import Application, InterviewSession, JobPosting
+from app.models import (
+    Application,
+    AptitudeSession,
+    InterviewSession,
+    JobPosting,
+    ScheduleProposal,
+)
 from app.schemas.applicant_auth import (
     ApplicantLoginRequest,
     ApplicantLoginResponse,
     ApplicantMeOut,
     MyApplicationOut,
     MyInterviewOut,
+    MyTokenLinkOut,
 )
 from app.security import APPLICANT_EXPIRES_MINUTES, create_applicant_token
 
@@ -157,6 +164,8 @@ def applicant_me(
 
     titles = {}
     sessions: dict[int, list[InterviewSession]] = {}
+    aptitudes: dict[int, list[AptitudeSession]] = {}
+    schedules: dict[int, list[ScheduleProposal]] = {}
     if rows:
         ids = {r.job_posting_id for r in rows}
         titles = {
@@ -177,6 +186,30 @@ def applicant_me(
         ).all():
             sessions.setdefault(s.application_id, []).append(s)
 
+        # 인적성·일정도 같은 규칙이다 — **아직 할 일이 남은 것만.**
+        # 끝난 것(`done`)·거절·만료는 들어가 봐야 막히므로 내지 않는다.
+        for a in db.scalars(
+            select(AptitudeSession)
+            .where(
+                AptitudeSession.application_id.in_(app_ids),
+                AptitudeSession.status == "pending",
+            )
+            .order_by(AptitudeSession.id)
+        ).all():
+            aptitudes.setdefault(a.application_id, []).append(a)
+
+        # 일정은 `confirmed` 도 싣는다 — 확정 뒤에도 **언제로 잡혔는지 다시 볼 일**이
+        # 있어서다. 면접·인적성과 다른 점이라 여기 적어 둔다.
+        for p in db.scalars(
+            select(ScheduleProposal)
+            .where(
+                ScheduleProposal.application_id.in_(app_ids),
+                ScheduleProposal.status.in_(("proposed", "confirmed")),
+            )
+            .order_by(ScheduleProposal.id)
+        ).all():
+            schedules.setdefault(p.application_id, []).append(p)
+
     return ApplicantMeOut(
         email=email,
         name=rows[0].name if rows else "",
@@ -194,6 +227,18 @@ def applicant_me(
                         token=s.token, status=s.status, expires_at=s.expires_at
                     )
                     for s in sessions.get(r.id, [])
+                ],
+                aptitudes=[
+                    MyTokenLinkOut(
+                        token=a.token, status=a.status, expires_at=a.expires_at
+                    )
+                    for a in aptitudes.get(r.id, [])
+                ],
+                schedules=[
+                    MyTokenLinkOut(
+                        token=p.token, status=p.status, expires_at=p.expires_at
+                    )
+                    for p in schedules.get(r.id, [])
                 ],
             )
             for r in rows
