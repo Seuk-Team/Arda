@@ -21,13 +21,10 @@ import '../data/posting_repository.dart';
 import '../data/repositories.dart';
 import '../data/schedule_repository.dart';
 import '../widgets/async_view.dart';
-import '../models/applicant.dart';
 import '../models/interview.dart';
 import '../models/stage.dart';
 import '../theme/tokens.dart';
 import '../utils/format.dart';
-import '../widgets/funnel_bar.dart';
-import '../widgets/funnel_legend.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
@@ -37,6 +34,7 @@ class DashboardScreen extends StatefulWidget {
     this.onOpenReviews,
     this.onOpenApplicants,
     this.onOpenPostings,
+    this.onReviewWaiting,
     this.repository,
   });
 
@@ -49,6 +47,10 @@ class DashboardScreen extends StatefulWidget {
   final VoidCallback? onOpenReviews;
   final VoidCallback? onOpenApplicants;
   final VoidCallback? onOpenPostings;
+
+  /// 받아 온 '내 리뷰 대기' 수를 셸에 알린다 — 더보기의 평가 현황 배지가
+  /// 같은 수를 쓴다. 같은 요청을 두 번 하지 않으려고 흘려 준다
+  final ValueChanged<int>? onReviewWaiting;
 
   /// 테스트가 가짜를 넣는 자리 (큐 8 4단계)
   final DashboardRepository? repository;
@@ -88,8 +90,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// `ignore()` 이유는 postings_screen.dart 참고
-  Future<DashboardData> _load(int userId) =>
-      _repo.load(userId: userId, today: widget.today)..ignore();
+  Future<DashboardData> _load(int userId) {
+    final future = _repo.load(userId: userId, today: widget.today);
+    // 받아 온 뒤에 알린다 — 실패하면 아무 말도 안 한다(더보기 배지가 안 뜬다).
+    // 파생된 future 도 실패를 들고 있어 같이 흘려보낸다
+    future.then((d) => widget.onReviewWaiting?.call(d.reviewWaiting)).ignore();
+    return future..ignore();
+  }
 
   void _reload() {
     final id = _loadedFor;
@@ -130,11 +137,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final stageTotals = data.stageCounts;
     final openPostings = data.openPostings;
 
-    // 이름 줄이 공고명을 적는다 — 공고 목록에서 표를 만들어 넘긴다
-    final titles = {
-      for (final p in openPostings) p.posting.id: p.posting.title,
-    };
-
     return ListView(
       // 05-design §3: 화면 여백은 --sp-4
       padding: const EdgeInsets.all(AppSpace.s4),
@@ -166,62 +168,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: AppSpace.s3),
 
-        // ③ 지원자 현황 — 05-design §0.5 가 모바일에 요구하는 형태.
+        // ③ 전체 현황 — 회사 합계 (2026-09-07, 웹 대시보드 개편을 따라감).
         //
-        // 레일은 한눈에 보는 요약으로 위에 남기고, 그 아래에 단계별 목록을 편다:
-        // 불합격 제외 4단계 · 단계당 [_perStage]명 + "외 n명 →" ·
-        // 면접 행에는 확정 시각/제안 중 칩.
+        // **지원자 이름 목록을 걷어냈다.** 사람을 훑는 일은 '지원자' 탭이 이미
+        // 하고, 폰에서 이름 10줄은 그 탭과 구별이 안 된다. 대시보드는 "지금
+        // 어디에 몇 명"에만 답한다.
         //
-        // **리스트/칸반 토글은 없다.** §9 "모바일은 칸반 금지 → 단계 탭 + 리스트",
-        // §0.5 "칸반은 보기 전용 — 모바일(≤768px)은 §9 원칙대로 리스트만".
-        _Card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _CardHead(
-                title: '지원자 현황',
-                meta: formatCount(
-                  DashboardScreen.railStages.fold(
-                    0,
-                    (sum, s) => sum + (stageTotals[s] ?? 0),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpace.s3),
-              FunnelBar(
-                counts: stageTotals,
-                stages: DashboardScreen.railStages,
-                // §0.5: 0건 구간도 6px 남긴다 — 몇 단짜리인지가 늘 읽혀야 한다
-                keepEmptySegments: true,
-              ),
-              const SizedBox(height: AppSpace.s3),
-              FunnelLegend(
-                counts: stageTotals,
-                stages: DashboardScreen.railStages,
-              ),
-              for (final stage in DashboardScreen.railStages)
-                _StageGroup(
-                  stage: stage,
-                  today: day,
-                  applicants: data.applicantsByStage[stage] ?? const [],
-                  total: stageTotals[stage] ?? 0,
-                  postingTitles: titles,
-                  todayInterviews: interviews,
-                  scheduleStatus: data.scheduleStatus,
-                ),
-              _CardLink(label: '전체 지원자 →', onTap: widget.onOpenApplicants),
-            ],
-          ),
-        ),
+        // 합격·불합격에는 막대를 안 그린다. 한번 되면 영원히 쌓이는 누적값이라
+        // 심사 중 세 칸과 같은 자를 쓰면 시간이 갈수록 앞 세 칸이 실오라기가
+        // 된다 — 견줄 대상이 아니다. 덤으로 --ok 와 --danger 는 적록색약에서
+        // ΔE 3.5 라 나란히 두면 경계가 안 보인다.
+        _Card(child: _TotalsBlock(counts: stageTotals)),
         const SizedBox(height: AppSpace.s3),
 
-        // ④ 진행중 공고
+        // ④ 공고별 현황 — ③ 을 공고로 쪼갠 것. 두 블록의 합은 항상 같다
         _Card(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _CardHead(
-                title: '진행중 공고',
+                title: '공고별 현황',
                 meta: formatItemCount(openPostings.length),
               ),
               for (final p in openPostings) _PostingRow(item: p, today: day),
@@ -229,6 +195,189 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// 전체 현황 — 진행중 공고를 다 더한 그림 (2026-09-07, 웹 대시보드와 같은 형태).
+///
+/// 심사 중 세 단계는 **큰 숫자 + 막대**, 합격·불합격은 **숫자만**이다.
+/// 뒤 둘은 한번 되면 영원히 쌓이는 누적값이라 앞 셋과 같은 자를 쓰면 시간이
+/// 갈수록 앞이 실오라기가 된다 — 견줄 대상이 아니라 총계다.
+///
+/// 막대는 심사 중 세 칸끼리만 견준다. 폰은 가로가 좁아 다섯을 한 줄에 못
+/// 세우므로 3 + 2 로 접는다.
+class _TotalsBlock extends StatelessWidget {
+  const _TotalsBlock({required this.counts});
+
+  final Map<Stage, int> counts;
+
+  static const _live = [Stage.applied, Stage.screening, Stage.interview];
+
+  @override
+  Widget build(BuildContext context) {
+    final live = [for (final s in _live) counts[s] ?? 0];
+    final maxLive = live.fold(1, (m, v) => v > m ? v : m);
+    final accepted = counts[Stage.accepted] ?? 0;
+    final rejected = counts[Stage.rejected] ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CardHead(
+          title: '전체 현황',
+          meta: formatCount(
+            live.fold(0, (a, b) => a + b) + accepted + rejected,
+          ),
+        ),
+        const SizedBox(height: AppSpace.s3),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (var i = 0; i < _live.length; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpace.s3),
+              Expanded(
+                child: _StatCell(
+                  label: _live[i].label,
+                  value: live[i],
+                  color: AppColors.funnelRamp[i],
+                  // 0 이면 막대를 안 그린다 — 높이 0 짜리를 억지로 남기면
+                  // "아주 적음"으로 읽힌다. 없는 것과 적은 것은 다르다
+                  fill: live[i] == 0 ? 0 : live[i] / maxLive,
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpace.s4),
+        // 심사가 끝난 사람은 파이프라인 밖이다. 선을 하나 그어 가른다 —
+        // 그냥 이으면 "5단계"로 읽힌다
+        const Divider(height: AppShape.borderW),
+        const SizedBox(height: AppSpace.s3),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCell(
+                label: Stage.accepted.label,
+                value: accepted,
+                color: AppColors.okText,
+                fill: null,
+              ),
+            ),
+            const SizedBox(width: AppSpace.s3),
+            Expanded(
+              child: _StatCell(
+                label: Stage.rejected.label,
+                value: rejected,
+                color: AppColors.danger,
+                fill: null,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// 숫자 한 칸. [fill] 이 null 이면 막대 대신 '누적'이라 적는다 —
+/// 자리를 비워 두면 밑선이 어긋나고, 왜 막대가 없는지도 안 보인다.
+class _StatCell extends StatelessWidget {
+  const _StatCell({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.fill,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+  final double? fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final f = fill;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: AppSpace.s2),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: AppType.caption,
+                  color: AppColors.textSub,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.s2),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              '$value',
+              style: TextStyle(
+                fontSize: AppType.display,
+                fontWeight: AppType.wSemiBold,
+                color: f == null ? color : AppColors.text,
+                fontFeatures: AppType.tabularNums,
+                height: 1,
+              ),
+            ),
+            const SizedBox(width: AppSpace.s1),
+            const Text(
+              '명',
+              style: TextStyle(
+                fontSize: AppType.caption,
+                color: AppColors.textSub,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.s2),
+        if (f == null)
+          const SizedBox(
+            height: 10,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '누적',
+                style: TextStyle(fontSize: 10, color: AppColors.textSub),
+              ),
+            ),
+          )
+        else
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(
+              right: Radius.circular(3),
+            ),
+            child: Container(
+              height: 10,
+              color: AppColors.bgSunken,
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: f,
+                child: Container(color: color),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -610,267 +759,6 @@ class _PostingRow extends StatelessWidget {
           // 오른쪽 끝을 비워 둔다 — 아르 버튼 자리
           const Spacer(),
         ],
-      ),
-    );
-  }
-}
-
-/// 단계 그룹 — 05-design §0.5 지원자 현황 블록의 한 단계.
-///
-/// 색 점 + 단계 이름 + 인원, 그 아래 사람 몇 줄. 넘치면 "외 n명 →".
-class _StageGroup extends StatelessWidget {
-  const _StageGroup({
-    required this.stage,
-    required this.today,
-    required this.applicants,
-    required this.total,
-    required this.postingTitles,
-    required this.todayInterviews,
-    required this.scheduleStatus,
-  });
-
-  final Stage stage;
-  final DateTime today;
-
-  /// 이 단계의 지원자 — 진행중 공고 것만이다 (2026-09-03 결정)
-  final List<Applicant> applicants;
-
-  final int total;
-
-  /// `공고 id → 제목`. 목록 응답이 공고명을 안 줘서 표로 넘겨받는다
-  final Map<int, String> postingTitles;
-
-  /// 오늘 확정된 면접 — 면접 행의 시각 칩이 여기서 온다
-  final List<Interview> todayInterviews;
-
-  /// 지원자 id → 일정 제안 상태. **묻지 않은 사람은 아예 없다**
-  final Map<int, ScheduleChip> scheduleStatus;
-
-  /// 단계당 보여 줄 사람 수.
-  ///
-  /// 웹은 5명이다. 폰에서 4단계 × 5명이면 접수만 훑다가 합격까지 못 내려가서
-  /// 3명으로 줄였다 — "외 n명 →" 이 나머지를 받는다.
-  static const _perStage = 3;
-
-  @override
-  Widget build(BuildContext context) {
-    final all = applicants;
-    final shown = all.take(_perStage).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: AppSpace.s4, bottom: AppSpace.s1),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  // §1: 합격만 연두, 진행 중은 무채
-                  color: stage == Stage.accepted
-                      ? AppColors.sprout
-                      : AppColors.neutral,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: AppSpace.s2),
-              Text(
-                stage.label,
-                style: const TextStyle(
-                  fontFamily: AppType.fontFamily,
-                  fontSize: AppType.sm,
-                  fontWeight: AppType.wSemiBold,
-                  color: AppColors.text,
-                ),
-              ),
-              const SizedBox(width: AppSpace.s2),
-              Text(
-                formatCount(total),
-                style: const TextStyle(
-                  fontFamily: AppType.fontFamily,
-                  fontSize: AppType.caption,
-                  fontFeatures: AppType.tabularNums,
-                  color: AppColors.textSub,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        if (shown.isEmpty)
-          // 숫자는 있는데 사람이 없는 단계 — 목데이터에 2번 공고 지원자가 없다
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: AppSpace.s2),
-            child: Text(
-              '없음',
-              style: TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.caption,
-                color: AppColors.textSub,
-              ),
-            ),
-          )
-        else
-          for (final applicant in shown)
-            _StageRow(
-              applicant: applicant,
-              stage: stage,
-              postingTitle: postingTitles[applicant.jobPostingId] ?? '',
-              chip: scheduleStatus[applicant.id],
-            ),
-
-        if (total > shown.length)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpace.s2),
-            child: Text(
-              '외 ${total - shown.length}명 →',
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.caption,
-                fontWeight: AppType.wSemiBold,
-                fontFeatures: AppType.tabularNums,
-                color: AppColors.leaf,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// 단계 그룹의 한 줄 — 이름 · 공고 · (면접이면 시각 칩, 아니면 지원일).
-class _StageRow extends StatelessWidget {
-  const _StageRow({
-    required this.applicant,
-    required this.stage,
-    required this.postingTitle,
-    required this.chip,
-  });
-
-  final Applicant applicant;
-  final Stage stage;
-
-  /// 목록 응답에 공고명이 없어 위에서 표로 찾아 넘겨준다
-  final String postingTitle;
-
-  /// 일정 제안 상태 + 확정 시각. 안 물어본 사람은 null 이다
-  final ScheduleChip? chip;
-
-  @override
-  Widget build(BuildContext context) {
-    // 확정된 면접 시각. 상태가 확정인데 시각이 없으면(있으면 안 되는 경우)
-    // 아래에서 "일정 없음" 으로 떨어진다 — 빈 칩보다는 낫다
-    final confirmedAt = chip?.status == ScheduleStatus.confirmed
-        ? chip?.confirmedAt
-        : null;
-
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppColors.borderSoft, width: AppShape.borderW),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.s2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Flexible(
-            child: Text(
-              applicant.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: const TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.sm,
-                fontWeight: AppType.wSemiBold,
-                color: AppColors.text,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpace.s2),
-          Expanded(
-            flex: 2,
-            child: Text(
-              postingTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: const TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.caption,
-                color: AppColors.textSub,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpace.s2),
-
-          // §0.5: 면접 행에는 확정 시각 / 제안 중 칩.
-          // 웹 Dashboard.tsx 의 scheduleChip 과 같은 네 갈래다 —
-          // 확정이면 시각, 아니면 제안 중 · 제안 만료 · 일정 없음.
-          // **확정만 연두, 나머지는 전부 무채**(§1 색은 판단에만).
-          if (stage == Stage.interview)
-            // **확정이면 그 시각을 적는다 — 오늘인지는 상관없다.** 오늘 면접
-            // 목록에서만 찾으면 다른 날로 확정된 사람이 빈 알약이 된다
-            // (2026-09-03 실기기에서 잡은 것). 웹 scheduleChip 과 같은 순서다
-            _Chip(
-              label: confirmedAt != null
-                  ? '${formatMonthDay(confirmedAt)} ${formatTime(confirmedAt)}'
-                  : (chip?.status ?? ScheduleStatus.none).label,
-              confirmed: confirmedAt != null,
-            )
-          else
-            Text(
-              formatDate(applicant.createdAt),
-              softWrap: false,
-              style: const TextStyle(
-                fontFamily: AppType.fontFamily,
-                fontSize: AppType.caption,
-                fontFeatures: AppType.tabularNums,
-                color: AppColors.textSub,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 웹 `Dashboard.module.css` 의 `.chip` — 확정은 연두, 나머지는 무채.
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.confirmed});
-
-  final String label;
-  final bool confirmed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 22,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpace.s2),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: confirmed ? AppColors.sproutSoft : AppColors.bgSunken,
-        borderRadius: AppShape.pill,
-        border: Border.all(
-          color: confirmed ? AppColors.sprout : AppColors.border,
-          width: AppShape.borderW,
-        ),
-      ),
-      child: Text(
-        label,
-        softWrap: false,
-        style: TextStyle(
-          fontFamily: AppType.fontFamily,
-          fontSize: AppType.caption,
-          fontWeight: AppType.wSemiBold,
-          fontFeatures: AppType.tabularNums,
-          color: confirmed ? AppColors.leaf : AppColors.textSub,
-        ),
       ),
     );
   }

@@ -2,6 +2,9 @@
 // 아직 조각이 안 온 탭은 "비어 있어야 한다"는 것도 검증 대상이다(§0-5).
 
 import 'package:arda/widgets/app_bottom_nav.dart';
+
+// 탭바가 담당자·지원자 둘 다 쓰게 되면서 제네릭이 됐다(2026-09-08).
+// 타입 인자를 안 적으면 AppBottomNav<NavTab> 을 찾아 아무것도 안 걸린다.
 import 'package:arda/widgets/app_top_bar.dart';
 import 'package:arda/widgets/posting_card.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +14,10 @@ import 'app_boot.dart';
 
 Future<void> tapTab(WidgetTester tester, String label) async {
   await tester.tap(
-    find.descendant(of: find.byType(AppBottomNav), matching: find.text(label)),
+    find.descendant(
+      of: find.byType(AppBottomNav<AppTab>),
+      matching: find.text(label),
+    ),
   );
   await tester.pumpAndSettle();
 }
@@ -79,10 +85,10 @@ void main() {
 
   testWidgets('탭을 옮겨도 하단 바는 자리를 지킨다', (tester) async {
     await bootToShell(tester);
-    final before = tester.getRect(find.byType(AppBottomNav));
+    final before = tester.getRect(find.byType(AppBottomNav<AppTab>));
 
     await tapTab(tester, '캘린더');
-    expect(tester.getRect(find.byType(AppBottomNav)), before);
+    expect(tester.getRect(find.byType(AppBottomNav<AppTab>)), before);
   });
 
   testWidgets('공고에서 파고든 화면에는 탭바가 없다', (tester) async {
@@ -91,6 +97,6 @@ void main() {
 
     await tester.tap(find.byType(PostingCard).first);
     await tester.pumpAndSettle();
-    expect(find.byType(AppBottomNav), findsNothing);
+    expect(find.byType(AppBottomNav<AppTab>), findsNothing);
   });
 }

@@ -57,9 +57,15 @@ class _HomeShellState extends State<HomeShell> {
   /// 흔든다 — 취소하고 나온 것까지 다시 받으면 헛걸음이다
   final _postingsReload = ValueNotifier(0);
 
+  /// 더보기의 평가 현황 배지에 붙는 수. **대시보드가 받아 온 것을 그대로 쓴다** —
+  /// 같은 것을 더보기가 또 물으면 앱을 켤 때마다 왕복이 하나 는다.
+  /// 아직 못 받았으면 null 이고, 그때는 배지를 그리지 않는다
+  final _reviewWaiting = ValueNotifier<int?>(null);
+
   @override
   void dispose() {
     _postingsReload.dispose();
+    _reviewWaiting.dispose();
     super.dispose();
   }
 
@@ -95,16 +101,21 @@ class _HomeShellState extends State<HomeShell> {
             onOpenReviews: () => _go(AppTab.more),
             onOpenApplicants: () => _go(AppTab.applicants),
             onOpenPostings: () => _go(AppTab.postings),
+            onReviewWaiting: (n) => _reviewWaiting.value = n,
           ),
           const CalendarScreen(),
-          const MoreScreen(),
+          MoreScreen(reviewCount: _reviewWaiting),
         ],
       ),
       // 05-design §0.5: 아르는 **전 화면 공통 진입점**이다. 탭이 있는 화면에서는
       // 엄지가 닿는 오른쪽 아래에 둔다 — 파고든 화면(상세)은 하단이 동작 버튼
       // 자리라 상단 바 오른쪽 아바타가 그 자리를 대신한다
       floatingActionButton: _ArButton(onPressed: () => showArSheet(context)),
-      bottomNavigationBar: AppBottomNav(current: _current, onSelected: _go),
+      bottomNavigationBar: AppBottomNav(
+        tabs: AppTab.values,
+        current: _current,
+        onSelected: _go,
+      ),
     );
   }
 }
@@ -130,10 +141,12 @@ class _ArButton extends StatelessWidget {
           boxShadow: AppShadow.overlay,
         ),
         child: Material(
-          // ar.png 배경과 같은 흰색 (ar_screen.dart ArAvatar 주석 참고)
+          // 유리 바탕이 캐릭터 뒤로 비친다 (ar_screen.dart ArAvatar 주석 참고).
+          // 웹 우하단 아르 도크와 같은 재질이다
           color: AppColors.bgElev,
-          // 테두리 없음 — §4 오버레이 그림자가 이미 떠 보이게 한다
-          shape: const CircleBorder(),
+          shape: const CircleBorder(
+            side: BorderSide(color: AppColors.border, width: AppShape.borderW),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onPressed,

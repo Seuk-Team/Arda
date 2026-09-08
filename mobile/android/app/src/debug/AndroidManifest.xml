@@ -4,4 +4,17 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- 로컬 백엔드에 붙일 수 있게 평문 HTTP 를 연다 (2026-09-08).
+
+         Android 9(API 28) 부터 http:// 는 기본으로 막힌다. 그래서 API_BASE 를
+         http://192.168.0.5:8000 같은 LAN 주소로 넣어 빌드해도 요청이 전부
+         실패하고, 앱에는 "연결하지 못했습니다" 로만 보여서 원인을 못 찾는다.
+
+         디버그 빌드에만 넣는다. release 매니페스트에는 없으므로 배포용 APK 는
+         그대로 https 전용이다.
+
+         (XML 주석 안에는 붙임표 두 개를 못 쓴다. dart define 옵션 이름을
+         그대로 적지 못한 이유다.) -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

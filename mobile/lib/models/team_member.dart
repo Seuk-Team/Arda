@@ -9,11 +9,16 @@ import 'app_user.dart';
 
 class TeamMember {
   const TeamMember({
+    required this.id,
     required this.name,
     required this.email,
     required this.role,
     required this.active,
   });
+
+  /// `users.id` — 평가 현황이 `evaluator_id` 를 이름으로 바꾸는 데 쓴다.
+  /// 서버는 평가에 id 만 준다(`EvaluationOut`)
+  final int id;
 
   final String name;
   final String email;
@@ -26,6 +31,7 @@ class TeamMember {
 /// 서버 응답 → 모델. `UserItemOut`(backend/app/schemas/user.py).
 extension TeamMemberJson on TeamMember {
   static TeamMember fromJson(Map<String, dynamic> json) => TeamMember(
+    id: json['id'] as int? ?? 0,
     name: json['name'] as String? ?? '',
     email: json['email'] as String? ?? '',
     // 모르는 역할은 member 로 둔다 — admin 으로 넘겨짚으면 권한이 있는 것처럼 보인다

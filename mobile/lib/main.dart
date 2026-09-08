@@ -10,7 +10,9 @@ import 'models/job_posting.dart';
 import 'models/stage_history.dart';
 import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
+import 'screens/applicant_shell.dart';
 import 'screens/applicants_screen.dart';
+import 'screens/interview_screen.dart';
 import 'screens/evaluation_queue_screen.dart';
 import 'screens/evaluations_screen.dart';
 import 'screens/posting_form_screen.dart';
@@ -25,6 +27,20 @@ void main() {
   _registerFontLicense();
   runApp(ArdaApp());
 }
+
+/// 면접 화면을 실기기에서 열어 보는 문 (2026-09-08).
+///
+/// **지원자 로그인이 서버에 생기기 전까지 이 화면에 들어갈 길이 없다** —
+/// 로그인은 501 을 던지고, 링크를 넣는 자리는 뺐다. 그동안 확인하려면:
+///
+/// ```
+/// flutter run --route=/applicant/interview \n///   --dart-define=INTERVIEW_TOKEN=<면접 링크 뒤의 토큰>
+/// ```
+///
+/// 토큰은 웹 지원자 상세 → AI 면접 → [AI 면접 만들기] → [링크 복사] 로 나온다.
+/// 안 넣으면 빈 문자열이고, 그러면 화면이 그냥 "유효하지 않은 링크" 로 뜬다 —
+/// 릴리스 빌드에 남아도 아무 일도 안 한다.
+const _devInterviewToken = String.fromEnvironment('INTERVIEW_TOKEN');
 
 /// 번들한 IBM Plex Sans KR 의 라이선스를 앱에 등록한다.
 ///
@@ -84,9 +100,20 @@ class ArdaApp extends StatelessWidget {
         Routes.evaluationQueue: (_) => const EvaluationQueueScreen(),
         Routes.settings: (_) => const SettingsScreen(),
         Routes.postingNew: (_) => const PostingFormScreen(),
+        // 지원자 갈래 (2026-09-08) — 탭 셸 밖이다. 로그인한 사람이 없고
+        // 링크 토큰이 신분이라 CurrentUserScope 를 읽지 않는다
+        Routes.applicantHome: (_) => const ApplicantShell(),
       },
       // 지원자·상세는 "어느 공고/누구"를 인자로 받으므로 routes 표가 아니라 여기서 만든다
       onGenerateRoute: (settings) {
+        if (settings.name == Routes.interview) {
+          // 인자가 없으면 빌드 때 넣어 준 토큰을 본다 — [_devInterviewToken]
+          final token = (settings.arguments as String?) ?? _devInterviewToken;
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => InterviewScreen(token: token),
+          );
+        }
         if (settings.name == Routes.applicants) {
           final posting = settings.arguments! as JobPosting;
           return MaterialPageRoute(

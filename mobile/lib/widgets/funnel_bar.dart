@@ -101,7 +101,8 @@ class FunnelBar extends StatelessWidget {
     Stage.applied => AppColors.funnelRamp[0],
     Stage.screening => AppColors.funnelRamp[1],
     Stage.interview => AppColors.funnelRamp[2],
-    Stage.accepted => AppColors.sprout,
+    // 합격만 색이 붙는다. 시안(강조)이 아니라 초록(통과) 이다
+    Stage.accepted => AppColors.ok,
     Stage.rejected => AppColors.danger,
   };
 }

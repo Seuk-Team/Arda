@@ -19,8 +19,14 @@ import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
 
+/// 탭 한 칸이 갖춰야 할 것. 담당자·지원자 탭이 같은 바를 쓴다 (2026-09-08)
+abstract interface class NavTab {
+  IconData get icon;
+  String get label;
+}
+
 /// 탭 다섯 칸. 순서가 곧 화면 배치 순서다.
-enum AppTab {
+enum AppTab implements NavTab {
   postings(Icons.description_outlined, '공고'),
   applicants(Icons.people_outline, '지원자'),
   home(Icons.home_outlined, '홈'),
@@ -29,15 +35,26 @@ enum AppTab {
 
   const AppTab(this.icon, this.label);
 
+  @override
   final IconData icon;
+
+  @override
   final String label;
 }
 
-class AppBottomNav extends StatelessWidget {
-  const AppBottomNav({super.key, required this.current, this.onSelected});
+class AppBottomNav<T extends NavTab> extends StatelessWidget {
+  const AppBottomNav({
+    super.key,
+    required this.tabs,
+    required this.current,
+    this.onSelected,
+  });
 
-  final AppTab current;
-  final ValueChanged<AppTab>? onSelected;
+  /// 왼쪽부터의 순서 그대로 그린다
+  final List<T> tabs;
+
+  final T current;
+  final ValueChanged<T>? onSelected;
 
   /// 항목 높이. 05-design §9 터치 타깃 최소 44 를 넘긴다
   /// (아이콘 24 + 간격 4 + 라벨 한 줄 ≈ 45, 위아래 여백 포함 62).
@@ -60,9 +77,9 @@ class AppBottomNav extends StatelessWidget {
           height: _itemHeight,
           child: Row(
             children: [
-              for (final tab in AppTab.values)
+              for (final tab in tabs)
                 Expanded(
-                  child: _NavItem(
+                  child: _NavItem<T>(
                     tab: tab,
                     selected: tab == current,
                     onTap: onSelected,
@@ -76,12 +93,12 @@ class AppBottomNav extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+class _NavItem<T extends NavTab> extends StatelessWidget {
   const _NavItem({required this.tab, required this.selected, this.onTap});
 
-  final AppTab tab;
+  final T tab;
   final bool selected;
-  final ValueChanged<AppTab>? onTap;
+  final ValueChanged<T>? onTap;
 
   @override
   Widget build(BuildContext context) {

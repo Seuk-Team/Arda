@@ -439,7 +439,7 @@ class FakeDashboardRepository implements DashboardRepository {
   final Object? error;
   final Duration delay;
 
-  /// 평가 대기 큐가 받는 배정 id 들. 안 주면 목데이터의 대기 인원
+  /// 평가 현황이 받는 배정 id 들. 안 주면 목데이터의 대기 인원
   final List<int>? assigned;
 
   @override
@@ -466,31 +466,14 @@ class FakeDashboardRepository implements DashboardRepository {
       reviewWaiting: mockReviewQueueCount,
       openPostings: open,
       stageCounts: mockOpenStageCounts,
-      applicantsByStage: {
-        for (final s in Stage.values)
-          s: [
-            for (final p in open)
-              ...p.applicants.where((a) => a.currentStage == s),
-          ],
-      },
-      scheduleStatus: {
-        for (final e in mockScheduleStatus.entries)
-          e.key: ScheduleChip(
-            e.value,
-            // 목데이터의 확정은 그날 면접 시각을 쓴다 — 서버의
-            // `confirmed_slot` 자리다
-            confirmedAt: e.value == ScheduleStatus.confirmed
-                ? mockInterviewFor(e.key, day)?.startAt
-                : null,
-          ),
-      },
     );
   }
 
   @override
-  Future<List<int>> assignedIds(int userId) async {
+  Future<List<Assignment>> assignments(int userId) async {
     if (error != null) throw error!;
-    return assigned ??
+    final ids =
+        assigned ??
         [
           for (final a in mockApplicants)
             if ((a.currentStage == Stage.screening ||
@@ -498,6 +481,14 @@ class FakeDashboardRepository implements DashboardRepository {
                 !mockEvaluations.containsKey(a.id))
               a.id,
         ];
+    // 배정일은 목데이터에 없다 — 지원일로 둔다(화면은 여기서 '배정 n일째' 를 센다)
+    return [
+      for (final id in ids)
+        (
+          applicationId: id,
+          assignedAt: mockApplicants.firstWhere((a) => a.id == id).createdAt,
+        ),
+    ];
   }
 
   @override

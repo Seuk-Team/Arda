@@ -49,9 +49,14 @@ void main() {
     await tester.tap(find.text('공고'));
     await tester.pumpAndSettle();
 
+    // 2026-09-07 다크 이식 — 웹 tokens.css 를 그대로 옮긴 값이다
     final theme = Theme.of(tester.element(find.byType(Scaffold)));
-    expect(theme.scaffoldBackgroundColor, const Color(0xFFF4F7F0)); // --bg
-    expect(theme.colorScheme.primary, const Color(0xFF3A6B21)); // --leaf
+    expect(theme.scaffoldBackgroundColor, const Color(0xFF070B14)); // --bg
+    expect(theme.brightness, Brightness.dark);
+    // 주 동작은 흰 판 + 어두운 글자다 — 네온이 이미 배경에 깔려 있어
+    // 버튼까지 빛나면 무엇이 동작인지 안 읽힌다
+    expect(theme.colorScheme.primary, const Color(0xFFFFFFFF)); // --accent-fill
+    expect(theme.colorScheme.onPrimary, const Color(0xFF0A1020)); // --on-accent
     expect(theme.textTheme.bodyLarge?.fontSize, 16); // --font-body
     expect(theme.textTheme.bodyLarge?.fontFamily, 'IBM Plex Sans KR');
   });

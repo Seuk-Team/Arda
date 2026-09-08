@@ -13,6 +13,7 @@
 /// 웹에도 없다(`More.tsx` 는 평가 현황·설정·알림 셋뿐).
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
@@ -26,7 +27,16 @@ class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key, this.user, this.reviewCount});
 
   final AppUser? user;
-  final int? reviewCount;
+
+  /// 평가 현황 배지에 붙는 수 — **셸이 대시보드에서 받은 것을 흘려 준다.**
+  ///
+  /// 값이 늦게 오므로(대시보드가 서버를 기다린다) 그냥 `int?` 가 아니라
+  /// 들을 수 있는 것으로 받는다. 못 받으면 배지를 안 그린다.
+  final ValueListenable<int?>? reviewCount;
+
+  /// 셸이 숫자를 안 넘겼을 때(테스트·화면 하나만 띄운 개발 중) 쓰는 빈 자리.
+  /// 늘 null 이라 배지가 그려지지 않는다
+  static final ValueNotifier<int?> _noBadge = ValueNotifier<int?>(null);
 
   @override
   Widget build(BuildContext context) {
@@ -39,15 +49,24 @@ class MoreScreen extends StatelessWidget {
       children: [
         _Profile(user: me),
         const SizedBox(height: AppSpace.s4),
-        _Group(
-          items: [
-            _Item(
-              icon: Icons.star_outline,
-              label: '평가 현황',
-              badge: reviewCount ?? mockReviewQueueCount,
-              onTap: () => Navigator.pushNamed(context, Routes.evaluationQueue),
-            ),
-          ],
+        // 배지는 **서버가 준 수**만 쓴다. 2026-09-08 까지 여기가 목데이터를
+        // 그렸다: 셸이 `const MoreScreen()` 으로 만들어 값이 늘 null 이었고
+        // `?? mockReviewQueueCount` 로 떨어져, 배정이 0건이든 7건이든 화면에는
+        // 영원히 '2' 가 떴다(목 지원자 중 서류·면접 단계이면서 평가 기록이
+        // 없는 사람이 둘이다). 없는 숫자를 지어내느니 안 그리는 게 낫다.
+        ValueListenableBuilder<int?>(
+          valueListenable: reviewCount ?? _noBadge,
+          builder: (context, count, _) => _Group(
+            items: [
+              _Item(
+                icon: Icons.star_outline,
+                label: '평가 현황',
+                badge: count,
+                onTap: () =>
+                    Navigator.pushNamed(context, Routes.evaluationQueue),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: AppSpace.s4),
         _Group(

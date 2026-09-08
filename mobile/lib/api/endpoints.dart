@@ -100,4 +100,40 @@ abstract final class Endpoints {
   // 아르
   static const agentChat = '/agent/chat';
   static const agentConfirm = '/agent/confirm';
+
+  // ── 지원자 (공개) ──────────────────────────────────────
+  //
+  // **토큰이 곧 인증이다** — Authorization 헤더를 붙이지 않는다.
+  // 지원자에게는 계정이 없다(회원가입도 로그인도 없음).
+
+  /// 지원자 로그인 — 이메일 + 생년월일 8자리 (ADR-0031).
+  /// **여기만 토큰 없이 부른다.** 나머지는 받은 토큰을 Bearer 로 붙인다
+  static const applicantLogin = '/public/applicant/login';
+
+  /// 내 지원 현황 — 지원·면접·인적성·일정 토큰이 한 번에 온다.
+  /// **조회 인자를 받지 않는다** — 서버가 토큰의 이메일로만 찾는다
+  static const applicantMe = '/applicant/me';
+
+  /// 면접 — 조회·동의·시작·답변·종료
+  static String interview(String token) => '/public/interview/$token';
+  static String interviewConsent(String token) =>
+      '/public/interview/$token/consent';
+  static String interviewStart(String token) =>
+      '/public/interview/$token/start';
+  static String interviewAnswer(String token) =>
+      '/public/interview/$token/answer';
+  static String interviewFinish(String token) =>
+      '/public/interview/$token/finish';
+
+  /// 인적성 검사 — 조회·제출. **재제출은 서버가 막는다**
+  static String aptitude(String token) => '/public/aptitude/$token';
+  static String aptitudeSubmit(String token) =>
+      '/public/aptitude/$token/submit';
+
+  /// 면접 시간 조율 — 후보 시간 조회·확정, 그리고 아르에게 묻기.
+  /// 담당자용 아르(`/agent/chat`)와 완전히 별개다: 도구도 대화 이력도 없다
+  static String schedule(String token) => '/public/schedule/$token';
+  static String scheduleConfirm(String token) =>
+      '/public/schedule/$token/confirm';
+  static String scheduleFaq(String token) => '/public/schedule/$token/faq';
 }

@@ -10,7 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 Widget host({AppUser? user, int? reviewCount}) => MaterialApp(
   home: Scaffold(
-    body: MoreScreen(user: user, reviewCount: reviewCount),
+    body: MoreScreen(
+      user: user,
+      // 셸은 대시보드가 받아 온 뒤에 값을 채운다 — 화면은 들을 수 있는 것을 받는다
+      reviewCount: reviewCount == null ? null : ValueNotifier(reviewCount),
+    ),
   ),
 );
 
@@ -67,6 +71,31 @@ void main() {
   testWidgets('대기 0건이면 배지를 그리지 않는다', (tester) async {
     await tester.pumpWidget(host(reviewCount: 0));
     expect(find.text('0'), findsNothing);
+  });
+
+  // 2026-09-08: 여기가 목데이터를 그려 배정이 몇 건이든 늘 '2' 가 떴다.
+  // 셸이 값을 안 넘기던 것이 원인이라, 안 넘어온 경우를 못 박는다
+  testWidgets('셸이 수를 안 넘기면 배지가 없다 — 목데이터로 지어내지 않는다', (tester) async {
+    await tester.pumpWidget(host());
+
+    expect(find.text('평가 현황'), findsOneWidget);
+    expect(find.text('$mockReviewQueueCount'), findsNothing);
+  });
+
+  testWidgets('뒤늦게 온 수가 배지에 반영된다 — 대시보드가 서버를 기다린다', (tester) async {
+    final count = ValueNotifier<int?>(null);
+    addTearDown(count.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: MoreScreen(reviewCount: count)),
+      ),
+    );
+    expect(find.text('5'), findsNothing);
+
+    count.value = 5;
+    await tester.pump();
+
+    expect(find.text('5'), findsOneWidget);
   });
 
   testWidgets('로그아웃도 무채다 — 나가는 것은 판단이 아니다 (§1)', (tester) async {

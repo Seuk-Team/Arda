@@ -146,10 +146,11 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (fg, border, bg) = switch (status) {
+      // '진행중' 은 합격이 아니라 상태 강조다 — 시안 쪽이 맞다
       PostingStatus.open => (
-        AppColors.leaf,
-        AppColors.sprout,
-        AppColors.sproutSoft,
+        AppColors.accentText,
+        AppColors.accent,
+        AppColors.accentSoft,
       ),
       _ => (AppColors.textSub, AppColors.border, AppColors.bgElev),
     };

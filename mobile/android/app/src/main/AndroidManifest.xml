@@ -4,6 +4,17 @@
          없으면 배포한 APK 에서만 모든 요청이 조용히 실패한다. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- 지원자 AI 면접 (2026-09-08). 면접 내내 카메라가 켜져 있고 답변을
+         소리로 받는다 — 한 번 찍어 올리는 방식이 아니다.
+
+         `required="false"` 인 이유: 카메라 없는 기기에서도 **설치는 되어야**
+         한다. 담당자용 화면(공고·지원자·평가)은 카메라와 아무 상관이 없는데,
+         required 로 두면 그 기기에서 앱 자체가 안 보인다. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
+
     <application
         android:label="Arda"
         android:name="${applicationName}"

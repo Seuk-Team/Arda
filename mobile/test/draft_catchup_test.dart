@@ -1,5 +1,5 @@
 // 앱 UI 초안(2026-09-01)이 **기존 화면**에 더한 것들 — 전형 레일 · 공고 카드
-// 범례 · 로그인 아르 마크. 새로 만든 화면은 각자의 테스트가 본다.
+// 범례 · 로그인 브랜드 마크. 새로 만든 화면은 각자의 테스트가 본다.
 
 import 'package:arda/data/mock_data.dart';
 import 'package:arda/models/stage.dart';
@@ -8,6 +8,7 @@ import 'package:arda/screens/login_screen.dart';
 import 'package:arda/theme/tokens.dart';
 import 'package:arda/widgets/funnel_bar.dart';
 import 'package:arda/widgets/funnel_legend.dart';
+import 'package:arda/widgets/network_field.dart';
 import 'package:arda/widgets/posting_card.dart';
 import 'package:arda/widgets/stage_rail.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'fake_repos.dart';
 
 import 'app_boot.dart';
+import 'no_motion.dart';
 
 Widget detailOf(String name) {
   final applicant = mockApplicants.firstWhere((a) => a.name == name);
@@ -132,11 +134,15 @@ void main() {
     });
   });
 
-  group('로그인 아르 마크', () {
-    testWidgets('로고 위에 아르가 있다', (tester) async {
+  // 2026-09-08: 로그인 마크가 아르 캐릭터에서 **노드 A**로 바뀌었다.
+  // 05-design §0.0 이 로고를 "노드 다섯 개와 그 연결선이 이루는 A" 로 정의한다 —
+  // 아르는 안내자이지 브랜드 마크가 아니다.
+  group('로그인 브랜드 마크', () {
+    testWidgets('로고 위에 노드 A 가 있다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
 
-      final mark = find.byType(Image);
+      final mark = find.byType(BrandMark);
       expect(mark, findsOneWidget);
       expect(
         tester.getRect(mark).bottom,
@@ -145,11 +151,11 @@ void main() {
       );
     });
 
-    testWidgets('장식이라 낭독기에서 읽지 않는다', (tester) async {
+    testWidgets('캐릭터 그림은 더 이상 없다 — 브랜드 마크는 그린 도형이다', (tester) async {
+      disableMotion(tester);
       await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
 
-      final image = tester.widget<Image>(find.byType(Image));
-      expect(image.excludeFromSemantics, isTrue);
+      expect(find.byType(Image), findsNothing);
     });
   });
 

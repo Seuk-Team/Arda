@@ -22,10 +22,13 @@ class StageLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     // (글자색, 테두리색, 채움색, 굵기)
     final (fg, border, bg, weight) = switch (stage) {
+      // 2026-09-07 — 다크로 옮기면서 leaf/sprout 별칭이 시안을 가리키게 됐다.
+      // 합격은 시안이 아니라 초록이다: 시안은 '강조', 초록은 '통과' 라
+      // 뜻이 다르다. 새 이름으로 바로잡는다
       Stage.accepted => (
-        AppColors.leaf,
-        AppColors.sprout,
-        AppColors.sproutSoft,
+        AppColors.okText,
+        AppColors.ok,
+        AppColors.okSoft,
         FontWeight.w700,
       ),
       Stage.rejected => (
