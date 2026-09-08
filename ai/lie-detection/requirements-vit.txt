@@ -1,0 +1,9 @@
+# ViT 표정 (ADR-0032). **기본 이미지에 넣지 않는다** — torch 를 얹으면 이미지가
+# ~2.5GB 커지는데, 지금 운영 서버(t3.medium 4GB)에서는 어차피 못 켠다.
+# GPU 서버에서만 이것까지 설치하고 VIT_MODEL 을 준다.
+#   pip install -r requirements-vit.txt
+#   export VIT_MODEL=trpakov/vit-face-expression
+torch>=2.0
+torchvision>=0.15
+transformers>=4.40
+pillow>=10.0
