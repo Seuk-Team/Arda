@@ -22,6 +22,38 @@ class TestFill:
         assert mail.fill("코드: if x { y }", {"지원자명": "김"}) == "코드: if x { y }"
 
 
+class TestFillBody:
+    """fill_body 의 서명 자동 추가 규칙 (2026-09-08 수정 이후)."""
+
+    _VALUES = {"서명": "Seuk 채용 담당자 관리자 드림"}
+
+    def test_플레이스홀더_있으면_그대로_치환_한_번만(self):
+        body = "안녕하세요.\n{서명}"
+        out = mail.fill_body(body, self._VALUES)
+        assert out.count("Seuk 채용 담당자 관리자 드림") == 1
+
+    def test_렌더된_서명_텍스트가_이미_있으면_재추가_안함(self):
+        """담당자 UI 미리보기가 렌더된 서명을 담아 그대로 전송되는 경로 재현.
+
+        수정 전엔 fill_body 가 {서명} 이 없다며 끝에 자동 추가해 서명이 두 번 나갔다.
+        """
+        body = "안녕하세요.\n본문입니다.\n\nSeuk 채용 담당자 관리자 드림"
+        out = mail.fill_body(body, self._VALUES)
+        assert out.count("Seuk 채용 담당자 관리자 드림") == 1
+
+    def test_둘_다_없으면_자동_추가(self):
+        body = "안녕하세요. 본문만 있음."
+        out = mail.fill_body(body, self._VALUES)
+        assert out.endswith("Seuk 채용 담당자 관리자 드림")
+        assert out.count("Seuk 채용 담당자 관리자 드림") == 1
+
+    def test_서명_값이_비면_자동_추가_안함(self):
+        """서명이 빈 값이면 자동 추가 로직에 걸리지 않고 본문 그대로."""
+        body = "본문"
+        out = mail.fill_body(body, {"서명": ""})
+        assert "Seuk" not in out
+
+
 class TestUnknownVars:
     def test_허용_변수는_통과(self):
         assert mail.unknown_vars("{지원자명} {공고명} {회사명} {면접일시} {서명}") == []
