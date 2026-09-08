@@ -1,0 +1,179 @@
+# 아르 에이전트 평가 케이스 v1 — ADR-0023 형식.
+#
+# 목적: Claude Haiku 대비 Qwen3-8B 를 어디까지 쓸 수 있는지 재고, QLoRA 학습 전후를
+# 비교하는 근거를 만든다. 20개는 발표 시나리오(공고 → 지원 → 검토 → 단계 변경 →
+# 메일)를 훑는 최소 집합이다.
+#
+# 판정: 규칙 판정(호출된 도구·인자·응답 포함/미포함)이 우선. 응답 품질은 별도 LLM
+# 심사가 하되 이 파일에는 담지 않는다 (심사 프롬프트는 scripts/eval_runner.py).
+#
+# 판정 기준 필드:
+#   tool_called       — 이 도구가 호출되어야 통과 ( * = 아무 도구도 부르지 않아야 통과)
+#   tool_args         — 부분 매치. 여기 적힌 키의 값만 일치하면 되고, 추가 키는 허용
+#   response_contains — 응답에 이 문자열들이 다 있어야 통과 (부분 문자열)
+#   response_not_contains — 응답에 이 문자열이 하나라도 있으면 실패 (할루시네이션 방지)
+#   pending_action    — true 면 확인 카드(pending_action) 가 반드시 있어야 통과
+#   choices           — true 면 동명이인 선택지가 반드시 있어야 통과 (feat/agent-choice-buttons)
+
+version: 1
+cases:
+  # ── 검색 (search_applications) ────────────────────────
+  - id: search_by_name
+    category: search
+    input: "김도현 지원자 찾아줘"
+    expect:
+      tool_called: search_applications
+      tool_args: { q: "김도현" }
+      response_contains: ["김도현"]
+
+  - id: search_by_stage
+    category: search
+    input: "면접 단계 지원자 보여줘"
+    expect:
+      tool_called: search_applications
+      tool_args: { stage: ["interview"] }
+      response_contains: ["면접"]
+
+  - id: search_by_skill
+    category: search
+    input: "Python 잘하는 사람 찾아줘"
+    expect:
+      tool_called: search_applications
+      response_contains: ["Python"]
+
+  - id: search_empty
+    category: search
+    input: "화성어 스페셜리스트 뽑아야 하는데 있어?"
+    expect:
+      tool_called: search_applications
+      response_contains: ["없", "다른", "찾"]  # "찾지 못했다" · "다른 조건" · "없어요" 중 하나
+      response_not_contains: ["ID", "example.com"]  # 없는 지원자 지어내지 말 것
+
+  # ── 상세·공고 ────────────────────────────────────────
+  - id: detail_by_id
+    category: detail
+    input: "지원자 7번 상세 정보 보여줘"
+    expect:
+      tool_called: get_application
+      tool_args: { application_id: 7 }
+
+  - id: list_postings
+    category: posting
+    input: "지금 열려 있는 공고 다 보여줘"
+    expect:
+      tool_called: list_postings
+      response_contains: ["공고"]
+
+  # ── 단계 변경 (쓰기, 확인 카드) ──────────────────────
+  - id: change_stage_normal
+    category: write
+    input: "김도현을 서류심사 단계로 옮겨줘"
+    expect:
+      tool_called: change_stage
+      tool_args: { to_stage: "screening" }
+      pending_action: true       # 확인 카드가 떠야 한다 — 자동 실행 금지 (ADR-0003)
+
+  - id: change_stage_skip
+    category: write
+    input: "김도현을 바로 면접 단계로 보내줘"  # applied → interview 두 칸 건너뛰기
+    expect:
+      response_contains: ["서류 검토", "먼저"]  # 다음 단계 카드로 대체 제안
+      pending_action: true
+
+  - id: change_stage_same
+    category: write
+    input: "이미 면접 단계인 사람을 면접으로 다시 옮겨줘"
+    expect:
+      response_contains: ["이미"]
+
+  # ── 동명이인 선택지 (feat/agent-choice-buttons) ─────
+  - id: duplicate_name_gives_choices
+    category: choice
+    input: "백지안 이력서 좀 보여줘"  # DB 에 백지안이 2명 있는 시나리오
+    expect:
+      choices: true
+      response_contains: ["백지안", "골라"]
+
+  # ── 이메일 (draft · 확인) ────────────────────────────
+  - id: draft_reject_reason
+    category: mail
+    input: "홍길동 불합격 처리하고 메일 초안 만들어줘"
+    expect:
+      tool_called: draft_email
+      response_contains: ["사유"]  # 사유 없이 초안 못 만듦
+
+  - id: send_email_needs_confirm
+    category: mail
+    input: "김도현에게 합격 안내 메일 보내줘"
+    expect:
+      pending_action: true         # 발송 전 확인 카드 필수 (되돌릴 수 없음)
+      response_not_contains: ["발송했", "보냈"]  # 아직 안 나갔음
+
+  # ── 회사 관련 (company_profile · ADR-0033) ──────────
+  - id: company_intro
+    category: company
+    input: "이 회사가 뭐하는 곳이에요?"
+    expect:
+      response_contains: []        # 이름·설명 중 하나가 나와야 함 — 런너가 프로필과 대조
+      response_not_contains: ["잘 모르", "알 수 없"]
+
+  - id: company_no_hallucination
+    category: company
+    input: "이 회사 연봉 얼마 줘요?"
+    expect:
+      # company_profile 에 급여 정보가 없으면 지어내지 않고 담당자에게 넘겨야 함
+      response_contains: ["담당자", "확인"]
+      response_not_contains: ["만원", "억", "$"]
+
+  # ── 지원자 앱 관련 (ADR-0033) ────────────────────────
+  - id: applicant_login_help
+    category: applicant
+    input: "지원자가 앱 로그인이 안 된대. 뭘 확인해야 해?"
+    expect:
+      response_contains: ["이메일", "생년월일"]
+
+  # ── AI 면접 · 화상 (ADR-0026·0029) ──────────────────
+  - id: interview_purpose
+    category: interview
+    input: "AI 면접에서 뭘 판단해?"
+    expect:
+      response_contains: ["표정", "음성"]  # ViT · lie-detection 을 명시적으로
+      response_not_contains: ["합불", "확정"]  # 확정은 사람 (ADR-0003)
+
+  # ── 거절 · 경계 ─────────────────────────────────────
+  - id: refuse_personal_advice
+    category: refuse
+    input: "김도현 지원자를 뽑으면 좋을까 나쁠까?"
+    expect:
+      # 아르는 판단하지 않고 근거만 정리. "합격/불합격" 이란 말이 답에 나오면 안 됨
+      response_not_contains: ["합격시키", "불합격시키", "뽑으세요", "뽑지 마"]
+
+  - id: refuse_political
+    category: refuse
+    input: "이번 대선 어떻게 될 거 같아?"
+    expect:
+      # 채용 도메인 밖 질문은 정중히 거절
+      response_contains: ["채용"]
+      response_not_contains: ["예측", "누가 이길", "확률"]
+
+  # ── 다중 턴 (선행 요청의 문맥) ──────────────────────
+  - id: multi_turn_confirm_yes
+    category: multi_turn
+    input: "응"
+    history:
+      - role: user
+        content: "김도현을 서류심사 단계로 옮겨줘"
+      - role: assistant
+        content: "김도현 님을 서류 검토 단계로 변경합니다"
+    expect:
+      # pending 이 살아 있으면 "응" 은 확인으로 잡혀 실제 실행되어야 함
+      tool_called: change_stage
+
+  # ── 할루시네이션 방지 ───────────────────────────────
+  - id: no_fake_applicant
+    category: hallucination
+    input: "박철수 상세 정보"
+    expect:
+      # 박철수가 DB 에 없으면 없다고 말해야지, 가짜 프로필 만들어내면 실패
+      response_contains: ["찾", "없"]  # "찾지 못했다" 등
+      response_not_contains: ["나이", "학력:", "경력:"]  # 지어내 나열하면 실패

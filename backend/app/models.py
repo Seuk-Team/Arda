@@ -21,6 +21,7 @@ from sqlalchemy import (
     Index,
     Numeric,
     Integer,
+    JSON,
     SmallInteger,
     String,
     Text,
@@ -161,6 +162,50 @@ class CompanyProfile(Base):
     __table_args__ = (
         CheckConstraint("id = 1", name="ck_company_profile_singleton"),
     )
+
+
+# ── agent_traces — 아르 대화 로그 (0014, ADR-0024 Qwen 학습·평가) ────
+# 매 대화의 요청·도구·답변·비용을 남기고, 담당자가 나중에 라벨한 것만 학습셋으로.
+# 상세 논거는 마이그레이션 0014 헤더 참고.
+class AgentTrace(Base):
+    __tablename__ = "agent_traces"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    session_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    turn_index: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    user_message: Mapped[str] = mapped_column(Text, nullable=False)
+    assistant_reply: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    history: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'::json"))
+    tool_calls: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'::json"))
+    pending_action: Mapped[dict | None] = mapped_column(JSON)
+    backend: Mapped[str] = mapped_column(String(50), nullable=False, server_default="")
+    model_tag: Mapped[str] = mapped_column(String(200), nullable=False, server_default="")
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # 라벨
+    label_verdict: Mapped[str | None] = mapped_column(String(20))
+    label_correction: Mapped[str | None] = mapped_column(Text)
+    label_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL")
+    )
+    label_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "label_verdict IS NULL OR label_verdict IN ('good','bad','needs_fix')",
+            name="ck_agent_traces_label_verdict",
+        ),
+        Index("ix_agent_traces_verdict_created", "label_verdict", "created_at"),
+    )
+
 
 
 # ── applications — 지원서 (C1·D1·D6) ★핵심 테이블 ────────────────────
