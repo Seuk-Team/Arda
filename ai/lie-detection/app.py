@@ -26,8 +26,11 @@ import numpy as np
 from fastapi import FastAPI, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 
+import interview_ws as iw
 from feature_extractor import analyze_timeseries, extract_features
 from interview_ws import (
+    SERVICE_TOKEN,
+    STT_MODEL,
     InterviewSession,
     LiveScorer,
     _SpeechDetector,
@@ -40,7 +43,8 @@ from interview_ws import (
     model,
     score,
     submit_answer,
-    transcribe,
+    transcribe_async,
+    warm_stt,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -55,9 +59,39 @@ model()
 app = FastAPI(title="Arda 거짓말 탐지")
 
 
+@app.on_event("startup")
+async def _warm() -> None:
+    """전사 모델을 뒤에서 미리 올린다.
+
+    **기다리지 않는다.** 여기서 await 하면 26초 동안 헬스체크가 안 뜨고 배포가
+    실패한 것처럼 보인다. 그 사이에 들어온 첫 면접은 로딩을 물지만, 예열이 없을
+    때처럼 **매 면접이** 무는 것보다는 낫다.
+    """
+    asyncio.create_task(asyncio.to_thread(warm_stt))
+
+
+# 실시간 판정이 어디까지 갔는지 세는 자리 (2026-09-09).
+#
+# **왜 필요한가**: 판정이 담당자 화면에 안 뜰 때, 밖에서는 어디서 멈췄는지 알 길이
+# 없었다. 설정이 없어 안 부른 것인지, 얼굴이 모자라 판정을 못 낸 것인지, 백엔드가
+# 거절한 것인지가 전부 조용한 실패다. 숫자 네 개면 그 자리에서 갈린다.
+#
+# **비밀은 안 낸다** — 토큰이 있는지(true/false)만 낸다.
+_live_stats = {"scored": 0, "ok": 0, "pushed": 0, "push_failed": 0}
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        # 전사가 켜져 있는가 · 모델이 올라와 있는가
+        "stt_on": bool(STT_MODEL),
+        "stt_loaded": iw._stt is not None,
+        # 판정을 백엔드로 밀 수 있는가 (토큰 값은 안 낸다)
+        "verdict_push_configured": bool(SERVICE_TOKEN),
+        # 면접이 도는 동안 실제로 몇 번이나 갔는지
+        "live": dict(_live_stats),
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -275,7 +309,7 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     pcm, rows = session.take_answer()
     # 전사는 CPU 로 발화 길이의 절반쯤 걸린다. 이벤트 루프에서 부르면 그 동안
     # 이 워커의 모든 면접이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-    transcript = await asyncio.to_thread(transcribe, pcm)
+    transcript = await transcribe_async(pcm)
 
     if not transcript:
         # 말이 안 담긴 것을 답변으로 저장하면 그 질문은 "답한 것"이 되어
@@ -324,12 +358,19 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
 async def _live_verdict(client, session: InterviewSession) -> None:
     """최근 4초를 판정해 백엔드로 민다. 실패해도 면접에는 영향이 없다."""
     try:
+        _live_stats["scored"] += 1
         pcm, rows = session.scorer.snapshot()
         # 판정은 CPU 로 약 185ms 걸린다. 이벤트 루프에서 부르면 그 동안 이 워커의
         # **모든 면접**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
         result = await asyncio.to_thread(score, pcm, rows, session.scorer.window_sec)
         if not result.get("ok"):
+            # 얼굴이 모자라거나 소리가 짧다. **조용히 넘어가되 세어는 둔다** —
+            # 담당자 화면이 비어 있을 때 여기가 원인인지 알아야 한다
+            logger.info(
+                "판정 못 냄: token=%s %s", session.token[:8], result.get("reason")
+            )
             return
+        _live_stats["ok"] += 1
         await push_verdict(
             client,
             session.token,
@@ -340,7 +381,9 @@ async def _live_verdict(client, session: InterviewSession) -> None:
                 "signals": result.get("signals", []),
             },
         )
+        _live_stats["pushed"] += 1
     except Exception:
+        _live_stats["push_failed"] += 1
         logger.exception("실시간 판정 전송 실패: token=%s", session.token[:8])
     finally:
         session.scoring = False

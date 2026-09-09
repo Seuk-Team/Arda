@@ -132,6 +132,8 @@ def main():
     # 100% 로 믿지 말라고 알려 주면 잡음에 덜 휘둘린다.
     p.add_argument("--smoothing", type=float, default=0.1)
     p.add_argument("--name", default="", help="회차 이름. 비우면 번호가 자동으로 붙는다")
+    p.add_argument("--data", default="fer2013", choices=["fer2013", "ferplus"],
+                   help="ferplus 는 같은 사진에 10명이 다시 매긴 라벨(build_ferplus.py)")
     args = p.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -140,9 +142,9 @@ def main():
     else:
         print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-    train_ds = Fer2013("train", TRAIN_TF)
-    test_ds = Fer2013("test", EVAL_TF)
-    print(f"학습 {len(train_ds):,}장 · 평가 {len(test_ds):,}장")
+    train_ds = Fer2013("train", TRAIN_TF, source=args.data)
+    test_ds = Fer2013("test", EVAL_TF, source=args.data)
+    print(f"데이터: {args.data} · 학습 {len(train_ds):,}장 · 평가 {len(test_ds):,}장")
 
     # num_workers=0: 윈도우는 워커마다 프로세스를 새로 띄우느라 오히려 느려질 때가 많다.
     train_dl = DataLoader(train_ds, batch_size=args.batch, shuffle=True, num_workers=0)

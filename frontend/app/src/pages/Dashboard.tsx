@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { ApiError } from '../api/client'
-import { assignments, postings as postingsApi, schedules } from '../api/endpoints'
-import type { Interview, Posting, Stage } from '../api/types'
+import { assignments, interviews as interviewsApi, postings as postingsApi, schedules } from '../api/endpoints'
+import type { ActiveInterview, Interview, Posting, Stage } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import styles from './Dashboard.module.css'
 
@@ -91,6 +91,8 @@ function ddayOf(v: number | null): { text: string; tone: string } {
 }
 
 interface Data {
+  /** 지금 면접 중인 것들. 없으면 빈 배열 */
+  live: ActiveInterview[]
   /* 나에게 배정된 지원자 수. assignments.mine().count 는 배정 전체라
      내가 이미 평가한 건도 들어간다 — 그래서 '리뷰 대기'가 아니라 '배정'이다 */
   mine: number
@@ -116,10 +118,14 @@ export default function Dashboard() {
       assignments.mine(user.id, ac.signal),
       postingsApi.list(ac.signal),
       schedules.interviews({ from: from.toISOString(), to: to.toISOString() }, ac.signal),
+      /* 지금 진행 중인 면접. **실패해도 대시보드는 뜬다** — 이것 하나 때문에
+         다른 숫자까지 안 보이면 안 된다 */
+      interviewsApi.active(ac.signal).catch(() => [] as ActiveInterview[]),
     ])
-      .then(([assigned, all, ivs]) => {
+      .then(([assigned, all, ivs, live]) => {
         setError(null)
         setData({
+          live,
           mine: assigned.count,
           /* 진행 중 공고만 싣는다. 마감·초안의 지원자는 더 이상 움직이지 않아서
              현황에 섞으면 숫자만 부푼다 */
@@ -399,6 +405,36 @@ export default function Dashboard() {
               ))}
             </div>
           </section>
+
+          {/* **지금 면접 중.** 진행 중인 것이 있을 때만 뜬다 (2026-09-09).
+              이게 없으면 담당자는 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야
+              실시간 분석 화면에 닿는다 — 면접이 시작되는 순간에 그걸 찾아
+              들어갈 수는 없다. 새 탭으로 여는 이유는 면접을 보는 동안 이 화면을
+              계속 봐야 해서다. */}
+          {data !== null && data.live.length > 0 && (
+            <section className={styles.card} aria-labelledby="dash-live">
+              <div className={styles.cardHead}>
+                <h2 id="dash-live" className={styles.cap}>지금 면접 중</h2>
+                <p className={`${styles.note} ${styles.noteOn}`}>{data.live.length}건</p>
+              </div>
+              <div className={styles.ivList}>
+                {data.live.map((iv) => (
+                  <a
+                    key={iv.id}
+                    className={styles.iv}
+                    href={`/interview-watch/${iv.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span className={`${styles.ivTime} ${styles.ivNext}`}>실시간</span>
+                    <span className={styles.ivName}>{iv.applicant_name}</span>
+                    <span className={styles.ivPosting}>{iv.posting_title}</span>
+                    <span className={styles.ivWho}>분석 보기 →</span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className={styles.card} aria-labelledby="dash-today">
             <div className={styles.cardHead}>

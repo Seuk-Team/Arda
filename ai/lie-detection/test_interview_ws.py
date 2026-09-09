@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 
 import numpy as np
@@ -386,3 +387,54 @@ class TestIdentity:
         s = self._session(monkeypatch, [0.6] * 10)
         monkeypatch.setattr(face_match, "embed", lambda img: None)
         assert self._feed(s, 10) == []
+class TestTranscribeTimeout:
+    """전사가 오래 걸려도 **면접이 거기서 멈추면 안 된다** (2026-09-09 실측).
+
+    첫 답변이 모델 로딩(약 26초)을 물면, 답변이 저장되기 전에 uvicorn 이 핑
+    응답을 못 받아 WebSocket 을 먼저 닫는다 — `processing` 뒤 40초 무응답 →
+    `closed 1011`. 실기기에서 면접이 첫 질문에서 멈춘 원인이었다.
+    """
+
+    def test_시간을_넘기면_자리표시자를_남기고_넘어간다(self, monkeypatch):
+        def slow(_pcm):
+            time.sleep(5)
+            return "늦게 온 답"
+
+        monkeypatch.setattr(iw, "transcribe", slow)
+        monkeypatch.setattr(iw, "STT_TIMEOUT_SEC", 0.2)
+
+        out = asyncio.run(iw.transcribe_async(LOUD * 40))
+
+        # **빈 문자열이 아니다.** 빈 것은 "말이 안 담겼다" 라 서버가 답변을
+        # 저장하지 않고 다시 답하게 하는데, 시간이 모자란 건 지원자 잘못이 아니다
+        assert out.startswith("[전사 지연")
+        assert out != ""
+
+    def test_제때_끝나면_그_결과를_그대로_준다(self, monkeypatch):
+        monkeypatch.setattr(iw, "transcribe", lambda _pcm: "제때 온 답")
+        monkeypatch.setattr(iw, "STT_TIMEOUT_SEC", 5)
+
+        assert asyncio.run(iw.transcribe_async(LOUD * 40)) == "제때 온 답"
+
+
+class TestWarmStt:
+    """예열은 **서비스를 죽이지 않는다.** 전사가 없어도 면접은 돈다."""
+
+    def test_스위치가_비면_아무것도_안_한다(self, monkeypatch):
+        called = []
+        monkeypatch.setattr(iw, "STT_MODEL", "")
+        monkeypatch.setattr(iw, "_stt_model", lambda: called.append(1))
+
+        iw.warm_stt()
+
+        assert called == []
+
+    def test_모델을_못_올려도_터지지_않는다(self, monkeypatch):
+        monkeypatch.setattr(iw, "STT_MODEL", "없는-모델")
+
+        def boom():
+            raise RuntimeError("못 올림")
+
+        monkeypatch.setattr(iw, "_stt_model", boom)
+
+        iw.warm_stt()  # 여기서 예외가 새면 워커가 뜨다가 죽는다

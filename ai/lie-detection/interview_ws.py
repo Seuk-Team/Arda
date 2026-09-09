@@ -41,10 +41,17 @@ SAMPLE_RATE = 16_000
 SAMPLE_WIDTH = 2  # 16-bit
 
 # ── 발화 끝 판정 ──────────────────────────────────────────────
-# 사람이 문장 중간에 쉬는 시간과 말을 마친 시간을 가르는 값이다. 짧게 잡으면 말하는
-# 도중에 끊고 들어가고, 길게 잡으면 대화가 늘어진다. 0.8초는 사람 면접관이 다음을
-# 묻기 시작하는 감각에 맞춘 값이고, 실측으로 조정할 자리다.
-SILENCE_END_SEC = 0.8
+# 사람이 문장 중간에 쉬는 시간과 말을 마친 시간을 가르는 값이다.
+#
+# **손해가 한쪽으로만 크다.** 길게 잡으면 답을 마친 지원자가 그만큼 기다릴 뿐이지만,
+# 짧게 잡으면 생각하느라 쉬는 도중에 끊고 들어가 **답변이 반토막으로 저장되고 되돌릴
+# 수 없다.** 그래서 안전한 쪽으로 길게 잡는다.
+#
+# 처음 0.8초로 잡았던 것은 사람 면접관의 감각에 맞춘 짐작이었다. 면접에서 긴장한
+# 사람이 "음…" 하고 쉬는 시간은 1~3초라 그 안에 잘린다. 3초는 그것을 덮는다.
+#
+# 실제 값은 폰 실측으로 정한다. 재배포 없이 바꿀 수 있게 환경변수로 열어 둔다.
+SILENCE_END_SEC = float(os.getenv("SILENCE_END_SEC", "3.0"))
 # 이보다 조용하면 무음으로 본다. 마이크·환경에 따라 달라서 절대값으로 두지 않고
 # 배경 소음에서 기준을 잡는다(`_SpeechDetector`).
 NOISE_MARGIN = 2.5
@@ -566,6 +573,11 @@ async def submit_answer(client, token: str, transcript: str) -> dict:
 _stt = None
 _stt_failed = False   # 한 번 실패하면 매 답변마다 다시 시도하지 않는다
 _stt_lock = threading.Lock()
+# **전사는 한 번에 하나만 돈다.** 서버가 2 vCPU 라 여럿을 같이 돌리면 서로 느려질
+# 뿐 총 시간은 그대로다 — 실측: 30초 발화를 1명이면 37초, 4명 동시면 198초(1명당 50초).
+# 줄 세우면 앞사람이 37초에 끝나고 뒤로 갈수록 밀리는데, 같이 돌리면 **모두가**
+# 50초를 기다린다. 메모리도 동시 실행만큼 더 쓴다.
+_stt_running = threading.Semaphore(1)
 
 
 def _stt_model():
@@ -602,6 +614,58 @@ def _stt_model():
     return _stt
 
 
+# 전사 하나를 기다려 주는 한계. 넘으면 포기하고 자리표시자를 남긴다.
+#
+# **여기서 안 끊으면 면접이 거기서 멈춘다.** 답변이 저장되지 않아 다음 질문이
+# 안 나오고, 그 사이 uvicorn 이 핑 응답을 못 받아 WebSocket 을 먼저 닫아 버린다
+# (2026-09-09 실측: `processing` 뒤 40초 무응답 → `closed 1011`).
+# 45초는 상한 발화(180초)를 int8 실측 속도(0.25배)로 돌린 값에 여유를 더한 것이다.
+STT_TIMEOUT_SEC = float(os.getenv("STT_TIMEOUT_SEC", "45"))
+
+
+def warm_stt() -> None:
+    """전사 모델을 미리 올려 둔다. **첫 지원자가 로딩을 물지 않게.**
+
+    `large-v3-turbo` 를 처음 올리는 데 CPU 로 약 26초 걸린다(suvisdev 실측).
+    그 시간을 첫 답변이 물면, 답변이 저장되기 전에 WebSocket 이 먼저 죽는다 —
+    2026-09-09 실기기에서 그렇게 면접이 첫 질문에서 멈췄다.
+
+    **실패해도 서비스를 죽이지 않는다.** `model()`(판정 모델)은 없으면 뜰 때
+    죽는 편이 낫지만, 전사는 없어도 면접이 돈다(자리표시자로 내려앉는다).
+    """
+    if not STT_MODEL:
+        logger.info("전사 꺼짐 — 예열하지 않는다")
+        return
+    started = time.monotonic()
+    try:
+        if _stt_model() is None:
+            logger.warning("전사 모델 예열 실패 — 자리표시자로 돈다")
+            return
+    except Exception:
+        logger.exception("전사 모델 예열 중 오류 — 자리표시자로 돈다")
+        return
+    logger.info("전사 모델 예열 완료: %.1f초", time.monotonic() - started)
+
+
+async def transcribe_async(pcm: bytes) -> str:
+    """전사를 딴 스레드에서 하되 **[STT_TIMEOUT_SEC] 를 넘기면 포기한다.**
+
+    포기하면 자리표시자를 돌려준다 — 빈 문자열이 아니다. 빈 문자열은 "말이 안
+    담겼다" 는 뜻이라 서버가 답변을 저장하지 않고 다시 답하게 하는데, 시간이
+    모자란 것은 지원자 잘못이 아니다. 저장하고 다음 질문으로 넘어가는 편이 낫다.
+    """
+    seconds = len(pcm) / (SAMPLE_RATE * SAMPLE_WIDTH)
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(transcribe, pcm), timeout=STT_TIMEOUT_SEC
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "전사가 %.0f초를 넘겨 포기한다 (발화 %.1f초)", STT_TIMEOUT_SEC, seconds
+        )
+        return f"[전사 지연 · 발화 {seconds:.1f}초]"
+
+
 def transcribe(pcm: bytes) -> str:
     """음성 → 글. **CPU 로 약 0.55배**(35초 음성에 19초) 걸리므로 스레드에서 부른다.
 
@@ -623,6 +687,17 @@ def transcribe(pcm: bytes) -> str:
     usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
     audio = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
 
+    # 줄을 선다(위 `_stt_running` 주석). 기다린 시간이 길면 로그로 남긴다 —
+    # 면접이 몰릴 때 이 줄이 병목인지 나중에 알 수 있어야 한다.
+    waited = time.monotonic()
+    with _stt_running:
+        queued = time.monotonic() - waited
+        if queued > 1:
+            logger.info("전사 대기 %.1f초 (앞에 다른 전사가 돌고 있었다)", queued)
+        return _run_transcribe(model, audio)
+
+
+def _run_transcribe(model, audio) -> str:
     segments, _ = model.transcribe(
         audio,
         language=STT_LANGUAGE or None,

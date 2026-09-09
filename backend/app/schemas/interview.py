@@ -37,6 +37,22 @@ class SessionOut(BaseModel):
     created_at: datetime
 
 
+class ActiveSessionOut(BaseModel):
+    """지금 진행 중인 면접 하나 — 대시보드가 바로 들어가는 데 쓴다.
+
+    **이름과 공고를 같이 준다.** 담당자가 면접 중에 볼 화면이라 "누구의 면접인가"
+    없이 세션 번호만 있으면 못 고른다. 화면이 지원서·공고를 따로 두 번 더 부르게
+    하지 않는다 — `InterviewRoom` 이 그렇게 하고 있고, 대시보드에서 그러면
+    면접 수만큼 요청이 는다.
+    """
+
+    id: int
+    application_id: int
+    applicant_name: str
+    posting_title: str
+    started_at: datetime | None
+
+
 class TurnOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

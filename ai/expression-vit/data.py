@@ -59,9 +59,19 @@ class Fer2013(Dataset):
     여기서 고정하지 않는다.
     """
 
-    def __init__(self, split: str, transform=None):
-        with open(download(split), "rb") as f:
-            self.rows = pickle.load(f)
+    def __init__(self, split: str, transform=None, source: str = "fer2013"):
+        """`source="ferplus"` 면 같은 사진에 **10명이 다시 매긴 라벨**을 쓴다.
+
+        FER2013 은 한 사람이 붙인 라벨이라 틀린 것이 많고, 그것이 정확도의 천장이다
+        (사람도 ~65%). `build_ferplus.py` 로 만든다.
+        """
+        if source == "ferplus":
+            path = DATA_DIR / f"ferplus_{split}.pt"
+            if not path.exists():
+                raise SystemExit(f"{path} 가 없다. 먼저 `python build_ferplus.py`.")
+        else:
+            path = download(split)
+        self.rows = pickle.loads(path.read_bytes())
         self.transform = transform
 
     def __len__(self) -> int:

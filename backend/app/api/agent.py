@@ -19,7 +19,7 @@ from app.agent.entity_resolver import resolve_entities
 from app.agent.intent_router import DirectAction, classify
 from app.company import prompt_context as company_prompt_context
 from app.models import AgentTrace
-from app.agent.interview_probe import cover_letter_of, generate_probes
+from app.agent.interview_probe import generate_probes, sources_of
 from app.agent.prompts import render
 from app.agent.runtime import _describe_action, run_agent
 from app.agent.summarizer import generate_summary
@@ -168,6 +168,8 @@ class ProbeClaim(BaseModel):
     claim: str
     type: str
     questions: list[str]
+    # 이 인용이 자기소개서에서 왔는지 이력서에서 왔는지. 면접관이 원문을 찾으러 간다.
+    source: str = "자기소개서"
 
 
 class ProbesOut(BaseModel):
@@ -183,7 +185,10 @@ def interview_probes(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """자기소개서에서 확인할 주장과 면접 꼬리 질문을 뽑는다 (AI면접 설계 §5-5).
+    """자기소개서·이력서에서 확인할 주장과 면접 꼬리 질문을 뽑는다 (AI면접 설계 §5-5).
+
+    공고 요건도 함께 넘기지만 **인용하지는 않는다** — 회사가 쓴 글이라 지원자의
+    주장이 될 수 없다. 무엇을 먼저 물을지 고르는 데만 쓴다.
 
     **저장하지 않는다.** 부를 때마다 새로 만든다 — 아직 화면도 붙지 않았고,
     저장 위치(`interview_turns`)는 면접 세션이 있을 때 정해진다. 재생성이
@@ -205,14 +210,14 @@ def interview_probes(
             f"질문 생성 백엔드를 사용할 수 없습니다: {reason}",
         )
 
-    cover = cover_letter_of(app)
-    if not cover.strip():
+    sources = sources_of(app, db)
+    if not (sources["cover_letter"].strip() or sources["resume"].strip()):
         raise HTTPException(
             http.HTTP_422_UNPROCESSABLE_ENTITY,
-            "자기소개서가 없어 확인할 주장을 뽑을 수 없습니다",
+            "자기소개서와 이력서가 모두 없어 확인할 주장을 뽑을 수 없습니다",
         )
 
-    claims = generate_probes(cover)
+    claims = generate_probes(sources)
     if claims is None:
         raise HTTPException(
             http.HTTP_422_UNPROCESSABLE_ENTITY,

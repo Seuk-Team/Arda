@@ -175,6 +175,7 @@ export const assignments = {
 /* ── 아르 에이전트 (agent.py) ─────────────────────────────────
    맨 위 import 블록을 건드리지 않으려고 여기서 따로 들여온다 — 같은 파일을 여럿이 고친다. */
 import type {
+  ActiveInterview,
   AgentChatRequest,
   AgentChatResponse,
   AgentConfirmRequest,
@@ -199,6 +200,10 @@ export const interviews = {
 
   detail: (sessionId: number, signal?: AbortSignal) =>
     api.get<InterviewSessionDetail>(`/interview-sessions/${sessionId}`, { signal }),
+
+  /* 지금 진행 중인 면접들. 대시보드가 실시간 분석으로 바로 들어가는 데 쓴다 */
+  active: (signal?: AbortSignal) =>
+    api.get<ActiveInterview[]>('/interview-sessions/active', { signal }),
 }
 
 export const agent = {

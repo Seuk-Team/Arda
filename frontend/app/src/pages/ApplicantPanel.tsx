@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
 import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
@@ -619,13 +618,27 @@ function InterviewSection({ applicationId }: { applicationId: number }) {
                   같은 세션·같은 토큰을 쓰므로 AI 면접과 자리를 나누지 않는다. */}
               {!isDone && (
                 <>
-                  {/* AI 면접이 도는 동안 판정을 보는 자리. 카메라를 안 켠다. */}
-                  <Link className={styles.ivCopy} to={`/interview-watch/${s.id}`}>
+                  {/* **새 탭에서 연다** (2026-09-09 · cloverky 지적).
+                      이 둘은 레이아웃 밖 전체 화면이라, 같은 탭에서 열면 보던
+                      지원자 화면을 통째로 덮는다 — 돌아오려면 뒤로가기를 눌러야
+                      하고, 그 사이 면접방은 닫힌다. 면접을 보는 동안 담당자는
+                      지원자 정보를 계속 봐야 하므로 창을 나누는 것이 맞다. */}
+                  <a
+                    className={styles.ivCopy}
+                    href={`/interview-watch/${s.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     실시간 분석 보기
-                  </Link>
-                  <Link className={styles.ivCopy} to={`/interview-room/${s.id}`}>
+                  </a>
+                  <a
+                    className={styles.ivCopy}
+                    href={`/interview-room/${s.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     화상 면접방
-                  </Link>
+                  </a>
                 </>
               )}
               {isDone && (

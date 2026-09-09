@@ -147,6 +147,21 @@ class _InterviewScreenState extends State<InterviewScreen>
   int _micChunks = 0;
   DateTime _micDrawn = DateTime.fromMillisecondsSinceEpoch(0);
 
+  /// 이 질문에서 지금까지 들어온 소리 중 가장 큰 값.
+  ///
+  /// 조각은 오는데 전부 속삭임 수준이면 서버가 "말"로 안 본다 — 이어폰을 낀
+  /// 채로 겪은 것이 그것이다(2026-09-09). 막대만 보고는 "작다"와 "원래 이런가"를
+  /// 구별하기 어려워 문장으로도 알려 준다.
+  double _micPeak = 0;
+
+  /// 같은 질문에서 "말이 안 담겼다"가 몇 번 연속인가.
+  ///
+  /// **여기서 빠져나갈 길이 없으면 면접이 거기서 끝난다.** 전사가 켜진 뒤로
+  /// whisper 가 빈 결과를 내면 서버가 답변을 저장하지 않고 다시 답하라고 하는데,
+  /// 계속 빈 결과면 지원자는 같은 질문을 영원히 본다.
+  int _emptyAnswers = 0;
+  static const int _emptyAnswersMax = 3;
+
   /// 실시간을 못 써서 **글로 답하는 길로 물러섰다.** 사유 한 줄.
   ///
   /// 마이크가 막힌 지원자에게 "면접을 볼 수 없습니다" 라고 하지 않는다 —
@@ -345,6 +360,8 @@ class _InterviewScreenState extends State<InterviewScreen>
     // 사람 목소리가 int16 로 수천이다. 3000 을 가득 찬 것으로 본다
     final level = math.min(1.0, rms / 3000);
 
+    if (level > _micPeak) _micPeak = level;
+
     final now = DateTime.now();
     if (now.difference(_micDrawn) < const Duration(milliseconds: 200)) return;
     _micDrawn = now;
@@ -404,13 +421,19 @@ class _InterviewScreenState extends State<InterviewScreen>
           _error = null;
           // 질문이 왔다 = 잘 붙었다. 다음 사고를 위해 횟수를 되돌린다
           _retries = 0;
+          _emptyAnswers = 0;
+          _micPeak = 0;
           _phase = LivePhase.waiting;
         case InterviewListening():
           _phase = LivePhase.listening;
         case InterviewProcessing():
           _phase = LivePhase.thinking;
         case InterviewRetry(:final message):
-          _liveNote = message;
+          _emptyAnswers += 1;
+          _liveNote = _emptyAnswers >= 2
+              // 두 번째부터는 왜 안 담기는지까지 알려 준다
+              ? '$message (마이크가 소리를 잘 못 잡고 있을 수 있습니다)'
+              : message;
           _phase = LivePhase.waiting;
         case InterviewDone():
           _liveQuestion = null;
@@ -426,6 +449,17 @@ class _InterviewScreenState extends State<InterviewScreen>
     if (event is InterviewDone) {
       _stopLive().ignore();
       _camera.stop();
+      return;
+    }
+
+    // **막다른 길을 만들지 않는다.** 세 번을 말했는데도 안 담겼으면 마이크
+    // 문제다 — 같은 질문을 영원히 보게 두지 말고 글로 답할 자리를 준다.
+    if (event is InterviewRetry && _emptyAnswers >= _emptyAnswersMax) {
+      setState(() {
+        _fallback = '말이 잘 담기지 않습니다.';
+        _phase = null;
+      });
+      _stopLive().ignore();
       return;
     }
 
@@ -579,6 +613,7 @@ class _InterviewScreenState extends State<InterviewScreen>
             note: _liveNote,
             micLevel: _micLevel,
             micSilent: _micChunks == 0,
+            micTooQuiet: _micChunks > 40 && _micPeak < 0.04,
             onFinish: _finish,
           ),
           InterviewStatus.inProgress => _Question(
@@ -850,6 +885,7 @@ class _Live extends StatelessWidget {
     required this.note,
     required this.micLevel,
     required this.micSilent,
+    required this.micTooQuiet,
     required this.onFinish,
   });
 
@@ -863,6 +899,9 @@ class _Live extends StatelessWidget {
 
   /// 마이크에서 조각이 하나도 안 왔다 — **소리 자체가 안 들어온다**
   final bool micSilent;
+
+  /// 소리는 오는데 전부 너무 작다 — 서버가 "말" 로 안 본다
+  final bool micTooQuiet;
   final VoidCallback onFinish;
 
   @override
@@ -917,7 +956,7 @@ class _Live extends StatelessWidget {
         ),
 
         const SizedBox(height: AppSpace.s3),
-        _MicBar(level: micLevel, silent: micSilent),
+        _MicBar(level: micLevel, silent: micSilent, tooQuiet: micTooQuiet),
 
         if (note != null) ...[
           const SizedBox(height: AppSpace.s3),
@@ -952,16 +991,30 @@ class _Live extends StatelessWidget {
 /// 막대가 움직이면 마이크는 되는 것이고, 그래도 질문이 안 넘어가면 그건 서버 쪽
 /// 이야기다. 조각이 하나도 안 오면 아예 그렇게 적는다.
 class _MicBar extends StatelessWidget {
-  const _MicBar({required this.level, required this.silent});
+  const _MicBar({
+    required this.level,
+    required this.silent,
+    required this.tooQuiet,
+  });
 
   final double level;
   final bool silent;
+
+  /// 소리는 오는데 너무 작다
+  final bool tooQuiet;
 
   @override
   Widget build(BuildContext context) {
     if (silent) {
       return _Note(
         text: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지 확인해 주세요.',
+        tone: AppColors.danger,
+      );
+    }
+    if (tooQuiet) {
+      // 이어폰을 낀 채로 겪은 것이다 — 소리는 오는데 서버가 말로 안 본다
+      return _Note(
+        text: '소리가 너무 작습니다. 더 크게 말씀하시거나, 이어폰을 빼고 해 보세요.',
         tone: AppColors.danger,
       );
     }
