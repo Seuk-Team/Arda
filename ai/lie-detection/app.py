@@ -35,6 +35,7 @@ from interview_ws import (
     LiveScorer,
     _SpeechDetector,
     face_row_of_jpeg,
+    fetch_questions,
     fetch_state,
     finish_interview,
     push_verdict,
@@ -139,6 +140,11 @@ async def analyze(video: UploadFile | None = None):
 KIND_AUDIO = 0x01
 KIND_VIDEO = 0x02
 
+# 연결이 끊긴 뒤 남은 전사를 마저 끝내며 기다리는 시간. 오디오는 메모리에만 있어서
+# 여기서 포기하면 그 답변은 영영 없다. 그렇다고 무한정 잡고 있으면 워커 자리가
+# 안 돌아온다 — 긴 답변 하나를 CPU 로 끝낼 만큼만 준다.
+DRAIN_TIMEOUT_SEC = float(os.getenv("DRAIN_TIMEOUT_SEC", "180"))
+
 
 @app.websocket("/ws/live")
 async def live(ws: WebSocket):
@@ -238,6 +244,16 @@ async def interview(ws: WebSocket, token: str):
             await ws.close()
             return
 
+        # 질문 전체를 먼저 받아 둔다. 이게 있어야 전사를 안 기다리고 다음 질문을
+        # 보낼 수 있다. 못 받으면 예전 방식(기다림)으로 돈다 — 면접은 어느 쪽이든 돈다.
+        session.questions = await fetch_questions(client, token)
+        # 이어서 들어온 경우 답한 데까지 건너뛴다 — 목록에는 답한 질문도 들어 있다.
+        seq_now = state.get("question_seq")
+        if seq_now is not None:
+            session.cursor = next(
+                (i for i, q in enumerate(session.questions) if q["seq"] == seq_now), 0
+            )
+
         await ws.send_json(
             {
                 "type": "question",
@@ -246,6 +262,7 @@ async def interview(ws: WebSocket, token: str):
             }
         )
 
+        pump = asyncio.create_task(_transcribe_pump(client, session))
         try:
             while True:
                 msg = await ws.receive()
@@ -268,6 +285,18 @@ async def interview(ws: WebSocket, token: str):
             logger.info("면접 연결 종료: token=%s", token[:8])
         except Exception:
             logger.exception("면접 처리 중 오류: token=%s", token[:8])
+        finally:
+            # **끊긴 뒤에도 남은 전사는 마저 저장한다.** 오디오는 메모리에만 있어서
+            # 여기서 버리면 그 답변은 영영 없다. 다만 무한정 붙잡지는 않는다 —
+            # 못 끝내면 그 칸은 빈칸으로 남고, 담당자가 보고 판단한다.
+            try:
+                await asyncio.wait_for(session.pending.join(), timeout=DRAIN_TIMEOUT_SEC)
+            except (TimeoutError, asyncio.TimeoutError):
+                logger.warning(
+                    "남은 전사를 %.0f초 안에 못 끝냈다: token=%s",
+                    DRAIN_TIMEOUT_SEC, token[:8],
+                )
+            pump.cancel()
 
 
 async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None:
@@ -294,16 +323,77 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     if event != "end":
         return
 
-    # 말이 끝났다 — 전사하고 다음 질문을 받아 온다
-    await ws.send_json({"type": "processing"})
+    # 말이 끝났다. **전사를 기다리지 않는다** — 다음 질문을 바로 보내고 전사는
+    # 뒤에서 돈다. 기다리게 하면 사람이 몰릴 때 지원자 화면이 "처리 중"에서 멈추고,
+    # 그러면 동시에 몇 명이 오는지를 미리 맞춰야 서비스가 산다.
     pcm, rows = session.take_answer()
-    # 전사는 CPU 로 발화 길이의 절반쯤 걸린다. 이벤트 루프에서 부르면 그 동안
-    # 이 워커의 모든 면접이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-    transcript = await transcribe_async(pcm)
 
+    if not session.questions:
+        # 질문 목록을 못 받은 경우(서비스 토큰 없음·조회 실패)는 예전 방식으로 돈다
+        await ws.send_json({"type": "processing"})
+        await _answer_and_advance(ws, client, session, pcm, rows)
+        return
+
+    seq = session.current_seq()
+    await session.pending.put((pcm, rows, seq))
+
+    nxt = session.advance()
+    if nxt:
+        await ws.send_json(
+            {"type": "question", "seq": nxt["seq"], "text": nxt["question"]}
+        )
+        return
+
+    # 질문이 떨어졌다. **남은 전사를 끝내고 닫는다** — 먼저 닫으면 마지막 답변이
+    # 저장되기 전에 세션이 done 이 되어 담당자가 빈칸을 본다.
+    await ws.send_json({"type": "processing"})
+    await session.pending.join()
+    try:
+        await finish_interview(client, session.token)
+    except Exception:
+        logger.exception("면접 종료 처리 실패: token=%s", session.token[:8])
+    await ws.send_json({"type": "done"})
+
+
+async def _transcribe_pump(client, session: InterviewSession) -> None:
+    """세션의 전사 대기줄을 순서대로 비운다. 면접당 하나 돈다.
+
+    **한 사람의 답변은 낸 순서대로 저장된다.** 전사 자체는 워커 전체에서 한 번에
+    하나씩만 돌지만(2 vCPU 에서 겹쳐 돌리면 더 느리다), 그 줄서기는 사람 사이의
+    것이라 순서를 보장하지 않는다 — 사람 안의 순서는 이 대기줄이 맡는다.
+    """
+    while True:
+        pcm, rows, seq = await session.pending.get()
+        try:
+            transcript = await transcribe_async(pcm)
+            if not transcript:
+                # **이 칸은 빈칸으로 남는다.** 전에는 "다시 답변해 주세요" 를 띄웠는데,
+                # 다음 질문이 이미 나간 뒤라 그럴 수 없다. 담당자가 빈칸을 보고
+                # 판단한다 — 지원자를 기다리게 하지 않는 대가다.
+                logger.info(
+                    "전사가 비어 %s번 답변을 저장하지 않는다: token=%s",
+                    seq, session.token[:8],
+                )
+                continue
+            signal = session.signal(rows)
+            if signal:
+                logger.info("표정 신호: token=%s %s", session.token[:8], signal)
+            await submit_answer(client, session.token, transcript, seq)
+        except Exception:
+            logger.exception(
+                "답변 저장 실패: token=%s seq=%s", session.token[:8], seq
+            )
+        finally:
+            session.pending.task_done()
+
+
+async def _answer_and_advance(ws, client, session, pcm, rows) -> None:
+    """예전 방식 — 전사를 기다렸다가 다음 질문을 받아 온다.
+
+    질문 목록을 못 받았을 때만 여기로 온다. 느리지만 **동작은 같다.**
+    """
+    transcript = await transcribe_async(pcm)
     if not transcript:
-        # 말이 안 담긴 것을 답변으로 저장하면 그 질문은 "답한 것"이 되어
-        # 다시 물어볼 길이 없어진다. 저장하지 않고 같은 질문을 계속 듣는다.
         logger.info("전사 결과가 비어 답변으로 세지 않는다: token=%s", session.token[:8])
         await ws.send_json(
             {"type": "retry", "message": "말이 들리지 않았어요. 다시 답변해 주세요"}
@@ -312,7 +402,6 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
 
     signal = session.signal(rows)
     if signal:
-        # 신호는 로그로만 남긴다. 저장 자리(ADR-0029 결과 절)는 아직 스키마가 없다.
         logger.info("표정 신호: token=%s %s", session.token[:8], signal)
 
     try:
@@ -330,15 +419,12 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
                 "text": state.get("current_question"),
             }
         )
-    else:
-        # **질문이 떨어졌으면 세션도 닫는다.** 안 닫으면 `in_progress` 로 남아
-        # 담당자 화면에서 "아직 보는 중"과 "끝난 것"이 구별되지 않는다.
-        try:
-            await finish_interview(client, session.token)
-        except Exception:
-            # 지원자는 이미 다 답했다. 닫기에 실패했다고 화면에 오류를 띄우지 않는다.
-            logger.exception("면접 종료 처리 실패: token=%s", session.token[:8])
-        await ws.send_json({"type": "done"})
+        return
+    try:
+        await finish_interview(client, session.token)
+    except Exception:
+        logger.exception("면접 종료 처리 실패: token=%s", session.token[:8])
+    await ws.send_json({"type": "done"})
 
 
 async def _live_verdict(client, session: InterviewSession) -> None:

@@ -148,6 +148,13 @@ class AnswerRequest(BaseModel):
 
     transcript: str | None = Field(default=None, min_length=1)
     audio_s3_key: str | None = Field(default=None, min_length=1, max_length=200)
+    # 어느 질문의 답인가. **안 보내면 지금까지와 같다** — "아직 답 안 한 가장 앞
+    # 질문"에 붙는다.
+    #
+    # 워커가 전사를 뒤에서 돌리기 시작하면서 필요해졌다. 지원자를 기다리게 하지
+    # 않으려고 다음 질문을 먼저 보내는데, 그러면 답변이 도착하는 순서와 질문
+    # 순서가 어긋날 수 있다. "가장 앞 빈칸" 규칙은 그때 **남의 칸에 답을 넣는다**.
+    seq: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def _exactly_one(self) -> "AnswerRequest":
