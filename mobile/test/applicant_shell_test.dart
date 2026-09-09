@@ -34,6 +34,8 @@ ApplicantMe meWith({
   bool aptitude = true,
   bool schedule = true,
   String scheduleStatus = 'proposed',
+  String interviewStatus = 'pending',
+  String aptitudeStatus = 'pending',
   int applications = 1,
 }) => ApplicantMe(
   email: 'dnwjdwkd145@naver.com',
@@ -46,10 +48,10 @@ ApplicantMe meWith({
         stageLabel: '서류 검토 중',
         appliedAt: DateTime(2026, 9, 2),
         interviews: interview && i == 0
-            ? const [TokenLink(token: _interviewToken, status: 'pending')]
+            ? [TokenLink(token: _interviewToken, status: interviewStatus)]
             : const [],
         aptitudes: aptitude && i == 0
-            ? const [TokenLink(token: _aptitudeToken, status: 'pending')]
+            ? [TokenLink(token: _aptitudeToken, status: aptitudeStatus)]
             : const [],
         schedules: schedule && i == 0
             ? [TokenLink(token: _scheduleToken, status: scheduleStatus)]
@@ -276,6 +278,31 @@ void main() {
 
       expect(find.text('확정됐습니다'), findsOneWidget);
       expect(find.text('시간 고르기'), findsNothing);
+    });
+
+    // 2026-09-09. 서버가 끝난 것도 내려주게 바뀌었다(02-api.md). 그 전에는
+    // 면접을 마치면 목록에서 사라져 **"완료"와 "아직 안 잡힘"이 같은 화면**이었다.
+    testWidgets('AI 면접을 마쳤으면 완료라고 말한다', (tester) async {
+      final portal = portalWith(me: meWith(interviewStatus: 'done'));
+      await tester.pumpWidget(shell(portal));
+      await tester.pumpAndSettle();
+
+      expect(find.text('완료했습니다'), findsOneWidget);
+      // 끝난 면접은 다시 들어갈 수 없다 — 문을 그리지 않는다
+      expect(find.text('면접 보기'), findsNothing);
+      expect(find.text('이어서 보기'), findsNothing);
+      // **사라지지 않는다** — 줄은 그대로 있어야 마쳤다는 것을 알 수 있다
+      expect(find.text('AI 면접'), findsOneWidget);
+      expect(find.text('아직 없습니다'), findsNothing);
+    });
+
+    testWidgets('인적성을 냈으면 제출했다고 말한다', (tester) async {
+      final portal = portalWith(me: meWith(aptitudeStatus: 'done'));
+      await tester.pumpWidget(shell(portal));
+      await tester.pumpAndSettle();
+
+      expect(find.text('제출했습니다'), findsOneWidget);
+      expect(find.text('검사하기'), findsNothing);
     });
 
     testWidgets('없는 것은 눌리지 않는다 — 눌러도 아무 일 없는 카드는 고장 같다', (tester) async {

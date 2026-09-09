@@ -167,16 +167,26 @@ export default function MyApplications() {
                       **AI 면접이 기본이다** — 아르가 묻고, 말하면 버튼 없이
                       다음 질문으로 넘어간다. 실시간 면접(사람 면접관과 얼굴을
                       맞대는 것)은 아직 시연 범위 밖이라 아래에 작게 둔다. */}
-                  {a.interviews.map((iv) => (
-                    <div key={iv.token} className={styles.interview}>
-                      <a className="btn btn-primary" href={`/interview-ai/${iv.token}`}>
-                        AI 면접 참여
-                      </a>
-                      <a className={styles.link} href={`/interview-live/${iv.token}`}>
-                        면접관과 화상으로 참여
-                      </a>
-                    </div>
-                  ))}
+                  {/* **끝난 면접도 내려온다** (2026-09-09 · 02-api.md). 없으면
+                      면접을 마친 지원자의 화면에서 면접이 통째로 사라져
+                      "완료"와 "아직 안 잡힘"이 같아진다. 대신 끝난 것에는
+                      들어가는 문을 그리지 않는다 — 눌러도 막히는 버튼이 된다. */}
+                  {a.interviews.map((iv) =>
+                    iv.status === 'done' ? (
+                      <p key={iv.token} className={styles.doneLine}>
+                        AI 면접을 완료했습니다.
+                      </p>
+                    ) : (
+                      <div key={iv.token} className={styles.interview}>
+                        <a className="btn btn-primary" href={`/interview-ai/${iv.token}`}>
+                          AI 면접 참여
+                        </a>
+                        <a className={styles.link} href={`/interview-live/${iv.token}`}>
+                          면접관과 화상으로 참여
+                        </a>
+                      </div>
+                    ),
+                  )}
                 </div>
               ))
             )}

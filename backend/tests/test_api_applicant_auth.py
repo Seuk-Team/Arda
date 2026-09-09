@@ -252,18 +252,28 @@ class TestMyInterviews:
         assert [x["token"] for x in ivs] == [s.token]
         assert ivs[0]["status"] == "pending"
 
-    def test_끝났거나_만료된_면접은_안_온다(
+    def test_끝난_면접도_온다_만료된_것만_뺀다(
         self, client, db: Session, application: Application, admin_user: User
     ):
-        """들어가 봐야 막히는 문을 화면에 보여 주지 않는다."""
+        """2026-09-09 개정.
+
+        끝난 것을 빼면 면접을 마친 지원자의 화면에서 면접이 **통째로 사라진다** —
+        "완료"와 "아직 안 잡힘"이 같은 화면이 되어, 방금 면접을 본 사람이 자기가
+        낸 것이 접수됐는지 알 수 없다(앱 실측).
+
+        `expired` 는 계속 뺀다. 그건 **지원자가 놓친 것**이라 띄워도 할 수 있는
+        일이 없다. 화면은 `status` 를 보고 끝난 줄에 문을 안 그린다.
+        """
         a = _applicant(db, application)
-        self._session(db, a, admin_user, "done")
+        done = self._session(db, a, admin_user, "done")
         self._session(db, a, admin_user, "expired")
 
         token = create_applicant_token(a.email)
         body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
 
-        assert body["applications"][0]["interviews"] == []
+        rows = body["applications"][0]["interviews"]
+        assert [x["token"] for x in rows] == [done.token]
+        assert rows[0]["status"] == "done"
 
     def test_남의_면접은_안_온다(
         self, client, db: Session, application: Application, admin_user: User, posting
@@ -325,17 +335,19 @@ class TestMyOtherTokens:
         db.flush()
         return row
 
-    def test_인적성은_pending_만_온다(
+    def test_인적성은_낸_것도_온다(
         self, client, db: Session, application: Application, admin_user: User
     ):
+        """면접과 같은 이유다 — 낸 것을 빼면 "제출했습니다" 를 말할 수 없다."""
         a = _applicant(db, application)
         pending = self._aptitude(db, a, admin_user, "pending")
-        self._aptitude(db, a, admin_user, "done")
+        done = self._aptitude(db, a, admin_user, "done")
 
         token = create_applicant_token(a.email)
         body = client.get(ME, headers={"Authorization": f"Bearer {token}"}).json()
 
-        assert [x["token"] for x in body["applications"][0]["aptitudes"]] == [pending.token]
+        rows = body["applications"][0]["aptitudes"]
+        assert [x["token"] for x in rows] == [pending.token, done.token]
 
     def test_일정은_확정된_것도_온다(
         self, client, db: Session, application: Application, admin_user: User
