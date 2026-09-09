@@ -31,6 +31,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 BACKEND_URL = os.getenv("ARDA_BACKEND_URL", "http://api:8000").rstrip("/")
+# 백엔드의 `/internal/*` 을 부를 때 쓰는 토큰. **없으면 판정을 안 보낸다** —
+# 백엔드가 401 로 막으므로 부르면 매초 실패 로그만 쌓인다.
+SERVICE_TOKEN = os.getenv("ARDA_SERVICE_TOKEN", "").strip()
 
 # 지원자가 보내는 오디오 형식. 클라이언트와 맞춰야 하는 값이라 바꾸면 프로토콜 문서도 같이 고친다.
 SAMPLE_RATE = 16_000
@@ -254,10 +257,16 @@ class InterviewSession:
         self.audio: list[bytes] = []
         self.frames: list = []
         self._frame_count = 0
+        # 말하는 동안 굴러가는 판정용. 답변이 끝날 때까지 기다리지 않는다 —
+        # 담당자가 **면접 중에** 봐야 의미가 있다.
+        self.scorer = LiveScorer()
+        # 판정 하나가 도는 동안 또 시작하지 않게. 겹치면 CPU 만 쓰고 값은 같다.
+        self.scoring = False
 
     # ── 받기 ────────────────────────────────────────────────
     def add_audio(self, pcm: bytes) -> str | None:
         self.audio.append(pcm)
+        self.scorer.add_audio(pcm)
         return self.detector.feed(pcm)
 
     def add_frame(self, jpeg: bytes) -> None:
@@ -268,6 +277,12 @@ class InterviewSession:
         row = face_row_of_jpeg(jpeg)
         if row is not None:
             self.frames.append(row)
+            self.scorer.add_face(row, time.monotonic())
+
+    def due_for_verdict(self, now: float) -> bool:
+        """지금 판정을 낼 때인가. **말하는 동안에만** 낸다 — 조용할 때 낸 값은
+        지원자가 아니라 방을 보고 있는 것이다."""
+        return self.detector.speaking and self.scorer.due(now)
 
     # ── 답변 하나가 끝났을 때 ─────────────────────────────────
     def take_answer(self) -> tuple[bytes, list]:
@@ -386,6 +401,29 @@ async def fetch_state(client, token: str) -> dict:
     r = await client.get(f"{BACKEND_URL}/api/v1/public/interview/{token}", timeout=10)
     r.raise_for_status()
     return r.json()
+
+
+async def push_verdict(client, token: str, verdict: dict) -> None:
+    """실시간 판정을 백엔드로 민다. 백엔드가 담당자 화면에 나른다(#97 계약).
+
+    **지원자 기기를 거치지 않는다.** 지원자 소켓으로 내려보내면 화면에 안 그려도
+    개발자 도구를 열면 보이고, 거기서 ADR-0029 의 "지원자에게 판정을 보여 주지
+    않는다"가 깨진다.
+
+    `ARDA_SERVICE_TOKEN` 이 없으면 **부르지 않는다.** 백엔드가 401 로 막으므로
+    부르면 매초 실패 로그만 쌓인다. 설정을 넣어야 켜지는 것이 팀 방식이다.
+
+    받는 담당자가 없어도 백엔드는 204 로 조용히 끝낸다 — 재시도하지 않는다.
+    """
+    if not SERVICE_TOKEN:
+        return
+    r = await client.post(
+        f"{BACKEND_URL}/api/v1/internal/interview/{token}/verdict",
+        json=verdict,
+        headers={"X-Service-Token": SERVICE_TOKEN},
+        timeout=5,
+    )
+    r.raise_for_status()
 
 
 async def finish_interview(client, token: str) -> None:
