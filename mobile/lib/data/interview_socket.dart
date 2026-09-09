@@ -72,12 +72,19 @@ class InterviewDone extends InterviewEvent {
   const InterviewDone();
 }
 
-/// 진행할 수 없다. 연결이 끊긴 것과 서버가 거절한 것을 여기서 합친다 —
-/// 지원자가 할 일(다시 들어오기)이 같다
+/// 진행할 수 없다.
+///
+/// **다시 붙어 볼 만한 것인지를 구별한다.** 서버가 이유를 말하고 끊은 것
+/// ("진행 중인 면접이 아닙니다")은 다시 붙어도 같은 답이 온다. 반면 그냥
+/// 끊긴 것은 워커가 재시작했을 수 있고, 그때는 **다시 붙으면 이어진다** —
+/// 아직 답하지 않은 가장 앞 질문부터다(PROTOCOL.md 「끊겼을 때」).
 class InterviewFailed extends InterviewEvent {
-  const InterviewFailed(this.message);
+  const InterviewFailed(this.message, {this.retryable = false});
 
   final String message;
+
+  /// 다시 붙어 볼 만한가
+  final bool retryable;
 }
 
 /// 면접 소켓 하나. 화면은 [WebSocketChannel] 을 직접 만들지 않고 이것만 안다 —
@@ -103,12 +110,14 @@ class LiveInterviewSocket implements InterviewSocket {
       _onMessage,
       onError: (Object e, StackTrace _) {
         if (kDebugMode) debugPrint('[면접소켓] 오류: $e');
-        _fail('서버에 연결하지 못했습니다');
+        _fail('서버에 연결하지 못했습니다', retryable: true);
       },
       onDone: () {
         // 끝났다고 알린 뒤에 닫히는 것이 정상이다. 그 경우는 아무 말도 하지 않는다 —
         // "면접이 끝났습니다" 위에 "연결이 끊겼습니다" 를 덮어쓰면 놀란다
-        if (!_closed && !_finished) _fail('연결이 끊겼습니다. 다시 들어와 주세요');
+        if (!_closed && !_finished) {
+          _fail('연결이 끊겼습니다. 다시 잇는 중…', retryable: true);
+        }
         _events.close();
       },
       cancelOnError: false,
@@ -175,7 +184,8 @@ class LiveInterviewSocket implements InterviewSocket {
     return v is String && v.isNotEmpty ? v : fallback;
   }
 
-  void _fail(String message) => _add(InterviewFailed(message));
+  void _fail(String message, {bool retryable = false}) =>
+      _add(InterviewFailed(message, retryable: retryable));
 
   void _add(InterviewEvent event) {
     if (_events.isClosed) return;
