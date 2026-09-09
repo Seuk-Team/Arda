@@ -140,3 +140,57 @@ class TestQuoteMustExist:
         """자소서는 굽은 따옴표를 쓰는데 모델이 곧은 것으로 바꿔 오는 일이 있다."""
         cover = "반년 넘게 “가끔 나는 일”로 남아 있었습니다"
         assert len(self._one('"가끔 나는 일"로 남아 있었습니다', cover)) == 1
+
+
+# ── 이력서까지 본다 (2026-09-09) ──────────────────────────────
+
+RESUME = "[경력]\n카카오에서 결제 API 를 맡았습니다.\n\n[기술]\nKafka, PostgreSQL"
+REQUIREMENTS = "대용량 트래픽 경험자를 찾습니다."
+
+
+def _run3(text: str, cover: str = COVER, resume: str = RESUME):
+    sources = {"cover_letter": cover, "resume": resume, "requirements": REQUIREMENTS}
+    with patch("app.agent.backends.get_summary_backend", return_value=_backend(text)):
+        return generate_probes(sources)
+
+
+def _claims(*pairs):
+    return json.dumps(
+        {"claims": [{"claim": c, "type": "역할", "questions": ["가", "나"]} for c in pairs]},
+        ensure_ascii=False,
+    )
+
+
+class TestResumeSource:
+    """자기소개서만 보던 것을 이력서까지 넓혔다. **인용 보장은 그대로다.**"""
+
+    def test_이력서에서_인용해도_통과한다(self):
+        claims = _run3(_claims("카카오에서 결제 API 를 맡았습니다"))
+        assert len(claims) == 1
+        assert claims[0]["source"] == "이력서"
+
+    def test_자기소개서_인용은_자기소개서로_표시된다(self):
+        claims = _run3(_claims("FastAPI로 재작성해 820ms → 240ms"))
+        assert claims[0]["source"] == "자기소개서"
+
+    def test_공고_요건은_인용할_수_없다(self):
+        """공고는 **회사가 쓴 글**이다. 지원자의 주장이 될 수 없다."""
+        assert _run3(_claims("대용량 트래픽 경험자를 찾습니다")) == []
+
+    def test_어느_쪽에도_없는_인용은_버린다(self):
+        assert _run3(_claims("지어낸 문장입니다")) == []
+
+    def test_자기소개서가_없어도_이력서만으로_돈다(self):
+        claims = _run3(_claims("카카오에서 결제 API 를 맡았습니다"), cover="")
+        assert len(claims) == 1
+
+    def test_둘_다_비면_부르지_않고_빈_리스트(self):
+        with patch("app.agent.backends.get_summary_backend") as g:
+            assert generate_probes({"cover_letter": "", "resume": "", "requirements": REQUIREMENTS}) == []
+            g.assert_not_called()
+
+    def test_옛_호출_방식도_그대로_돈다(self):
+        """문자열 하나만 넘기던 호출부가 남아 있어도 깨지지 않는다."""
+        claims = _run(_ONE_CLAIM)
+        assert len(claims) == 1
+        assert claims[0]["source"] == "자기소개서"
