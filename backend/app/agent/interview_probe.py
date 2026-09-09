@@ -45,33 +45,80 @@ _PROBE_SCHEMA = {
 }
 
 
-def cover_letter_of(app) -> str:
-    """지원서의 자기소개서 — 폼에 쓴 것과 올린 파일을 합친다.
+def sources_of(app, db=None) -> dict[str, str]:
+    """질문을 만드는 데 쓸 글들 — 자기소개서 · 이력서 · 공고 요건.
 
-    요약(summarizer)이 쓰는 조합과 같되 자기소개서만 본다. 이력서·공고 요건은
-    질문을 만드는 데 쓰지 않는다 — **확인할 주장은 지원자가 쓴 문장에서만** 나와야
-    원문을 인용할 수 있다.
+    **셋의 역할이 다르다.**
+
+    - 자기소개서 · 이력서 — **지원자가 쓴 글.** 여기서만 주장을 인용한다
+    - 공고 요건 — **회사가 쓴 글.** 인용하지 않고, 무엇을 물을지 고르는 데만 쓴다
+
+    처음에는 자기소개서만 봤다. 확인할 주장이 지원자의 문장에서 나와야 원문을
+    인용할 수 있어서였는데, **이력서도 지원자가 쓴 글이라 같은 보장이 선다.**
+    경력·기술은 대부분 이력서에 있으므로 그쪽을 빼면 물을 거리의 절반을 버린다.
     """
     from app.agent.extractor import extract_text
 
-    file_text = None
+    cover_file = resume_file = None
     for f in app.files:
-        if f.kind == "cover_letter":
-            file_text = extract_text(f)
-            break
-    return "\n\n".join(p for p in (app.self_intro, file_text) if p)
+        if f.kind == "cover_letter" and cover_file is None:
+            cover_file = extract_text(f)
+        elif f.kind == "resume" and resume_file is None:
+            resume_file = extract_text(f)
+
+    # 폼에 직접 쓴 경력·기술도 이력서와 같은 자리다.
+    #
+    # **`skills` 는 배열이라 그대로 넣으면 `['Python', 'FastAPI']` 가 프롬프트에
+    # 들어간다.** 모델이 그 대괄호까지 옮겨 적으면 인용 대조(`_parse_claims`)가
+    # 어긋나고, 면접관이 자소서에서 못 찾는 문장이 된다.
+    resume_parts = [
+        part
+        for part in (
+            f"[경력] {app.career_years}년" if app.career_years else None,
+            f"[기술] {', '.join(app.skills)}" if app.skills else None,
+            resume_file,
+        )
+        if part
+    ]
+
+    requirements = ""
+    if db is not None and app.job_posting_id:
+        from app.models import JobPosting
+
+        posting = db.get(JobPosting, app.job_posting_id)
+        if posting:
+            requirements = posting.description or ""
+
+    return {
+        "cover_letter": "\n\n".join(p for p in (app.self_intro, cover_file) if p),
+        "resume": "\n\n".join(resume_parts),
+        "requirements": requirements,
+    }
 
 
-def generate_probes(cover_letter_text: str) -> list[dict] | None:
-    """자기소개서에서 주장과 꼬리 질문을 뽑는다.
+def cover_letter_of(app) -> str:
+    """자기소개서만. `sources_of` 가 생기기 전 이름이라 남겨 둔다."""
+    return sources_of(app)["cover_letter"]
+
+
+def generate_probes(sources: dict[str, str] | str) -> list[dict] | None:
+    """지원자가 쓴 글에서 주장과 꼬리 질문을 뽑는다.
 
     반환: `[{"claim", "type", "questions"}]` — 주장이 없으면 빈 리스트,
     백엔드 불가·파싱 실패면 `None`. **빈 리스트와 None 은 다르다** —
     전자는 "뽑을 게 없었다", 후자는 "못 돌렸다"다. 화면이 둘을 구분해야
     "자소서에 확인할 주장이 없습니다"와 "요약을 못 만들었습니다"가 갈린다.
     """
-    text = (cover_letter_text or "").strip()
-    if not text:
+    if isinstance(sources, str):   # 옛 호출부 — 자기소개서만 넘기던 형태
+        sources = {"cover_letter": sources, "resume": "", "requirements": ""}
+    cover = (sources.get("cover_letter") or "").strip()
+    resume = (sources.get("resume") or "").strip()
+    requirements = (sources.get("requirements") or "").strip()
+
+    # **인용은 지원자가 쓴 글에서만 나온다.** 공고 요건은 회사가 쓴 글이라
+    # 여기 넣지 않는다 — 넣으면 회사 문장을 지원자 주장으로 인용하게 된다.
+    quotable = "\n\n".join(p for p in (cover, resume) if p)
+    if not quotable:
         return []
 
     from app.agent.backends import get_summary_backend
@@ -83,13 +130,18 @@ def generate_probes(cover_letter_text: str) -> list[dict] | None:
         logger.error("꼬리 질문 생성 불가: %s", reason)
         return None
 
-    prompt_text, tag = render("interview_probe", cover_letter_text=text)
+    prompt_text, tag = render(
+        "interview_probe",
+        cover_letter_text=cover or "(없음)",
+        resume_text=resume or "(없음)",
+        requirements_text=requirements or "(없음)",
+    )
     schema = _PROBE_SCHEMA if backend.supports_structured_output else None
     result = backend.complete(
         prompt=prompt_text, max_tokens=PROBE_MAX_TOKENS, json_schema=schema
     )
 
-    claims = _parse_claims(result.text or "", source=text)
+    claims = _parse_claims(result.text or "", cover=cover, resume=resume)
     if claims is None:
         logger.warning("꼬리 질문 파싱 실패 (stop=%s, prompt=%s)", result.stop_reason, tag)
         return None
@@ -106,7 +158,7 @@ def _fingerprint(text: str) -> str:
     return _WS.sub("", text.translate(_QUOTES))
 
 
-def _parse_claims(raw: str, source: str) -> list[dict] | None:
+def _parse_claims(raw: str, cover: str, resume: str) -> list[dict] | None:
     """`{"claims": [...]}` 를 꺼내 정제한다. 못 읽으면 None.
 
     상한(주장 5개·질문 2개)은 프롬프트에도 적혀 있지만 여기서 다시 자른다 —
@@ -116,7 +168,9 @@ def _parse_claims(raw: str, source: str) -> list[dict] | None:
     ("목록이" → "목lists이"), 그러면 면접관이 자소서에서 그 문장을 찾지 못해 대조가
     성립하지 않는다. 질문이 멀쩡해도 근거를 짚을 수 없으면 쓸 수 없다.
     """
-    src = _fingerprint(source)
+    # 어느 글에서 온 인용인지 **우리가 판정한다.** 모델에게 물으면 틀리게 적을 수
+    # 있고, 면접관은 그 표시를 보고 원문을 찾으러 간다.
+    fps = {"자기소개서": _fingerprint(cover), "이력서": _fingerprint(resume)}
     s = raw.strip()
     if s.startswith("```"):
         first_nl = s.index("\n") if "\n" in s else len(s)
@@ -146,8 +200,10 @@ def _parse_claims(raw: str, source: str) -> list[dict] | None:
         if not claim or not questions:
             continue
         # 끝에 붙인 마침표까지 원문과 같기를 요구하지는 않는다
-        if _fingerprint(claim.rstrip(" .,·…")) not in src:
-            logger.info("자소서에 없는 인용이라 버린다: %r", claim[:40])
+        fp = _fingerprint(claim.rstrip(" .,·…"))
+        origin = next((name for name, src in fps.items() if src and fp in src), None)
+        if origin is None:
+            logger.info("지원자가 쓴 글에 없는 인용이라 버린다: %r", claim[:40])
             continue
         claim_type = str(item.get("type", "")).strip()
         out.append(
@@ -155,6 +211,7 @@ def _parse_claims(raw: str, source: str) -> list[dict] | None:
                 "claim": claim,
                 "type": claim_type if claim_type in CLAIM_TYPES else "기타",
                 "questions": questions,
+                "source": origin,
             }
         )
     return out
