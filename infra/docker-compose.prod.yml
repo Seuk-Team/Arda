@@ -66,12 +66,20 @@ services:
     # 이 컨테이너도 backend/.env 를 읽는다. STT_MODEL 이 없으면 전사가 꺼지고(#95),
     # 앞으로 붙을 판정 워커→백엔드 콜에 필요한 ARDA_SERVICE_TOKEN 도 같은 이유로 못 받는다.
     env_file: ../backend/.env
-    # 원인은 mem 크기가 아니라 compute_type 이었다 (2026-09-09 dmesg + 로컬 벤치 확인).
-    # faster-whisper "default" 는 CPU 에서 float32 → 로드 순간 3.0-3.8GB peak.
+    volumes:
+      # Whisper (HF Hub) 모델 캐시. 컨테이너를 재생성하면 안 것이 사라져 다음 STT 첫 요청이
+      # 모델 다운로드 (~1.6GB) 를 다시 하는데, 이 시간이 실제 면접의 첫 답변에 그대로
+      # 붙는다 (지원자 화면 "받아쓰는 중..." 26-48초 멈춤, soyeon 답장 §1). 볼륨을 붙여
+      # 배포 사이에 캐시가 남으면 처음 한 번만 다운로드하고 이후는 즉시.
+      - whisper_cache:/root/.cache/huggingface
     # `STT_COMPUTE_TYPE=int8` (interview_ws.py 새 default) 로 바꾸니 로드 후 컨테이너
-    # 사용이 223 MB. 원래 mem_limit 1.5g 로도 넉넉했지만 처리 피크·안전 여유로 2g.
-    # (mem 상향 시도 1.5→2→2.5→3→4g 5번 다 실패한 뒤 근본 원인 확인)
-    mem_limit: 2g
+    # 사용이 223 MB 였고, 그때 원래 1.5g 로도 넉넉하다고 판단해 2g 로 되돌렸다. 그러나
+    # soyeon 이 다른 기계 실측으로 로드 순간 peak 가 1,874 MiB 라고 알려 주셨고, 서버에서
+    # 다시 재보니 컨테이너 현재 사용이 실제로 1.88 GiB (2 GiB 상한의 94%) 였다 —
+    # 처리 피크가 겹치면 즉시 죽는 폭. 2.5g 로 올린다 (여유 ~600 MiB).
+    # 소연 부탁: 다음 배포 뒤 로드 도는 동안 `docker exec ... cat /sys/fs/cgroup/memory.peak`
+    # 를 걸어 진짜 최고치를 잡고 그 값으로 다시 판단.
+    mem_limit: 2500m
     restart: unless-stopped
     logging: *default-logging
 
@@ -148,3 +156,6 @@ volumes:
   pgdata:
   caddy_data:
   n8n_data:
+  # Whisper 모델 (large-v3-turbo · ~1.6GB) HF Hub 캐시. lie-detection 이 마운트해서
+  # 배포 사이에도 캐시가 남아 첫 STT 로드 다운로드 시간을 없앤다.
+  whisper_cache:
