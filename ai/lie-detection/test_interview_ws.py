@@ -13,6 +13,7 @@ import numpy as np
 import interview_ws as iw
 from interview_ws import (
     LIVE_EVERY_SEC,
+    MIN_NOISE,
     MIN_SPEECH_SEC,
     SAMPLE_RATE,
     SAMPLE_WIDTH,
@@ -35,13 +36,14 @@ def _pcm(amplitude: int) -> bytes:
     return (rng.normal(0, amplitude, CHUNK_SAMPLES)).astype(np.int16).tobytes()
 
 
-QUIET = _pcm(0)
-LOUD = _pcm(4000)
+DEAD = _pcm(0)        # 마이크 예열 — 디지털 무음. **소리로 세지 않는다**
+QUIET = _pcm(120)     # 조용한 방. 바닥값이 여기서 잡힌다
+LOUD = _pcm(4000)     # 말소리
 
 
 def _calibrate(det: _SpeechDetector) -> None:
     """접속 초반 조용한 구간. 이게 지나야 판정이 시작된다."""
-    for _ in range(10):
+    for _ in range(12):
         det.feed(QUIET)
 
 
@@ -177,6 +179,64 @@ class TestScore:
         assert abs(out["truth_pct"] + out["lie_pct"] - 100.0) < 0.2
         assert any(s["key"] == "눈 깜빡임" for s in out["signals"])
 
+
+class TestNoiseFloor:
+    """2026-09-08 운영 사고 회귀 시험.
+
+    폰으로 돌렸더니 질문 1에서 안 넘어갔다 — 보정이 마이크 예열 무음에 걸려
+    임계값이 125 로 앉았고, 그 뒤 생활 소음에 `loud` 가 영영 참이 됐다.
+    """
+
+    def test_예열_무음으로는_보정이_끝나지_않는다(self):
+        det = _SpeechDetector()
+        for _ in range(50):        # 2.5초치 디지털 무음
+            det.feed(DEAD)
+        assert det.noise is None, "0 만 보고 바닥값을 정하면 안 된다"
+
+    def test_예열_뒤_진짜_소음으로_보정된다(self):
+        det = _SpeechDetector()
+        for _ in range(20):
+            det.feed(DEAD)         # 마이크가 아직 안 켜짐
+        for _ in range(12):
+            det.feed(QUIET)        # 이제 방 소음이 들어온다
+        assert det.noise is not None
+        assert det.noise > MIN_NOISE, "바닥값이 방 소음을 따라가야 한다"
+
+    def test_바닥값이_낮게_잡혀도_스스로_빠져나온다(self):
+        """실제로 난 사고 그대로 — 낮은 바닥값 + 그보다 큰 생활 소음."""
+        det = _SpeechDetector()
+        _calibrate(det)
+        det._noise = MIN_NOISE                       # 임계값 125 로 앉은 상태
+        ambient = _pcm(200)                          # 그보다 큰 생활 소음
+
+        det.feed(ambient)
+        assert det.speaking, "지금은 소음을 말로 본다 (사고 재현)"
+
+        # 소음만 계속 들어와도 바닥값이 올라 **침묵 판정이 시작돼야** 한다.
+        # 예전 코드는 `_silence_started` 가 영영 서지 않아 180초까지 갇혔다.
+        for i in range(400):                         # 20초치
+            det.feed(ambient)
+            if det._silence_started is not None:
+                break
+        assert det._silence_started is not None, "생활 소음에 갇히면 안 된다"
+        assert i < 200, f"10초 안에 빠져나와야 한다 (걸린 조각 {i})"
+
+        # 빠져나오면 다시 "듣는 중"으로 돌아온다. `end` 가 아니라 None 인 것이 맞다 —
+        # 실제로 말한 시간이 MIN_SPEECH_SEC 에 못 미치므로 답변으로 세지 않는다.
+        time.sleep(SILENCE_END_SEC + 0.05)
+        det.feed(ambient)
+        assert not det.speaking, "빠져나온 뒤에는 다시 듣는 상태여야 한다"
+
+    def test_말하는_중에는_바닥값이_치솟지_않는다(self):
+        """탈출 장치가 진짜 발화를 끊으면 안 된다 — 낱말 사이 골이 있으면 안 오른다."""
+        det = _SpeechDetector()
+        _calibrate(det)
+        before = det.noise
+        for _ in range(20):        # 말-쉼-말-쉼 (실제 발화 모양)
+            for _ in range(6):
+                det.feed(LOUD)
+            det.feed(QUIET)
+        assert det.noise < before * 2, f"바닥값이 {before:.0f} → {det.noise:.0f} 로 치솟았다"
 
 class TestTranscribeFallback:
     """전사가 안 되는 상황에서 **면접이 끊기지 않아야 한다.**

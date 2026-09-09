@@ -33,6 +33,7 @@ from interview_ws import (
     _SpeechDetector,
     face_row_of_jpeg,
     fetch_state,
+    finish_interview,
     model,
     score,
     submit_answer,
@@ -288,6 +289,13 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
             }
         )
     else:
+        # **질문이 떨어졌으면 세션도 닫는다.** 안 닫으면 `in_progress` 로 남아
+        # 담당자 화면에서 "아직 보는 중"과 "끝난 것"이 구별되지 않는다.
+        try:
+            await finish_interview(client, session.token)
+        except Exception:
+            # 지원자는 이미 다 답했다. 닫기에 실패했다고 화면에 오류를 띄우지 않는다.
+            logger.exception("면접 종료 처리 실패: token=%s", session.token[:8])
         await ws.send_json({"type": "done"})
 
 
