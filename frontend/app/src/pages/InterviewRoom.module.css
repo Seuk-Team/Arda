@@ -231,3 +231,86 @@
     max-height: 30vh;
   }
 }
+
+/* ── 실시간 분석 (2026-09-09) ─────────────────────────────────
+   `InterviewWatch.module.css` 와 **같은 값을 쓴다.** 같은 숫자를 두 화면이
+   다르게 보여 주면 그 자체가 오해를 만든다. 옮겨 적은 것이라, 한쪽을 고치면
+   다른 쪽도 같이 봐야 한다. */
+
+.pair {
+  display: flex;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.metricLabel {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+/* **색으로 판정하지 않는다.** 초록·빨강을 칠하면 글이 말하지 않은 것을
+   색이 말한다 — 아래 `caveat` 이 "합불 근거가 아니다" 라고 적어 두는데
+   숫자가 빨갛게 떠 있으면 그 문장이 지워진다. 둘 다 같은 색이다. */
+.metricValue {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--ts-heading);
+}
+
+/* 숫자 바로 아래. **지우면 안 되는 문단**이라 눈에 띄게 두되 경고색은 안 쓴다. */
+.caveat {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  border-left: 2px solid var(--border);
+  background: var(--bg-sunken);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+/* 100·0 이 떴을 때만 나오는 줄. **경고색을 쓴다** — 위 `caveat` 이 늘 붙어
+   있는 설명이라면 이건 "지금 이 값은 특히 믿지 말라"는 그때그때의 신호다. */
+.saturated {
+  font-size: var(--font-caption);
+  color: var(--danger);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  border-left: 2px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.logRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.logTime {
+  color: var(--text-sub);
+  opacity: 0.75;
+}

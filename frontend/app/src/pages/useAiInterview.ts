@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, ApiError, wsUrl } from '../api/client'
+import { api, ApiError } from '../api/client'
+import { FRAME_MS, KIND_AUDIO, KIND_VIDEO, SR, WORKLET, aiWsUrl, sendMedia } from './aiSocket'
 
 /* AI 면접 — 아르가 묻고, 얼굴을 실시간으로 본다.
 
@@ -23,39 +24,6 @@ import { api, ApiError, wsUrl } from '../api/client'
    값이 오지 않는다 — 안 그리기로 한 약속을 코드가 지킬 수 없게가 아니라
    **지킬 수밖에 없게** 만든 것이다. */
 
-/* 소연님 규격 (PROTOCOL.md · demo.html). 바꾸면 서버가 못 알아듣는다. */
-const SR = 16000 //   서버가 기대하는 표본율
-const AUDIO_MS = 50 // 오디오 한 조각. 서버가 이 단위로 말/침묵을 가른다
-const FRAME_MS = 200 // 영상 5장/초. 더 자주 보내도 서버가 안 쓴다
-const KIND_AUDIO = 0x01
-const KIND_VIDEO = 0x02
-
-/* 오디오를 Int16 로 바꿔 50ms 씩 모아 보내는 워크릿. 파일로 두면 배포에 하나가
-   더 붙으므로 문자열로 만들어 쓴다 (demo.html 과 같은 방식). */
-const WORKLET = `
-class PCM extends AudioWorkletProcessor {
-  constructor() { super(); this.buf = []; this.n = 0;
-                  this.need = Math.round(sampleRate * ${AUDIO_MS} / 1000); }
-  process(inputs) {
-    const ch = inputs[0] && inputs[0][0];
-    if (!ch) return true;
-    const out = new Int16Array(ch.length);
-    for (let i = 0; i < ch.length; i++) {
-      const s = Math.max(-1, Math.min(1, ch[i]));
-      out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-    }
-    this.buf.push(out); this.n += out.length;
-    if (this.n >= this.need) {
-      const all = new Int16Array(this.n); let o = 0;
-      for (const b of this.buf) { all.set(b, o); o += b.length; }
-      this.port.postMessage(all.buffer, [all.buffer]);
-      this.buf = []; this.n = 0;
-    }
-    return true;
-  }
-}
-registerProcessor('pcm', PCM);`
-
 export type AiPhase = 'preparing' | 'waiting' | 'listening' | 'thinking' | 'done' | 'error'
 
 export const AI_PHASE_LABEL: Record<AiPhase, string> = {
@@ -65,15 +33,6 @@ export const AI_PHASE_LABEL: Record<AiPhase, string> = {
   thinking: '정리하는 중',
   done: '면접이 끝났습니다',
   error: '연결 실패',
-}
-
-function aiWsUrl(path: string): string {
-  /* `/ai/*` 는 Caddy 가 거짓말 탐지 서비스로 넘긴다. `wsUrl` 이 붙이는
-     `/api/v1` 접두어를 쓰면 안 되므로 여기서 직접 만든다. */
-  const u = new URL(wsUrl('/'))
-  u.pathname = path
-  u.search = ''
-  return u.toString()
 }
 
 export function useAiInterview(token: string | null) {
@@ -196,16 +155,9 @@ export function useAiInterview(token: string | null) {
 
       socketsRef.current = [askWs]
 
-      const send = (ws: WebSocket, kind: number, payload: ArrayBuffer) => {
-        if (ws.readyState !== WebSocket.OPEN) return
-        const packet = new Uint8Array(1 + payload.byteLength)
-        packet[0] = kind
-        packet.set(new Uint8Array(payload), 1)
-        ws.send(packet)
-      }
       /* 아르에게만 보낸다. **판정은 지원자 기기를 지나가지 않는다** —
          워커가 백엔드로 직접 밀고, 백엔드가 담당자에게 준다 (ADR-0029). */
-      const fanout = (kind: number, payload: ArrayBuffer) => send(askWs, kind, payload)
+      const fanout = (kind: number, payload: ArrayBuffer) => sendMedia(askWs, kind, payload)
 
       // 오디오
       const ctx = new AudioContext({ sampleRate: SR })
