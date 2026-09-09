@@ -220,10 +220,14 @@ InterviewPublic _copy(
 
 /// 켜라면 켜지는 카메라. 상태를 테스트가 직접 밀어 넣을 수도 있다
 class FakeCameraService extends CameraService {
-  FakeCameraService({this.opensAs = CameraStatus.live});
+  FakeCameraService({this.opensAs = CameraStatus.live, this.opening});
 
   /// 켜라고 하면 어떤 상태가 되는가 — 거부·카메라 없음을 만들 때 바꾼다
   final CameraStatus opensAs;
+
+  /// 켜는 데 시간이 걸리게 만든다. **권한 창이 떠 있는 동안**을 흉내 낸다 —
+  /// 그 사이에 마이크를 열려고 하면 안드로이드가 거짓을 돌려준다(2026-09-09)
+  final Completer<void>? opening;
 
   CameraStatus _status = CameraStatus.idle;
 
@@ -246,6 +250,7 @@ class FakeCameraService extends CameraService {
     // 안 그러면 "다시 열지 않았다" 를 세는 테스트가 거짓말을 한다
     if (_status == CameraStatus.live) return;
     starts++;
+    if (opening != null && !opening!.isCompleted) await opening!.future;
     push(opensAs);
   }
 

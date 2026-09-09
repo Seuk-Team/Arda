@@ -233,14 +233,33 @@ class _InterviewScreenState extends State<InterviewScreen>
       _data = data;
       _sending = false;
     });
+    _syncMedia(data).ignore();
+  }
+
+  /// 카메라를 상태에 맞추고, 면접이 시작됐으면 실시간을 붙인다.
+  ///
+  /// **카메라를 먼저 기다린다.** 권한을 묻는 것이 [CameraService.start] 이고
+  /// (카메라와 마이크를 한 번에 묻는다), 그것이 끝나기 전에 마이크를 열려고 하면
+  /// 안드로이드가 **권한 요청 두 개를 동시에 못 받아** 마이크 쪽에 그 자리에서
+  /// 거짓을 돌려준다. 그러면 권한을 허용한 지원자에게도
+  /// "마이크 권한이 꺼져 있습니다" 가 뜬다 (2026-09-09 실기기).
+  Future<void> _syncMedia(InterviewPublic data) async {
     if (_wantsCamera) {
-      _camera.start();
+      await _camera.start();
     } else {
-      _camera.stop();
+      await _camera.stop();
     }
+    if (!mounted) return;
     // 면접이 시작된 순간부터 실시간이다. **동의·시작을 REST 로 먼저 끝낸 뒤에만
     // 붙는다** — 안 그러면 서버가 "진행 중인 면접이 아닙니다" 로 끊는다
-    if (data.status == InterviewStatus.inProgress) _startLive();
+    if (data.status == InterviewStatus.inProgress) await _startLive();
+  }
+
+  /// 마이크를 다시 열어 본다. **한 번 막혔다고 면접 내내 글로 답하게 두지 않는다** —
+  /// 권한 창을 잘못 닫았거나 다른 앱이 마이크를 잡고 있었을 수 있다.
+  Future<void> _retryMic() async {
+    setState(() => _fallback = null);
+    await _startLive();
   }
 
   /// 소켓을 열고 마이크·카메라를 거기에 붙인다. 두 번 불러도 한 번만 연다.
@@ -472,6 +491,7 @@ class _InterviewScreenState extends State<InterviewScreen>
             controller: _answer,
             busy: _sending,
             fallbackNote: _fallback,
+            onRetryMic: _retryMic,
             onSubmit: _submitAnswer,
             onFinish: _finish,
           ),
@@ -826,6 +846,7 @@ class _Question extends StatelessWidget {
     required this.controller,
     required this.busy,
     required this.fallbackNote,
+    required this.onRetryMic,
     required this.onSubmit,
     required this.onFinish,
   });
@@ -836,6 +857,9 @@ class _Question extends StatelessWidget {
 
   /// 말로 못 해서 여기로 왔다면 그 사유. 없으면 원래의 글 답변이다
   final String? fallbackNote;
+
+  /// 마이크를 다시 열어 본다
+  final VoidCallback onRetryMic;
   final VoidCallback onSubmit;
   final VoidCallback onFinish;
 
@@ -848,6 +872,16 @@ class _Question extends StatelessWidget {
         // 안 일어나는 것으로 보인다
         if (fallbackNote != null) ...[
           _Note(text: '$fallbackNote 지금은 글로 답변해 주세요.', tone: AppColors.danger),
+          const SizedBox(height: AppSpace.s2),
+          // **막다른 길로 두지 않는다.** 권한 창을 잘못 닫았거나 다른 앱이
+          // 마이크를 잡고 있었을 수 있다 — 다시 열어 볼 자리를 준다
+          SizedBox(
+            height: AppLayout.minTouchTarget,
+            child: OutlinedButton(
+              onPressed: onRetryMic,
+              child: const Text('마이크로 다시 시도'),
+            ),
+          ),
           const SizedBox(height: AppSpace.s3),
         ],
         // 진행 보조 — 앞 답변을 듣고 건네는 말. **경고처럼 보이게 하지 않는다**:
