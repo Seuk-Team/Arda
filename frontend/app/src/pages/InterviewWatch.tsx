@@ -119,6 +119,14 @@ export default function InterviewWatch() {
     }
   }, [id, valid])
 
+  /* **`peer_present` 만 보면 AI 면접에서는 영영 "기다리는 중" 이다** (2026-09-09 실측).
+     그 값은 시그널링 방(사람 대 사람 화상)에 누가 있는지인데, AI 면접의 지원자는
+     그 방에 안 들어간다 — 폰은 분석 워커에만 붙는다(#97).
+
+     그래서 **판정이 한 번이라도 왔으면 면접 중으로 본다.** 판정은 워커가 지원자
+     미디어를 실제로 받고 있을 때만 나오므로, 그것보다 확실한 증거가 없다. */
+  const live = peerHere || latest !== null
+
   const fmt = useCallback(
     (n?: number) => (typeof n === 'number' ? `${n.toFixed(1)}%` : '—'),
     [],
@@ -139,14 +147,16 @@ export default function InterviewWatch() {
       <header className={styles.bar}>
         <h1 className={styles.title}>실시간 분석</h1>
         <div className={styles.state} aria-live="polite">
-          <span className={`${styles.dot} ${peerHere ? styles.dotLive : ''}`} />
+          <span className={`${styles.dot} ${live ? styles.dotLive : ''}`} />
           {error
             ? '연결 실패'
             : !connected
               ? '연결하는 중'
-              : peerHere
+              : live
                 ? '지원자 면접 중'
-                : '지원자를 기다리는 중'}
+                : detail?.status === 'done'
+                  ? '면접이 끝났습니다'
+                  : '지원자를 기다리는 중'}
         </div>
       </header>
 
@@ -189,9 +199,11 @@ export default function InterviewWatch() {
             </>
           ) : (
             <p className={styles.empty}>
-              {peerHere
+              {live
                 ? '지원자가 말하기 시작하면 여기에 나타납니다.'
-                : '지원자가 면접에 들어오면 시작됩니다.'}
+                : detail?.status === 'done'
+                  ? '끝난 면접입니다.'
+                  : '지원자가 면접에 들어와 말하기 시작하면 나타납니다.'}
             </p>
           )}
         </section>
