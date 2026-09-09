@@ -106,7 +106,14 @@ class ArdaApp extends StatelessWidget {
       // 그 12시간이 의미가 없다 (큐 7).
       //
       // 개발 중 로그인을 건너뛰려면: flutter run --route=/
-      initialRoute: initialRoute ?? Routes.launch,
+      //
+      // 실시간 면접 실기연 (2026-09-09): 빌드 때 [_devLiveInterviewToken] 을
+      // 넣어 주면 첫 화면이 그 토큰으로 여는 WebRTC 지원자 자리가 된다.
+      // 릴리스 빌드에서는 이 상수가 빈 문자열이라 아무 일도 안 한다.
+      initialRoute: initialRoute ??
+          (_devLiveInterviewToken.isNotEmpty
+              ? Routes.interviewLive
+              : Routes.launch),
       routes: {
         Routes.home: (_) => const HomeShell(),
         Routes.launch: (_) => LaunchScreen(auth: auth),

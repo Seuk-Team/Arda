@@ -109,11 +109,23 @@ class InterviewRoomService extends ChangeNotifier {
   Future<void> start() async {
     _alive = true;
 
-    // 1) 카메라·마이크. **먼저 잡는다** — WebSocket 만 붙여 놓고 카메라가
-    //    안 나면 담당자 화면에는 "붙었는데 화면이 안 온다" 로 보인다.
+    // 1) 카메라와 마이크 둘 다 잡는다. 담당자가 지원자 목소리를 WebRTC 로
+    //    실시간으로 듣기 위해서다. **STT (record 파이프) 와 마이크를 나눠 쓰는
+    //    시도**: 대부분 안드로이드는 앱 안에서 AudioRecord 인스턴스가 하나뿐이지만,
+    //    flutter_webrtc 는 VOICE_COMMUNICATION 소스로, record 는 MIC 소스로 열어
+    //    조건이 맞는 기기·OS 에서 둘이 살아 있다. 안 살면 STT 가 조용히 꺼지고
+    //    담당자는 목소리만 듣는다 (반대는 반드시 살아 있어야 한다).
     try {
       final stream = await navigator.mediaDevices.getUserMedia({
-        'audio': true,
+        // 에코 캔슬링·잡음 억제·자동 이득을 **명시적으로** 켠다.
+        // flutter_webrtc 는 platform 에 따라 이 셋이 기본값이 아니라 하울링이
+        // 나는 사고가 있다 (2026-09-09 실기기: 담당자 목소리 → 폰 스피커 →
+        // 폰 마이크 → 다시 담당자에게 재순환).
+        'audio': {
+          'echoCancellation': true,
+          'noiseSuppression': true,
+          'autoGainControl': true,
+        },
         'video': {
           'width': {'ideal': 1280},
           'height': {'ideal': 720},
@@ -346,7 +358,16 @@ class InterviewRoomService extends ChangeNotifier {
 
     pc.onTrack = (RTCTrackEvent event) {
       if (event.streams.isEmpty) return;
-      _remoteStream = event.streams.first;
+      final stream = event.streams.first;
+      // **담당자 목소리는 폰에서 재생하지 않는다** (2026-09-09 팀장 결정).
+      // 면접은 아르가 진행하고 담당자는 관찰만 한다 — 지원자가 들을 것이 없다.
+      // 실익이 하나 더 있다: 폰 스피커로 나온 담당자 소리가 폰 마이크로 되돌아가
+      // 담당자에게 재순환하던 하울링이 원천에서 사라진다. 트랙을 끄면 되고
+      // 수신 자체는 그대로라 SDP 협상은 건드리지 않는다.
+      for (final t in stream.getAudioTracks()) {
+        t.enabled = false;
+      }
+      _remoteStream = stream;
       _setPhase(RoomPhase.live);
       notifyListeners();
     };

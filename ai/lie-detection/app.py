@@ -155,6 +155,24 @@ async def live(ws: WebSocket):
     detector = _SpeechDetector()
     scorer = LiveScorer()
     busy = False
+    # 얼굴 추출(mediapipe, 프레임당 수십 ms)이 도는 중이면 그 사이 온 프레임은
+    # 버린다. 초당 5장을 전부 스레드에 넣으면 큐만 쌓이고, 판정은 4초 창의 5장이면
+    # 충분하다(`score`).
+    face_busy = False
+
+    async def extract_face(jpeg: bytes, at: float) -> None:
+        nonlocal face_busy
+        try:
+            # **이벤트 루프에서 부르지 않는다** (2026-09-09 실측). 워커가 하나라 이게
+            # 루프를 잡으면 같은 프로세스의 면접 소켓 전사가 GIL 을 못 얻어 8초 발화에
+            # 36초 걸리고, uvicorn 은 ping 응답을 못 넘겨 40초에 소켓을 닫았다.
+            row = await asyncio.to_thread(face_row_of_jpeg, jpeg)
+            if row is not None:
+                scorer.add_face(row, at)
+        except Exception:
+            logger.exception("얼굴 추출 실패")
+        finally:
+            face_busy = False
 
     async def run_score() -> None:
         nonlocal busy
@@ -182,9 +200,9 @@ async def live(ws: WebSocket):
             kind, payload, now = data[0], data[1:], time.monotonic()
 
             if kind == KIND_VIDEO:
-                row = face_row_of_jpeg(payload)
-                if row is not None:
-                    scorer.add_face(row, now)
+                if not face_busy:
+                    face_busy = True
+                    asyncio.create_task(extract_face(payload, now))
                 continue
 
             if kind != KIND_AUDIO:
@@ -260,7 +278,7 @@ async def interview(ws: WebSocket, token: str):
 
                 text = msg.get("text")
                 if text:
-                    await _on_text(ws, session, text)
+                    await _on_text(ws, client, session, text)
 
         except WebSocketDisconnect:
             # 연결이 끊긴 것 자체는 오류가 아니다. 답변은 백엔드에 이미 저장돼 있고,
@@ -274,7 +292,20 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     kind, payload = data[0], data[1:]
 
     if kind == KIND_VIDEO:
-        session.add_frame(payload)
+        # `/ws/live` 와 같은 이유로 스레드에서, 도는 중이면 버린다 (`add_frame` 의
+        # FRAME_STRIDE 는 그 안에서 그대로 적용된다).
+        if not session.face_busy:
+            session.face_busy = True
+
+            async def extract() -> None:
+                try:
+                    await asyncio.to_thread(session.add_frame, payload)
+                except Exception:
+                    logger.exception("얼굴 추출 실패: token=%s", session.token[:8])
+                finally:
+                    session.face_busy = False
+
+            asyncio.create_task(extract())
         return
 
     if kind != KIND_AUDIO:
@@ -293,8 +324,15 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
         return
     if event != "end":
         return
+    await _finish_answer(ws, client, session)
 
-    # 말이 끝났다 — 전사하고 다음 질문을 받아 온다
+
+async def _finish_answer(ws, client, session: InterviewSession) -> None:
+    """말이 끝났다 — 전사하고 다음 질문을 받아 온다.
+
+    침묵 감지(`feed` 의 `end`)와 지원자의 [답변 완료](`{"type":"end"}`, 2026-09-09)
+    가 같은 길을 탄다 — 끝을 누가 정했든 그 뒤는 같아야 한다.
+    """
     await ws.send_json({"type": "processing"})
     pcm, rows = session.take_answer()
     # 전사는 CPU 로 발화 길이의 절반쯤 걸린다. 이벤트 루프에서 부르면 그 동안
@@ -375,10 +413,21 @@ async def _live_verdict(client, session: InterviewSession) -> None:
         session.scoring = False
 
 
-async def _on_text(ws, session: InterviewSession, text: str) -> None:
+async def _on_text(ws, client, session: InterviewSession, text: str) -> None:
     try:
         msg = json.loads(text)
     except json.JSONDecodeError:
         return
-    if msg.get("type") == "ping":
+    kind = msg.get("type")
+    if kind == "ping":
         await ws.send_json({"type": "pong"})
+    elif kind == "end":
+        # 지원자가 [답변 완료] 를 눌렀다 (PROTOCOL.md). 침묵 3초를 기다리지 않는다 —
+        # 바닥 소음이 높은 환경(WebRTC 가 마이크를 같이 잡는 앱)에선 그 3초가 거의
+        # 안 나와 답변이 영영 안 넘어갔다(2026-09-09 실기기).
+        if session.force_end():
+            await _finish_answer(ws, client, session)
+        else:
+            await ws.send_json(
+                {"type": "retry", "message": "말이 들리지 않았어요. 다시 답변해 주세요"}
+            )
