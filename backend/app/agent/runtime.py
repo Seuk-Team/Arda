@@ -14,6 +14,7 @@ DB·사용자 같은 앱 개념을 `ToolRunner` 로 묶어 넘기고, 결과를 
 
 from __future__ import annotations
 
+import json
 import logging
 
 from sqlalchemy.orm import Session
@@ -104,6 +105,8 @@ class _DbToolRunner:
         # 백엔드 프로필에 따라 도구 결과를 줄일지. 어댑터가 결과 형태를 알 필요는
         # 없으므로 축소는 여기(앱 쪽)에서 하고, 어댑터는 플래그만 알린다.
         self._compact = compact
+        # 실행된 도구의 (이름·인자·결과) 기록. run_agent 가 AgentResult.tool_results 로 옮긴다.
+        self.results: list[dict] = []
 
     def is_deferred(self, name: str) -> bool:
         return name in WRITE_TOOL_NAMES
@@ -112,9 +115,15 @@ class _DbToolRunner:
         return _describe_action(name, arguments, self._db)
 
     def execute(self, name: str, arguments: dict) -> str:
-        return execute_tool(
+        output = execute_tool(
             name, arguments, self._db, self._user, compact=self._compact
         )
+        try:
+            parsed = json.loads(output)
+        except (TypeError, ValueError):
+            parsed = None
+        self.results.append({"name": name, "input": dict(arguments), "output": parsed})
+        return output
 
 
 def run_agent(
@@ -131,7 +140,8 @@ def run_agent(
     # Guard 는 요청 스코프여야 한다 — 두 번째 사용자 요청에서 첫 요청의 카운트가
     # 남아 있으면 정당한 재호출을 중복으로 오탐한다. run_agent() 가 매 호출마다
     # 새 인스턴스를 만드는 이 구조가 그 보장이다.
-    tools = GuardedToolRunner(_DbToolRunner(db, user, compact=backend.compact_tool_results))
+    runner = _DbToolRunner(db, user, compact=backend.compact_tool_results)
+    tools = GuardedToolRunner(runner)
     result = backend.run_chat(
         message=message,
         history=history,
@@ -139,6 +149,8 @@ def run_agent(
         tools=tools,
         request_id=request_id,
     )
+    # 동명이인 선택지 등 후속 UI 재료 — 백엔드 어댑터는 결과를 안 남기므로 여기서 붙인다
+    result.tool_results = list(runner.results)
 
     logger.info(
         "agent_run",

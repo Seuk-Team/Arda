@@ -49,6 +49,10 @@ class SummaryOut(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     history: list[dict] = Field(default_factory=list)
+    # 담당자가 동명이인 선택지(ChatResponse.choices) 버튼으로 고른 지원자. 있으면
+    # 이름 조회를 건너뛰고 이 id 로 확정한다 (2026-09-08 팀장 요청 — "ID 를 손으로
+    # 치지 않고 직접 고르게").
+    application_id: int | None = None
 
 
 class ToolCallOut(BaseModel):
@@ -60,6 +64,17 @@ class PendingActionOut(BaseModel):
     tool_name: str
     arguments: dict
     description: str
+
+
+class ChoiceOut(BaseModel):
+    """사람이 골라야 하는 갈림길 하나 (동명이인). 프론트가 버튼으로 그린다.
+
+    누르면 `message`(원래 요청 그대로) 를 `application_id` 와 함께 /chat 에 다시
+    보낸다. 서버는 이름 대신 id 로 바로 진행하므로 다시 되묻지 않는다.
+    """
+    label: str
+    application_id: int
+    message: str
 
 
 class ChatResponse(BaseModel):
@@ -79,6 +94,8 @@ class ChatResponse(BaseModel):
     # 백엔드 식별자. 로컬은 프롬프트 캐싱 개념 자체가 없어서 cache_* 가 0 인데,
     # 이 필드가 "캐시 미적중"과 "캐시 개념 없음"을 구분해 준다.
     backend: str = ""
+    # 동명이인 등 담당자가 골라야 답이 이어지는 경우의 선택지. 비면 버튼 없음.
+    choices: list[ChoiceOut] = Field(default_factory=list)
 
 
 class ConfirmRequest(BaseModel):
@@ -220,7 +237,14 @@ def chat(
                 "is_write": intent.is_write,
             },
         )
-        return _handle_direct(intent, db, user)
+        return _handle_direct(
+            intent, db, user, original=body.message, application_id=body.application_id
+        )
+
+    # 선택지 버튼으로 온 요청 — LLM 에게도 어느 지원자인지 못 박아 준다. 이력에는
+    # 동명이인 목록이 이미 있으므로 id 한 줄이면 충분하다.
+    if body.application_id is not None:
+        message = f"{message}\n(담당자가 선택한 지원자 ID: {body.application_id} — 이 지원자로 진행)"
 
     result = run_agent(
         message=message,
@@ -254,12 +278,98 @@ def chat(
         model=result.model,
         cost_usd=round(cost, 6),
         backend=result.backend,
+        choices=_choices_from_tool_results(
+            result.reply, getattr(result, "tool_results", []), body.message
+        ),
     )
+
+
+# ── 동명이인 선택지 ──────────────────────────────────────────
+
+_CHOICE_LIMIT = 6
+
+
+def _choice_label(
+    name: str,
+    app_id: int,
+    stage: str | None,
+    career_years: int | None,
+    extra: str | None,
+) -> str:
+    """버튼 한 줄: 이름 (ID) · 단계 · 경력 · 학력/이메일. 없는 조각은 뺀다."""
+    parts = [f"{name} (ID {app_id})"]
+    stage_kr = STAGE_LABEL_KR.get(stage or "", "")
+    if stage_kr:
+        parts.append(stage_kr)
+    if isinstance(career_years, int):
+        parts.append(f"경력 {career_years}년")
+    if extra:
+        parts.append(str(extra))
+    return " · ".join(parts)
+
+
+def _choice_for_app(app: Application, original: str) -> ChoiceOut:
+    return ChoiceOut(
+        label=_choice_label(
+            app.name, app.id, app.current_stage, app.career_years, app.education or app.email
+        ),
+        application_id=app.id,
+        message=original,
+    )
+
+
+def _choices_from_tool_results(reply: str, tool_results: list, original: str) -> list[ChoiceOut]:
+    """LLM 경로 — 답변이 동명이인을 알렸고 검색 결과에 실제로 같은 이름이 둘 이상이면
+    그 행들을 선택지로 만든다. 답변 본문을 파싱하지 않고 **도구 결과** 만 믿는다
+    (LLM 이 id 를 지어내도 버튼은 실제 행만 가리킨다).
+    """
+    if "동명이인" not in (reply or ""):
+        return []
+    rows: list[dict] = []
+    seen: set[int] = set()
+    for tr in tool_results or []:
+        if not isinstance(tr, dict) or tr.get("name") != "search_applications":
+            continue
+        out = tr.get("output")
+        if not isinstance(out, dict):
+            continue
+        for r in out.get("results") or []:
+            if not isinstance(r, dict) or r.get("id") is None or not r.get("name"):
+                continue
+            try:
+                rid = int(r["id"])
+            except (TypeError, ValueError):
+                continue
+            if rid in seen:
+                continue
+            seen.add(rid)
+            rows.append(r)
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r["name"]] = counts.get(r["name"], 0) + 1
+    dups = [r for r in rows if counts[r["name"]] >= 2]
+    return [
+        ChoiceOut(
+            label=_choice_label(
+                r["name"], int(r["id"]), r.get("current_stage"), r.get("career_years"),
+                r.get("education") or r.get("email"),
+            ),
+            application_id=int(r["id"]),
+            message=original,
+        )
+        for r in dups[:_CHOICE_LIMIT]
+    ]
 
 
 # ── 규칙 라우터 헬퍼 (Phase 1 레버 ②) ──────────────────────────
 
-def _handle_direct(intent: DirectAction, db: Session, user: User) -> ChatResponse:
+def _handle_direct(
+    intent: DirectAction,
+    db: Session,
+    user: User,
+    original: str = "",
+    application_id: int | None = None,
+) -> ChatResponse:
     """라우터가 매치한 요청 실행. LLM 안 부름.
 
     - 읽기 도구 (`is_write=False`): 도구 즉시 실행 → 결과를 사람이 읽는 짧은
@@ -267,22 +377,30 @@ def _handle_direct(intent: DirectAction, db: Session, user: User) -> ChatRespons
     - 쓰기 도구 (`is_write=True`): `pending_action` 만 만들고 실제 실행은
       담당자가 확인 카드를 승인해 `/confirm` 이 부를 때
     - 이름 → id 조회가 필요한 경우 (`_name_lookup`): DB 에서 검색 후 정확·부분
-      일치 순. 0건이면 되묻기, 동명이인이면 이름 나열해 되묻기, 1건이면 id 채움
+      일치 순. 0건이면 되묻기, 동명이인이면 **선택지(choices) 를 붙여** 되묻기,
+      1건이면 id 채움. 담당자가 선택지를 눌러 `application_id` 가 왔으면 조회 생략.
     """
     args = dict(intent.args)  # 원본 mutate 방지
     app: Application | None = None
 
     if "_name_lookup" in args:
         name = args.pop("_name_lookup")
-        found = _lookup_applicants_by_name(db, name)
-        if not found:
-            return _router_reply(f"'{name}' 지원자를 찾지 못했어요. 이름을 다시 확인해 주세요.")
-        if len(found) > 1:
-            names = ", ".join(a.name for a in found[:5])
-            return _router_reply(
-                f"'{name}' 이름으로 여러 명이 있어요: {names}. 어떤 분인지 더 알려 주세요."
-            )
-        app = found[0]
+        if application_id is not None:
+            app = db.get(Application, application_id)
+            if app is None:
+                return _router_reply(f"ID {application_id} 지원자를 찾지 못했어요. 다시 검색해 주세요.")
+        else:
+            found = _lookup_applicants_by_name(db, name)
+            if not found:
+                return _router_reply(f"'{name}' 지원자를 찾지 못했어요. 이름을 다시 확인해 주세요.")
+            if len(found) > 1:
+                return _router_response(
+                    reply=f"'{name}' 이름으로 {len(found)}명이 있어요. 아래에서 골라 주세요.",
+                    tool_calls=[],
+                    pending=None,
+                    choices=[_choice_for_app(a, original) for a in found[:_CHOICE_LIMIT]],
+                )
+            app = found[0]
         args["application_id"] = app.id
 
     if intent.is_write:
@@ -379,12 +497,14 @@ def _router_response(
     reply: str,
     tool_calls: list[ToolCallOut],
     pending: PendingActionOut | None,
+    choices: list[ChoiceOut] | None = None,
 ) -> ChatResponse:
     """라우터 응답 공통 shape. backend/model 태그로 라우터 힛을 표시."""
     return ChatResponse(
         reply=reply,
         tool_calls=tool_calls,
         pending_action=pending,
+        choices=choices or [],
         input_tokens=0,
         output_tokens=0,
         cache_write_tokens=0,

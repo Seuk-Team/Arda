@@ -51,6 +51,10 @@ class AgentResult:
     # 중앙에서 PRICING 표를 조회하면 모르는 모델이 haiku 단가로 폴백해 버린다.
     cost_usd: float = 0.0
     rounds: int = 0
+    # 이번 대화에서 실제로 실행된 도구의 결과. `tool_calls` 는 이름·인자만 남기고
+    # 결과는 버렸는데, API 가 동명이인 선택지 같은 **구조화된 후속 UI** 를 만들려면
+    # 결과가 필요하다 (2026-09-08). 항목: {"name", "input", "output"(파싱된 JSON 또는 None)}.
+    tool_results: list[dict] = field(default_factory=list)
 
 
 @dataclass

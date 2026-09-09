@@ -11,11 +11,28 @@ from app.company import get_profile, name_for, prompt_context
 from app.mail import build_signature, get_template, render, sender_name
 
 
+def _reset_profile(db):
+    """시드 마이그레이션(0014) 이 채운 값을 지워 "빈 회사" 상태로 되돌린다.
+
+    CI 는 alembic upgrade head 를 돌린 뒤 테스트를 실행하므로 시드가 적용된
+    상태로 진입한다. 폴백·부분 필드 동작을 확인하는 테스트는 이 함수로
+    자기가 원하는 상태를 명시적으로 만들어 시작한다.
+    """
+    row = get_profile(db)
+    row.name = ""
+    row.tagline = None
+    row.hr_email = None
+    row.website = None
+    row.description = None
+    row.narrative = None
+    db.flush()
+    return row
+
+
 class TestNameFor:
     def test_returns_env_fallback_when_row_empty(self, db):
-        """행이 첫 마이그레이션 상태(name='') 면 환경변수(기본 'Arda')."""
-        row = get_profile(db)
-        assert row.name == ""
+        """name 이 빈 값이면 환경변수 폴백('Arda')."""
+        _reset_profile(db)
         assert name_for(db) == "Arda"
 
     def test_returns_db_value_when_set(self, db):
@@ -35,6 +52,7 @@ class TestNameFor:
 
 class TestPromptContext:
     def test_minimal_row_has_only_company_name_line(self, db):
+        _reset_profile(db)
         text = prompt_context(db)
         # 항상 회사명 한 줄과 규약 한 줄은 나온다 — 그래야 아르가 "회사 정보 절 없음" 을
         # 무근거 창작으로 이해하지 않는다.
@@ -60,9 +78,8 @@ class TestPromptContext:
         assert "실패는 공개한다" in text
 
     def test_omits_missing_fields(self, db):
-        row = get_profile(db)
+        row = _reset_profile(db)
         row.name = "Arda"
-        # tagline·website·hr_email·description·narrative 없음
         db.flush()
         text = prompt_context(db)
         assert "한 줄 소개:" not in text
@@ -88,6 +105,7 @@ class TestMailUsesProfile:
         assert "Arda" not in subject and "Arda" not in body
 
     def test_render_falls_back_to_env(self, db, admin_user, application, posting):
+        _reset_profile(db)
         subject, body = render(
             db, stage="applied", applicant_name=application.name,
             posting_title=posting.title, actor_kind="human", actor_name=admin_user.name,

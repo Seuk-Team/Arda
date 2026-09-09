@@ -3,23 +3,25 @@ import { api, ApiError, wsUrl } from '../api/client'
 
 /* AI 면접 — 아르가 묻고, 얼굴을 실시간으로 본다.
 
-   **소켓 셋을 동시에 연다.** 소연님 서비스가 아직 둘로 나뉘어 있어서다
-   (`ai/lie-detection/app.py`).
+   **소켓은 하나뿐이다.** 카메라·마이크를 `/ai/ws/interview/{token}` 한 곳에만
+   보내고 질문을 받는다.
 
-   | 소켓 | 무엇 | 왜 따로 |
-   |---|---|---|
-   | `/ai/ws/interview/{token}` | 아르의 질문·답변 저장 | **판정을 안 보낸다** |
-   | `/ai/ws/live` | 실시간 판정 | 토큰이 없고 면접과 연결 안 됨 |
-   | `/api/v1/ws/interview/{token}/rtc` | 판정을 담당자에게 나르기 | 서버에 그 통로가 없어서 |
+   ## 판정은 이 기기를 지나가지 않는다
 
-   카메라 한 대에서 나온 것을 앞의 두 소켓에 **같이** 보낸다. 소연님이 나중에
-   둘을 합치면 여기서 `/ws/live` 쪽만 지우면 된다.
+   처음에는 지원자 폰이 `/ai/ws/live` 로 판정을 받아 담당자에게 중계했다.
+   화면에 안 그리면 된다고 봤는데, **개발자 도구를 열면 보인다** —
+   ADR-0029 의 "지원자에게 판정을 보여 주지 않는다"가 거기서 깨진다
+   (2026-09-08 cloverky 지적).
 
-   ## 지원자에게 판정을 보여 주지 않는다
+   지금은 **워커 → 백엔드 → 담당자** 다.
 
-   ADR-0029 이고 소연님이 코드에도 적어 뒀다 — **판정을 실시간으로 보여 주면
-   그 자체가 답변을 바꾼다.** 그래서 이 훅은 판정을 상태로 들고 있지 않고
-   받는 즉시 담당자 쪽으로 넘긴다. 화면이 그릴 수 있는 값 자체를 안 만든다. */
+       거짓말 탐지 워커
+         └─ POST /api/v1/internal/interview/{token}/verdict   (서비스 토큰)
+              └─ 백엔드가 시그널링 방의 **채용자에게만** 민다
+
+   그래서 이 훅에는 판정을 받는 코드가 아예 없다. 화면이 그리려 해도 그럴
+   값이 오지 않는다 — 안 그리기로 한 약속을 코드가 지킬 수 없게가 아니라
+   **지킬 수밖에 없게** 만든 것이다. */
 
 /* 소연님 규격 (PROTOCOL.md · demo.html). 바꾸면 서버가 못 알아듣는다. */
 const SR = 16000 //   서버가 기대하는 표본율
@@ -192,21 +194,7 @@ export function useAiInterview(token: string | null) {
         setPhase('error')
       }
 
-      /* ② 판정 — 받는 즉시 ③ 으로 넘긴다. **화면에는 두지 않는다.** */
-      const liveWs = new WebSocket(aiWsUrl('/ai/ws/live'))
-      liveWs.binaryType = 'arraybuffer'
-
-      /* ③ 담당자에게 나르는 통로 (지원자 자리라 입장권이 없다) */
-      const relayWs = new WebSocket(wsUrl(`/ws/interview/${token}/rtc`))
-      liveWs.onmessage = (e) => {
-        const m = JSON.parse(e.data)
-        if (m.type !== 'live') return
-        if (relayWs.readyState === WebSocket.OPEN) {
-          relayWs.send(JSON.stringify({ ...m, type: 'verdict' }))
-        }
-      }
-
-      socketsRef.current = [askWs, liveWs, relayWs]
+      socketsRef.current = [askWs]
 
       const send = (ws: WebSocket, kind: number, payload: ArrayBuffer) => {
         if (ws.readyState !== WebSocket.OPEN) return
@@ -215,12 +203,9 @@ export function useAiInterview(token: string | null) {
         packet.set(new Uint8Array(payload), 1)
         ws.send(packet)
       }
-      /* 같은 조각을 **둘 다**에게 보낸다 — 아르는 말이 끝난 것을 알아야 하고,
-         판정기는 얼굴과 목소리를 봐야 한다. */
-      const fanout = (kind: number, payload: ArrayBuffer) => {
-        send(askWs, kind, payload)
-        send(liveWs, kind, payload)
-      }
+      /* 아르에게만 보낸다. **판정은 지원자 기기를 지나가지 않는다** —
+         워커가 백엔드로 직접 밀고, 백엔드가 담당자에게 준다 (ADR-0029). */
+      const fanout = (kind: number, payload: ArrayBuffer) => send(askWs, kind, payload)
 
       // 오디오
       const ctx = new AudioContext({ sampleRate: SR })
@@ -260,10 +245,23 @@ export function useAiInterview(token: string | null) {
     }
   }, [token, cleanup])
 
+  /* 중도 종료. **서버에 알린다** — 안 알리면 세션이 `in_progress` 로 남아
+     담당자 쪽에서 "아직 보는 중"과 "그만둔 것"이 구별되지 않는다.
+
+     정상 종료(질문 소진)는 워커가 `finish` 를 부른다(cloverky, 2026-09-08).
+     여기서 또 부르면 두 번이 되는데, 서버가 이미 `done` 이면 그대로 200 을
+     주므로 해가 없다 — 그래도 화면이 부르는 것은 **중도 종료뿐**이다. */
   const leave = useCallback(() => {
     cleanup()
     setPhase('done')
-  }, [cleanup])
+    if (token) {
+      void api
+        .post(`/public/interview/${token}/finish`, {}, { auth: false })
+        .catch(() => {
+          /* 못 알려도 지원자 쪽 화면은 끝난다. 담당자 화면이 늦게 알 뿐이다. */
+        })
+    }
+  }, [cleanup, token])
 
   return { phase, question, seq, error, videoRef, leave }
 }

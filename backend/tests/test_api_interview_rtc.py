@@ -391,3 +391,80 @@ class TestVerdictRelay:
         assert got["truth_pct"] == 61.2
         assert got["lie_pct"] == 38.8
         assert got["from"] == "applicant"
+
+
+class TestVerdictFromWorker:
+    """판정은 **워커 → 백엔드 → 담당자** 로 간다 (2026-09-08, cloverky 지적).
+
+    전에는 지원자 폰을 거쳤다. 화면에 안 그려도 **개발자 도구를 열면 보이므로**
+    ADR-0029 의 "지원자에게 판정을 보여 주지 않는다"가 거기서 깨진다.
+    지원자 기기를 아예 지나가지 않게 바꿨다.
+    """
+
+    HEAD = {"X-Service-Token": "test-token-x"}
+
+    def test_담당자에게_간다(
+        self, client, db: Session, application: Application, admin_user: User, monkeypatch
+    ):
+        monkeypatch.setenv("ARDA_SERVICE_TOKEN", "test-token-x")
+        s = _session(db, application, admin_user)
+        ticket = interview_rtc.issue_ticket(s.id, admin_user.id)
+
+        with client.websocket_connect(
+            f"/api/v1/ws/interview/{s.token}/rtc?ticket={ticket}"
+        ) as recruiter:
+            recruiter.receive_json()  # hello
+
+            r = client.post(
+                f"/api/v1/internal/interview/{s.token}/verdict",
+                headers=self.HEAD,
+                json={"truth_pct": 61.2, "lie_pct": 38.8, "window_sec": 4.0},
+            )
+            assert r.status_code == 204
+            got = recruiter.receive_json()
+
+        assert got["type"] == "verdict"
+        assert got["truth_pct"] == 61.2
+
+    def test_지원자에게는_안_간다(
+        self, client, db: Session, application: Application, admin_user: User, monkeypatch
+    ):
+        """**이게 무너지면 ADR-0029 가 깨진다.**"""
+        monkeypatch.setenv("ARDA_SERVICE_TOKEN", "test-token-x")
+        s = _session(db, application, admin_user)
+
+        with client.websocket_connect(f"/api/v1/ws/interview/{s.token}/rtc") as applicant:
+            applicant.receive_json()  # hello
+
+            r = client.post(
+                f"/api/v1/internal/interview/{s.token}/verdict",
+                headers=self.HEAD,
+                json={"truth_pct": 90.0},
+            )
+            assert r.status_code == 204
+
+            # 지원자 자리에는 아무것도 오지 않는다 — ping 을 넣어 그 답만 오는지 본다
+            applicant.send_json({"type": "ping"})
+            assert applicant.receive_json() == {"type": "pong"}
+
+    def test_아무도_없어도_204(
+        self, client, db: Session, application: Application, admin_user: User, monkeypatch
+    ):
+        """담당자가 화면을 안 열었을 뿐이다. 워커가 재시도하면 안 된다."""
+        monkeypatch.setenv("ARDA_SERVICE_TOKEN", "test-token-x")
+        s = _session(db, application, admin_user)
+        r = client.post(
+            f"/api/v1/internal/interview/{s.token}/verdict",
+            headers=self.HEAD,
+            json={"truth_pct": 50.0},
+        )
+        assert r.status_code == 204
+
+    def test_토큰_없으면_401(
+        self, client, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user)
+        r = client.post(
+            f"/api/v1/internal/interview/{s.token}/verdict", json={"truth_pct": 50.0}
+        )
+        assert r.status_code == 401

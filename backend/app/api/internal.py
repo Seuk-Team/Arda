@@ -24,7 +24,7 @@ import os
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app import mail
@@ -188,3 +188,46 @@ def record_email_log_result(
         )
 
     db.commit()
+
+
+# ── 실시간 판정 (ADR-0029) ──────────────────────────────────────────────
+#
+# 거짓말 탐지 워커가 면접 중에 낸 판정을 **담당자 화면으로 흘려보낸다.**
+#
+# **왜 워커가 직접 보내는가.** 처음에는 판정이 지원자 폰을 거쳐 담당자에게 갔다.
+# 화면에 안 그려도 **개발자 도구를 열면 보인다** — ADR-0029 의 "지원자에게 판정을
+# 보여 주지 않는다"가 거기서 깨진다. 지원자 기기를 아예 안 지나가게 바꾼다
+# (2026-09-08, cloverky 지적).
+#
+# **저장하지 않는다.** 흐르는 값이고, 남기기로 한 것은 면접이 끝난 뒤의 결과다
+# (ADR-0029 결정 2). 여기서 쌓기 시작하면 "언제 잰 값인가"가 흐려진다.
+#
+# 받는 사람이 없으면 **그냥 버린다** — 담당자가 아직 화면을 안 열었을 뿐이고,
+# 그것 때문에 면접이 멈추면 안 된다.
+
+
+class VerdictIn(BaseModel):
+    """워커가 보내는 판정 하나. **모양을 좁게 잡지 않는다** — 모델이 내는 값이
+    늘어도 백엔드를 고치지 않게 그대로 흘려보낸다."""
+
+    model_config = ConfigDict(extra="allow")
+
+    truth_pct: float | None = None
+    lie_pct: float | None = None
+    window_sec: float | None = None
+
+
+@router.post(
+    "/interview/{token}/verdict",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_require_service_token)],
+)
+async def push_verdict(token: str, body: VerdictIn):
+    """면접 한 건의 실시간 판정을 담당자에게 민다.
+
+    **토큰으로 방을 찾는다** — 시그널링과 같은 방이라 담당자가 이미 앉아 있다.
+    받는 사람이 없으면 204 로 조용히 끝난다(워커가 재시도하지 않게).
+    """
+    from app.api.interview_rtc import push_to_recruiter
+
+    await push_to_recruiter(token, {"type": "verdict", **body.model_dump()})
