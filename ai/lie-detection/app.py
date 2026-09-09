@@ -32,8 +32,10 @@ from interview_ws import (
     LiveScorer,
     _SpeechDetector,
     face_row_of_jpeg,
+    fetch_reference,
     fetch_state,
     finish_interview,
+    push_identity,
     push_verdict,
     model,
     score,
@@ -204,6 +206,10 @@ async def interview(ws: WebSocket, token: str):
             await ws.close()
             return
 
+        # 이력서 사진을 한 번 받아 둔다. **대조는 프레임이 들어올 때** 하고,
+        # 실패하면 그냥 넘어간다 — 사진이 없다고 면접을 막지 않는다.
+        session.reference = await fetch_reference(client, token)
+
         await ws.send_json(
             {
                 "type": "question",
@@ -240,7 +246,11 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     kind, payload = data[0], data[1:]
 
     if kind == KIND_VIDEO:
-        session.add_frame(payload)
+        # 프레임 하나가 mediapipe 두 번(특징 + 얼굴 대조)이라 이벤트 루프를 막는다.
+        # 스레드로 뺀다 — 여기서 막히면 오디오까지 같이 늦는다.
+        identity = await asyncio.to_thread(session.add_frame, payload)
+        if identity is not None:
+            await push_identity(client, session.token, identity)
         return
 
     if kind != KIND_AUDIO:
@@ -289,6 +299,10 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
         return
 
     if state.get("current_question"):
+        # 이력서 사진을 한 번 받아 둔다. **대조는 프레임이 들어올 때** 하고,
+        # 실패하면 그냥 넘어간다 — 사진이 없다고 면접을 막지 않는다.
+        session.reference = await fetch_reference(client, token)
+
         await ws.send_json(
             {
                 "type": "question",
