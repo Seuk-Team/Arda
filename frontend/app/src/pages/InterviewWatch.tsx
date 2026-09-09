@@ -10,8 +10,12 @@ import styles from './InterviewWatch.module.css'
    **카메라를 켜지 않는다.** 담당자는 보기만 한다 — 지원자와 얼굴을 맞대는
    화면(`InterviewRoom`)과 다른 자리다.
 
-   판정은 지원자 기기가 `/ai/ws/live` 에서 받아 시그널링 방으로 넘겨 준 것이다
-   (`useAiInterview`). 서버는 나르기만 하고 저장하지 않는다.
+   판정은 **워커가 백엔드로 직접 민 것**이다 (#97) — 지원자 기기를 지나가지
+   않는다. `워커 → POST /internal/interview/{token}/verdict → 시그널링 방`.
+   서버는 나르기만 하고 저장하지 않는다.
+
+   (사람 대 사람 화상 면접은 다른 화면이다 — `InterviewRoom` 이 자기가 받은
+   영상을 직접 분석에 넘긴다. `useLiveAnalysis` 머리말 참고.)
 
    ## 이 화면이 조심하는 것
 

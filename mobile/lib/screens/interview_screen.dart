@@ -15,13 +15,17 @@
 /// (ADR-0004: 음성은 STT 만, TTS 없음). "영상통화 같다" 는 것은 카메라가
 /// 계속 켜져 있고 대화가 끊기지 않는다는 뜻이지 양쪽 얼굴이 보인다는 뜻이 아니다.
 ///
-/// ## 지금 답변은 글로 낸다
+/// ## 답변은 말로 낸다 (2026-09-09)
 ///
-/// 카메라는 켜져 있지만 **답변 전송은 아직 텍스트다.** 음성·영상 업로드
-/// (`audio-upload-url` → S3 → `answer`)는 다음 조각이고, 실시간 전송(WebSocket)은
-/// 서버가 아직 없다. 텍스트 경로(`POST .../answer {transcript}`)는 이미 열려
-/// 있어서, 이것만으로도 면접이 끝까지 돈다 — 답을 못 내는 면접 화면을 두는
-/// 것보다 낫다.
+/// **제출 버튼이 없다.** 소리(16kHz PCM)와 얼굴(JPEG)이 소켓 하나로 흘러가고,
+/// 지원자가 말을 멈추면 **서버가 그것을 알아채** 전사·저장하고 다음 질문을
+/// 보낸다([InterviewSocket] · `ai/lie-detection/PROTOCOL.md`). 웹의
+/// `useAiInterview.ts` 와 같은 규격이다.
+///
+/// 09-08 까지는 글로 답했다. 그 길을 지우지 않고 남겨 둔 이유는 **마이크가 막힌
+/// 지원자** 때문이다 — 권한을 껐거나 다른 앱이 마이크를 잡고 있으면 말이 서버에
+/// 안 가 질문이 영영 안 넘어간다. 그때만 글 입력창으로 물러선다(`_fallback`).
+/// 기기 사정이 지원 자격이 되면 안 된다.
 ///
 /// ## 분석 결과는 지원자에게 안 보인다
 ///
@@ -29,11 +33,16 @@
 /// 아니라 "다음에 할 행동" 한 문장이고 서버가 저장하지도 않는다.
 library;
 
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../api/api_error.dart';
 import '../data/applicant_portal_repository.dart';
 import '../data/camera_service.dart';
+import '../data/interview_socket.dart';
+import '../data/mic_service.dart';
 import '../models/applicant_portal.dart';
 import '../theme/tokens.dart';
 import '../widgets/app_top_bar.dart';
@@ -47,6 +56,8 @@ class InterviewScreen extends StatefulWidget {
     this.active = true,
     this.portal,
     this.camera,
+    this.mic,
+    this.openSocket,
   });
 
   /// 없으면 담당자가 아직 면접을 안 만든 것이다
@@ -68,10 +79,14 @@ class InterviewScreen extends StatefulWidget {
   /// **탭 전환은 그 신호가 오지 않는다.**
   final bool active;
 
-  /// 테스트가 가짜를 넣는 자리. 카메라는 실기기가 없으면 못 여니
+  /// 테스트가 가짜를 넣는 자리. 카메라·마이크는 실기기가 없으면 못 여니
   /// **테스트에서는 반드시 가짜를 넣어야 한다**
   final ApplicantPortalRepository? portal;
   final CameraService? camera;
+  final MicService? mic;
+
+  /// 실시간 연결을 여는 방법. 테스트가 가짜 소켓을 끼운다
+  final InterviewSocket Function(String token)? openSocket;
 
   @override
   State<InterviewScreen> createState() => _InterviewScreenState();
@@ -83,8 +98,11 @@ class _InterviewScreenState extends State<InterviewScreen>
       widget.portal ?? ApplicantPortalRepository();
   late final CameraService _camera = widget.camera ?? DeviceCameraService();
 
-  /// 테스트가 넣어 준 카메라는 테스트가 치운다 — 우리가 만든 것만 우리가 닫는다
+  late final MicService _mic = widget.mic ?? DeviceMicService();
+
+  /// 테스트가 넣어 준 카메라·마이크는 테스트가 치운다 — 우리가 만든 것만 우리가 닫는다
   late final bool _ownsCamera = widget.camera == null;
+  late final bool _ownsMic = widget.mic == null;
 
   final _answer = TextEditingController();
 
@@ -93,6 +111,29 @@ class _InterviewScreenState extends State<InterviewScreen>
 
   /// 서버에 뭔가 보내는 중 — 버튼을 잠근다
   bool _sending = false;
+
+  // ── 실시간 (2026-09-09) ──────────────────────────────────────
+  //
+  // **글로 답하던 것을 말로 답하는 것으로 바꾼다.** 질문은 이제 REST 응답이
+  // 아니라 소켓으로 오고, 답변은 지원자가 말을 멈추면 서버가 알아서 끊는다
+  // (PROTOCOL.md). 웹이 하는 일과 같다.
+  InterviewSocket? _socket;
+  StreamSubscription<InterviewEvent>? _events;
+  StreamSubscription<Uint8List>? _audio;
+  StreamSubscription<Uint8List>? _video;
+
+  LivePhase? _phase;
+  String? _liveQuestion;
+  int? _liveSeq;
+
+  /// `retry` 안내 — 말이 안 담겼을 때 한 줄
+  String? _liveNote;
+
+  /// 실시간을 못 써서 **글로 답하는 길로 물러섰다.** 사유 한 줄.
+  ///
+  /// 마이크가 막힌 지원자에게 "면접을 볼 수 없습니다" 라고 하지 않는다 —
+  /// 기기 사정이 지원 자격이 되면 안 된다(PROTOCOL.md 가 열어 둔 물음이다).
+  String? _fallback;
 
   @override
   void initState() {
@@ -108,8 +149,10 @@ class _InterviewScreenState extends State<InterviewScreen>
     WidgetsBinding.instance.removeObserver(this);
     _camera.removeListener(_onCamera);
     // 나가는 길이 여럿(뒤로가기·완료·오류)이라 여기 한 곳에서 확실히 놓아 준다.
-    // 안 그러면 화면을 나가도 카메라 표시등이 계속 켜져 있다
+    // 안 그러면 화면을 나가도 카메라·마이크 표시등이 계속 켜져 있다
+    _stopLive().ignore();
     if (_ownsCamera) _camera.dispose();
+    if (_ownsMic) _mic.dispose().ignore();
     _answer.dispose();
     super.dispose();
   }
@@ -134,7 +177,13 @@ class _InterviewScreenState extends State<InterviewScreen>
       case AppLifecycleState.detached:
         _camera.stop();
       case AppLifecycleState.resumed:
-        if (_wantsCamera) _camera.start();
+        if (_wantsCamera) {
+          _camera.start();
+          // 카메라를 놓을 때 프레임 스트림도 같이 닫혔다. 실시간이 아직 돌고
+          // 있으면 다시 이어 준다 — 안 그러면 돌아온 뒤로 얼굴만 안 간다
+          final socket = _socket;
+          if (socket != null && _video == null) _attachFrames(socket);
+        }
       case AppLifecycleState.inactive:
         // 알림 그림자가 잠깐 내려온 것 같은 상태다. 여기서 끄면 깜빡인다
         break;
@@ -189,6 +238,118 @@ class _InterviewScreenState extends State<InterviewScreen>
     } else {
       _camera.stop();
     }
+    // 면접이 시작된 순간부터 실시간이다. **동의·시작을 REST 로 먼저 끝낸 뒤에만
+    // 붙는다** — 안 그러면 서버가 "진행 중인 면접이 아닙니다" 로 끊는다
+    if (data.status == InterviewStatus.inProgress) _startLive();
+  }
+
+  /// 소켓을 열고 마이크·카메라를 거기에 붙인다. 두 번 불러도 한 번만 연다.
+  Future<void> _startLive() async {
+    if (_socket != null || _fallback != null || widget.token == null) return;
+    setState(() {
+      _phase = LivePhase.preparing;
+      // 방금 REST 로 받아 온 질문을 먼저 띄운다. 소켓이 붙으면 같은 질문을 다시
+      // 보내 주지만, 그때까지 빈 화면을 보여 줄 이유가 없다
+      _liveQuestion = _data?.currentQuestion;
+      _liveSeq = _data?.questionSeq;
+    });
+
+    final socket =
+        widget.openSocket?.call(widget.token!) ??
+        LiveInterviewSocket(widget.token!);
+    _socket = socket;
+    _events = socket.events.listen(_onLive);
+    _attachFrames(socket);
+
+    // **소리가 이 면접의 본체다.** 얼굴은 못 보내도 진행되지만, 마이크가 없으면
+    // 말이 서버에 안 가 질문이 영영 안 넘어간다 — 그때는 글로 답하게 물러선다
+    try {
+      final pcm = await _mic.start();
+      if (!mounted) return;
+      _audio = pcm.listen(
+        socket.sendAudio,
+        onError: (Object _) {},
+        cancelOnError: false,
+      );
+    } on MicUnavailable catch (e) {
+      // **먼저 말해 주고 치운다.** 치우는 것을 기다리는 동안 지원자는 아무 안내도
+      // 없는 화면을 보게 되는데, 그 사이 말을 하면 그 답은 어디에도 안 남는다
+      if (mounted) {
+        setState(() {
+          _fallback = e.message;
+          _phase = null;
+        });
+      }
+      await _stopLive();
+    }
+  }
+
+  /// 얼굴 프레임을 소켓에 잇는다. **실패해도 조용하다** — 얼굴 분석은 곁들이고,
+  /// 질문·답변은 소리만으로 돈다
+  void _attachFrames(InterviewSocket socket) {
+    _video?.cancel();
+    _video = _camera.frames().listen(
+      socket.sendVideo,
+      onError: (Object _) {},
+      onDone: () => _video = null,
+      cancelOnError: false,
+    );
+  }
+
+  void _onLive(InterviewEvent event) {
+    if (!mounted) return;
+    setState(() {
+      switch (event) {
+        case InterviewQuestion(:final text, :final seq):
+          _liveQuestion = text;
+          _liveSeq = seq;
+          _liveNote = null;
+          _phase = LivePhase.waiting;
+        case InterviewListening():
+          _phase = LivePhase.listening;
+        case InterviewProcessing():
+          _phase = LivePhase.thinking;
+        case InterviewRetry(:final message):
+          _liveNote = message;
+          _phase = LivePhase.waiting;
+        case InterviewDone():
+          _liveQuestion = null;
+          _phase = LivePhase.done;
+        case InterviewFailed(:final message):
+          _error = message;
+          _phase = LivePhase.failed;
+      }
+    });
+    // **끝났으면 여기서 놓는다.** 세션은 서버(워커)가 이미 닫았으므로
+    // `finish` 를 또 부르지 않는다
+    if (event is InterviewDone || event is InterviewFailed) {
+      _stopLive().ignore();
+      _camera.stop();
+    }
+  }
+
+  /// 실시간을 놓는다.
+  ///
+  /// **먼저 다 끊어 놓고 그 다음에 기다린다.** 하나씩 `await` 하며 내려가면 그
+  /// 사이에도 마이크·카메라가 소켓으로 계속 흘러들어간다 — 끝난 면접에 소리가
+  /// 더 붙는 셈이다. 자리를 먼저 비우면 그 뒤에 들어오는 것은 갈 곳이 없다.
+  Future<void> _stopLive() async {
+    final audio = _audio;
+    final video = _video;
+    final events = _events;
+    final socket = _socket;
+    _audio = null;
+    _video = null;
+    _events = null;
+    _socket = null;
+
+    audio?.cancel().ignore();
+    video?.cancel().ignore();
+    events?.cancel().ignore();
+    final closing = socket?.close();
+    final stopping = _mic.stop();
+    await stopping;
+    await closing;
   }
 
   Future<void> _send(Future<InterviewPublic> Function() call) async {
@@ -217,9 +378,15 @@ class _InterviewScreenState extends State<InterviewScreen>
     if (mounted) _answer.clear();
   }
 
+  /// 중도 종료. **서버에 알린다** — 안 알리면 세션이 `in_progress` 로 남아
+  /// 담당자 쪽에서 "아직 보는 중"과 "그만둔 것"이 구별되지 않는다.
+  /// (질문을 다 답해 끝나는 정상 종료는 워커가 알린다)
   Future<void> _finish() async {
     final ok = await showInterviewFinishSheet(context);
     if (ok != true || !mounted) return;
+    // 치우는 것을 기다리지 않는다 — 서버에 알리는 것이 급하고, 마이크·카메라는
+    // 그 사이에 놓여도 된다
+    _stopLive().ignore();
     await _send(() => _portal.finish(widget.token!));
   }
 
@@ -290,10 +457,21 @@ class _InterviewScreenState extends State<InterviewScreen>
             ready: _camera.status == CameraStatus.live,
             onStart: () => _send(() => _portal.start(widget.token!)),
           ),
+          // 말로 답하는 것이 기본이고, 마이크가 막혔을 때만 글로 물러선다
+          InterviewStatus.inProgress when _phase == LivePhase.done =>
+            const _Done(),
+          InterviewStatus.inProgress when _fallback == null => _Live(
+            phase: _phase ?? LivePhase.preparing,
+            seq: _liveSeq,
+            question: _liveQuestion,
+            note: _liveNote,
+            onFinish: _finish,
+          ),
           InterviewStatus.inProgress => _Question(
             data: data,
             controller: _answer,
             busy: _sending,
+            fallbackNote: _fallback,
             onSubmit: _submitAnswer,
             onFinish: _finish,
           ),
@@ -532,11 +710,122 @@ class _Ready extends StatelessWidget {
   }
 }
 
+/// 실시간 면접이 지금 어느 대목인가.
+///
+/// **`listening` 과 `thinking` 을 꼭 보여 준다**(PROTOCOL.md). 1~2초 공백에
+/// 지원자가 "멈췄나?" 하고 생각하면 그 자체가 면접을 망친다.
+enum LivePhase { preparing, waiting, listening, thinking, done, failed }
+
+/// 웹(`AI_PHASE_LABEL`)과 같은 말을 쓴다 — 같은 제품이 기기마다 다른 말을 하면 안 된다
+const Map<LivePhase, String> livePhaseLabel = {
+  LivePhase.preparing: '준비 중',
+  LivePhase.waiting: '말씀해 주세요',
+  LivePhase.listening: '듣고 있습니다',
+  LivePhase.thinking: '정리하는 중',
+  LivePhase.done: '면접이 끝났습니다',
+  LivePhase.failed: '연결 실패',
+};
+
+/// 말로 답하는 면접. **제출 버튼이 없다** — 말을 멈추면 서버가 알아서 넘어간다.
+class _Live extends StatelessWidget {
+  const _Live({
+    required this.phase,
+    required this.seq,
+    required this.question,
+    required this.note,
+    required this.onFinish,
+  });
+
+  final LivePhase phase;
+  final int? seq;
+  final String? question;
+  final String? note;
+  final VoidCallback onFinish;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (seq != null)
+          Text(
+            '질문 $seq',
+            style: const TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              fontWeight: AppType.wSemiBold,
+              fontFeatures: AppType.tabularNums,
+              color: AppColors.textSub,
+            ),
+          ),
+        const SizedBox(height: AppSpace.s2),
+        Text(
+          question ?? '아르가 첫 질문을 준비하고 있습니다.',
+          style: const TextStyle(
+            fontFamily: AppType.fontFamily,
+            fontSize: AppType.h2,
+            height: 1.5,
+            color: AppColors.text,
+          ),
+        ),
+        const SizedBox(height: AppSpace.s4),
+
+        // 지금 무슨 일이 일어나는지. **이것이 제출 버튼을 대신한다**
+        Row(
+          children: [
+            if (phase == LivePhase.listening) ...[
+              const _LiveDot(),
+              const SizedBox(width: AppSpace.s2),
+            ],
+            Expanded(
+              child: Text(
+                livePhaseLabel[phase]!,
+                style: TextStyle(
+                  fontFamily: AppType.fontFamily,
+                  fontSize: AppType.sm,
+                  fontWeight: AppType.wSemiBold,
+                  color: phase == LivePhase.failed
+                      ? AppColors.danger
+                      : AppColors.textSub,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        if (note != null) ...[
+          const SizedBox(height: AppSpace.s3),
+          _Note(text: note!, tone: AppColors.accentText),
+        ],
+
+        const SizedBox(height: AppSpace.s4),
+        Text(
+          '답변이 끝나면 잠시 그대로 계세요. 다음 질문이 이어집니다.',
+          style: const TextStyle(
+            fontFamily: AppType.fontFamily,
+            fontSize: AppType.caption,
+            color: AppColors.textSub,
+          ),
+        ),
+        const SizedBox(height: AppSpace.s3),
+        SizedBox(
+          height: AppLayout.minTouchTarget,
+          child: OutlinedButton(
+            onPressed: onFinish,
+            child: const Text('면접 종료'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Question extends StatelessWidget {
   const _Question({
     required this.data,
     required this.controller,
     required this.busy,
+    required this.fallbackNote,
     required this.onSubmit,
     required this.onFinish,
   });
@@ -544,6 +833,9 @@ class _Question extends StatelessWidget {
   final InterviewPublic data;
   final TextEditingController controller;
   final bool busy;
+
+  /// 말로 못 해서 여기로 왔다면 그 사유. 없으면 원래의 글 답변이다
+  final String? fallbackNote;
   final VoidCallback onSubmit;
   final VoidCallback onFinish;
 
@@ -552,6 +844,12 @@ class _Question extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // **왜 말이 아니라 글인지 먼저 말해 준다.** 안 그러면 말했는데 아무 일도
+        // 안 일어나는 것으로 보인다
+        if (fallbackNote != null) ...[
+          _Note(text: '$fallbackNote 지금은 글로 답변해 주세요.', tone: AppColors.danger),
+          const SizedBox(height: AppSpace.s3),
+        ],
         // 진행 보조 — 앞 답변을 듣고 건네는 말. **경고처럼 보이게 하지 않는다**:
         // 지적이 아니라 배려다. 점수가 아니고 저장되지도 않는다
         if (data.pacing != null) ...[

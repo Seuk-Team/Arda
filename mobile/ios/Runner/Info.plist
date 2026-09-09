@@ -14,6 +14,12 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- 없으면 iOS 가 카메라·마이크를 여는 순간 앱을 죽인다. AI 면접(2026-09-09)이
+	     둘 다 쓴다 — 지원자에게 보이는 문장이라 무엇에 쓰는지 그대로 적는다. -->
+	<key>NSCameraUsageDescription</key>
+	<string>AI 면접 중 본인 확인과 표정 분석을 위해 카메라를 사용합니다.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AI 면접에서 말씀하신 답변을 받아 적기 위해 마이크를 사용합니다.</string>
 	<key>CFBundleName</key>
 	<string>arda</string>
 	<key>CFBundlePackageType</key>

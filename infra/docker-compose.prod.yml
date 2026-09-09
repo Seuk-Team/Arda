@@ -29,7 +29,7 @@ services:
 
   api:
     build: ./backend
-    env_file: ./backend/.env
+    env_file: ../backend/.env
     command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
@@ -41,7 +41,7 @@ services:
 
   worker:
     build: ./backend
-    env_file: ./backend/.env
+    env_file: ../backend/.env
     command: /app/.venv/bin/python -m app.worker
     restart: unless-stopped
     logging: *default-logging
@@ -54,6 +54,12 @@ services:
   # Caddyfile 의 reverse_proxy 주소만 바꾸면 되고 부르는 쪽은 바뀌지 않는다.
   lie-detection:
     build: ./ai/lie-detection
+    # 이 컨테이너도 backend/.env 를 읽는다. STT_MODEL 이 없으면 전사가 꺼지고(#95),
+    # 앞으로 붙을 판정 워커→백엔드 콜에 필요한 ARDA_SERVICE_TOKEN 도 같은 이유로 못 받는다.
+    env_file: ../backend/.env
+    # 전사 모델(large-v3-turbo ~1GB) 로드 시 idle ~1.2GB · 처리 피크 ~1.6GB.
+    # 예상 못 한 피크가 나도 이 컨테이너만 죽지, n8n·db·api 가 함께 다치지 않게 한다.
+    mem_limit: 1.5g
     restart: unless-stopped
     logging: *default-logging
 
