@@ -271,7 +271,7 @@ export default function InterviewRoom() {
                     <span className={styles.logTime}>
                       {new Date(v.at).toLocaleTimeString('ko-KR')}
                     </span>
-                    <span>일치 {fmt(v.truth_pct)}</span>
+                    <span>진실 쪽 {fmt(v.truth_pct)}</span>
                   </li>
                 ))}
               </ul>

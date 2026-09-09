@@ -17,6 +17,16 @@ import styles from './InterviewWatch.module.css'
    (사람 대 사람 화상 면접은 다른 화면이다 — `InterviewRoom` 이 자기가 받은
    영상을 직접 분석에 넘긴다. `useLiveAnalysis` 머리말 참고.)
 
+   ## "일치" 라고 쓰지 않는다 (2026-09-09 · cloverky)
+
+   09-08 까지 이 화면은 `일치 / 불일치` 라고 적었다. 그런데 **서버가 보내는 값은
+   목소리와 얼굴로 낸 진실/거짓 확률이고, 서류를 아예 안 본다.** "일치" 라고
+   적으면 담당자가 "이력서에 쓴 것과 말한 것이 맞다" 로 읽는다 — 그건 앞으로
+   만들 `interview_findings`(서류 대조) 가 할 말이지 이 값이 할 말이 아니다.
+
+   그래서 `진실 쪽 / 거짓 쪽` 으로 적는다. **모델이 배운 라벨이 실제로 그것이다.**
+   그 말이 사실이라는 뜻은 아니라는 것은 아래 문단과 100·0 경고가 맡는다.
+
    ## 이 화면이 조심하는 것
 
    **숫자를 판정처럼 보이게 만들지 않는다.** 모델은 121 표본에 76% 고
@@ -149,11 +159,11 @@ export default function InterviewWatch() {
             <>
               <div className={styles.pair}>
                 <div className={styles.metric}>
-                  <span className={styles.metricLabel}>일치</span>
+                  <span className={styles.metricLabel}>진실 쪽</span>
                   <span className={styles.metricValue}>{fmt(latest.truth_pct)}</span>
                 </div>
                 <div className={styles.metric}>
-                  <span className={styles.metricLabel}>불일치</span>
+                  <span className={styles.metricLabel}>거짓 쪽</span>
                   <span className={styles.metricValue}>{fmt(latest.lie_pct)}</span>
                 </div>
               </div>
@@ -211,7 +221,7 @@ export default function InterviewWatch() {
                     <span className={styles.logTime}>
                       {new Date(v.at).toLocaleTimeString('ko-KR')}
                     </span>
-                    <span>일치 {fmt(v.truth_pct)}</span>
+                    <span>진실 쪽 {fmt(v.truth_pct)}</span>
                   </li>
                 ))}
               </ul>
