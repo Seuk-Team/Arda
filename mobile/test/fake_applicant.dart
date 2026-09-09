@@ -282,6 +282,11 @@ class FakeCameraService extends CameraService {
       StreamController<Uint8List>.broadcast();
 
   int frameStreams = 0;
+  /// 밀어 넣은 프레임 수 — 시험이 셀 일이 있으면 여기서 본다
+  int framesPushed = 0;
+
+  @override
+  int get framesSent => framesPushed;
 
   @override
   Stream<Uint8List> frames() {
