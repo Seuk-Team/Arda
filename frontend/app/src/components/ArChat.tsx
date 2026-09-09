@@ -269,10 +269,19 @@ export default function ArChat({
     await submit(message, message)
   }
 
-  /* 선택지 버튼 — 말풍선엔 고른 사람을, 서버엔 원래 요청 + id 를 보낸다. 담당자가
-     "ID 28" 을 손으로 치던 것을 없앤다 (2026-09-08). */
+  /* 선택지 카드 — 카드 안 확인 버튼 클릭 = 서버가 pending 을 미리 붙여 왔으면
+     agent.confirm 직접 (원샷), 아니면 원래 요청을 id 와 함께 다시 보내 서버가
+     pending 을 만들게 (폴백, LLM 경로 등). 담당자가 "이름 → 목록 → id 재입력 →
+     확인 카드 → 확인" 네 걸음이던 것을 카드 딸깍 하나로 (2026-09-09). */
   function choose(c: AgentChoice) {
     if (busy) return
+    if (c.pending_action) {
+      const action = c.pending_action
+      push({ kind: 'user', text: `${c.label} — ${action.description}` })
+      setChoices([])
+      void runConfirm(action)
+      return
+    }
     void submit(c.message, `${c.label} 선택`, c.application_id)
   }
 
@@ -308,29 +317,36 @@ export default function ArChat({
     }
   }
 
-  async function confirmPending() {
-    if (!pending || busy) return
-    const action = pending
+  /* 실행 본체. 확인 카드(pending)와 선택 카드(choice.pending_action) 둘 다 여기로.
+     예전엔 confirmPending 이 이 로직을 갖고 있어 카드 원샷 실행 경로에서 재사용
+     못 했다. 실패해도 카드는 이미 지운 뒤라 여기서 다시 다루지 않는다. */
+  async function runConfirm(action: AgentPendingAction) {
+    if (busy) return
     setBusy('confirm')
-
     try {
       const res = await agent.confirm(action.tool_name, action.arguments)
-      setPending(null)
       /* 무엇이 바뀌었는지 아르가 말한다 — 실행 로그는 숨겨져 있어 이게 유일한 확인 */
       push({ kind: 'ar', text: confirmSummary(action, res.result) })
       setFlash('confirm')
       show('ok', `${toolLabel(action.tool_name)}을(를) 실행했습니다`)
     } catch (err) {
-      /* 실패해도 카드를 지운다 — 남겨 두면 누를 때마다 같은 오류가 쌓인다
-         (2026-09-02 실측: 빨간 박스 5개). 이유는 아르 말풍선으로. 다시 하려면 새로 요청. */
+      /* 이유는 아르 말풍선으로. 다시 하려면 새로 요청. 카드는 이미 이 함수 밖에서 지웠다. */
       const text = errorText(err)
-      setPending(null)
       push({ kind: 'ar', text: confirmFailureText(action, text) })
       setFlash('fail')
       show('fail', text)
     } finally {
       setBusy(null)
     }
+  }
+
+  async function confirmPending() {
+    if (!pending || busy) return
+    const action = pending
+    /* 실행 시작 전에 카드를 지운다 — 실패해도 카드를 남기지 않는다 (2026-09-02 실측:
+       남겨 두면 누를 때마다 같은 오류가 쌓여 빨간 박스 5개). */
+    setPending(null)
+    await runConfirm(action)
   }
 
   function cancelPending() {
@@ -368,22 +384,42 @@ export default function ArChat({
           return null
         })}
 
-        {/* 동명이인 선택지 — 아르 말풍선 아래, 아이콘 자리만큼 들여서 버튼 줄 */}
+        {/* 동명이인 선택지 — 아르 말풍선 아래, 아이콘 자리만큼 들여서 카드 줄.
+            카드 안 확인 버튼 클릭 = 서버가 pending 을 첨부해 왔으면 원샷 실행 (agent.confirm),
+            아니면 폴백으로 원래 요청을 id 와 함께 재전송. 앰버 점선은 §1 규약 (확정 대기). */}
         {choices.length > 0 && (
           <div className={styles.arRow} role="group" aria-label="지원자 선택">
             <span className={styles.arIcon} aria-hidden="true" />
             <div className={styles.choices}>
-              {choices.map((c) => (
-                <button
-                  key={c.application_id}
-                  type="button"
-                  className={`btn btn-secondary ${styles.choiceBtn}`}
-                  disabled={locked}
-                  onClick={() => choose(c)}
-                >
-                  {c.label}
-                </button>
-              ))}
+              {choices.map((c) => {
+                // pending 이 있으면 실제로 실행할 문장을 그대로 (서버 _describe_action 결과),
+                // 없으면 "이어가기" 라는 두 단계 흐름을 알리는 라벨
+                const actionLabel = c.pending_action
+                  ? c.pending_action.description
+                  : '이 지원자로 이어가기'
+                // 이름 옆 메타 한 줄. 없는 조각은 뺀다
+                const meta: string[] = []
+                if (c.stage_label) meta.push(`단계 · ${c.stage_label}`)
+                if (typeof c.career_years === 'number') meta.push(`경력 ${c.career_years}년`)
+                if (c.education) meta.push(c.education)
+                return (
+                  <div key={c.application_id} className={styles.choiceCard}>
+                    <p className={styles.choiceHead}><b>{c.label}</b></p>
+                    {c.email && <p className={styles.choiceEmail}>{c.email}</p>}
+                    {meta.length > 0 && <p className={styles.choiceMeta}>{meta.join(' · ')}</p>}
+                    <div className={styles.choiceActions}>
+                      <button
+                        type="button"
+                        className={`btn btn-primary ${styles.choiceBtn}`}
+                        disabled={locked}
+                        onClick={() => choose(c)}
+                      >
+                        {actionLabel}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

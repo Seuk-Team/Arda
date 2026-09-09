@@ -67,14 +67,25 @@ class PendingActionOut(BaseModel):
 
 
 class ChoiceOut(BaseModel):
-    """사람이 골라야 하는 갈림길 하나 (동명이인). 프론트가 버튼으로 그린다.
+    """사람이 골라야 하는 갈림길 하나 (동명이인). 프론트가 카드로 그린다.
 
-    누르면 `message`(원래 요청 그대로) 를 `application_id` 와 함께 /chat 에 다시
-    보낸다. 서버는 이름 대신 id 로 바로 진행하므로 다시 되묻지 않는다.
+    pending_action 이 붙어 오면 카드 안 확인 버튼 클릭 = agent.confirm 직접 실행
+    (담당자가 원래 요청 → 이름 목록 → id 재입력 → 확인 카드 → 확인, 네 걸음이던
+    것을 카드 딸깍 한 번으로 줄인다). 없으면 폴백으로 message + application_id
+    를 다시 chat 에 보내 서버가 pending 을 만드는 두 단계 흐름을 탄다.
     """
     label: str
     application_id: int
     message: str
+    # 카드 안에서 사람이 고를 만한 만큼의 상세를 함께 준다 — label 하나로 이어붙이던
+    # 형식은 프론트가 정렬·강조를 잡을 수 없어 카드에 안 맞는다.
+    email: str | None = None
+    stage_label: str | None = None
+    career_years: int | None = None
+    education: str | None = None
+    # 규칙 라우터가 change_stage 를 잡았고 동명이인이 났을 때 각 후보의 pending 을 미리
+    # 만들어 붙인다. 도구 하나에 후보만 여러이므로 arguments 는 application_id 만 다르다.
+    pending_action: PendingActionOut | None = None
 
 
 class ChatResponse(BaseModel):
@@ -289,39 +300,37 @@ def chat(
 _CHOICE_LIMIT = 6
 
 
-def _choice_label(
-    name: str,
-    app_id: int,
-    stage: str | None,
-    career_years: int | None,
-    extra: str | None,
-) -> str:
-    """버튼 한 줄: 이름 (ID) · 단계 · 경력 · 학력/이메일. 없는 조각은 뺀다."""
-    parts = [f"{name} (ID {app_id})"]
-    stage_kr = STAGE_LABEL_KR.get(stage or "", "")
-    if stage_kr:
-        parts.append(stage_kr)
-    if isinstance(career_years, int):
-        parts.append(f"경력 {career_years}년")
-    if extra:
-        parts.append(str(extra))
-    return " · ".join(parts)
+def _stage_label(stage: str | None) -> str | None:
+    return STAGE_LABEL_KR.get(stage or "", "") or None
 
 
-def _choice_for_app(app: Application, original: str) -> ChoiceOut:
+def _choice_for_app(
+    app: Application,
+    original: str,
+    pending: PendingActionOut | None = None,
+) -> ChoiceOut:
     return ChoiceOut(
-        label=_choice_label(
-            app.name, app.id, app.current_stage, app.career_years, app.education or app.email
-        ),
+        # label 은 짧게 (이름 + ID). 상세는 카드가 필드별로 그린다.
+        label=f"{app.name} (ID {app.id})",
         application_id=app.id,
         message=original,
+        email=app.email,
+        stage_label=_stage_label(app.current_stage),
+        career_years=app.career_years,
+        education=app.education,
+        pending_action=pending,
     )
 
 
 def _choices_from_tool_results(reply: str, tool_results: list, original: str) -> list[ChoiceOut]:
     """LLM 경로 — 답변이 동명이인을 알렸고 검색 결과에 실제로 같은 이름이 둘 이상이면
     그 행들을 선택지로 만든다. 답변 본문을 파싱하지 않고 **도구 결과** 만 믿는다
-    (LLM 이 id 를 지어내도 버튼은 실제 행만 가리킨다).
+    (LLM 이 id 를 지어내도 카드는 실제 행만 가리킨다).
+
+    LLM 경로는 pending_action 을 아직 안 붙인다 — LLM 답변에서 목표 도구·arguments
+    를 안전하게 뽑아내기가 어렵다 (원문에 "면접" 이 있다고 to_stage 를 확정하는 것은
+    취약). 이 경로에서는 지금처럼 카드 클릭 = 원 요청 재전송 → 서버가 pending 카드
+    반환 → 확인 카드 클릭의 두 단계. 규칙 라우터 (`_handle_direct`) 에서는 원샷.
     """
     if "동명이인" not in (reply or ""):
         return []
@@ -350,15 +359,55 @@ def _choices_from_tool_results(reply: str, tool_results: list, original: str) ->
     dups = [r for r in rows if counts[r["name"]] >= 2]
     return [
         ChoiceOut(
-            label=_choice_label(
-                r["name"], int(r["id"]), r.get("current_stage"), r.get("career_years"),
-                r.get("education") or r.get("email"),
-            ),
+            label=f"{r['name']} (ID {int(r['id'])})",
             application_id=int(r["id"]),
             message=original,
+            email=r.get("email"),
+            stage_label=_stage_label(r.get("current_stage")),
+            career_years=r.get("career_years"),
+            education=r.get("education"),
+            pending_action=None,
         )
         for r in dups[:_CHOICE_LIMIT]
     ]
+
+
+def _build_per_choice_pendings(
+    intent: DirectAction,
+    apps: list[Application],
+    db: Session,
+) -> dict[int, PendingActionOut]:
+    """규칙 라우터가 change_stage 를 잡았고 동명이인이 났을 때 각 후보의 pending 을 미리
+    만든다. 도구 하나 (change_stage) 에 후보만 여럿이므로 arguments 는 application_id
+    만 다르다. 오늘 UX 개선은 담당자가 가장 자주 쓰는 change_stage 하나로 국한한다 —
+    assign_interviewer·draft_email 은 후보별 arguments 계산이 도구마다 다르고, 원샷
+    UX 로 부작용이 안 되돌아오는 것 (특히 draft_email → send_email) 이 있어 뒤에 나눠서.
+
+    전환 규칙이 어긋나는 후보엔 pending 을 안 붙인다 (프론트가 폴백으로 chat 재요청 →
+    서버가 그때 사람 말로 이유를 답한다). 실행 직전에도 /confirm 에서 다시 검사되므로
+    여기 검사는 "카드에 실행 가능 버튼을 안 보이게" 하는 UX 용 (2026-09-02 실측: 카드
+    에 눌러도 매번 실패하는 버튼이 남으면 담당자가 헛수고).
+    """
+    if not intent.is_write or intent.tool_name != "change_stage":
+        return {}
+    base = dict(intent.args)
+    base.pop("_name_lookup", None)
+    to_stage = base.get("to_stage")
+    if not to_stage:
+        return {}
+    result: dict[int, PendingActionOut] = {}
+    for app in apps:
+        try:
+            validate_transition(app.current_stage, to_stage)
+        except StageTransitionError:
+            continue
+        args = {**base, "application_id": app.id}
+        result[app.id] = PendingActionOut(
+            tool_name=intent.tool_name,
+            arguments=args,
+            description=_describe_action(intent.tool_name, args, db),
+        )
+    return result
 
 
 # ── 규칙 라우터 헬퍼 (Phase 1 레버 ②) ──────────────────────────
@@ -394,11 +443,19 @@ def _handle_direct(
             if not found:
                 return _router_reply(f"'{name}' 지원자를 찾지 못했어요. 이름을 다시 확인해 주세요.")
             if len(found) > 1:
+                candidates = found[:_CHOICE_LIMIT]
+                # change_stage 시나리오에서 각 후보의 pending 을 미리 만들어 카드에
+                # 붙인다 (담당자 카드 딸깍 = 확인 = 실행 원샷). 다른 도구는 pending
+                # 없이 폴백 흐름 (카드 클릭 → 서버 재요청 → 확인 카드 → 확인).
+                per_choice_pendings = _build_per_choice_pendings(intent, candidates, db)
                 return _router_response(
                     reply=f"'{name}' 이름으로 {len(found)}명이 있어요. 아래에서 골라 주세요.",
                     tool_calls=[],
                     pending=None,
-                    choices=[_choice_for_app(a, original) for a in found[:_CHOICE_LIMIT]],
+                    choices=[
+                        _choice_for_app(a, original, pending=per_choice_pendings.get(a.id))
+                        for a in candidates
+                    ],
                 )
             app = found[0]
         args["application_id"] = app.id

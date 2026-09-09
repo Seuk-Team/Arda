@@ -183,6 +183,42 @@
   overflow-wrap: anywhere;
 }
 
+/* 동명이인 카드 — 앰버 점선 (§1 규약: 확정 대기 = 점선). 담당자가 카드 안 확인
+   버튼 딸깍 = 서버가 미리 붙인 pending_action 실행 (원샷). 이름 · 이메일 · 단계
+   · 경력 · 학력을 필드로 분리해 두어 label 한 줄로 이어붙이지 않는다. */
+.choiceCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: var(--border-w) dashed var(--ai);
+  border-radius: var(--r-card);
+  background: var(--ai-soft);
+}
+
+.choiceHead {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.choiceEmail,
+.choiceMeta {
+  margin: 0;
+  font-size: var(--font-caption);
+  line-height: 1.5;
+  color: var(--text-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.choiceActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sp-2);
+}
+
 /* ── 대기 ────────────────────────────────────────────── */
 .waiting {
   display: flex;
