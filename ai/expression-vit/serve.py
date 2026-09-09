@@ -23,11 +23,12 @@ from train import EVAL_TF, latest_run
 HERE = Path(__file__).parent
 MODEL_DIR = (latest_run() or HERE) / "best"
 
-# 표정마다 실력이 다르다(평가 실측). 화면에 같이 띄워 "이 값을 얼마나 믿을지"를
-# 보는 사람이 알게 한다 — 90% 짜리 웃음과 32% 짜리 역겨움이 같은 막대로 보이면 안 된다.
+# 표정마다 실력이 다르다(3차 평가 실측). 화면에 같이 띄워 "이 값을 얼마나 믿을지"를
+# 보는 사람이 알게 한다 — 91% 짜리 웃음과 59% 짜리 무표정이 같은 막대로 보이면 안 된다.
+# **모델을 다시 학습하면 이 값도 같이 고친다.** 안 고치면 화면이 거짓말을 한다.
 RECALL = {
-    "happy": 90.1, "surprise": 82.1, "neutral": 73.5, "angry": 64.4,
-    "sad": 55.3, "fear": 47.2, "disgust": 32.4,
+    "happy": 91.0, "surprise": 83.0, "angry": 81.0, "disgust": 81.0,
+    "fear": 76.0, "sad": 74.0, "neutral": 59.0,
 }
 
 if not MODEL_DIR.exists():
