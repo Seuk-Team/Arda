@@ -13,9 +13,13 @@
 /// 물어보는 구조로는 그 순간을 놓친다.
 library;
 
+import 'dart:async';
+import 'dart:isolate';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
 
 /// 카메라가 지금 어떤가.
@@ -61,6 +65,14 @@ abstract class CameraService extends ChangeNotifier {
 
   /// 앱 설정 화면 열기 ([CameraStatus.deniedForever] 일 때만 쓸모 있다)
   Future<void> openSettings();
+
+  /// 얼굴 분석용 프레임 (JPEG). **미리보기와 별개다** — 미리보기는 화면에
+  /// 그리는 것이고 이것은 서버로 보내는 것이다.
+  ///
+  /// 듣기 시작하면 흐르고, 구독을 끊으면 멈춘다. 카메라가 안 켜져 있으면
+  /// 아무것도 안 나온다 — **면접이 그것 때문에 멈추지는 않는다**(얼굴 분석은
+  /// 곁들이고, 질문·답변은 소리만으로 돈다).
+  Stream<Uint8List> frames();
 
   /// 미리보기. 켜져 있지 않으면 빈 것을 준다 — 부르는 쪽이 상태로 갈라
   /// 그리지만, 여기서도 안전하게 둔다
@@ -119,10 +131,18 @@ class DeviceCameraService extends CameraService {
 
       // medium(720p 안팎). 미리보기와 답변 녹음에 충분하고, high 로 올리면
       // 낮은 기기에서 열다가 실패하거나 발열이 는다
+      //
+      // **소리는 여기서 안 받는다**(2026-09-09). 면접 소리는 [MicService] 가
+      // 16kHz PCM 으로 따로 흘리는데, 카메라가 마이크를 같이 잡으면 안드로이드가
+      // 둘 중 하나에게만 준다 — 그러면 말이 서버까지 안 간다.
+      //
+      // `yuv420` 을 못 박는 이유: 안드로이드 기본은 yuv420 이지만 iOS 는
+      // bgra8888 이라, 안 정하면 [frames] 의 첫 판이 기기마다 다른 뜻이 된다.
       final controller = CameraController(
         front,
         ResolutionPreset.medium,
-        enableAudio: true,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
       );
       await controller.initialize();
       _controller = controller;
@@ -161,8 +181,13 @@ class DeviceCameraService extends CameraService {
   Future<void> _release() async {
     final controller = _controller;
     _controller = null;
+    // 프레임을 받던 중이면 먼저 끊는다 — 컨트롤러를 닫는 도중에 프레임이 들어오면
+    // 플러그인이 죽은 컨트롤러를 부른다
+    _frames?.close().ignore();
+    _frames = null;
     if (controller == null) return;
     try {
+      if (controller.value.isStreamingImages) await controller.stopImageStream();
       await controller.dispose();
     } on Exception {
       // 이미 죽은 컨트롤러를 닫는 것은 실패해도 상관없다
@@ -171,6 +196,96 @@ class DeviceCameraService extends CameraService {
 
   @override
   Future<void> openSettings() => openAppSettings();
+
+  // ── 얼굴 분석용 프레임 ────────────────────────────────────────
+  //
+  // 서버는 초당 5장을 권한다(PROTOCOL.md). 카메라는 초당 30장을 주므로 그대로
+  // 다 바꾸면 폰이 그 일만 한다 — 시간으로 걸러 보낸다.
+  static const Duration _frameEvery = Duration(milliseconds: 200);
+
+  StreamController<Uint8List>? _frames;
+
+  /// 변환 하나가 아직 안 끝났으면 다음 장을 건너뛴다. **밀린 것을 쌓지 않는다** —
+  /// 쌓으면 늦은 얼굴이 뒤늦게 도착해 분석이 과거를 본다
+  bool _encoding = false;
+  DateTime _lastFrame = DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  Stream<Uint8List> frames() {
+    final out = StreamController<Uint8List>();
+    out.onListen = () => _startFrames(out);
+    out.onCancel = () => _stopFrames(out);
+    return out.stream;
+  }
+
+  Future<void> _startFrames(StreamController<Uint8List> out) async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      // 카메라가 아직 안 열렸다. **오류로 만들지 않는다** — 소리만으로도 면접은 돈다
+      await out.close();
+      return;
+    }
+    _frames = out;
+    if (controller.value.isStreamingImages) return;
+    try {
+      await controller.startImageStream(_onImage);
+    } on CameraException catch (e) {
+      if (kDebugMode) debugPrint('[camera] 프레임 스트림 실패: $e');
+      _frames = null;
+      await out.close();
+    }
+  }
+
+  Future<void> _stopFrames(StreamController<Uint8List> out) async {
+    if (!identical(_frames, out)) return;
+    _frames = null;
+    final controller = _controller;
+    if (controller == null || !controller.value.isStreamingImages) return;
+    try {
+      await controller.stopImageStream();
+    } on CameraException {
+      // 이미 멈춘 것을 또 멈추는 것은 실패해도 상관없다
+    }
+  }
+
+  void _onImage(CameraImage image) {
+    final out = _frames;
+    if (out == null || out.isClosed || _encoding) return;
+    final now = DateTime.now();
+    if (now.difference(_lastFrame) < _frameEvery) return;
+    _lastFrame = now;
+
+    final plane = image.planes.first;
+    // **넘기기 전에 복사한다.** 플러그인은 다음 프레임에 같은 버퍼를 다시 쓴다 —
+    // 그대로 보내면 변환하는 사이에 내용이 바뀐다
+    final luma = Uint8List.fromList(plane.bytes);
+    _encoding = true;
+    unawaited(
+      _sendFrame(out, luma, image.width, image.height, plane.bytesPerRow),
+    );
+  }
+
+  Future<void> _sendFrame(
+    StreamController<Uint8List> out,
+    Uint8List luma,
+    int width,
+    int height,
+    int rowStride,
+  ) async {
+    try {
+      // **딴 일꾼에게 시킨다.** JPEG 으로 바꾸는 데 수십 ms 가 드는데, 그것을
+      // 화면과 같은 자리에서 하면 미리보기가 그 사이 멈춘다
+      final jpeg = await Isolate.run(
+        () => _grayJpeg(luma, width, height, rowStride),
+      );
+      if (!out.isClosed) out.add(jpeg);
+    } on Exception catch (e) {
+      // 한 장 실패는 넘어간다. 얼굴 분석은 곁들이지 면접의 조건이 아니다
+      if (kDebugMode) debugPrint('[camera] 프레임 변환 실패: $e');
+    } finally {
+      _encoding = false;
+    }
+  }
 
   @override
   Widget buildPreview() {
@@ -188,6 +303,27 @@ class DeviceCameraService extends CameraService {
     _release().ignore();
     super.dispose();
   }
+}
+
+/// 밝기 평면(Y) 하나로 흑백 JPEG 을 만든다.
+///
+/// **색을 버린다.** 서버가 프레임에서 뽑는 것은 눈 뜬 정도·깜빡임·머리 움직임
+/// 같은 모양이라 색이 필요 없다(`feature_extractor.face_row`). 색까지 옮기려면
+/// yuv420 의 두 평면을 섞어야 하는데, 폰에서 그 계산이 프레임마다 수십 ms 다.
+///
+/// `rowStride` 를 그대로 넘긴다 — 카메라는 줄 끝에 여백을 넣어 주는 일이 잦고,
+/// 그것을 무시하면 그림이 비스듬히 밀린다.
+Uint8List _grayJpeg(Uint8List luma, int width, int height, int rowStride) {
+  final image = img.Image.fromBytes(
+    width: width,
+    height: height,
+    bytes: luma.buffer,
+    bytesOffset: luma.offsetInBytes,
+    numChannels: 1,
+    rowStride: rowStride,
+  );
+  // 60 — 얼굴 특징은 남고 크기는 초당 5장을 보낼 만하다
+  return img.encodeJpg(image, quality: 60);
 }
 
 /// 상태별 안내 한 줄. **지원자가 다음에 할 일**을 적는다 — 사유만 적으면

@@ -3,9 +3,14 @@
 // 저장소도 카메라도 플랫폼 채널을 타서 위젯 테스트에서 진짜를 만들면 그 자리에서
 // 죽는다. 화면이 인터페이스만 알게 해 두고 여기서 갈아끼운다.
 
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:arda/api/api_error.dart';
 import 'package:arda/data/applicant_portal_repository.dart';
 import 'package:arda/data/camera_service.dart';
+import 'package:arda/data/interview_socket.dart';
+import 'package:arda/data/mic_service.dart';
 import 'package:arda/models/applicant_extra.dart';
 import 'package:arda/models/applicant_me.dart';
 import 'package:arda/models/applicant_portal.dart';
@@ -266,4 +271,75 @@ class FakeCameraService extends CameraService {
 
   @override
   Widget buildPreview() => const SizedBox(key: Key('fake-preview'));
+
+  /// 서버로 보낸 얼굴 프레임을 밖에서 밀어 넣는 자리
+  final StreamController<Uint8List> frameSink =
+      StreamController<Uint8List>.broadcast();
+
+  int frameStreams = 0;
+
+  @override
+  Stream<Uint8List> frames() {
+    frameStreams++;
+    return frameSink.stream;
+  }
+}
+
+/// 가짜 마이크. 테스트가 PCM 조각을 손으로 밀어 넣는다
+class FakeMicService implements MicService {
+  FakeMicService({this.failsWith});
+
+  /// 열자마자 던질 것. 마이크가 막힌 지원자를 만들 때 쓴다
+  final MicUnavailable? failsWith;
+
+  final StreamController<Uint8List> sink =
+      StreamController<Uint8List>.broadcast();
+
+  int starts = 0;
+  int stops = 0;
+
+  @override
+  Future<Stream<Uint8List>> start() async {
+    starts++;
+    final fail = failsWith;
+    if (fail != null) throw fail;
+    return sink.stream;
+  }
+
+  @override
+  Future<void> stop() async => stops++;
+
+  @override
+  Future<void> dispose() async {
+    await stop();
+    await sink.close();
+  }
+}
+
+/// 가짜 면접 소켓. 서버가 보내는 것을 테스트가 직접 밀어 넣고, 앱이 보낸 것을 센다
+class FakeInterviewSocket implements InterviewSocket {
+  final StreamController<InterviewEvent> _events =
+      StreamController<InterviewEvent>.broadcast();
+
+  final List<Uint8List> audio = [];
+  final List<Uint8List> video = [];
+  bool closed = false;
+
+  @override
+  Stream<InterviewEvent> get events => _events.stream;
+
+  /// 서버가 보낸 것처럼 흘려 넣는다
+  void emit(InterviewEvent event) => _events.add(event);
+
+  @override
+  void sendAudio(Uint8List pcm) => audio.add(pcm);
+
+  @override
+  void sendVideo(Uint8List jpeg) => video.add(jpeg);
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    await _events.close();
+  }
 }

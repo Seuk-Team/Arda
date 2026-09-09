@@ -10,7 +10,11 @@
 //   끝나면    → 놓는다
 //   앱을 벗어나면 → 놓고, 돌아오면 다시 연다
 
+import 'dart:typed_data';
+
 import 'package:arda/data/camera_service.dart';
+import 'package:arda/data/interview_socket.dart';
+import 'package:arda/data/mic_service.dart';
 import 'package:arda/models/applicant_portal.dart';
 import 'package:arda/screens/interview_screen.dart';
 import 'package:flutter/material.dart';
@@ -37,18 +41,34 @@ InterviewPublic interviewOf({
   Widget widget,
   FakeApplicantPortalRepository portal,
   FakeCameraService camera,
+  FakeMicService mic,
+  FakeInterviewSocket socket,
 })
-host({InterviewPublic? interview, CameraStatus opensAs = CameraStatus.live}) {
+host({
+  InterviewPublic? interview,
+  CameraStatus opensAs = CameraStatus.live,
+  MicUnavailable? micFails,
+}) {
   final portal = FakeApplicantPortalRepository(
     interviews: {'tok': interview ?? interviewOf()},
   );
   final camera = FakeCameraService(opensAs: opensAs);
+  final mic = FakeMicService(failsWith: micFails);
+  final socket = FakeInterviewSocket();
   return (
     widget: MaterialApp(
-      home: InterviewScreen(token: 'tok', portal: portal, camera: camera),
+      home: InterviewScreen(
+        token: 'tok',
+        portal: portal,
+        camera: camera,
+        mic: mic,
+        openSocket: (_) => socket,
+      ),
     ),
     portal: portal,
     camera: camera,
+    mic: mic,
+    socket: socket,
   );
 }
 
@@ -62,6 +82,17 @@ void usePhone(WidgetTester tester) {
   tester.view.physicalSize = const Size(390, 1400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+}
+
+/// 실시간이 붙기까지 기다린다.
+///
+/// 마이크를 열고 소켓을 잇는 데 비동기 단계가 몇 겹이라, `pumpAndSettle` 한 번은
+/// **그리다 만 자리에서 멈춘다** — 화면이 다시 그려질 일이 없으면 그 시점에
+/// 돌아와 버리고, 남은 단계는 다음 pump 때까지 안 돈다. 몇 번 더 돌려 준다.
+Future<void> settleLive(WidgetTester tester) async {
+  for (var i = 0; i < 2; i++) {
+    await tester.pumpAndSettle();
+  }
 }
 
 /// 앱을 벗어난다. **한 칸씩 옮겨야 한다** — resumed 에서 paused 로 건너뛰면
@@ -190,8 +221,20 @@ void main() {
     });
   });
 
-  group('진행', () {
-    Future<FakeCameraService> startedAt(WidgetTester tester) async {
+  // 말로 답하는 면접 (2026-09-09). **제출 버튼이 없다** — 지원자가 말을 멈추면
+  // 서버가 알아채 다음 질문을 보낸다. 그래서 여기서 못 박는 것은 두 가지다:
+  //   ① 소리와 얼굴이 실제로 소켓으로 나가는가
+  //   ② 서버가 보낸 대목(듣는 중·정리 중·끝)이 화면에 그대로 뜨는가
+  group('진행 — 말로 답한다', () {
+    Future<
+      ({
+        FakeCameraService camera,
+        FakeMicService mic,
+        FakeInterviewSocket socket,
+        FakeApplicantPortalRepository portal,
+      })
+    >
+    startedAt(WidgetTester tester) async {
       final h = host(
         interview: interviewOf(
           status: InterviewStatus.inProgress,
@@ -201,8 +244,16 @@ void main() {
         ),
       );
       await tester.pumpWidget(h.widget);
+      await settleLive(tester);
+      // 진짜 서버는 붙자마자 지금 질문을 보내 준다. 그것까지가 "붙었다" 다
+      h.socket.emit(const InterviewQuestion(text: '자기소개를 해 주세요.', seq: 1));
       await tester.pumpAndSettle();
-      return h.camera;
+      return (
+        camera: h.camera,
+        mic: h.mic,
+        socket: h.socket,
+        portal: h.portal,
+      );
     }
 
     testWidgets('질문과 미리보기가 같이 있다', (tester) async {
@@ -214,9 +265,155 @@ void main() {
       expect(find.text('촬영 중'), findsOneWidget);
     });
 
-    testWidgets('답변이 비면 제출할 수 없다', (tester) async {
+    testWidgets('제출 버튼이 없다 — 말을 멈추면 서버가 알아서 넘긴다', (tester) async {
       usePhone(tester);
       await startedAt(tester);
+
+      expect(find.text('답변 제출'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('말씀해 주세요'), findsOneWidget);
+    });
+
+    testWidgets('마이크 소리가 소켓으로 나간다 — 이게 안 되면 질문이 안 넘어간다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.mic.sink.add(Uint8List(micChunkBytes));
+      await tester.pumpAndSettle();
+
+      expect(h.socket.audio, hasLength(1));
+      expect(h.socket.audio.first, hasLength(micChunkBytes));
+      expect(h.mic.starts, 1);
+    });
+
+    testWidgets('얼굴 프레임도 같은 소켓으로 나간다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.camera.frameSink.add(Uint8List.fromList([1, 2, 3]));
+      await tester.pumpAndSettle();
+
+      expect(h.socket.video, hasLength(1));
+    });
+
+    testWidgets('서버가 알려 주는 대목이 그대로 뜬다 — 공백에 지원자가 불안해진다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.socket.emit(const InterviewListening());
+      await tester.pumpAndSettle();
+      expect(find.text('듣고 있습니다'), findsOneWidget);
+
+      h.socket.emit(const InterviewProcessing());
+      await tester.pumpAndSettle();
+      expect(find.text('정리하는 중'), findsOneWidget);
+    });
+
+    testWidgets('다음 질문이 오면 갈아 끼운다 — 카메라는 그대로 켜져 있다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+      final startsBefore = h.camera.starts;
+
+      h.socket.emit(const InterviewQuestion(text: '가장 어려웠던 일은?', seq: 2));
+      await tester.pumpAndSettle();
+
+      expect(find.text('질문 2'), findsOneWidget);
+      expect(find.text('가장 어려웠던 일은?'), findsOneWidget);
+      // **질문마다 껐다 켜지 않는다** — 그러면 다시 찍기가 없다는 전제가 무너진다
+      expect(h.camera.stops, 0);
+      expect(h.camera.starts, startsBefore);
+      expect(find.text('촬영 중'), findsOneWidget);
+    });
+
+    testWidgets('말이 안 담겼으면 같은 질문을 두고 다시 답하게 한다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.socket.emit(const InterviewRetry('말이 들리지 않았어요. 다시 답변해 주세요'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('말이 들리지 않았어요. 다시 답변해 주세요'), findsOneWidget);
+      // 질문은 그대로다 — 답한 것으로 세지 않았으므로
+      expect(find.text('자기소개를 해 주세요.'), findsOneWidget);
+    });
+
+    testWidgets('끝나면 완료 화면으로 가고 마이크·카메라를 놓는다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.socket.emit(const InterviewDone());
+      await settleLive(tester);
+
+      expect(find.text('면접이 완료되었습니다. 참여해 주셔서 감사합니다.'), findsOneWidget);
+      expect(h.mic.stops, greaterThan(0));
+      expect(h.camera.stops, greaterThan(0));
+      // **`finish` 를 부르지 않는다** — 질문이 떨어진 것을 아는 워커가 이미 닫았다
+      expect(h.portal.calls, isNot(contains('finish:tok')));
+    });
+
+    testWidgets('연결이 끊기면 조용히 넘기지 않는다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.socket.emit(const InterviewFailed('연결이 끊겼습니다. 다시 들어와 주세요'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('연결이 끊겼습니다. 다시 들어와 주세요'), findsOneWidget);
+      expect(find.text('연결 실패'), findsOneWidget);
+    });
+
+    testWidgets('면접 중에 카메라가 끊기면 조용히 넘기지 않는다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.camera.push(CameraStatus.failed);
+      await tester.pumpAndSettle();
+
+      expect(find.text('촬영 중'), findsNothing);
+      expect(find.text('카메라를 쓸 수 없습니다'), findsOneWidget);
+    });
+  });
+
+  // 마이크가 막힌 지원자. **면접을 못 보게 하지 않는다** — 기기 사정이 지원
+  // 자격이 되면 안 된다. 말로 못 하면 글로 답한다(원래 있던 길이다).
+  group('진행 — 마이크가 막히면 글로', () {
+    Future<
+      ({FakeApplicantPortalRepository portal, FakeInterviewSocket socket})
+    >
+    blockedAt(WidgetTester tester) async {
+      final h = host(
+        interview: interviewOf(
+          status: InterviewStatus.inProgress,
+          consentRequired: false,
+          question: '자기소개를 해 주세요.',
+          seq: 1,
+        ),
+        micFails: const MicUnavailable('마이크 권한이 꺼져 있습니다.', permanent: true),
+      );
+      await tester.pumpWidget(h.widget);
+      await settleLive(tester);
+      return (portal: h.portal, socket: h.socket);
+    }
+
+    testWidgets('왜 글로 쓰는지 말해 주고 입력창을 준다', (tester) async {
+      usePhone(tester);
+      await blockedAt(tester);
+
+      expect(find.textContaining('마이크 권한이 꺼져 있습니다.'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('답변 제출'), findsOneWidget);
+    });
+
+    testWidgets('말로 못 하게 됐으면 소켓도 닫는다 — 소리 없는 연결을 붙들지 않는다', (tester) async {
+      usePhone(tester);
+      final h = await blockedAt(tester);
+
+      expect(h.socket.closed, isTrue);
+    });
+
+    testWidgets('답변이 비면 제출할 수 없다', (tester) async {
+      usePhone(tester);
+      await blockedAt(tester);
 
       final button = tester.widget<FilledButton>(
         find.ancestor(
@@ -227,19 +424,9 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
-    testWidgets('답변을 내면 다음 질문으로 넘어간다 — 카메라는 그대로 켜져 있다', (tester) async {
+    testWidgets('답변을 내면 다음 질문으로 넘어간다', (tester) async {
       usePhone(tester);
-      final h = host(
-        interview: interviewOf(
-          status: InterviewStatus.inProgress,
-          consentRequired: false,
-          question: '자기소개를 해 주세요.',
-          seq: 1,
-        ),
-      );
-      await tester.pumpWidget(h.widget);
-      await tester.pumpAndSettle();
-      final startsBefore = h.camera.starts;
+      final h = await blockedAt(tester);
 
       await tester.enterText(find.byType(TextField), '3년차 프론트엔드 개발자입니다.');
       await tester.pumpAndSettle();
@@ -248,15 +435,11 @@ void main() {
 
       expect(h.portal.calls, contains('answer:tok:3년차 프론트엔드 개발자입니다.'));
       expect(find.text('질문 2'), findsOneWidget);
-      // **질문마다 껐다 켜지 않는다** — 그러면 다시 찍기가 없다는 전제가 무너진다
-      expect(h.camera.stops, 0);
-      expect(h.camera.starts, startsBefore);
-      expect(find.text('촬영 중'), findsOneWidget);
     });
 
     testWidgets('제출하면 입력창이 비워진다 — 앞 답이 남으면 다음 답에 섞인다', (tester) async {
       usePhone(tester);
-      await startedAt(tester);
+      await blockedAt(tester);
 
       await tester.enterText(find.byType(TextField), '답변입니다');
       await tester.pumpAndSettle();
@@ -271,7 +454,7 @@ void main() {
 
     testWidgets('진행 보조가 뜬다 — 경고가 아니라 배려다', (tester) async {
       usePhone(tester);
-      await startedAt(tester);
+      await blockedAt(tester);
 
       await tester.enterText(find.byType(TextField), '짧은 답');
       await tester.pumpAndSettle();
@@ -279,17 +462,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('조금 더 자세히 말씀해 주셔도 좋습니다.'), findsOneWidget);
-    });
-
-    testWidgets('면접 중에 카메라가 끊기면 조용히 넘기지 않는다', (tester) async {
-      usePhone(tester);
-      final camera = await startedAt(tester);
-
-      camera.push(CameraStatus.failed);
-      await tester.pumpAndSettle();
-
-      expect(find.text('촬영 중'), findsNothing);
-      expect(find.text('카메라를 쓸 수 없습니다'), findsOneWidget);
     });
   });
 
