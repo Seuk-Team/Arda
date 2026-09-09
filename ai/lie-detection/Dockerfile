@@ -8,6 +8,8 @@ FROM python:3.13-slim
 #   libgl1·libglib2.0-0  : opencv
 #   libegl1·libgles2     : mediapipe (libEGL.so.1 — GPU 없이도 찾는다)
 #   libsndfile1          : librosa/soundfile
+# faster-whisper(ctranslate2)는 추가 패키지가 필요 없다 — 리눅스 휠이 libgomp 를
+# 통째로 안고 온다(휠 안의 `libgomp-….so.1.0.0` 확인함).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 \
         libglib2.0-0 \
@@ -26,9 +28,15 @@ COPY . .
 
 EXPOSE 5000
 
+# **GPU 에서 전사하려면 이 이미지로는 안 된다.** `STT_DEVICE=cuda` 를 주면
+# ctranslate2 가 `libcublas.so.12` · `libcuda.so.1` 을 dlopen 하는데 python:slim 에는
+# 없다. 시연 때 GPU 를 쓰려면 nvidia CUDA 베이스 이미지로 바꾸고 `--gpus all` 로
+# 띄워야 한다. **기본값이 `cpu` 인 이유가 이것이다** — 잘못 켜면 모델을 다 올린 뒤
+# 첫 전사에서야 죽는다(ADR-0032).
+#
 # **워커 1개로 고정한다.** 영상 분석 한 건이 최대 약 574MiB 를 쓰는데(실측)
-# 서버가 t3.small(2GB)이고 db·api·worker 가 같은 박스에 있다. 둘이 동시에 돌면 넘친다.
-# 늘리려면 서버 사양이나 배치를 먼저 바꿔야 한다.
+# 서버가 백엔드와 같은 t3.medium(4GB)이고 db·api·worker 가 같은 박스에 있다.
+# 전사를 켜면 여기에 모델 ~1GB 가 더 붙는다. 늘리려면 서버 사양을 먼저 바꿔야 한다.
 #
 # uvicorn 인 이유는 WebSocket(실시간 면접) 때문이다 — gunicorn 의 sync 워커는 WS 를
 # 처리하지 못한다.
