@@ -743,11 +743,14 @@ class TestChoices:
         assert twin_choice.career_years == 7
         assert twin_choice.email == twin.email
         # change_stage 규칙 라우터는 각 후보에 pending 을 첨부한다 (담당자 카드 딸깍 =
-        # 원샷 실행). 전환 규칙이 어긋나는 후보는 pending 없음 → 폴백 흐름.
-        assert twin_choice.pending_action is not None
-        assert twin_choice.pending_action.tool_name == "change_stage"
-        assert twin_choice.pending_action.arguments["application_id"] == twin.id
-        assert twin_choice.pending_action.arguments["to_stage"] == "screening"
+        # 원샷 실행). 원본 application (applied → screening) 은 정상 전환 → pending 붙음.
+        # twin 은 이미 screening 이라 to_stage=screening 은 규칙 실패 → pending 없음 (폴백).
+        app_choice = next(c for c in resp.choices if c.application_id == application.id)
+        assert app_choice.pending_action is not None
+        assert app_choice.pending_action.tool_name == "change_stage"
+        assert app_choice.pending_action.arguments["application_id"] == application.id
+        assert app_choice.pending_action.arguments["to_stage"] == "screening"
+        assert twin_choice.pending_action is None
 
     def test_router_selected_id_skips_lookup(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
@@ -801,7 +804,7 @@ class TestChoices:
         assert [c["application_id"] for c in choices] == [11, 28]
         assert all(c["message"] == "백지안 이력서 좀 보여줄래?" for c in choices)
         # 상세는 label 이 아니라 개별 필드로 (카드 UI 로 나눔, 2026-09-09).
-        assert choices[0]["stage_label"] == "면접" and choices[1]["stage_label"] == "접수"
+        assert choices[0]["stage_label"] == "면접" and choices[1]["stage_label"] == "지원 접수"
         # LLM 경로는 pending_action 을 아직 안 붙인다 (LLM 답변에서 목표 도구·arguments 를
         # 안전하게 뽑기 어렵다). 카드 클릭은 두 단계 폴백 흐름.
         assert all(c["pending_action"] is None for c in choices)
