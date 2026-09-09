@@ -322,3 +322,89 @@
   color: var(--text-sub);
   margin: var(--sp-2) 0 0;
 }
+
+/* ── 어느 쪽에 가까운가 (2026-09-09) ─────────────────────────── */
+
+.lean {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+/* **앞선 쪽도 색으로 판정하지 않는다.** 굵기만 준다 — 초록/빨강을 칠하면
+   아래 "합불 근거가 아니다" 문단을 색이 뒤집는다. */
+.lean strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 2.6rem 1fr 3.4rem;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.barLabel {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.barTrack {
+  height: 6px;
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.barFill,
+.barFillLead {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-ctl);
+  background: var(--border);
+}
+
+.barFillLead {
+  background: var(--accent);
+}
+
+.barPct {
+  font-size: var(--font-caption);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* 얼굴에서 잰 것들. **표정 이름이 아니다** — 표정 분류 모델은 아직 서버에
+   없다(ADR-0032). 여기 있는 것은 mediapipe 로 재는 값이다. */
+.signals {
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.signalRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--font-caption);
+}
+
+.signalKey {
+  color: var(--text-sub);
+}
+
+.signalValue {
+  color: var(--text-sub);
+}
+
+/* 눈에 띄는 값만 진하게. 색으로 좋고 나쁨을 말하지 않는다 */
+.signalMarked {
+  color: var(--text);
+  font-weight: 600;
+}

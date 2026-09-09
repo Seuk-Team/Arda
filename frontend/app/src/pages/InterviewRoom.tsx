@@ -11,6 +11,27 @@ function fmt(v: number | undefined): string {
   return typeof v === 'number' ? `${v.toFixed(1)}%` : '—'
 }
 
+/** 한 쪽의 확률 막대.
+ *
+ *  **초록·빨강을 쓰지 않는다.** 어느 쪽이 큰지는 길이로 이미 보이고, 색까지
+ *  칠하면 글이 말하지 않은 판단("이 사람은 거짓이다")을 색이 말한다.
+ *  앞선 쪽만 진하게 둔다. */
+function _Bar({ label, pct, lead }: { label: string; pct?: number; lead: boolean }) {
+  const v = typeof pct === 'number' ? Math.max(0, Math.min(100, pct)) : 0
+  return (
+    <div className={styles.barRow}>
+      <span className={styles.barLabel}>{label}</span>
+      <span className={styles.barTrack}>
+        <span
+          className={lead ? styles.barFillLead : styles.barFill}
+          style={{ width: `${v}%` }}
+        />
+      </span>
+      <span className={styles.barPct}>{fmt(pct)}</span>
+    </div>
+  )
+}
+
 /* 채용자용 실시간 면접 화면 (docs/02_tasks/실시간-면접-시그널링.md).
 
    **레이아웃 밖에 둔다.** 사이드바·헤더가 있으면 지원자 얼굴이 그만큼 작아지고,
@@ -164,16 +185,51 @@ export default function InterviewRoom() {
               </p>
             ) : (
               <>
-                <div className={styles.pair}>
-                  <div className={styles.metric}>
-                    <span className={styles.metricLabel}>일치</span>
-                    <span className={styles.metricValue}>{fmt(analysis.latest.truth_pct)}</span>
-                  </div>
-                  <div className={styles.metric}>
-                    <span className={styles.metricLabel}>불일치</span>
-                    <span className={styles.metricValue}>{fmt(analysis.latest.lie_pct)}</span>
-                  </div>
-                </div>
+                {/* **어느 쪽에 가까운지를 먼저 적는다.** 숫자 둘만 두면 보는 사람이
+                    머릿속에서 비교해야 하는데, 그 사이에 큰 숫자만 눈에 남는다.
+
+                    모델이 배운 라벨이 실제로 "진실 / 거짓" 이라 그 말을 쓴다.
+                    **다만 그 말이 곧 사실이라는 뜻은 아니다** — 아래 문단이
+                    그것을 적고, 100·0 이면 경고가 하나 더 붙는다. */}
+                <p className={styles.lean}>
+                  모델이 본 쪽:{' '}
+                  <strong>
+                    {analysis.latest.truth_pct >= 50 ? '진실 쪽' : '거짓 쪽'}
+                  </strong>
+                </p>
+
+                <_Bar
+                  label="진실"
+                  pct={analysis.latest.truth_pct}
+                  lead={analysis.latest.truth_pct >= 50}
+                />
+                <_Bar
+                  label="거짓"
+                  pct={analysis.latest.lie_pct}
+                  lead={(analysis.latest.truth_pct ?? 0) < 50}
+                />
+
+                {/* 얼굴에서 실제로 잰 것들. **표정 이름이 아니다** — 표정 분류
+                    모델(ViT)은 아직 서버에 안 올라가 있다(torch 2.5GB · ADR-0032).
+                    여기 있는 것은 mediapipe 로 재는 값이라 지금 바로 나온다. */}
+                {analysis.latest.signals?.length ? (
+                  <ul className={styles.signals}>
+                    {analysis.latest.signals.map((sig) => (
+                      <li key={sig.key} className={styles.signalRow}>
+                        <span className={styles.signalKey}>{sig.key}</span>
+                        <span
+                          className={
+                            sig.flag === 'high' || sig.flag === 'low'
+                              ? styles.signalMarked
+                              : styles.signalValue
+                          }
+                        >
+                          {sig.value}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
 
                 {/* **이 문단을 지우지 말 것.** 숫자만 두면 합불 근거처럼 읽힌다.
                     `InterviewWatch` 와 같은 말을 쓴다 — 같은 값을 두 화면이

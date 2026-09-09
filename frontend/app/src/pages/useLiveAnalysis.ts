@@ -32,9 +32,19 @@ import { FRAME_MS, KIND_AUDIO, KIND_VIDEO, SR, WORKLET, aiWsUrl, sendMedia } fro
    모델은 법정 영상 121개로 배웠다. 100·0 은 확신이 아니라 **제대로 안 배웠다는
    신호**다(cloverky, 2026-09-08). 화면이 그 말을 같이 띄운다. */
 
+/** 얼굴에서 관찰된 것 하나. **표정 이름이 아니다** — 눈 깜빡임·고개 움직임처럼
+    잰 값이다(`feature_extractor.face_signals`). `flag` 는 눈에 띄는 값인지. */
+export type FaceSignal = {
+  key: string
+  value: string
+  flag?: string
+}
+
 export type LiveVerdict = {
   truth_pct?: number
   lie_pct?: number
+  /** 얼굴에서 관찰된 것들. 프레임이 적으면 비어 있다 */
+  signals?: FaceSignal[]
   /** 못 낸 이유. 얼굴이 안 보이거나 소리가 짧을 때 서버가 준다 */
   reason?: string
   at: number
@@ -151,7 +161,14 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
       }
       socket.onmessage = (e) => {
         if (!aliveRef.current) return
-        let m: { type?: string; ok?: boolean; truth_pct?: number; lie_pct?: number; reason?: string }
+        let m: {
+          type?: string
+          ok?: boolean
+          truth_pct?: number
+          lie_pct?: number
+          reason?: string
+          signals?: FaceSignal[]
+        }
         try {
           m = JSON.parse(e.data)
         } catch {
@@ -166,6 +183,7 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
         const v: LiveVerdict = {
           truth_pct: typeof m.truth_pct === 'number' ? m.truth_pct : undefined,
           lie_pct: typeof m.lie_pct === 'number' ? m.lie_pct : undefined,
+          signals: Array.isArray(m.signals) ? m.signals : undefined,
           reason: m.ok === false ? m.reason : undefined,
           at: Date.now(),
         }
