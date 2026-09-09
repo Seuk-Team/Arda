@@ -181,13 +181,27 @@ class TestInterviewProbes:
         assert claims[0]["type"] == "수치"
         assert len(claims[0]["questions"]) == 2
 
-    def test_자기소개서가_없으면_422(
-        self, client: TestClient, application: Application
+    def test_자소서도_이력서도_없으면_422(
+        self, client: TestClient, db, application: Application
     ):
         """모델을 부르기 전에 끝난다 — 뽑을 원문이 없으면 토큰을 쓰지 않는다."""
+        application.skills = None
+        application.career_years = None
+        db.flush()
         resp = self._post(client, application)
         assert resp.status_code == 422
         assert "자기소개서" in resp.json()["message"]
+
+    def test_자소서가_없어도_이력서가_있으면_돈다(
+        self, client: TestClient, application: Application
+    ):
+        """폼에 쓴 경력·기술도 지원자가 쓴 글이다 — 자소서만 보던 때와 달라진 점.
+
+        `application` 픽스처에 경력 3년·기술 3개가 들어 있다. 전에는 이걸 두고도
+        "뽑을 원문이 없다"며 422 였다.
+        """
+        resp = self._post(client, application)
+        assert resp.status_code == 200
 
     def test_빈_목록도_200(self, client: TestClient, db, application: Application):
         """감상·다짐만 쓴 자기소개서. 실패가 아니라 '뽑을 게 없음' 이다."""

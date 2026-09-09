@@ -66,12 +66,16 @@ def sources_of(app, db=None) -> dict[str, str]:
         elif f.kind == "resume" and resume_file is None:
             resume_file = extract_text(f)
 
-    # 폼에 직접 쓴 경력·기술도 이력서와 같은 자리다
+    # 폼에 직접 쓴 경력·기술도 이력서와 같은 자리다.
+    #
+    # **`skills` 는 배열이라 그대로 넣으면 `['Python', 'FastAPI']` 가 프롬프트에
+    # 들어간다.** 모델이 그 대괄호까지 옮겨 적으면 인용 대조(`_parse_claims`)가
+    # 어긋나고, 면접관이 자소서에서 못 찾는 문장이 된다.
     resume_parts = [
         part
         for part in (
-            f"[경력]\n{app.experience}" if getattr(app, "experience", None) else None,
-            f"[기술]\n{app.skills}" if getattr(app, "skills", None) else None,
+            f"[경력] {app.career_years}년" if app.career_years else None,
+            f"[기술] {', '.join(app.skills)}" if app.skills else None,
             resume_file,
         )
         if part
