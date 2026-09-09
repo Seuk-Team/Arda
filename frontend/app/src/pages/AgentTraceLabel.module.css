@@ -1,0 +1,200 @@
+/* 담당자 라벨 UI 스타일. 값은 tokens.css (05-design §1~§5). 하드코딩 없음. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-lg);
+  color: var(--text);
+}
+
+.sub {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+}
+
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.filterBtn {
+  border-radius: var(--r-pill);
+  font-size: var(--font-sm);
+}
+
+/* ── 카드 ─────────────────────────────────────────────
+   라벨 상태에 따라 왼쪽 색 띠가 바뀐다 — 목록에서 훑어 라벨 분포를 눈으로 잡는다. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--r-card);
+  background: var(--bg-elev);
+}
+
+.v_unlabeled { border-left-color: var(--border); }
+.v_good      { border-left-color: var(--ok, #16a34a); }
+.v_needs_fix { border-left-color: var(--ai, #d97706); }
+.v_bad       { border-left-color: var(--danger, #dc2626); }
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.id {
+  font-family: var(--mono, monospace);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.meta {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid currentColor;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  background: var(--bg-sunken);
+}
+
+/* ── 턴 (담당자 · 아르 · 도구) ─────────────────────────── */
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.turnLabel {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.turnBody {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--bg-sunken);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.toolList {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+
+.toolItem {
+  font-size: var(--font-caption);
+  color: var(--text);
+  word-break: break-all;
+}
+
+.toolItem code {
+  font-family: var(--mono, monospace);
+  color: var(--text-sub);
+}
+
+/* ── 액션 (correction textarea + 3 버튼) ───────────────── */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: var(--border-w) solid var(--border);
+}
+
+.correctionForm {
+  display: contents;
+}
+
+.correction {
+  width: 100%;
+  padding: var(--sp-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  font-family: var(--sans);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  color: var(--text);
+  resize: vertical;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+.btnGood, .btnFix, .btnBad {
+  min-width: 96px;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-3);
+}
+
+.empty {
+  padding: var(--sp-4);
+  text-align: center;
+  color: var(--text-sub);
+  font-size: var(--font-sm);
+}
+
+.error {
+  padding: var(--sp-3);
+  border: var(--border-w) solid var(--danger);
+  border-radius: var(--r-card);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+}
