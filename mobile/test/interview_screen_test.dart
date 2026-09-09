@@ -44,6 +44,7 @@ InterviewPublic interviewOf({
   FakeCameraService camera,
   FakeMicService mic,
   FakeInterviewSocket socket,
+  List<FakeInterviewSocket> sockets,
 })
 host({
   InterviewPublic? interview,
@@ -56,7 +57,15 @@ host({
   );
   final camera = FakeCameraService(opensAs: opensAs, opening: cameraOpening);
   final mic = FakeMicService(failsWith: micFails);
-  final socket = FakeInterviewSocket();
+  final sockets = <FakeInterviewSocket>[];
+  FakeInterviewSocket open() {
+    final s = FakeInterviewSocket();
+    sockets.add(s);
+    return s;
+  }
+
+  final socket = open();
+  var opened = 0;
   return (
     widget: MaterialApp(
       home: InterviewScreen(
@@ -64,13 +73,19 @@ host({
         portal: portal,
         camera: camera,
         mic: mic,
-        openSocket: (_) => socket,
+        // 첫 번째는 미리 만들어 둔 것을, **두 번째부터는 새 것을** 준다 —
+        // 다시 붙는 것을 시험이 볼 수 있게
+        openSocket: (_) {
+          opened += 1;
+          return opened == 1 ? socket : open();
+        },
       ),
     ),
     portal: portal,
     camera: camera,
     mic: mic,
     socket: socket,
+    sockets: sockets,
   );
 }
 
@@ -95,6 +110,17 @@ Future<void> settleLive(WidgetTester tester) async {
   for (var i = 0; i < 2; i++) {
     await tester.pumpAndSettle();
   }
+}
+
+/// 다시 붙기를 기다린다.
+///
+/// 정리(구독 취소·소켓 닫기)가 몇 겹이고 그 뒤에 **초 단위로 기다렸다가** 다시
+/// 붙는다. 시계를 몇 번 밀어 주지 않으면 그 자리를 못 지나간다.
+Future<void> settleReconnect(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(seconds: 2));
+  }
+  await settleLive(tester);
 }
 
 /// 앱을 벗어난다. **한 칸씩 옮겨야 한다** — resumed 에서 paused 로 건너뛰면
@@ -233,6 +259,7 @@ void main() {
         FakeCameraService camera,
         FakeMicService mic,
         FakeInterviewSocket socket,
+        List<FakeInterviewSocket> sockets,
         FakeApplicantPortalRepository portal,
       })
     >
@@ -254,6 +281,7 @@ void main() {
         camera: h.camera,
         mic: h.mic,
         socket: h.socket,
+        sockets: h.sockets,
         portal: h.portal,
       );
     }
@@ -376,15 +404,53 @@ void main() {
       expect(h.portal.calls, isNot(contains('finish:tok')));
     });
 
-    testWidgets('연결이 끊기면 조용히 넘기지 않는다', (tester) async {
+    testWidgets('서버가 이유를 말하고 끊으면 그대로 알린다', (tester) async {
       usePhone(tester);
       final h = await startedAt(tester);
 
-      h.socket.emit(const InterviewFailed('연결이 끊겼습니다. 다시 들어와 주세요'));
+      // `retryable` 이 아니다 — 다시 붙어도 같은 답이 온다
+      h.socket.emit(const InterviewFailed('진행 중인 면접이 아닙니다'));
+      await settleLive(tester);
+
+      expect(find.text('진행 중인 면접이 아닙니다'), findsOneWidget);
+      expect(find.text('연결 실패'), findsOneWidget);
+      // 다시 붙지 않는다
+      expect(h.sockets, hasLength(1));
+    });
+
+    // 2026-09-09. 워커가 전사 문제로 재시작하면 소켓이 그냥 끊겼는데, 앱이
+    // 거기서 포기했다. PROTOCOL.md 는 "재접속만 하면 아직 답하지 않은 가장 앞
+    // 질문부터 이어진다" 고 적어 두었다 — 그걸 앱이 안 하고 있었다.
+    testWidgets('그냥 끊긴 것이면 다시 붙는다 — 마이크·카메라는 놓지 않는다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+      final micStopsBefore = h.mic.stops;
+
+      h.socket.emit(
+        const InterviewFailed('연결이 끊겼습니다. 다시 잇는 중…', retryable: true),
+      );
+      await settleReconnect(tester);
+
+      expect(h.sockets, hasLength(2));
+      // **마이크를 놓지 않았다** — 놓으면 다시 붙어도 소리가 안 간다
+      expect(h.mic.stops, micStopsBefore);
+      expect(h.camera.stops, 0);
+    });
+
+    testWidgets('다시 붙어 질문이 오면 오류 표시가 사라진다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.socket.emit(
+        const InterviewFailed('연결이 끊겼습니다. 다시 잇는 중…', retryable: true),
+      );
+      await settleReconnect(tester);
+
+      h.sockets.last.emit(const InterviewQuestion(text: '이어서 질문입니다.', seq: 2));
       await tester.pumpAndSettle();
 
-      expect(find.text('연결이 끊겼습니다. 다시 들어와 주세요'), findsOneWidget);
-      expect(find.text('연결 실패'), findsOneWidget);
+      expect(find.text('이어서 질문입니다.'), findsOneWidget);
+      expect(find.text('연결 실패'), findsNothing);
     });
 
     testWidgets('면접 중에 카메라가 끊기면 조용히 넘기지 않는다', (tester) async {

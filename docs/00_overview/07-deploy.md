@@ -391,6 +391,39 @@ uv run python scripts/prefetch_models.py --stt
 
 **캐시 경로가 빌드와 런타임에서 같아야 의미가 있다.** 볼륨으로 덮어쓰면 구운 것이 가려진다 — `HF_HOME` 을 볼륨 밖에 두거나, 볼륨 쪽에 다시 받아라.
 
+## 실시간 면접 STT — CPU 프로덕션에서는 `int8` 이 정답 (2026-09-09 실측)
+
+`ai/lie-detection` 의 실시간 전사(`interview_ws.py`)는 `STT_MODEL=large-v3-turbo` 만 넣으면 켜지지만, **`STT_COMPUTE_TYPE` 을 명시하지 않으면 CPU 에서 `float32` 로 잡혀 컨테이너를 죽인다.** dmesg OOM 5회 재현·로컬 벤치까지 근거가 남았다:
+
+| 항목 | `float32`(옛 default) | **`int8`(새 default)** |
+|---|---:|---:|
+| 로드 시 프로세스 RSS 증가 | 3,835 MB | **891 MB** (1/4) |
+| dmesg 상 컨테이너 kill 순간 RSS | 3,092 MB · 3,902 MB (5회 관측) | — (안 죽음) |
+| 로드 후 컨테이너 실사용(t3.large) | (OOM Kill) | 223 MB |
+| 22.58초 오디오 전사 시간(CPU) | 12.83초 | **5.59초** (2.3배) |
+| 한국어 정확도(짧은 한 문장, 육안) | 최고 | **동일** |
+
+로컬 벤치는 `infra/gpu/stt_bench.py` 참고(RTX 없는 노트북에서 `faster-whisper 1.2.1 + CT2 4.8.2` 로).
+
+**CPU 에서 int8 이 오히려 빠른 이유**: CT2(ctranslate2)가 CPU 의 AVX2 VNNI 명령어로 int8 dense matmul 을 float32 보다 빠르게 돌린다. Whisper 는 대부분 연산이 attention·MLP 의 dense matmul 이라 이득이 특히 크다. 한국어 WER 손실은 공식 벤치 0.1-0.5%p 로 사람이 못 알아챈다.
+
+**설정** — 이제 `STT_COMPUTE_TYPE` 을 안 넣어도 `interview_ws.py` 가 CPU 감지 시 자동으로 `int8` 로 간다:
+
+```env
+# CPU (지금 프로덕션 t3.large)
+STT_MODEL=large-v3-turbo
+# STT_DEVICE·STT_COMPUTE_TYPE 안 넣으면 cpu · int8 자동
+
+# GPU 로 옮길 때
+STT_MODEL=large-v3-turbo
+STT_DEVICE=cuda
+STT_COMPUTE_TYPE=float16
+```
+
+**mem_limit** — 지난 두 주간 시도한 상향(1.5→2→2.5→3→4g) 은 원인 오진이었고, `int8` 로 넘어간 뒤 실사용이 223 MB 뿐이라 `mem_limit: 2g` 로 되돌렸다. 처리 피크·안전 여유 감안한 값이다(대안 1.5g).
+
+**서버 이력 (2026-09-09)** — 원인이 코드 default 였다는 것을 알기까지 5번의 mem 상향과 t3.medium → t3.large 이관까지 갔다(PR #103·#105·#110·#112·#114·#115·#116·#118). 근본 해결은 코드 default 를 CPU 케이스에 맞춘 것 하나였다.
+
 ## 2026-09-01 재배포 (팀장)
 
 `ba78a9d` 기준. `git archive main` → scp → 서버에서 tar 해제 → `up -d --build`.

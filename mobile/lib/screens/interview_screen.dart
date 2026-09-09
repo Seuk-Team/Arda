@@ -124,6 +124,12 @@ class _InterviewScreenState extends State<InterviewScreen>
   StreamSubscription<Uint8List>? _video;
 
   LivePhase? _phase;
+
+  /// 다시 붙어 본 횟수. **한없이 시도하지 않는다** — 서버가 정말 죽었으면
+  /// 지원자에게 그렇다고 말해 줘야 한다
+  int _retries = 0;
+  static const int _retryMax = 5;
+
   String? _liveQuestion;
   int? _liveSeq;
 
@@ -297,9 +303,11 @@ class _InterviewScreenState extends State<InterviewScreen>
     try {
       final pcm = await _mic.start();
       if (!mounted) return;
+      // **`socket` 이 아니라 `_socket` 에 보낸다.** 다시 붙을 때 소켓만
+      // 갈아 끼우면 마이크·카메라는 그대로 이어진다
       _audio = pcm.listen(
         (chunk) {
-          socket.sendAudio(chunk);
+          _socket?.sendAudio(chunk);
           _measure(chunk);
         },
         onError: (Object _) {},
@@ -348,11 +356,41 @@ class _InterviewScreenState extends State<InterviewScreen>
   void _attachFrames(InterviewSocket socket) {
     _video?.cancel();
     _video = _camera.frames().listen(
-      socket.sendVideo,
+      (jpeg) => _socket?.sendVideo(jpeg),
       onError: (Object _) {},
       onDone: () => _video = null,
       cancelOnError: false,
     );
+  }
+
+  /// 끊긴 소켓을 다시 잇는다. **마이크·카메라는 놓지 않는다.**
+  ///
+  /// 워커가 재시작하면(오늘 전사 문제로 실제로 그랬다) 그대로 두면 면접이
+  /// 거기서 끝난다. 다시 붙으면 **아직 답하지 않은 가장 앞 질문부터** 이어진다
+  /// (PROTOCOL.md 「끊겼을 때」) — 지원자가 처음부터 다시 하지 않아도 된다.
+  Future<void> _reconnect() async {
+    if (!mounted || widget.token == null) return;
+    _retries += 1;
+    // **치우는 것을 기다리지 않는다.** 자리를 먼저 비우고, 닫히는 것은 알아서
+    // 닫히게 둔다 — 기다리면 그 사이에도 소리·얼굴이 죽은 소켓으로 나간다
+    final old = _socket;
+    final events = _events;
+    _socket = null;
+    _events = null;
+    events?.cancel().ignore();
+    old?.close().ignore();
+
+    // 워커가 다시 뜨는 데 몇 초가 걸린다. 1·2·3…초로 늘려 가며 기다린다
+    await Future<void>.delayed(Duration(seconds: _retries));
+    if (!mounted || _socket != null) return;
+
+    final socket =
+        widget.openSocket?.call(widget.token!) ??
+        LiveInterviewSocket(widget.token!);
+    _socket = socket;
+    _events = socket.events.listen(_onLive);
+    _attachFrames(socket);
+    if (mounted) setState(() => _phase = LivePhase.preparing);
   }
 
   void _onLive(InterviewEvent event) {
@@ -363,6 +401,9 @@ class _InterviewScreenState extends State<InterviewScreen>
           _liveQuestion = text;
           _liveSeq = seq;
           _liveNote = null;
+          _error = null;
+          // 질문이 왔다 = 잘 붙었다. 다음 사고를 위해 횟수를 되돌린다
+          _retries = 0;
           _phase = LivePhase.waiting;
         case InterviewListening():
           _phase = LivePhase.listening;
@@ -379,9 +420,21 @@ class _InterviewScreenState extends State<InterviewScreen>
           _phase = LivePhase.failed;
       }
     });
+
     // **끝났으면 여기서 놓는다.** 세션은 서버(워커)가 이미 닫았으므로
     // `finish` 를 또 부르지 않는다
-    if (event is InterviewDone || event is InterviewFailed) {
+    if (event is InterviewDone) {
+      _stopLive().ignore();
+      _camera.stop();
+      return;
+    }
+
+    if (event is InterviewFailed) {
+      // 다시 붙어 볼 만하면 붙는다 — 마이크·카메라는 그대로 두고 소켓만
+      if (event.retryable && _retries < _retryMax) {
+        _reconnect().ignore();
+        return;
+      }
       _stopLive().ignore();
       _camera.stop();
     }
