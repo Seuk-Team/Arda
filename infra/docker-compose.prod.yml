@@ -4,6 +4,13 @@
 # 컨테이너 로그 상한 (2026-09-07). 29GB 디스크에 상한 없이 쌓이면 09/01 처럼 배포가
 # 디스크 고갈로 죽는다. 서비스당 20MB × 3 = 최대 60MB. 오래된 로그가 필요하면
 # 그때 CloudWatch 로 보내지, 여기서 더 키우지 않는다.
+# 프로젝트 이름 고정 (2026-09-09). compose 는 이름을 안 주면 **파일이 있는 폴더명** 을
+# 쓴다 — 파일을 infra/ 아래로 옮기자 `arda-*` 옆에 `infra-*` 컨테이너·볼륨·네트워크가
+# 통째로 한 벌 더 생겼고 (infra_pgdata 는 빈 DB), api·caddy·n8n 은 포트 충돌로 못 떴다.
+# 이름을 박아 두면 파일을 어디로 옮겨도 arda-api-1 · arda_pgdata · arda_default 를 그대로
+# 쓴다. deploy-arda.sh 의 `-p arda` 와 같은 값이어야 한다.
+name: arda
+
 x-logging: &default-logging
   driver: json-file
   options:
