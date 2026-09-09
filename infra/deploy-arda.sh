@@ -21,12 +21,17 @@ REMOTE=$(git rev-parse origin/main)
 LOG=/home/ubuntu/deploy.log
 echo "$(date -Is) deploy start: $LOCAL -> $REMOTE" >> "$LOG"
 git merge --ff-only origin/main >> "$LOG" 2>&1
+# compose 파일은 저장소 안 `infra/docker-compose.prod.yml` 이다 (root 아님).
+# 이전에는 이 스크립트가 `-f docker-compose.prod.yml` (root) 로 참조하면서 서버에
+# 남아 있던 옛 사본 `~/arda/docker-compose.prod.yml` (Sep 8 이전) 를 계속 썼다.
+# 결과: compose 변경(#103 env_file/mem_limit 등)이 배포에 반영되지 않았다.
+# 서버의 옛 사본 삭제와 함께 이 경로를 명시적으로 고정한다.
 # 빌드를 up 과 분리 — 빌드가 깨져도 돌던 컨테이너는 안 죽는다 (팀 07-deploy 교훈)
-docker compose -f docker-compose.prod.yml build >> "$LOG" 2>&1
+docker compose -f infra/docker-compose.prod.yml build >> "$LOG" 2>&1
 # 스키마 이행 (기동 전에) — 컬럼 추가/변경은 create_all 이 못 함. #17
 echo "$(date -Is) alembic upgrade..." >> "$LOG"
-docker compose -f docker-compose.prod.yml run --rm api /app/.venv/bin/alembic upgrade head >> "$LOG" 2>&1
-docker compose -f docker-compose.prod.yml up -d >> "$LOG" 2>&1
+docker compose -f infra/docker-compose.prod.yml run --rm api /app/.venv/bin/alembic upgrade head >> "$LOG" 2>&1
+docker compose -f infra/docker-compose.prod.yml up -d >> "$LOG" 2>&1
 sleep 10
 if curl -sf http://localhost:8000/health >> "$LOG" 2>&1; then
   echo "$(date -Is) deploy ok: $REMOTE" >> "$LOG"
