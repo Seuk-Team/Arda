@@ -47,20 +47,24 @@ SILENCE_END_SEC = 0.8
 # 이보다 조용하면 무음으로 본다. 마이크·환경에 따라 달라서 절대값으로 두지 않고
 # 배경 소음에서 기준을 잡는다(`_SpeechDetector`).
 NOISE_MARGIN = 2.5
-# 보정에 쓸 조각 수(50ms 단위). 0.5초쯤이면 방 소음의 중앙값이 잡힌다.
-CALIB_CHUNKS = 10
+# 보정에 쓸 시간. 0.5초쯤이면 방 소음의 중앙값이 잡힌다.
+#
+# **조각 수가 아니라 초로 센다.** 전에는 "50ms 조각 10개"로 세어, 클라이언트가
+# 다른 크기로 보내면 기준이 통째로 어긋났다. 실제로 앱(#104)이 이 값에 맞추려고
+# 1600바이트로 다시 잘라 보내고 있었다 — 맞춰야 하는 쪽은 서버다.
+CALIB_SEC = 0.5
 # **이보다 작은 값은 소리로 세지 않는다.** 폰은 `getUserMedia` 직후 첫 버퍼들을
 # 0 으로 주는데, 그것으로 바닥값을 잡으면 임계값이 125 로 앉아 생활 소음에도
 # 계속 "말하는 중"이 된다(2026-09-08 운영 실측).
 MIN_NOISE = 50.0
-# 바닥값을 다시 잡을 때 보는 최근 조각 수(50ms × 40 = 2초)와 백분위.
+# 바닥값을 다시 잡을 때 보는 최근 구간과 백분위.
 # 하위 백분위라 창에 말소리가 섞여도 조용한 쪽이 바닥으로 남는다.
-NOISE_WINDOW = 40
+NOISE_WINDOW_SEC = 2.0
 NOISE_PERCENTILE = 25
-# 소리가 한 번도 안 내려갈 때 바닥값을 조각마다 올리는 비율(50ms 당 0.4% = 초당 8%).
+# 소리가 한 번도 안 내려갈 때 바닥값을 올리는 비율(초당 8%).
 # 진짜 말은 낱말 사이에서 내려가 이 값이 쌓이지 않는다. 쌓이는 것은 바닥값이
 # 잘못 잡혀 생활 소음을 말로 보고 있을 때뿐이고, 그때 몇 초 만에 빠져나온다.
-NOISE_CREEP = 1.004
+NOISE_CREEP_PER_SEC = 1.08
 # 이 길이 아래는 답변으로 보지 않는다 — 기침·문 닫는 소리로 질문이 넘어가면 안 된다.
 MIN_SPEECH_SEC = 0.7
 # 아무리 길어도 여기서 끊는다. 무제한이면 워커 한 자리가 영영 잡힌다.
@@ -139,7 +143,10 @@ class _SpeechDetector:
     def __init__(self) -> None:
         self._noise: float | None = None
         self._calib: list[float] = []
-        self._recent: deque[float] = deque(maxlen=NOISE_WINDOW)
+        # (소리 크기, 그 조각의 길이[초]). 조각 크기가 달라도 창이 2초로 유지된다.
+        self._recent: deque[tuple[float, float]] = deque()
+        self._recent_sec = 0.0
+        self._calib_sec = 0.0
         self._speaking = False
         self._silence_started: float | None = None
         self._speech_started: float | None = None
@@ -154,15 +161,19 @@ class _SpeechDetector:
         """지금 바닥값. 로그·시험에서 본다."""
         return self._noise
 
-    def _relevel(self, level: float, now: float) -> None:
+    def _relevel(self, level: float, secs: float, now: float) -> None:
         """조용한 값들로 바닥값을 다시 잡는다.
 
         하위 백분위를 쓴다 — 창 안에 말소리가 섞여 있어도 조용한 쪽이 바닥이다.
+        창은 **조각 수가 아니라 초**로 잡는다(`NOISE_WINDOW_SEC`).
         """
-        self._recent.append(level)
-        if len(self._recent) < NOISE_WINDOW:
+        self._recent.append((level, secs))
+        self._recent_sec += secs
+        while self._recent_sec > NOISE_WINDOW_SEC and len(self._recent) > 1:
+            self._recent_sec -= self._recent.popleft()[1]
+        if self._recent_sec < NOISE_WINDOW_SEC:
             return
-        floor = float(np.percentile(self._recent, NOISE_PERCENTILE))
+        floor = float(np.percentile([lv for lv, _ in self._recent], NOISE_PERCENTILE))
         # 예열 무음(0 근처)만 담긴 창으로 바닥을 내리지 않는다
         if floor >= MIN_NOISE:
             self._noise = floor
@@ -175,13 +186,15 @@ class _SpeechDetector:
         if not pcm:
             return None
         level = _rms(pcm)
+        secs = len(pcm) / (SAMPLE_RATE * SAMPLE_WIDTH)
         now = time.monotonic()
 
         # 접속 초반. **무음은 세지 않는다** — 마이크가 아직 안 켜진 구간이다.
         if self._noise is None:
             if level >= MIN_NOISE:
                 self._calib.append(level)
-            if len(self._calib) < CALIB_CHUNKS:
+                self._calib_sec += secs
+            if self._calib_sec < CALIB_SEC:
                 return None
             self._noise = max(MIN_NOISE, float(np.median(self._calib)))
             logger.info("소리 기준 잡음: 바닥 %.0f · 임계 %.0f",
@@ -193,7 +206,7 @@ class _SpeechDetector:
         # 말하고 있지 않은 동안의 값이 곧 배경 소음이다. 이것이 처음 보정이
         # 틀렸을 때의 회복 경로다.
         if not loud and not self._speaking:
-            self._relevel(level, now)
+            self._relevel(level, secs, now)
 
         if loud:
             # **갇힘 탈출.** 소리가 한 번도 내려가지 않으면 그건 말이 아니라
@@ -202,7 +215,9 @@ class _SpeechDetector:
             # 여기서 바닥값을 조금씩 올려 스스로 빠져나온다. `level / NOISE_MARGIN`
             # 로 상한을 두어 지나치게 올라가지 않는다(올린 순간 조용으로 바뀐다).
             if self._speaking:
-                self._noise = min(self._noise * NOISE_CREEP, level / NOISE_MARGIN)
+                self._noise = min(
+                    self._noise * NOISE_CREEP_PER_SEC**secs, level / NOISE_MARGIN
+                )
 
             self._silence_started = None
             if not self._speaking:
