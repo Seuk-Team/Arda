@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -512,6 +513,58 @@ def _stt_model():
                 STT_MODEL, STT_DEVICE,
             )
     return _stt
+
+
+# 전사 하나를 기다려 주는 한계. 넘으면 포기하고 자리표시자를 남긴다.
+#
+# **여기서 안 끊으면 면접이 거기서 멈춘다.** 답변이 저장되지 않아 다음 질문이
+# 안 나오고, 그 사이 uvicorn 이 핑 응답을 못 받아 WebSocket 을 먼저 닫아 버린다
+# (2026-09-09 실측: `processing` 뒤 40초 무응답 → `closed 1011`).
+# 45초는 상한 발화(180초)를 int8 실측 속도(0.25배)로 돌린 값에 여유를 더한 것이다.
+STT_TIMEOUT_SEC = float(os.getenv("STT_TIMEOUT_SEC", "45"))
+
+
+def warm_stt() -> None:
+    """전사 모델을 미리 올려 둔다. **첫 지원자가 로딩을 물지 않게.**
+
+    `large-v3-turbo` 를 처음 올리는 데 CPU 로 약 26초 걸린다(suvisdev 실측).
+    그 시간을 첫 답변이 물면, 답변이 저장되기 전에 WebSocket 이 먼저 죽는다 —
+    2026-09-09 실기기에서 그렇게 면접이 첫 질문에서 멈췄다.
+
+    **실패해도 서비스를 죽이지 않는다.** `model()`(판정 모델)은 없으면 뜰 때
+    죽는 편이 낫지만, 전사는 없어도 면접이 돈다(자리표시자로 내려앉는다).
+    """
+    if not STT_MODEL:
+        logger.info("전사 꺼짐 — 예열하지 않는다")
+        return
+    started = time.monotonic()
+    try:
+        if _stt_model() is None:
+            logger.warning("전사 모델 예열 실패 — 자리표시자로 돈다")
+            return
+    except Exception:
+        logger.exception("전사 모델 예열 중 오류 — 자리표시자로 돈다")
+        return
+    logger.info("전사 모델 예열 완료: %.1f초", time.monotonic() - started)
+
+
+async def transcribe_async(pcm: bytes) -> str:
+    """전사를 딴 스레드에서 하되 **[STT_TIMEOUT_SEC] 를 넘기면 포기한다.**
+
+    포기하면 자리표시자를 돌려준다 — 빈 문자열이 아니다. 빈 문자열은 "말이 안
+    담겼다" 는 뜻이라 서버가 답변을 저장하지 않고 다시 답하게 하는데, 시간이
+    모자란 것은 지원자 잘못이 아니다. 저장하고 다음 질문으로 넘어가는 편이 낫다.
+    """
+    seconds = len(pcm) / (SAMPLE_RATE * SAMPLE_WIDTH)
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(transcribe, pcm), timeout=STT_TIMEOUT_SEC
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "전사가 %.0f초를 넘겨 포기한다 (발화 %.1f초)", STT_TIMEOUT_SEC, seconds
+        )
+        return f"[전사 지연 · 발화 {seconds:.1f}초]"
 
 
 def transcribe(pcm: bytes) -> str:
