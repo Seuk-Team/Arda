@@ -10,6 +10,7 @@
 //   끝나면    → 놓는다
 //   앱을 벗어나면 → 놓고, 돌아오면 다시 연다
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:arda/data/camera_service.dart';
@@ -48,11 +49,12 @@ host({
   InterviewPublic? interview,
   CameraStatus opensAs = CameraStatus.live,
   MicUnavailable? micFails,
+  Completer<void>? cameraOpening,
 }) {
   final portal = FakeApplicantPortalRepository(
     interviews: {'tok': interview ?? interviewOf()},
   );
-  final camera = FakeCameraService(opensAs: opensAs);
+  final camera = FakeCameraService(opensAs: opensAs, opening: cameraOpening);
   final mic = FakeMicService(failsWith: micFails);
   final socket = FakeInterviewSocket();
   return (
@@ -372,6 +374,34 @@ void main() {
       expect(find.text('촬영 중'), findsNothing);
       expect(find.text('카메라를 쓸 수 없습니다'), findsOneWidget);
     });
+
+    // 2026-09-09 실기기 회귀. 권한을 **허용한** 지원자에게 "마이크 권한이 꺼져
+    // 있습니다" 가 떴다. 카메라가 권한 창을 띄우고 있는 동안 마이크를 열려고 해서,
+    // 안드로이드가 요청 두 개를 동시에 못 받고 마이크 쪽에 거짓을 돌려준 것이다.
+    testWidgets('권한 창이 닫히기 전에는 마이크를 열지 않는다', (tester) async {
+      usePhone(tester);
+      final gate = Completer<void>();
+      final h = host(
+        interview: interviewOf(
+          status: InterviewStatus.inProgress,
+          consentRequired: false,
+          question: '자기소개를 해 주세요.',
+          seq: 1,
+        ),
+        cameraOpening: gate,
+      );
+      await tester.pumpWidget(h.widget);
+      await settleLive(tester);
+
+      // 카메라가 아직 여는 중이다 — 마이크에 손대면 안 된다
+      expect(h.camera.starts, 1);
+      expect(h.mic.starts, 0);
+
+      gate.complete();
+      await settleLive(tester);
+
+      expect(h.mic.starts, 1);
+    });
   });
 
   // 마이크가 막힌 지원자. **면접을 못 보게 하지 않는다** — 기기 사정이 지원
@@ -409,6 +439,13 @@ void main() {
       final h = await blockedAt(tester);
 
       expect(h.socket.closed, isTrue);
+    });
+
+    testWidgets('다시 시도할 자리를 준다 — 막다른 길로 두지 않는다', (tester) async {
+      usePhone(tester);
+      await blockedAt(tester);
+
+      expect(find.text('마이크로 다시 시도'), findsOneWidget);
     });
 
     testWidgets('답변이 비면 제출할 수 없다', (tester) async {
