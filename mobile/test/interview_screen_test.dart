@@ -288,6 +288,29 @@ void main() {
       expect(h.mic.starts, 1);
     });
 
+    // 2026-09-09. 말은 하는데 질문이 안 넘어갈 때, 화면만 보고는 마이크가
+    // 안 잡히는 것인지 서버가 안 받는 것인지 알 수 없었다.
+    testWidgets('소리가 하나도 안 들어오면 그렇다고 말한다', (tester) async {
+      usePhone(tester);
+      await startedAt(tester);
+
+      expect(
+        find.textContaining('마이크에서 소리가 들어오지 않습니다'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('소리가 들어오면 크기 막대로 바뀐다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.mic.sink.add(Uint8List(micChunkBytes));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('마이크에서 소리가 들어오지 않습니다'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    });
+
     testWidgets('얼굴 프레임도 같은 소켓으로 나간다', (tester) async {
       usePhone(tester);
       final h = await startedAt(tester);
