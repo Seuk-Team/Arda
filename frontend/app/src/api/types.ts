@@ -237,12 +237,23 @@ export interface AgentChatRequest {
   application_id?: number | null
 }
 
-/* 담당자가 골라야 답이 이어지는 갈림길 하나 (동명이인). 버튼으로 그린다.
-   누르면 message(원래 요청) 를 application_id 와 함께 다시 보낸다. */
+/* 담당자가 골라야 답이 이어지는 갈림길 하나 (동명이인). 카드로 그린다.
+   pending_action 이 붙어 오면 카드 안 확인 버튼 딸깍 = 즉시 실행 (agent.confirm 직접).
+   없으면 폴백으로 message(원래 요청) + application_id 를 chat 에 다시 보낸다. */
 export interface AgentChoice {
+  /* 짧은 이름 (fallback 표시용) — 상세는 아래 필드로 */
   label: string
   application_id: number
   message: string
+  /* 카드 안에 사람이 골라야 하는 만큼의 상세를 함께 준다. 서버가 label 로 이어 붙여
+     오던 것을 필드로 분리해, 프론트가 정렬·강조를 마음대로 잡는다. */
+  email: string | null
+  stage_label: string | null
+  career_years: number | null
+  education: string | null
+  /* 있으면 카드 안 확인 버튼 클릭 = agent.confirm(...) 직접 실행. 없으면 message
+     로 chat 을 다시 보내 서버가 pending_action 을 만드는 두 단계 흐름으로 폴백. */
+  pending_action: AgentPendingAction | null
 }
 
 export interface AgentChatResponse {
