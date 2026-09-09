@@ -66,13 +66,12 @@ services:
     # 이 컨테이너도 backend/.env 를 읽는다. STT_MODEL 이 없으면 전사가 꺼지고(#95),
     # 앞으로 붙을 판정 워커→백엔드 콜에 필요한 ARDA_SERVICE_TOKEN 도 같은 이유로 못 받는다.
     env_file: ../backend/.env
-    # 전사 모델(large-v3-turbo) 로드 순간 피크가 예상보다 컸다 — 2g 상한에서 OOM
-    # (2026-09-09 실측, `_stt_model()` 첫 호출 시 컨테이너 kill · Restart=1 OOMKilled=true).
-    # 로드가 통과하면 idle 은 ~1.2GB 로 안정. 로드 순간만 2GB 를 잠깐 넘는다.
-    # 2.5g 로 여유. 서버 총 3.7GB 중 다른 컨테이너(db 30MB · api·worker · caddy ·
-    # n8n 상한 768MB) 합쳐도 남는 여유는 ~400MB — 얇지만 STT 가 살아 있으려면 필요.
-    # 다음 실측에서 또 죽으면 3g 로. 서비스 축소 (n8n mem_limit 하향) 로도 대응 가능.
-    mem_limit: 2500m
+    # 전사 모델(large-v3-turbo) 로드 순간 피크가 컸다 — t3.medium 4GB 상 2.5g 에서
+    # 도 OOM (2026-09-09 오전 두 번 실측). t3.large 8GB 이관 후 3g 로 여유.
+    # 서버 총 7.6GB 중 다른 컨테이너 (db·api·worker·caddy·n8n 상한 768MB) 합쳐 ~1GB,
+    # 여기에 lie-detection 3g 상한 걸어도 3GB+ 여유 남음. 로드 순간 피크 2.5-3GB
+    # 로 관측되면 3g 로 충분. 그 이상이면 4g 로 올릴 여유도 있음.
+    mem_limit: 3g
     restart: unless-stopped
     logging: *default-logging
 
