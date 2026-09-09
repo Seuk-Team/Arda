@@ -82,6 +82,15 @@ dependencies:
   # 에서 돌린다. 색은 얼굴 특징에 안 쓰인다(feature_extractor.face_row).
   image: ^4.9.2
 
+  # flutter_webrtc: 실시간 면접 시그널링 (2026-09-09, §3-1 앱-웹 통일).
+  # 채용자(웹) ↔ 지원자(앱) 1:1 화상. 서버(interview_rtc.py)는 SDP/ICE 만 나른다.
+  # 규격은 [docs/02_tasks/실시간-면접-시그널링.md], 웹은 useInterviewRoom.ts 가
+  # 같은 프로토콜을 쓴다.
+  #
+  # AI 면접(interview_screen.dart)의 camera_service 와 **다른 카메라 세션**이다 —
+  # WebRTC 는 자체 getUserMedia 를 쓰고, 화면이 겹치지 않는 별도 경로다.
+  flutter_webrtc: ^1.6.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
