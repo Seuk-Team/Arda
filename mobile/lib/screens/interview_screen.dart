@@ -34,6 +34,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -128,6 +129,17 @@ class _InterviewScreenState extends State<InterviewScreen>
 
   /// `retry` 안내 — 말이 안 담겼을 때 한 줄
   String? _liveNote;
+
+  /// 마이크가 지금 얼마나 크게 듣고 있는가 (0~1).
+  ///
+  /// **지원자가 볼 수 있어야 한다.** 말은 하고 있는데 소리가 안 들어가는 상황이
+  /// 화면에서는 "아무 일도 안 일어남" 과 똑같이 보인다 — 그러면 지원자는 더 크게
+  /// 말할지, 기다릴지, 나갔다 들어올지를 알 수 없다 (2026-09-09 실기기).
+  double _micLevel = 0;
+
+  /// 마이크에서 조각이 하나라도 들어왔는가. 0 이면 **소리 자체가 안 온다**
+  int _micChunks = 0;
+  DateTime _micDrawn = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// 실시간을 못 써서 **글로 답하는 길로 물러섰다.** 사유 한 줄.
   ///
@@ -286,7 +298,10 @@ class _InterviewScreenState extends State<InterviewScreen>
       final pcm = await _mic.start();
       if (!mounted) return;
       _audio = pcm.listen(
-        socket.sendAudio,
+        (chunk) {
+          socket.sendAudio(chunk);
+          _measure(chunk);
+        },
         onError: (Object _) {},
         cancelOnError: false,
       );
@@ -301,6 +316,31 @@ class _InterviewScreenState extends State<InterviewScreen>
       }
       await _stopLive();
     }
+  }
+
+  /// 조각 하나의 크기를 재서 화면에 반영한다.
+  ///
+  /// 조각마다 다시 그리면 초당 20번이라 아깝다 — **200ms 마다만** 그린다.
+  /// 서버가 소리를 재는 방식과 같은 RMS 다(`interview_ws._rms`).
+  void _measure(Uint8List chunk) {
+    _micChunks++;
+    final samples = chunk.buffer.asInt16List(
+      chunk.offsetInBytes,
+      chunk.lengthInBytes ~/ 2,
+    );
+    if (samples.isEmpty) return;
+    var sum = 0.0;
+    for (final v in samples) {
+      sum += v * v;
+    }
+    final rms = math.sqrt(sum / samples.length);
+    // 사람 목소리가 int16 로 수천이다. 3000 을 가득 찬 것으로 본다
+    final level = math.min(1.0, rms / 3000);
+
+    final now = DateTime.now();
+    if (now.difference(_micDrawn) < const Duration(milliseconds: 200)) return;
+    _micDrawn = now;
+    if (mounted) setState(() => _micLevel = level);
   }
 
   /// 얼굴 프레임을 소켓에 잇는다. **실패해도 조용하다** — 얼굴 분석은 곁들이고,
@@ -484,6 +524,8 @@ class _InterviewScreenState extends State<InterviewScreen>
             seq: _liveSeq,
             question: _liveQuestion,
             note: _liveNote,
+            micLevel: _micLevel,
+            micSilent: _micChunks == 0,
             onFinish: _finish,
           ),
           InterviewStatus.inProgress => _Question(
@@ -753,6 +795,8 @@ class _Live extends StatelessWidget {
     required this.seq,
     required this.question,
     required this.note,
+    required this.micLevel,
+    required this.micSilent,
     required this.onFinish,
   });
 
@@ -760,6 +804,12 @@ class _Live extends StatelessWidget {
   final int? seq;
   final String? question;
   final String? note;
+
+  /// 지금 들어오는 소리 크기 (0~1)
+  final double micLevel;
+
+  /// 마이크에서 조각이 하나도 안 왔다 — **소리 자체가 안 들어온다**
+  final bool micSilent;
   final VoidCallback onFinish;
 
   @override
@@ -813,6 +863,9 @@ class _Live extends StatelessWidget {
           ],
         ),
 
+        const SizedBox(height: AppSpace.s3),
+        _MicBar(level: micLevel, silent: micSilent),
+
         if (note != null) ...[
           const SizedBox(height: AppSpace.s3),
           _Note(text: note!, tone: AppColors.accentText),
@@ -833,6 +886,53 @@ class _Live extends StatelessWidget {
           child: OutlinedButton(
             onPressed: onFinish,
             child: const Text('면접 종료'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 마이크가 지금 듣고 있는 크기.
+///
+/// **말이 안 들어가는 것과 서버가 안 받는 것을 지원자가 구별할 수 있어야 한다.**
+/// 막대가 움직이면 마이크는 되는 것이고, 그래도 질문이 안 넘어가면 그건 서버 쪽
+/// 이야기다. 조각이 하나도 안 오면 아예 그렇게 적는다.
+class _MicBar extends StatelessWidget {
+  const _MicBar({required this.level, required this.silent});
+
+  final double level;
+  final bool silent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (silent) {
+      return _Note(
+        text: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지 확인해 주세요.',
+        tone: AppColors.danger,
+      );
+    }
+    return Row(
+      children: [
+        const Text(
+          '마이크',
+          style: TextStyle(
+            fontFamily: AppType.fontFamily,
+            fontSize: AppType.caption,
+            color: AppColors.textSub,
+          ),
+        ),
+        const SizedBox(width: AppSpace.s2),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: AppShape.ctl,
+            child: LinearProgressIndicator(
+              value: level.clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: AppColors.bgSunken,
+              // **판정 색이 아니다.** 소리가 들어오는지만 보여 준다
+              valueColor: const AlwaysStoppedAnimation(AppColors.accent),
+            ),
           ),
         ),
       ],
