@@ -378,6 +378,51 @@ void main() {
       expect(find.text('촬영 중'), findsOneWidget);
     });
 
+    // 2026-09-09. 전사가 켜진 뒤로 whisper 가 빈 결과를 내면 서버가 답변을
+    // 저장하지 않고 다시 답하라고 한다. 계속 빈 결과면 **지원자는 같은 질문을
+    // 영원히 본다** — 실기기에서 실제로 거기서 못 빠져나왔다.
+    testWidgets('세 번 안 담기면 글로 답할 자리를 준다 — 막다른 길을 만들지 않는다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      for (var i = 0; i < 3; i++) {
+        h.socket.emit(const InterviewRetry('말이 들리지 않았어요. 다시 답변해 주세요'));
+        await tester.pumpAndSettle();
+      }
+      await settleLive(tester);
+
+      expect(find.textContaining('말이 잘 담기지 않습니다.'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('마이크로 다시 시도'), findsOneWidget);
+    });
+
+    testWidgets('두 번째부터는 왜 안 담기는지 같이 알려 준다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      for (var i = 0; i < 2; i++) {
+        h.socket.emit(const InterviewRetry('말이 들리지 않았어요'));
+        await tester.pumpAndSettle();
+      }
+
+      expect(find.textContaining('마이크가 소리를 잘 못 잡고 있을 수 있습니다'), findsOneWidget);
+    });
+
+    testWidgets('다음 질문이 오면 안 담긴 횟수가 지워진다', (tester) async {
+      usePhone(tester);
+      final h = await startedAt(tester);
+
+      h.socket.emit(const InterviewRetry('말이 들리지 않았어요'));
+      await tester.pumpAndSettle();
+      h.socket.emit(const InterviewQuestion(text: '다음 질문입니다.', seq: 2));
+      await tester.pumpAndSettle();
+      h.socket.emit(const InterviewRetry('말이 들리지 않았어요'));
+      await tester.pumpAndSettle();
+
+      // 앞 질문의 횟수가 이어지면 여기서 벌써 글로 물러섰을 것이다
+      expect(find.byType(TextField), findsNothing);
+    });
+
     testWidgets('말이 안 담겼으면 같은 질문을 두고 다시 답하게 한다', (tester) async {
       usePhone(tester);
       final h = await startedAt(tester);
