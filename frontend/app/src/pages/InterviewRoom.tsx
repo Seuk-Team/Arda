@@ -149,16 +149,18 @@ export default function InterviewRoom() {
           <section className={styles.panel}>
             <h2 className={styles.panelTitle}>실시간 분석</h2>
 
-            {analysis.error ? (
-              /* **면접을 막지 않는다.** 분석이 안 되는 것과 면접이 안 되는 것은 다르다 */
-              <p className={styles.empty}>{analysis.error}</p>
-            ) : !remoteStream ? (
+            {/* **값이 있으면 값을 먼저 보여 준다.** 소켓이 끊겼다고 숫자를 감추면
+                그 아래 붙는 100·0 경고까지 같이 사라진다 — 경고 없이 숫자만 본
+                뒤라 더 나쁘다(2026-09-09 실측: 흐름에는 100.0 이 쌓였는데 위는
+                "연결하는 중" 이었다). 대신 **멈춘 값이라고 적는다.** */}
+            {!remoteStream ? (
               <p className={styles.empty}>지원자가 연결되면 시작됩니다.</p>
-            ) : !analysis.connected ? (
-              <p className={styles.empty}>분석 서버에 연결하는 중…</p>
             ) : analysis.latest?.truth_pct === undefined ? (
               <p className={styles.empty}>
-                {analysis.latest?.reason ?? '지원자가 말하기 시작하면 여기에 나타납니다.'}
+                {analysis.error ??
+                  (analysis.connected
+                    ? (analysis.latest?.reason ?? '지원자가 말하기 시작하면 여기에 나타납니다.')
+                    : '분석 서버에 연결하는 중…')}
               </p>
             ) : (
               <>
@@ -190,6 +192,14 @@ export default function InterviewRoom() {
                     <strong>100 / 0 은 확신이 아니라 경고입니다.</strong> 표본이 적어
                     모델이 규칙 대신 외운 자리이고, 사실을 말한 대본과 지어낸 대본이
                     똑같이 100으로 나온 적이 있습니다. 이 값은 근거로 쓰지 마세요.
+                  </p>
+                )}
+
+                {/* 끊긴 채로 옛 숫자를 그대로 두면 지금 값처럼 읽힌다 */}
+                {!analysis.connected && (
+                  <p className={styles.stale}>
+                    {analysis.error ?? '연결이 끊겨 갱신이 멈췄습니다. 다시 붙는 중…'}
+                    {' '}위 숫자는 마지막으로 받은 값입니다.
                   </p>
                 )}
               </>

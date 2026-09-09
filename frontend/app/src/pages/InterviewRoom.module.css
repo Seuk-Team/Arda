@@ -314,3 +314,11 @@
   color: var(--text-sub);
   opacity: 0.75;
 }
+
+/* 끊긴 뒤 남아 있는 숫자에 붙이는 줄. **경고색은 안 쓴다** — 값이 나쁘다는
+   말이 아니라 "지금 값이 아니다" 라는 말이라, 100·0 경고와 헷갈리면 안 된다. */
+.stale {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  margin: var(--sp-2) 0 0;
+}

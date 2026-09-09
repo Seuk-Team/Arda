@@ -64,6 +64,9 @@ const EMPTY: LiveAnalysis = {
 /** 흐름에 남기는 개수. 면접 내내 쌓으면 화면이 길어지기만 한다 */
 const HISTORY_MAX = 30
 
+/** 끊겼을 때 다시 붙어 보는 횟수. 이 뒤로는 오류로 적는다 */
+const RETRY_MAX = 5
+
 /**
  * 상대 영상을 워커에 넘겨 실시간 분석을 받는다.
  *
@@ -92,10 +95,16 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
     let ctx: AudioContext | null = null
     let timer: number | null = null
     let video: HTMLVideoElement | null = null
+    let retryTimer: number | null = null
+    let retries = 0
+    let closing = false
 
     const cleanup = () => {
+      closing = true
       if (timer !== null) window.clearInterval(timer)
       timer = null
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
+      retryTimer = null
       try {
         ws?.close()
       } catch {
@@ -110,14 +119,35 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
       }
     }
 
-    ;(async () => {
+    /* 소켓 하나를 연다. **끊기면 다시 붙는다** — 워커가 재시작하거나 잠깐
+       끊겼을 때 그대로 두면 면접이 끝날 때까지 분석이 영영 멈춘다(2026-09-09
+       실측: 흐름에는 값이 쌓였는데 화면은 "연결하는 중" 에 멈춰 있었다).
+       카메라·마이크 쪽은 살아 있으므로 소켓만 갈아 끼우면 이어진다. */
+    const connect = () => {
+      if (closing || !aliveRef.current) return
       const socket = new WebSocket(aiWsUrl('/ai/ws/live'))
       socket.binaryType = 'arraybuffer'
       ws = socket
 
       socket.onopen = () => {
         if (!aliveRef.current) return
+        retries = 0
         setState((s) => ({ ...s, connected: true, error: null }))
+      }
+      socket.onclose = () => {
+        if (closing || !aliveRef.current) return
+        setState((s) => ({ ...s, connected: false, speaking: false }))
+        if (retries >= RETRY_MAX) {
+          setState((s) => ({ ...s, error: '분석 서버와 연결이 끊겼습니다' }))
+          return
+        }
+        retries += 1
+        // 1초·2초·3초… 로 늘려 가며. 워커가 다시 뜨는 데 몇 초가 걸린다
+        retryTimer = window.setTimeout(connect, 1000 * retries)
+      }
+      socket.onerror = () => {
+        /* 여기서는 상태를 건드리지 않는다 — 곧바로 `onclose` 가 따라오고,
+           다시 붙는 판단은 거기 한 곳에서만 한다 */
       }
       socket.onmessage = (e) => {
         if (!aliveRef.current) return
@@ -147,15 +177,10 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
           history: v.reason ? s.history : [v, ...s.history].slice(0, HISTORY_MAX),
         }))
       }
-      socket.onerror = () => {
-        if (!aliveRef.current) return
-        /* **면접을 막지 않는다.** 분석이 안 붙는 것과 면접이 안 되는 것은 다르다 */
-        setState((s) => ({ ...s, connected: false, error: '분석 서버에 연결하지 못했습니다' }))
-      }
-      socket.onclose = () => {
-        if (!aliveRef.current) return
-        setState((s) => ({ ...s, connected: false, speaking: false }))
-      }
+    }
+
+    ;(async () => {
+      connect()
 
       /* 오디오 — 상대 소리를 그대로 PCM 으로 옮긴다. **스피커로 내보내지 않는다**:
          소리는 `<video>` 가 이미 내고 있어서, 여기서 또 내면 두 번 들린다. */
