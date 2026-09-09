@@ -17,6 +17,7 @@ from app.agent.backends import get_summary_backend
 from app.agent.entity_resolver import resolve_entities
 from app.agent.intent_router import DirectAction, classify
 from app.company import prompt_context as company_prompt_context
+from app.models import AgentTrace
 from app.agent.interview_probe import cover_letter_of, generate_probes
 from app.agent.prompts import render
 from app.agent.runtime import _describe_action, run_agent
@@ -53,6 +54,9 @@ class ChatRequest(BaseModel):
     # 이름 조회를 건너뛰고 이 id 로 확정한다 (2026-09-08 팀장 요청 — "ID 를 손으로
     # 치지 않고 직접 고르게").
     application_id: int | None = None
+    # 대화 스레드 식별자. 프론트가 창을 열 때 발급해 여러 턴에 걸쳐 보낸다.
+    # 없어도 되고, 있으면 agent_traces 에 같은 값으로 묶여 다중 턴 학습에 쓸 수 있다.
+    session_id: str | None = None
 
 
 class ToolCallOut(BaseModel):
@@ -277,6 +281,35 @@ def chat(
     # 비용은 백엔드가 계산해서 실어 보낸다. 여기서 PRICING 표를 다시 조회하면
     # 로컬 모델명이 haiku 단가로 폴백해 있지도 않은 요금이 찍힌다.
     cost = result.cost_usd
+
+    # 학습 데이터 원본으로 남긴다 (ADR-0024 Qwen QLoRA · agent_traces).
+    # 실패해도 대화는 계속되어야 하므로 예외를 삼킨다 — 회고성 저장이 실서비스를
+    # 막지 않는다.
+    try:
+        tool_results = getattr(result, "tool_results", []) or []
+        merged_tools = []
+        for i, tc in enumerate(result.tool_calls):
+            out = tool_results[i].get("output") if i < len(tool_results) and isinstance(tool_results[i], dict) else None
+            merged_tools.append({"name": tc.get("name"), "input": tc.get("input"), "output": out})
+        db.add(AgentTrace(
+            request_id=getattr(request.state, "request_id", None),
+            session_id=body.session_id,
+            turn_index=len(body.history) // 2,
+            user_id=user.id,
+            user_message=body.message,
+            assistant_reply=result.reply or "",
+            history=body.history,
+            tool_calls=merged_tools,
+            pending_action=(pending.model_dump() if pending else None),
+            backend=result.backend or "",
+            model_tag=result.model or "",
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=round(cost, 6),
+        ))
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
 
     return ChatResponse(
         reply=result.reply,
