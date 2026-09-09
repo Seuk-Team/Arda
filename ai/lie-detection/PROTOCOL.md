@@ -114,6 +114,33 @@ await ctx.audioWorklet.addModule('pcm-worklet.js')   // Float32 → Int16 변환
 
 ---
 
+---
+
+## `/ws/live` 는 이제 데모 전용이 아니다 (2026-09-09 · woojeongalex)
+
+**사람 대 사람 화상 면접에서 채용자 화면이 이 소켓을 씁니다.** 지우거나 규격을
+바꾸실 때 알려 주세요.
+
+```
+채용자 브라우저 (/interview-room/{id})
+  └─ 지원자에게서 WebRTC 로 받은 영상·소리를 그대로
+       → wss://…/ai/ws/live   (0x01 PCM · 0x02 JPEG, /ws/interview 와 같은 형식)
+       ← {"type":"live", ok, truth_pct, lie_pct, signals} · speaking · quiet
+```
+
+**왜 지원자 기기가 아니라 채용자 기기가 보내는가**: 화상 면접은 영상이 두
+브라우저 사이를 직접 오가서 워커가 볼 길이 없습니다. 지원자 쪽에서 보내면 판정을
+받는 자리가 지원자 기기가 되어 ADR-0029 가 다시 깨지는데(#97 에서 겪은 것),
+채용자가 **자기가 이미 받아 보고 있는 영상**을 넘기면 그 문제가 아예 없습니다.
+지원자 쪽은 아무것도 더 하지 않습니다.
+
+`/ws/interview/{token}` 쪽(AI 면접)은 그대로입니다 — 그쪽 판정은 워커가
+백엔드(`POST /internal/interview/{token}/verdict`)로 밀어 주시면 됩니다.
+
+프론트는 `frontend/app/src/pages/useLiveAnalysis.ts` 입니다.
+
+---
+
 ## 아직 비어 있는 것
 
 **전사는 붙었지만 기본이 꺼짐이다**(ADR-0032). 서버에 `STT_MODEL` 이 없으면

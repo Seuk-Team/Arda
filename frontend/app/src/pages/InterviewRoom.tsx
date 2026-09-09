@@ -3,7 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { applications, interviews, postings } from '../api/endpoints'
 import type { InterviewSessionDetail } from '../api/types'
 import styles from './InterviewRoom.module.css'
+import { useLiveAnalysis } from './useLiveAnalysis'
 import { phaseLabel, useInterviewRoom } from './useInterviewRoom'
+
+/** 숫자 한 칸. 값이 없으면 자리만 지킨다 — `InterviewWatch` 와 같은 표기. */
+function fmt(v: number | undefined): string {
+  return typeof v === 'number' ? `${v.toFixed(1)}%` : '—'
+}
 
 /* 채용자용 실시간 면접 화면 (docs/02_tasks/실시간-면접-시그널링.md).
 
@@ -18,8 +24,11 @@ export default function InterviewRoom() {
 
   /* 훅이 돌려주는 것을 통째로 들고 다니지 않고 바로 푼다 — 상태와 ref 가
      한 덩어리로 있으면 React 컴파일러가 상태를 읽는 것까지 ref 접근으로 본다. */
-  const { phase, error, muted, toggleMute, leave, localRef, remoteRef } =
+  const { phase, error, muted, toggleMute, leave, localRef, remoteRef, remoteStream } =
     useInterviewRoom({ role: 'recruiter', sessionId: valid ? id : null })
+  /* **지원자에게서 받은 영상을 분석에 넘긴다.** 지원자 기기가 아니라 여기서
+     보내는 이유는 `useLiveAnalysis` 머리말에 적어 뒀다 (ADR-0029). */
+  const analysis = useLiveAnalysis(remoteStream)
   const [detail, setDetail] = useState<InterviewSessionDetail | null>(null)
   /* 누구를 면접하는지. 세션 상세에는 이름이 없어 지원자를 한 번 더 읽는다. */
   const [who, setWho] = useState<{ name: string; posting: string } | null>(null)
@@ -134,14 +143,74 @@ export default function InterviewRoom() {
             )}
           </section>
 
-          {/* 소연님의 실시간 분석이 들어올 자리. **자리만 잡아 둔다** —
-              여기에 임시 숫자를 채우면 나중에 진짜 값과 구별이 안 된다. */}
+          {/* 실시간 분석 (2026-09-09). **지원자에게서 받은 영상을 여기서**
+              워커로 넘긴다 — 지원자 기기는 아무것도 더 하지 않고, 판정이
+              그쪽으로 갈 길도 없다 (ADR-0029 · `useLiveAnalysis`). */}
           <section className={styles.panel}>
             <h2 className={styles.panelTitle}>실시간 분석</h2>
-            <p className={styles.empty}>
-              아직 붙지 않았습니다. 표정·음성 분석(ADR-0029)이 이 자리에 들어옵니다.
-            </p>
+
+            {analysis.error ? (
+              /* **면접을 막지 않는다.** 분석이 안 되는 것과 면접이 안 되는 것은 다르다 */
+              <p className={styles.empty}>{analysis.error}</p>
+            ) : !remoteStream ? (
+              <p className={styles.empty}>지원자가 연결되면 시작됩니다.</p>
+            ) : !analysis.connected ? (
+              <p className={styles.empty}>분석 서버에 연결하는 중…</p>
+            ) : analysis.latest?.truth_pct === undefined ? (
+              <p className={styles.empty}>
+                {analysis.latest?.reason ?? '지원자가 말하기 시작하면 여기에 나타납니다.'}
+              </p>
+            ) : (
+              <>
+                <div className={styles.pair}>
+                  <div className={styles.metric}>
+                    <span className={styles.metricLabel}>일치</span>
+                    <span className={styles.metricValue}>{fmt(analysis.latest.truth_pct)}</span>
+                  </div>
+                  <div className={styles.metric}>
+                    <span className={styles.metricLabel}>불일치</span>
+                    <span className={styles.metricValue}>{fmt(analysis.latest.lie_pct)}</span>
+                  </div>
+                </div>
+
+                {/* **이 문단을 지우지 말 것.** 숫자만 두면 합불 근거처럼 읽힌다.
+                    `InterviewWatch` 와 같은 말을 쓴다 — 같은 값을 두 화면이
+                    다르게 설명하면 그 자체가 오해를 만든다. */}
+                <p className={styles.caveat}>
+                  표정·음성 신호가 모델이 학습한 패턴과 얼마나 맞는지입니다.
+                  <strong> 거짓말 여부가 아니고, 합격·불합격의 근거도 아닙니다.</strong>
+                  모델은 121개 표본에 교차검증 76%이며, 긴장·말더듬·비원어민 지원자에게
+                  불리하게 작동하지 않는다는 검증은 아직 없습니다 (ADR-0029).
+                </p>
+
+                {/* 100·0 은 자신 있다는 뜻이 아니라 **제대로 안 배웠다는 신호**다
+                    (cloverky, 2026-09-08 실측). 그 값이 뜨는 자리마다 같이 적는다. */}
+                {(analysis.latest.truth_pct === 100 || analysis.latest.truth_pct === 0) && (
+                  <p className={styles.saturated}>
+                    <strong>100 / 0 은 확신이 아니라 경고입니다.</strong> 표본이 적어
+                    모델이 규칙 대신 외운 자리이고, 사실을 말한 대본과 지어낸 대본이
+                    똑같이 100으로 나온 적이 있습니다. 이 값은 근거로 쓰지 마세요.
+                  </p>
+                )}
+              </>
+            )}
           </section>
+
+          {analysis.history.length > 0 && (
+            <section className={styles.panel}>
+              <h2 className={styles.panelTitle}>흐름</h2>
+              <ul className={styles.log}>
+                {analysis.history.map((v) => (
+                  <li key={v.at} className={styles.logRow}>
+                    <span className={styles.logTime}>
+                      {new Date(v.at).toLocaleTimeString('ko-KR')}
+                    </span>
+                    <span>일치 {fmt(v.truth_pct)}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </aside>
       </div>
 

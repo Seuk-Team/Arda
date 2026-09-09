@@ -66,6 +66,10 @@ export function useInterviewRoom(opts: RoomOptions) {
   const [error, setError] = useState<string | null>(null)
   /* 마이크를 껐는지. 영상은 끄지 않는다 — 얼굴이 안 보이면 면접이 아니다. */
   const [muted, setMuted] = useState(false)
+  /* 상대에게서 받은 것. **채용자 쪽에서 실시간 분석에 넘긴다**(`useLiveAnalysis`) —
+     그래서 ref 만이 아니라 상태로도 들고 있다. 상대가 나가면 `null` 이 되어
+     분석도 같이 멈춘다. */
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
 
   const localRef = useRef<HTMLVideoElement | null>(null)
   const remoteRef = useRef<HTMLVideoElement | null>(null)
@@ -87,6 +91,7 @@ export function useInterviewRoom(opts: RoomOptions) {
     pcRef.current?.close()
     pcRef.current = null
     if (remoteRef.current) remoteRef.current.srcObject = null
+    setRemoteStream(null)
   }, [])
 
   const cleanup = useCallback(() => {
@@ -120,6 +125,7 @@ export function useInterviewRoom(opts: RoomOptions) {
     }
     pc.ontrack = (e) => {
       if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]
+      setRemoteStream(e.streams[0] ?? null)
       setPhase('live')
     }
     pc.onconnectionstatechange = () => {
@@ -278,7 +284,7 @@ export function useInterviewRoom(opts: RoomOptions) {
     setPhase('peer-left')
   }, [cleanup])
 
-  return { phase, error, muted, toggleMute, leave, localRef, remoteRef }
+  return { phase, error, muted, toggleMute, leave, localRef, remoteRef, remoteStream }
 }
 
 export const PHASE_LABEL: Record<RoomPhase, string> = {
