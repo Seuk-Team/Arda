@@ -495,6 +495,17 @@ export interface ApplicantLoginOut {
 
 /* 지원자가 지금 들어갈 수 있는 면접. **끝났거나 만료된 것은 서버가 안 준다** —
    들어가 봐야 막히는 문을 화면에 보여 주지 않기 위해서다. */
+/* 지금 진행 중인 면접 하나 — 대시보드가 바로 들어가는 데 쓴다.
+   **이름과 공고가 같이 온다** (서버가 실어 준다). 세션 번호만으로는
+   담당자가 어느 면접인지 고를 수 없다. */
+export interface ActiveInterview {
+  id: number
+  application_id: number
+  applicant_name: string
+  posting_title: string
+  started_at: string | null
+}
+
 export interface MyInterview {
   token: string
   status: string
