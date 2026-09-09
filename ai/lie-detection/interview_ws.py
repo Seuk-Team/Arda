@@ -478,6 +478,11 @@ async def submit_answer(client, token: str, transcript: str) -> dict:
 _stt = None
 _stt_failed = False   # 한 번 실패하면 매 답변마다 다시 시도하지 않는다
 _stt_lock = threading.Lock()
+# **전사는 한 번에 하나만 돈다.** 서버가 2 vCPU 라 여럿을 같이 돌리면 서로 느려질
+# 뿐 총 시간은 그대로다 — 실측: 30초 발화를 1명이면 37초, 4명 동시면 198초(1명당 50초).
+# 줄 세우면 앞사람이 37초에 끝나고 뒤로 갈수록 밀리는데, 같이 돌리면 **모두가**
+# 50초를 기다린다. 메모리도 동시 실행만큼 더 쓴다.
+_stt_running = threading.Semaphore(1)
 
 
 def _stt_model():
@@ -535,6 +540,17 @@ def transcribe(pcm: bytes) -> str:
     usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
     audio = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
 
+    # 줄을 선다(위 `_stt_running` 주석). 기다린 시간이 길면 로그로 남긴다 —
+    # 면접이 몰릴 때 이 줄이 병목인지 나중에 알 수 있어야 한다.
+    waited = time.monotonic()
+    with _stt_running:
+        queued = time.monotonic() - waited
+        if queued > 1:
+            logger.info("전사 대기 %.1f초 (앞에 다른 전사가 돌고 있었다)", queued)
+        return _run_transcribe(model, audio)
+
+
+def _run_transcribe(model, audio) -> str:
     segments, _ = model.transcribe(
         audio,
         language=STT_LANGUAGE or None,
