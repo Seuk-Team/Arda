@@ -153,16 +153,31 @@ class _ApplicantShellState extends State<ApplicantShell> {
     // 지원이 여럿이면 **가장 최근 것**을 연다(서버가 최신 순으로 준다).
     // 홈은 전부 보여 주므로 거기서 어느 지원인지 알 수 있다
     final app = me.primary;
-    String? first(List<TokenLink> links) =>
-        links.isEmpty ? null : links.first.token;
+
+    /// 어느 것을 열 것인가.
+    ///
+    /// **아직 할 일이 남은 것을 먼저 고른다.** 2026-09-09 부터 서버가 끝난
+    /// 것(`done`)도 같이 내리는데(02-api.md), 재발급으로 여러 개가 있으면
+    /// 옛 것이 목록 앞에 온다(id 순) — 그대로 첫 번째를 열면 **새로 받은
+    /// 면접을 두고 어제 끝낸 것을 연다.**
+    ///
+    /// 다 끝났으면 마지막 것을 준다. 화면이 "완료" 라고 말할 수 있어야 한다 —
+    /// null 을 주면 "아직 없습니다" 가 되어 방금 마친 사람이 헷갈린다.
+    String? pick(List<TokenLink> links) {
+      if (links.isEmpty) return null;
+      for (final l in links) {
+        if (l.status != 'done') return l.token;
+      }
+      return links.last.token;
+    }
 
     return switch (tab) {
       ApplicantTab.aptitude => AptitudeScreen(
-        token: app == null ? null : first(app.aptitudes),
+        token: app == null ? null : pick(app.aptitudes),
         portal: _portal,
       ),
       ApplicantTab.schedule => ScheduleScreen(
-        token: app == null ? null : first(app.schedules),
+        token: app == null ? null : pick(app.schedules),
         portal: _portal,
       ),
       ApplicantTab.home => ApplicantSummaryScreen(
@@ -171,7 +186,7 @@ class _ApplicantShellState extends State<ApplicantShell> {
         onRefresh: _load,
       ),
       ApplicantTab.interview => InterviewScreen(
-        token: app == null ? null : first(app.interviews),
+        token: app == null ? null : pick(app.interviews),
         showChrome: false,
         // 보이는 동안만 카메라를 켠다 — 안 넘기면 다른 탭에 있는 내내
         // 카메라가 잡혀 있다(InterviewScreen.active 주석 참고)

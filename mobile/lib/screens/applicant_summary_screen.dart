@@ -118,13 +118,16 @@ class _ApplicationBlock extends StatelessWidget {
         action: '',
       );
     }
-    // 서버가 `pending` 만 내려준다 — 제출한 것은 아예 안 온다
-    return const _Line(
+    // 낸 것(`done`)도 내려온다 (2026-09-09) — **끝난 것을 안 보여 주면
+    // "완료"와 "아직 안 잡힘"이 같은 화면이 된다**
+    final done = app.aptitudes.first.status == 'done';
+    return _Line(
       tab: ApplicantTab.aptitude,
       label: '인적성 검사',
-      state: '아직 안 냈습니다',
-      action: '검사하기',
-      tone: _Tone.todo,
+      state: done ? '제출했습니다' : '아직 안 냈습니다',
+      // 낸 뒤에는 다시 들어갈 곳이 없다 — 문을 그리지 않는다
+      action: done ? '' : '검사하기',
+      tone: done ? _Tone.done : _Tone.todo,
     );
   }
 
@@ -157,7 +160,21 @@ class _ApplicationBlock extends StatelessWidget {
         action: '',
       );
     }
-    final going = app.interviews.first.status == 'in_progress';
+    // **끝난 것을 먼저 본다.** 면접을 여러 번 만들 수 있어(재발급) 목록에
+    // 끝난 것과 새 것이 같이 올 수 있는데, 그럴 땐 **아직 할 일이 있는 쪽**이
+    // 지원자가 알아야 하는 것이다.
+    final open = app.interviews.where((i) => i.status != 'done');
+    if (open.isEmpty) {
+      return const _Line(
+        tab: ApplicantTab.interview,
+        label: 'AI 면접',
+        state: '완료했습니다',
+        // 끝난 면접은 다시 들어갈 수 없다 — 문을 그리지 않는다
+        action: '',
+        tone: _Tone.done,
+      );
+    }
+    final going = open.first.status == 'in_progress';
     return _Line(
       tab: ApplicantTab.interview,
       label: 'AI 면접',

@@ -209,3 +209,12 @@
   justify-content: center;
   text-decoration: none;
 }
+
+/* 끝난 면접 한 줄 (2026-09-09). **버튼이 아니다** — 눌러도 막히는 문을
+   그리지 않는다. 그래도 줄을 남기는 이유는, 없애 버리면 방금 면접을 마친
+   사람의 화면에서 면접이 통째로 사라져 "완료"와 "아직 안 잡힘"이 같아져서다. */
+.doneLine {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--ok-text);
+}

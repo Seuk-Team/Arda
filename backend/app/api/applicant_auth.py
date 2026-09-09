@@ -172,27 +172,34 @@ def applicant_me(
             p.id: p.title
             for p in db.scalars(select(JobPosting).where(JobPosting.id.in_(ids))).all()
         }
-        # 지금 들어갈 수 있는 면접만 싣는다. **끝났거나 만료된 것은 빼고**,
-        # 아직 시작 안 한 것(pending)과 진행 중인 것만 준다 — 들어가 봐야
-        # 막히는 문을 화면에 보여 주지 않는다.
+        # **끝난 것도 싣는다** (2026-09-09 개정). 09-08 까지는 `done` 을 뺐는데,
+        # 그러면 면접을 마친 지원자의 화면에서 면접이 **통째로 사라진다** —
+        # "완료"와 "아직 안 잡힘"이 같은 화면이 되어, 방금 30분 면접을 본 사람이
+        # 자기가 낸 것이 접수됐는지 알 수 없다(앱 실측에서 나온 것이다).
+        #
+        # 대신 `expired` 는 여전히 뺀다. 그건 **지원자가 놓친 것**이라 화면에
+        # 띄우면 할 수 있는 일이 없는 줄이 남는다.
+        #
+        # 상태를 같이 내리므로 **화면이 버튼을 열지 말지 스스로 가른다** —
+        # 끝난 줄에는 들어가는 문을 그리지 않는다(app · web 둘 다).
         app_ids = [r.id for r in rows]
         for s in db.scalars(
             select(InterviewSession)
             .where(
                 InterviewSession.application_id.in_(app_ids),
-                InterviewSession.status.in_(("pending", "in_progress")),
+                InterviewSession.status.in_(("pending", "in_progress", "done")),
             )
             .order_by(InterviewSession.id)
         ).all():
             sessions.setdefault(s.application_id, []).append(s)
 
-        # 인적성·일정도 같은 규칙이다 — **아직 할 일이 남은 것만.**
-        # 끝난 것(`done`)·거절·만료는 들어가 봐야 막히므로 내지 않는다.
+        # 인적성도 같은 규칙이다 — 낸 것(`done`)은 "제출했습니다" 로 보여 주고,
+        # 만료된 것만 뺀다.
         for a in db.scalars(
             select(AptitudeSession)
             .where(
                 AptitudeSession.application_id.in_(app_ids),
-                AptitudeSession.status == "pending",
+                AptitudeSession.status.in_(("pending", "done")),
             )
             .order_by(AptitudeSession.id)
         ).all():
