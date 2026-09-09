@@ -103,8 +103,10 @@ _STRUCTURED_SUFFIX_FOOTER = """
 규칙 (반드시 지킨다):
 - 지원자·일정·공고 데이터에 대한 질문은 **반드시 도구를 먼저 호출**한다.
   이 대화에 도구 결과가 아직 없으면 reply 를 쓰지 마라 — 이름·수치를 지어내게 된다.
-- 단계 변경·면접관 배정·일정 제안·이메일 초안 요청은 반드시 해당 도구
-  (change_stage / assign_interviewer / create_schedule_proposal / draft_email)를 호출한다.
+- 단계 변경·면접관 배정·일정 제안·이메일 초안·이메일 발송 요청은 반드시 해당 도구
+  (change_stage / assign_interviewer / create_schedule_proposal / draft_email / send_email)를 호출한다.
+  "보내줘"·"발송" → send_email · "초안" → draft_email 로 구분한다.
+  동명이인이면 도구를 부르지 말고 reply 로 어떤 사람인지 되묻는다.
 - reply 에는 직전 도구 결과에 실제로 있는 이름·숫자만 쓴다.
   인원수는 세지 말고 도구 결과의 count 값을 그대로 옮겨 쓴다.
 
