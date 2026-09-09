@@ -739,3 +739,58 @@ class TestAudioUploadUrl:
             },
         )
         assert res.status_code == 409
+
+
+class TestActiveSessions:
+    """대시보드가 **한 번에** 실시간 분석으로 들어가기 위한 목록.
+
+    이게 없으면 담당자는 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야 한다.
+    면접이 시작되는 순간에 그걸 찾아 들어갈 수는 없다 (2026-09-09 실측).
+    """
+
+    def test_진행_중인_것만_온다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        going = _session(db, application, admin_user, token="a", status="in_progress")
+        # 안 시작한 것은 지금 볼 게 없고, 끝난 것은 들어가도 방이 안 열린다
+        _session(db, application, admin_user, token="b", status="pending")
+        _session(db, application, admin_user, token="c", status="done")
+        _session(db, application, admin_user, token="d", status="expired")
+        db.commit()
+
+        rows = as_user(admin_user).get("/api/v1/interview-sessions/active").json()
+
+        assert [r["id"] for r in rows] == [going.id]
+
+    def test_누구의_어느_면접인지_같이_온다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """세션 번호만 있으면 담당자가 고를 수 없다 — 화면이 지원서·공고를
+        따로 더 부르게 하지 않는다."""
+        _session(db, application, admin_user, token="a", status="in_progress")
+        db.commit()
+
+        row = as_user(admin_user).get("/api/v1/interview-sessions/active").json()[0]
+
+        assert row["applicant_name"] == application.name
+        assert row["posting_title"]
+        assert row["application_id"] == application.id
+
+    def test_없으면_빈_목록이다(self, as_user, db: Session, admin_user: User):
+        got = as_user(admin_user).get("/api/v1/interview-sessions/active")
+        assert got.json() == []
+
+    def test_로그인이_없으면_거절한다(self, public):
+        assert public.get("/api/v1/interview-sessions/active").status_code == 401
+
+    def test_active_가_세션_번호로_읽히지_않는다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """경로 순서가 뒤집히면 `active` 를 id 로 읽어 422 가 난다.
+
+        상세 라우트(`/interview-sessions/{id}`)보다 **위에** 있어야 한다.
+        """
+        r = as_user(admin_user).get("/api/v1/interview-sessions/active")
+
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)

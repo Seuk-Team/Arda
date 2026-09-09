@@ -34,6 +34,7 @@ from app.models import (
     User,
 )
 from app.schemas.interview import (
+    ActiveSessionOut,
     AnswerRequest,
     AudioUploadRequest,
     AudioUploadResponse,
@@ -181,6 +182,61 @@ def analyze_turn(
         raise HTTPException(
             HTTPStatus.BAD_GATEWAY, f"분석하지 못했습니다 ({type(exc).__name__})"
         )
+
+
+@router.get("/interview-sessions/active", response_model=list[ActiveSessionOut])
+def list_active_sessions(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """지금 진행 중인 면접들. **대시보드가 바로 들어가는 데 쓴다.**
+
+    이게 없으면 담당자는 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야 실시간
+    분석 화면에 닿는다. 면접이 시작되는 순간에 그걸 찾아 들어갈 수는 없다.
+
+    **`in_progress` 만 낸다.** 아직 시작 안 한 것(pending)은 지금 볼 것이 없고,
+    끝난 것은 들어가도 방이 안 열린다(`session_closed`).
+
+    이 경로는 `/interview-sessions/{session_id}` **위에 둔다** — 아래 두면
+    `active` 가 session_id 로 읽혀 422 가 난다.
+    """
+    rows = db.scalars(
+        select(InterviewSession)
+        .where(InterviewSession.status == "in_progress")
+        .order_by(InterviewSession.started_at.desc())
+    ).all()
+    if not rows:
+        return []
+
+    apps = {
+        a.id: a
+        for a in db.scalars(
+            select(Application).where(
+                Application.id.in_([r.application_id for r in rows])
+            )
+        ).all()
+    }
+    titles = {
+        p.id: p.title
+        for p in db.scalars(
+            select(JobPosting).where(
+                JobPosting.id.in_({a.job_posting_id for a in apps.values()})
+            )
+        ).all()
+    }
+    return [
+        ActiveSessionOut(
+            id=r.id,
+            application_id=r.application_id,
+            applicant_name=apps[r.application_id].name if r.application_id in apps else "",
+            posting_title=titles.get(
+                apps[r.application_id].job_posting_id if r.application_id in apps else 0,
+                "",
+            ),
+            started_at=r.started_at,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/interview-sessions/{session_id}", response_model=SessionDetailOut)
