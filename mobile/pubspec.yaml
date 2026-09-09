@@ -82,6 +82,21 @@ dependencies:
   # 에서 돌린다. 색은 얼굴 특징에 안 쓰인다(feature_extractor.face_row).
   image: ^4.9.2
 
+  # wakelock_plus: 면접 진행 중 화면이 꺼지지 않게 한다 (2026-09-09).
+  # 안드로이드는 기본 3분(설정에 따라) 뒤 화면이 꺼지고, 그러면 카메라 미리보기·
+  # 마이크 흐름이 다 끊긴다 — 면접이 그 자리에서 멎어 지원자가 다시 켜 답변을
+  # 이어야 한다. wakelock 은 특정 화면에서만 켜고 나가면 놓아 준다 (배터리 보호).
+  wakelock_plus: ^1.2.10
+
+  # flutter_webrtc: 실시간 면접 시그널링 (2026-09-09, §3-1 앱-웹 통일).
+  # 채용자(웹) ↔ 지원자(앱) 1:1 화상. 서버(interview_rtc.py)는 SDP/ICE 만 나른다.
+  # 규격은 [docs/02_tasks/실시간-면접-시그널링.md], 웹은 useInterviewRoom.ts 가
+  # 같은 프로토콜을 쓴다.
+  #
+  # AI 면접(interview_screen.dart)의 camera_service 와 **다른 카메라 세션**이다 —
+  # WebRTC 는 자체 getUserMedia 를 쓰고, 화면이 겹치지 않는 별도 경로다.
+  flutter_webrtc: ^1.6.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -63,6 +63,7 @@ await ctx.audioWorklet.addModule('pcm-worklet.js')   // Float32 → Int16 변환
 | | |
 |---|---|
 | `{"type":"ping"}` | 연결 유지. 서버가 `pong` 으로 답한다 |
+| `{"type":"end"}` | **[답변 완료]** (2026-09-09). 침묵 3초를 기다리지 않고 지금까지 보낸 소리를 답변으로 끊는다 — 그 뒤는 침묵 감지와 같다(`processing` → 다음 `question` 또는 `done`). 버퍼가 0.7초도 안 되면 `retry` |
 
 ---
 

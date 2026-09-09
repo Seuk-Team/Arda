@@ -333,6 +333,9 @@ class FakeInterviewSocket implements InterviewSocket {
 
   final List<Uint8List> audio = [];
   final List<Uint8List> video = [];
+
+  /// [답변 완료] 를 누른 횟수
+  int ends = 0;
   bool closed = false;
 
   @override
@@ -346,6 +349,9 @@ class FakeInterviewSocket implements InterviewSocket {
 
   @override
   void sendVideo(Uint8List jpeg) => video.add(jpeg);
+
+  @override
+  void sendEnd() => ends += 1;
 
   @override
   Future<void> close() async {
