@@ -38,7 +38,8 @@ from interview_ws import (
     model,
     score,
     submit_answer,
-    transcribe,
+    transcribe_async,
+    warm_stt,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +52,17 @@ DEMO_HTML = (_HERE / "demo.html").read_text(encoding="utf-8")
 model()
 
 app = FastAPI(title="Arda 거짓말 탐지")
+
+
+@app.on_event("startup")
+async def _warm() -> None:
+    """전사 모델을 뒤에서 미리 올린다.
+
+    **기다리지 않는다.** 여기서 await 하면 26초 동안 헬스체크가 안 뜨고 배포가
+    실패한 것처럼 보인다. 그 사이에 들어온 첫 면접은 로딩을 물지만, 예열이 없을
+    때처럼 **매 면접이** 무는 것보다는 낫다.
+    """
+    asyncio.create_task(asyncio.to_thread(warm_stt))
 
 
 @app.get("/health")
@@ -265,7 +277,7 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     pcm, rows = session.take_answer()
     # 전사는 CPU 로 발화 길이의 절반쯤 걸린다. 이벤트 루프에서 부르면 그 동안
     # 이 워커의 모든 면접이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-    transcript = await asyncio.to_thread(transcribe, pcm)
+    transcript = await transcribe_async(pcm)
 
     if not transcript:
         # 말이 안 담긴 것을 답변으로 저장하면 그 질문은 "답한 것"이 되어
