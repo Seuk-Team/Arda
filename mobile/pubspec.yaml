@@ -63,6 +63,24 @@ dependencies:
   # 빌드가 깨진다. 툴체인이 올라가면 그때 같이 올린다
   camera: ^0.12.1
   permission_handler: ^12.0.0
+  #
+  # 아래 셋은 **앱으로 AI 면접을 보기 위한 것**이다 (2026-09-09).
+  # 규격은 ai/lie-detection/PROTOCOL.md, 웹은 useAiInterview.ts 가 같은 일을 한다.
+  #
+  # web_socket_channel: 질문을 받고 소리·얼굴을 보내는 연결 하나.
+  # http 는 요청-응답이라 "말이 끝난 것을 서버가 알아채 다음 질문을 보낸다"를 못 한다.
+  web_socket_channel: ^3.0.3
+  #
+  # record: 마이크를 **파일이 아니라 PCM 흐름으로** 받는다(`startStream`).
+  # 녹음 파일이면 서버가 매번 디코딩해야 하고 그 시간이 실시간 예산을 먹는다.
+  # camera 플러그인도 소리를 받을 수 있지만 그쪽은 파일 녹화라 쓸 수 없다 —
+  # 그래서 CameraController 의 `enableAudio` 를 끄고 마이크는 이쪽만 잡는다.
+  record: ^7.1.1
+  #
+  # image: 카메라가 주는 YUV 프레임을 JPEG 으로 바꾼다(서버가 JPEG 을 기대한다).
+  # 순수 Dart 라 느려서 **밝기 평면만 흑백으로** 넘기고, 그것도 딴 일꾼(Isolate)
+  # 에서 돌린다. 색은 얼굴 특징에 안 쓰인다(feature_extractor.face_row).
+  image: ^4.9.2
 
 dev_dependencies:
   flutter_test:
