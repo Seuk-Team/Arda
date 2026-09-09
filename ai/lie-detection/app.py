@@ -34,6 +34,7 @@ from interview_ws import (
     face_row_of_jpeg,
     fetch_state,
     finish_interview,
+    push_verdict,
     model,
     score,
     submit_answer,
@@ -246,6 +247,13 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
         return
 
     event = session.add_audio(payload)
+
+    # 말하는 동안 판정을 굴려 담당자에게 민다. 답변이 끝날 때까지 기다리지 않는다 —
+    # 담당자는 **면접 중에** 봐야 한다. 지원자 소켓으로는 보내지 않는다(ADR-0029).
+    if not session.scoring and session.due_for_verdict(time.monotonic()):
+        session.scoring = True
+        asyncio.create_task(_live_verdict(client, session))
+
     if event == "begin":
         await ws.send_json({"type": "listening"})
         return
@@ -297,6 +305,31 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
             # 지원자는 이미 다 답했다. 닫기에 실패했다고 화면에 오류를 띄우지 않는다.
             logger.exception("면접 종료 처리 실패: token=%s", session.token[:8])
         await ws.send_json({"type": "done"})
+
+
+async def _live_verdict(client, session: InterviewSession) -> None:
+    """최근 4초를 판정해 백엔드로 민다. 실패해도 면접에는 영향이 없다."""
+    try:
+        pcm, rows = session.scorer.snapshot()
+        # 판정은 CPU 로 약 185ms 걸린다. 이벤트 루프에서 부르면 그 동안 이 워커의
+        # **모든 면접**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
+        result = await asyncio.to_thread(score, pcm, rows, session.scorer.window_sec)
+        if not result.get("ok"):
+            return
+        await push_verdict(
+            client,
+            session.token,
+            {
+                "truth_pct": result["truth_pct"],
+                "lie_pct": result["lie_pct"],
+                "window_sec": session.scorer.window_sec,
+                "signals": result.get("signals", []),
+            },
+        )
+    except Exception:
+        logger.exception("실시간 판정 전송 실패: token=%s", session.token[:8])
+    finally:
+        session.scoring = False
 
 
 async def _on_text(ws, session: InterviewSession, text: str) -> None:

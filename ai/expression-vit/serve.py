@@ -18,10 +18,10 @@ from PIL import Image
 from transformers import ViTForImageClassification
 
 from data import KOREAN, LABELS
-from train import EVAL_TF
+from train import EVAL_TF, latest_run
 
 HERE = Path(__file__).parent
-MODEL_DIR = HERE / "runs" / "best"
+MODEL_DIR = (latest_run() or HERE) / "best"
 
 # 표정마다 실력이 다르다(평가 실측). 화면에 같이 띄워 "이 값을 얼마나 믿을지"를
 # 보는 사람이 알게 한다 — 90% 짜리 웃음과 32% 짜리 역겨움이 같은 막대로 보이면 안 된다.

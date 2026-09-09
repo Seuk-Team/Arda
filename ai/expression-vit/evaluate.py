@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from transformers import ViTForImageClassification
 
 from data import KOREAN, LABELS, Fer2013
-from train import EVAL_TF
+from train import EVAL_TF, latest_run
 
 HERE = Path(__file__).parent
 
@@ -44,7 +44,8 @@ def confusion(truths, preds, n):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default=str(HERE / "runs" / "best"))
+    # 비우면 모델이 들어 있는 가장 최근 회차를 쓴다
+    p.add_argument("--model", default="")
     p.add_argument("--batch", type=int, default=64)
     args = p.parse_args()
 
@@ -52,7 +53,7 @@ def main():
         raise SystemExit(f"모델이 없다: {args.model}\n먼저 `python train.py` 를 돌린다.")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = ViTForImageClassification.from_pretrained(args.model).to(device)
+    model = ViTForImageClassification.from_pretrained(model_dir).to(device)
     loader = DataLoader(Fer2013("test", EVAL_TF), batch_size=args.batch)
 
     truths, preds = collect(model, loader, device)

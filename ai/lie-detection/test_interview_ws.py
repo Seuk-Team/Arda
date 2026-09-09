@@ -273,3 +273,47 @@ class TestTranscribeFallback:
             iw.transcribe(LOUD * 40)
         # 답변마다 수십 초짜리 로딩을 다시 시도하면 면접이 답변마다 멈춘다
         assert len(tries) == 1
+
+
+class TestChunkSizeIndependence:
+    """조각 크기가 달라도 판정이 같아야 한다.
+
+    전에는 창을 **조각 수**로 셌다(40개 = 2초). 그래서 클라이언트가 다른 크기로
+    보내면 기준이 통째로 어긋났고, 실제로 앱(#104)이 이 값에 맞추려고 마이크를
+    1600바이트로 다시 잘라 보내고 있었다. **맞춰야 하는 쪽은 서버다.**
+    """
+
+    @staticmethod
+    def _pcm_ms(amplitude: int, ms: int) -> bytes:
+        n = int(SAMPLE_RATE * ms / 1000)
+        if amplitude == 0:
+            return np.zeros(n, dtype=np.int16).tobytes()
+        rng = np.random.default_rng(0)
+        return (rng.normal(0, amplitude, n)).astype(np.int16).tobytes()
+
+    def _floor_after_calibration(self, ms: int) -> float:
+        det = _SpeechDetector()
+        quiet = self._pcm_ms(120, ms)
+        # 넉넉히 넣어 보정이 끝나게 한다
+        for _ in range(int(2000 / ms) + 2):
+            det.feed(quiet)
+        return det.noise
+
+    def test_조각_크기가_달라도_바닥값이_비슷하다(self):
+        floors = {ms: self._floor_after_calibration(ms) for ms in (20, 50, 100, 200)}
+        assert all(f is not None for f in floors.values()), floors
+        lo, hi = min(floors.values()), max(floors.values())
+        # 같은 소리를 다르게 잘라 넣었을 뿐이니 바닥값도 거의 같아야 한다
+        assert hi / lo < 1.3, f"조각 크기에 따라 바닥값이 갈린다: {floors}"
+
+    def test_큰_조각으로도_말을_잡는다(self):
+        """앱이 200ms 로 보내도 돌아야 한다 — 50ms 에 맞춰 잘라 줄 필요가 없다."""
+        det = _SpeechDetector()
+        quiet, loud = self._pcm_ms(120, 200), self._pcm_ms(4000, 200)
+        for _ in range(12):
+            det.feed(quiet)
+        assert det.feed(loud) == "begin"
+        time.sleep(MIN_SPEECH_SEC + 0.05)
+        det.feed(quiet)
+        time.sleep(SILENCE_END_SEC + 0.05)
+        assert det.feed(quiet) == "end"

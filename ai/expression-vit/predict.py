@@ -18,10 +18,10 @@ from PIL import Image
 from transformers import ViTForImageClassification
 
 from data import KOREAN, LABELS
-from train import EVAL_TF
+from train import EVAL_TF, latest_run
 
 HERE = Path(__file__).parent
-MODEL_DIR = HERE / "runs" / "best"
+MODEL_DIR = (latest_run() or HERE) / "best"
 SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
