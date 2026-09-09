@@ -24,6 +24,7 @@ import Interviews from './pages/Interviews'
 import Evaluations from './pages/Evaluations'
 import Settings from './pages/Settings'
 import More from './pages/More'
+import AgentTraceLabel from './pages/AgentTraceLabel'
 /* three.js 를 초기 번들에서 빼기 위해 이 페이지도 지연 로드한다 (Sidebar 의 ArViewer 와 같은 청크) */
 const ArDemo = lazy(() => import('./pages/ArDemo'))
 
@@ -90,6 +91,8 @@ export default function App() {
             {/* 옛 경로. 북마크·메일 링크가 깨지지 않게 남긴다 */}
             <Route path="/interviews" element={<LegacyCalendarRedirect />} />
             <Route path="/evaluations" element={<Evaluations />} />
+            {/* 담당자 라벨 UI — Qwen QLoRA 학습 데이터 수집 (aggent_traces good/needs_fix/bad) */}
+            <Route path="/agent-labels" element={<AgentTraceLabel />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/more" element={<More />} />
           </Route>

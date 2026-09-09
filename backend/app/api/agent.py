@@ -7,8 +7,9 @@ M4: 쓰기 도구 (예정)
 
 import json
 import logging
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status as http
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status as http
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -691,3 +692,133 @@ async def speech_to_text(
         raise HTTPException(http.HTTP_503_SERVICE_UNAVAILABLE, str(e))
 
     return SttResponse(**result)
+
+
+# ── 담당자 라벨 UI (Qwen QLoRA 학습 데이터 수집) ─────────────────────
+#
+# agent_traces 표에 쌓인 대화를 담당자가 훑으며 good/needs_fix/bad 라벨한다.
+# label_verdict='good' 만 QLoRA SFT 학습셋으로 넘어간다 (infra/gpu/prepare_dataset.py).
+#
+# **모든 담당자가 라벨할 수 있게 열려 있다** (admin 만 두면 5명 팀에서 사실상 안 쌓인다).
+# 잘못 라벨해도 그 사람 이력 (label_by · label_at) 이 남고, 나중에 다른 사람이 덮어쓸 수
+# 있게 두는 편이 팀 규모에 맞다 — 진짜 검수는 학습 직전에 별도 절차로.
+
+
+class TraceOut(BaseModel):
+    id: int
+    request_id: str | None
+    session_id: str | None
+    turn_index: int
+    user_message: str
+    assistant_reply: str
+    history: list
+    tool_calls: list
+    backend: str
+    model_tag: str
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    created_at: datetime
+    label_verdict: str | None
+    label_correction: str | None
+    label_by: int | None
+    label_at: datetime | None
+
+
+class TraceListOut(BaseModel):
+    items: list[TraceOut]
+    # 다음 페이지 시작점 (가장 오래된 항목의 id). 더 없으면 null.
+    next_cursor: int | None
+
+
+class TraceLabelIn(BaseModel):
+    # good = 학습에 쓴다 · bad = 안 쓴다 · needs_fix = 사람이 정답을 label_correction 에 씀
+    label_verdict: str = Field(pattern=r"^(good|needs_fix|bad)$")
+    # needs_fix 일 때만 의미가 있다. 다른 verdict 로 세팅해도 저장은 되지만 학습에는
+    # 안 쓰인다 — 담당자 메모 자리로 겸용.
+    label_correction: str | None = None
+
+
+def _trace_to_out(t: AgentTrace) -> TraceOut:
+    return TraceOut(
+        id=t.id,
+        request_id=t.request_id,
+        session_id=t.session_id,
+        turn_index=t.turn_index,
+        user_message=t.user_message,
+        assistant_reply=t.assistant_reply,
+        history=t.history or [],
+        tool_calls=t.tool_calls or [],
+        backend=t.backend or "",
+        model_tag=t.model_tag or "",
+        input_tokens=t.input_tokens,
+        output_tokens=t.output_tokens,
+        cost_usd=float(t.cost_usd) if t.cost_usd is not None else 0.0,
+        created_at=t.created_at,
+        label_verdict=t.label_verdict,
+        label_correction=t.label_correction,
+        label_by=t.label_by,
+        label_at=t.label_at,
+    )
+
+
+@router.get("/traces", response_model=TraceListOut)
+def list_traces(
+    limit: int = Query(20, ge=1, le=100),
+    status_filter: str = Query(
+        "unlabeled",
+        alias="status",
+        pattern=r"^(unlabeled|good|needs_fix|bad|all)$",
+        description="unlabeled = label_verdict IS NULL · all = 전체 · 그 외 = 그 라벨만",
+    ),
+    before_id: int | None = Query(
+        None,
+        description="이 id 미만만 (id desc 페이지네이션). next_cursor 를 그대로 넣는다.",
+    ),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """대화 로그 목록. 라벨 안 된 순 (최근 대화부터).
+
+    페이지네이션은 id desc 커서 방식 — 오프셋이 아닌 이유는 라벨이 붙거나 새 로그가
+    쌓이면 오프셋 페이지가 어긋나 같은 행이 두 번 보이거나 새 행이 건너뛰어진다.
+    """
+    stmt = select(AgentTrace).order_by(AgentTrace.id.desc()).limit(limit + 1)
+    if before_id is not None:
+        stmt = stmt.where(AgentTrace.id < before_id)
+    if status_filter == "unlabeled":
+        stmt = stmt.where(AgentTrace.label_verdict.is_(None))
+    elif status_filter != "all":
+        stmt = stmt.where(AgentTrace.label_verdict == status_filter)
+    rows = list(db.execute(stmt).scalars().all())
+    has_more = len(rows) > limit
+    items = rows[:limit]
+    next_cursor = items[-1].id if has_more and items else None
+    return TraceListOut(
+        items=[_trace_to_out(t) for t in items],
+        next_cursor=next_cursor,
+    )
+
+
+@router.patch("/traces/{trace_id}", response_model=TraceOut)
+def label_trace(
+    trace_id: int,
+    body: TraceLabelIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """라벨 갱신. 덮어쓴다 — 이력을 별도 표로 남기지 않는다 (팀 5명 규모에서 과잉).
+
+    누가 마지막으로 라벨했는지는 label_by · label_at 로 남는다. 학습 직전 검수 시
+    이 필드로 특정인의 라벨만 신뢰하거나 배제하는 것도 가능.
+    """
+    trace = db.get(AgentTrace, trace_id)
+    if trace is None:
+        raise HTTPException(http.HTTP_404_NOT_FOUND, "트레이스를 찾을 수 없습니다")
+    trace.label_verdict = body.label_verdict
+    trace.label_correction = body.label_correction
+    trace.label_by = user.id
+    trace.label_at = datetime.now(tz=trace.created_at.tzinfo) if trace.created_at else datetime.utcnow()
+    db.commit()
+    db.refresh(trace)
+    return _trace_to_out(trace)
