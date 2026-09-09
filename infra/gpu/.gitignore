@@ -1,0 +1,11 @@
+# 로컬 파이썬 가상환경 — 학습·벤치마크를 돌리는 사람 컴퓨터에만 있으면 된다.
+# 6 GB 대라 실수로 add 되면 저장소가 부풀고 push 도 안 된다.
+.venv/
+__pycache__/
+*.pyc
+
+# 학습 산출물 (모델 가중치). 결과 요약(results/*.json) 은 커밋하지만,
+# 가중치는 HF/S3 에 두고 이 폴더에 두지 않는다.
+checkpoints/
+outputs/
+adapter/
