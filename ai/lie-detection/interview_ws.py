@@ -87,13 +87,22 @@ TRAIN_SR = 22_050
 # ── 전사 (ADR-0032) ──────────────────────────────────────────
 # **비어 있으면 꺼진 채로 돈다.** 설정을 넣어야 켜지는 것이 팀 방식이고, GPU 가
 # 꺼져 있는 대부분의 시간에 1GB 짜리 모델을 물고 있을 이유가 없다.
-#   켤 때: STT_MODEL=large-v3-turbo  (GPU 면 STT_DEVICE=cuda STT_COMPUTE_TYPE=float16)
+#   켤 때: STT_MODEL=large-v3-turbo
+#   CPU (지금 프로덕션): STT_DEVICE 안 넣거나 cpu, STT_COMPUTE_TYPE 도 안 넣으면 int8 자동 (아래).
+#   GPU 로 옮기면: STT_DEVICE=cuda · STT_COMPUTE_TYPE=float16
 STT_MODEL = os.getenv("STT_MODEL", "").strip()
 # **`auto` 로 두지 않는다.** GPU 가 보이면 CUDA 를 고르는데, CUDA 런타임이 없는
 # 기계에서는 모델을 올린 뒤 첫 전사에서야 `cublas64_12.dll not found` 로 터진다.
 # 켜야 할 곳에서 명시하는 편이 낫다.
 STT_DEVICE = os.getenv("STT_DEVICE", "cpu")
-STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "default")
+# CPU 에서는 int8 로 간다. faster-whisper 의 "default" 는 CPU 에서 float32 라
+# large-v3-turbo (809M) 로드 순간 3.0-3.8GB 를 잡아먹어 컨테이너를 죽인다
+# (2026-09-09 dmesg OOM 실측·서버 5회 재현). int8 은 CT2 의 AVX-VNNI 최적화로
+# 메모리 1/4, 속도 2.3배(로컬 실측), 한국어 정확도 손실은 무시할 수준(공식 WER
+# 0.1-0.5%p·짧은 발화 육안 비교 0). GPU 로 옮길 때만 STT_COMPUTE_TYPE=float16
+# 를 명시하면 되고, 그 외에는 이 자동값이 정답이다.
+_default_compute_type = "int8" if STT_DEVICE == "cpu" else "default"
+STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", _default_compute_type)
 # 면접은 한국어다. 빈 값이면 whisper 가 스스로 알아내지만 그만큼 느리고, 짧은
 # 발화에서는 엉뚱한 언어로 새기도 한다.
 STT_LANGUAGE = os.getenv("STT_LANGUAGE", "ko")
