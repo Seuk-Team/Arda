@@ -34,8 +34,16 @@ for _stream in (sys.stdout, sys.stderr):  # Windows 콘솔 cp949 대비
 
 
 def _get(url: str) -> dict:
-    with urllib.request.urlopen(url, timeout=20) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.load(e).get("message")
+        except Exception:
+            msg = e.reason
+        print(f"공고 조회 실패 {e.code}: {msg} ({url})")
+        sys.exit(1)
 
 
 def _post(url: str, body: dict) -> tuple[int, dict]:
