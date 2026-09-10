@@ -36,8 +36,10 @@ from interview_ws import (
     _SpeechDetector,
     face_row_of_jpeg,
     fetch_questions,
+    fetch_reference,
     fetch_state,
     finish_interview,
+    push_identity,
     push_verdict,
     model,
     score,
@@ -272,6 +274,10 @@ async def interview(ws: WebSocket, token: str):
                 (i for i, q in enumerate(session.questions) if q["seq"] == seq_now), 0
             )
 
+        # 이력서 사진을 한 번 받아 둔다. **대조는 프레임이 들어올 때** 하고,
+        # 실패하면 그냥 넘어간다 — 사진이 없다고 면접을 막지 않는다.
+        session.reference = await fetch_reference(client, token)
+
         await ws.send_json(
             {
                 "type": "question",
@@ -322,13 +328,17 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
 
     if kind == KIND_VIDEO:
         # `/ws/live` 와 같은 이유로 스레드에서, 도는 중이면 버린다 (`add_frame` 의
-        # FRAME_STRIDE 는 그 안에서 그대로 적용된다).
+        # FRAME_STRIDE 는 그 안에서 그대로 적용된다). 프레임 하나가 mediapipe 를
+        # 두 번(특징 + 얼굴 대조) 타므로 이벤트 루프에서 부르면 오디오까지 늦는다.
         if not session.face_busy:
             session.face_busy = True
 
             async def extract() -> None:
                 try:
-                    await asyncio.to_thread(session.add_frame, payload)
+                    identity = await asyncio.to_thread(session.add_frame, payload)
+                    # 동일인 판단이 방금 정해졌으면 담당자에게 민다 (면접당 한 번)
+                    if identity is not None:
+                        await push_identity(client, session.token, identity)
                 except Exception:
                     logger.exception("얼굴 추출 실패: token=%s", session.token[:8])
                 finally:

@@ -320,6 +320,73 @@ class TestChunkSizeIndependence:
         assert det.feed(quiet) == "end"
 
 
+class TestIdentity:
+    """이력서 사진 ↔ 면접자 동일인 확인 (회의 2026-09-09 3번).
+
+    얼굴 인식 모델을 부르지 않고 상태 기계만 본다 — 모델의 정확도는 LFW 로 따로
+    쟀고(`face_match` 주석), 여기서 확인할 것은 **언제 한 번 답하는가**다.
+    """
+
+    def _session(self, monkeypatch, scores):
+        """지문 대조가 주어진 점수들을 순서대로 낸다고 치고 세션을 만든다."""
+        import face_match
+
+        it = iter(scores)
+        monkeypatch.setattr(face_match, "embed", lambda img: np.zeros(512))
+        monkeypatch.setattr(face_match, "similarity", lambda a, b: next(it))
+        s = InterviewSession("tok")
+        s.reference = np.zeros(512)
+        return s
+
+    def _jpeg(self) -> bytes:
+        import cv2
+
+        return cv2.imencode(".jpg", np.zeros((120, 120, 3), np.uint8))[1].tobytes()
+
+    def _feed(self, session, n):
+        """FRAME_STRIDE 때문에 실제로 보는 장은 3장에 1장이다."""
+        out = []
+        for _ in range(n * iw.FRAME_STRIDE):
+            out.append(session.add_frame(self._jpeg()))
+        return [x for x in out if x is not None]
+
+    def test_다섯_장을_보고_한_번_답한다(self, monkeypatch):
+        s = self._session(monkeypatch, [0.6] * 10)
+        assert self._feed(s, iw.IDENTITY_FRAMES - 1) == []
+        got = self._feed(s, 1)
+        assert got == [{"match": "same", "score": 0.6}]
+
+    def test_한_번_정해지면_다시_안_낸다(self, monkeypatch):
+        """신원은 면접 중에 바뀌는 값이 아니다 — 매초 흔들리면 못 읽는다."""
+        s = self._session(monkeypatch, [0.6] * 30)
+        self._feed(s, iw.IDENTITY_FRAMES)
+        assert self._feed(s, 5) == []
+
+    def test_가장_잘_맞은_장으로_정한다(self, monkeypatch):
+        """눈 감은 장·흔들린 장이 섞여도 멀쩡한 지원자를 의심하지 않는다."""
+        s = self._session(monkeypatch, [0.05, 0.02, 0.51, 0.03, 0.04])
+        assert self._feed(s, iw.IDENTITY_FRAMES) == [{"match": "same", "score": 0.51}]
+
+    def test_전부_낮으면_다르다고_말한다(self, monkeypatch):
+        s = self._session(monkeypatch, [0.05, 0.02, 0.09, 0.03, 0.04])
+        assert self._feed(s, iw.IDENTITY_FRAMES) == [{"match": "different", "score": 0.09}]
+
+    def test_애매하면_단정하지_않는다(self, monkeypatch):
+        s = self._session(monkeypatch, [0.2] * 5)
+        assert self._feed(s, iw.IDENTITY_FRAMES) == [{"match": "unclear", "score": 0.2}]
+
+    def test_이력서_사진이_없으면_통째로_건너뛴다(self, monkeypatch):
+        """서식에 사진이 빠졌다고 지원자가 불이익을 받으면 안 된다."""
+        s = self._session(monkeypatch, [0.6] * 10)
+        s.reference = None
+        assert self._feed(s, 10) == []
+
+    def test_얼굴이_안_잡힌_장은_세지_않는다(self, monkeypatch):
+        import face_match
+
+        s = self._session(monkeypatch, [0.6] * 10)
+        monkeypatch.setattr(face_match, "embed", lambda img: None)
+        assert self._feed(s, 10) == []
 class TestTranscribeTimeout:
     """전사가 오래 걸려도 **면접이 거기서 멈추면 안 된다** (2026-09-09 실측).
 
