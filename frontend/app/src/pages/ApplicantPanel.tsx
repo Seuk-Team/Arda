@@ -109,7 +109,7 @@ function StageTrack({ current }: { current: Stage }) {
       {PROGRESS_STAGES.map((s, i) => (
         <div
           key={s}
-          className={`${styles.trackStep} ${i < curIdx ? styles.trackDone : ''} ${i === curIdx ? styles.trackNow : ''}`}
+          className={`${styles.trackStep} ${i < curIdx ? styles.trackDone : ''} ${i === curIdx ? (s === 'accepted' ? styles.trackAccepted : styles.trackNow) : ''}`}
         >
           <b>{PROGRESS_LABEL[s]}</b>
         </div>
@@ -176,7 +176,7 @@ function StageMenu({
               key={s}
               type="button"
               role="menuitem"
-              className={`${styles.mitem} ${s === 'rejected' ? styles.mitemDanger : ''}`}
+              className={`${styles.mitem} ${s === 'accepted' ? styles.mitemOk : ''} ${s === 'rejected' ? styles.mitemDanger : ''}`}
               disabled={busy}
               onClick={() => onPick(s)}
             >

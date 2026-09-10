@@ -769,6 +769,9 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 .trackDone { border-top-color: var(--stage-2); }
 .trackNow { border-top-color: var(--accent); background: var(--accent-soft); }
 .trackNow b { color: var(--accent-text); }
+/* 합격 칸에 닿으면 램프의 --stage-4(=--ok) 를 쓴다 — 퍼널이 쓰는 색과 같다 */
+.trackAccepted { border-top-color: var(--stage-4); background: var(--ok-soft); }
+.trackAccepted b { color: var(--ok-text); }
 /* 불합격은 램프 밖이다 — 진행이 아니라 종료라서 색을 따로 쓴다 */
 .trackRejected { border-top-color: var(--danger); background: var(--danger-soft); }
 .trackRejected b { color: var(--danger); }
@@ -815,6 +818,9 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 .mitem:hover:not(:disabled) { background: var(--sunken-hover); }
 .mitem:disabled { opacity: .5; cursor: default; }
 .mitem small { color: var(--text-sub); font-size: var(--font-cap); }
+/* 05-design §1 "색은 판단에만" — 합격만 연두, 불합격만 적갈, 나머지는 무채.
+   불합격에만 색이 있으면 메뉴 전체가 불합격 얘기처럼 읽힌다. */
+.mitemOk { color: var(--ok-text); }
 .mitemDanger { color: var(--danger); }
 
 /* ── 탭바 ────────────────────────────────────────────────
