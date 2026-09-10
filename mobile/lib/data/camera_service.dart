@@ -76,6 +76,13 @@ abstract class CameraService extends ChangeNotifier {
   /// 지금까지 서버로 보낸 얼굴 장수. 0 이면 **얼굴이 아예 안 가고 있다**
   int get framesSent;
 
+  /// 변환하다 실패한 장 수. [framesSent] 가 0 인데 이것이 오르면 변환이
+  /// 깨진 것이고, 둘 다 0 이면 스트림이 아예 안 도는 것이다.
+  int get frameErrors => 0;
+
+  /// 마지막 실패 사유. 화면에 그대로 띄운다 — 릴리스 빌드에서는 로그가 없다.
+  String? get lastFrameError => null;
+
   /// 미리보기. 켜져 있지 않으면 빈 것을 준다 — 부르는 쪽이 상태로 갈라
   /// 그리지만, 여기서도 안전하게 둔다
   Widget buildPreview();
@@ -148,9 +155,10 @@ class DeviceCameraService extends CameraService {
       );
       await controller.initialize();
       _controller = controller;
-      // `sensorOrientation` 은 "이만큼 시계 방향으로 돌리면 똑바로 선다" 는 값이다
-      // (앞 카메라는 보통 270). 미리보기가 아니라 **보내는 프레임**에 그대로 적용한다.
-      _quarterTurns = (front.sensorOrientation ~/ 90) % 4;
+      // **여기서 돌리지 않는다.** 프레임이 누워 있어도 서버가 네 방향을 뒤져
+      // 얼굴을 찾고 그 각도를 기억한다(`interview_ws.face_row_search`).
+      // 클라이언트에서 맞추려다 2026-09-10 에 한 번 빗나갔고, 기기마다 값이
+      // 달라 맞출 때마다 APK 를 다시 구워야 한다 — 맞추는 쪽은 서버다.
       _set(CameraStatus.live);
     } on CameraException catch (e) {
       await _release();
@@ -218,18 +226,16 @@ class DeviceCameraService extends CameraService {
   /// 보내므로 그 언저리로 맞춘다.
   static const int _sendWidth = 320;
 
-  /// 보내기 전에 돌릴 각도 (90° 단위, 시계 방향).
-  ///
-  /// **스트림 프레임은 센서 방향 그대로 온다.** 폰을 세로로 들면 프레임은 90°
-  /// 누운 채로 나오는데, [CameraPreview] 는 알아서 돌려 주므로 화면만 보면
-  /// 멀쩡해 보인다. 서버로 가는 것은 안 돌아간 원본이다.
-  ///
-  /// **누운 얼굴은 MediaPipe 가 못 찾는다.** 2026-09-10 실측에서 앱 면접 두 번
-  /// 동안 판정이 169번 시도돼 **0번 성공**했다(`/ai/health` 의 `live.ok`).
-  /// 같은 서버가 웹(채용자 화면)에서는 판정을 냈는데, 그쪽은 `<video>` 를
-  /// canvas 로 떠서 방향이 똑바르다. #133 이 초당 장수를 5→10 으로 올리고도
-  /// 안 고쳐진 이유가 이것이다 — 장수가 아니라 방향이 문제였다.
-  int _quarterTurns = 0;
+  /// 변환하다 실패한 장 수와 마지막 사유. **화면이 보여 준다** — 얼굴이 0장
+  /// 가고 있는데 아무 자국도 안 남는 상태를 2026-09-10 에 겪었다.
+  int _frameErrors = 0;
+  String? _lastFrameError;
+
+  @override
+  int get frameErrors => _frameErrors;
+
+  @override
+  String? get lastFrameError => _lastFrameError;
 
   StreamController<Uint8List>? _frames;
 
@@ -298,12 +304,16 @@ class DeviceCameraService extends CameraService {
         image.width,
         image.height,
         plane.bytesPerRow,
-        _quarterTurns,
       );
       _framesSent++;
       if (!out.isClosed) out.add(jpeg);
-    } on Exception catch (e) {
-      // 한 장 실패는 넘어간다. 얼굴 분석은 곁들이지 면접의 조건이 아니다
+    } catch (e) {
+      // **`on Exception` 이 아니라 전부 잡는다** (2026-09-10). `RangeError` 는
+      // `Exception` 이 아니라 `Error` 라서 예전 catch 에 안 걸렸고, 그러면 이
+      // 콜백 밖으로 튀어 카메라 스트림이 통째로 죽는다. 릴리스 빌드에서는
+      // 아무 자국도 안 남아 **얼굴이 0장 가는데 아무도 몰랐다.**
+      _frameErrors++;
+      _lastFrameError = '$e';
       if (kDebugMode) debugPrint('[camera] 프레임 변환 실패: $e');
     }
   }
@@ -334,52 +344,26 @@ class DeviceCameraService extends CameraService {
 ///
 /// `rowStride` 를 그대로 넘긴다 — 카메라는 줄 끝에 여백을 넣어 주는 일이 잦고,
 /// 그것을 무시하면 그림이 비스듬히 밀린다.
-Uint8List _grayJpeg(
-  Uint8List luma,
-  int width,
-  int height,
-  int rowStride,
-  int quarterTurns,
-) {
-  // **줄이면서 동시에 돌린다.** 줄인 뒤 다시 돌리면 그림을 두 번 만드는 값이
-  // 든다. 읽어 오는 자리만 바꾸면 도는 값은 공짜다.
-  final sideways = quarterTurns.isOdd;
-
-  // 돌린 뒤 **가로가 될 쪽**을 기준으로 줄인다. 세로로 세울 그림을 원본 가로
-  // (1280) 기준으로 줄이면 결과가 180px 폭이 되어 얼굴이 너무 작아진다.
-  final source = sideways ? height : width;
-  final step = (source / DeviceCameraService._sendWidth).ceil().clamp(1, 8);
+Uint8List _grayJpeg(Uint8List luma, int width, int height, int rowStride) {
+  // **줄이면서 뽑는다.** 원본 크기로 만들었다가 나중에 줄이면 큰 그림을 한 번
+  // 만드는 값이 그대로 든다. 몇 칸씩 건너뛰며 읽으면 그 값이 안 든다.
+  //
+  // **돌리지 않는다** — 서버가 방향을 찾는다(`face_row_search`). 2026-09-10 에
+  // 여기서 돌려 보내려다 실패했고, 그 시도가 프레임을 통째로 끊었을 수 있다.
+  final step = (width / DeviceCameraService._sendWidth).ceil().clamp(1, 8);
   final w = width ~/ step;
   final h = height ~/ step;
-
-  final outW = sideways ? h : w;
-  final outH = sideways ? w : h;
-  final small = Uint8List(outW * outH);
-
-  // 한 칸 옆·한 줄 아래로 갈 때 원본에서 건너뛸 바이트 수
-  final rowBytes = step * rowStride;
-  final colBytes = step;
-
+  final small = Uint8List(w * h);
   var o = 0;
-  for (var y = 0; y < outH; y++) {
-    // 출력 한 줄은 원본에서도 직선이다 — 시작점과 증분만 정하면 안쪽 반복은
-    // 방향을 몰라도 된다 (픽셀마다 분기하면 그 분기가 변환값을 다시 먹는다)
-    final (int base, int inc) = switch (quarterTurns) {
-      1 => ((h - 1) * rowBytes + y * colBytes, -rowBytes), // 90° 시계
-      2 => ((h - 1 - y) * rowBytes + (w - 1) * colBytes, -colBytes), // 180°
-      3 => ((w - 1 - y) * colBytes, rowBytes), // 270° 시계
-      _ => (y * rowBytes, colBytes), // 안 돌림
-    };
-    var p = base;
-    for (var x = 0; x < outW; x++) {
-      small[o++] = luma[p];
-      p += inc;
+  for (var y = 0; y < h; y++) {
+    final row = y * step * rowStride;
+    for (var x = 0; x < w; x++) {
+      small[o++] = luma[row + x * step];
     }
   }
-
   final image = img.Image.fromBytes(
-    width: outW,
-    height: outH,
+    width: w,
+    height: h,
     bytes: small.buffer,
     numChannels: 1,
   );
