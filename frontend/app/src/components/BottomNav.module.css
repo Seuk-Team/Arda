@@ -11,7 +11,7 @@
     left: 0;
     right: 0;
     z-index: var(--z-sticky);
-    height: 60px;
+    height: var(--bottomnav-h);
     padding-bottom: env(safe-area-inset-bottom);
     background: var(--sidebar-bg);
     backdrop-filter: var(--glass);

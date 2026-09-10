@@ -23,13 +23,14 @@ import logging
 import os
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import mail
 from app.db import get_db
-from app.models import EmailLog
+from app.models import Application, EmailLog, InterviewTurn
 from app.worker import _actor, _context, _reply_to
 
 logger = logging.getLogger(__name__)
@@ -231,3 +232,100 @@ async def push_verdict(token: str, body: VerdictIn):
     from app.api.interview_rtc import push_to_recruiter
 
     await push_to_recruiter(token, {"type": "verdict", **body.model_dump()})
+
+
+class QuestionOut(BaseModel):
+    seq: int
+    question: str
+
+
+@router.get(
+    "/interview/{token}/questions",
+    response_model=list[QuestionOut],
+    dependencies=[Depends(_require_service_token)],
+)
+def get_questions(token: str, db: Session = Depends(get_db)):
+    """면접 질문 전체. 워커가 시작할 때 한 번 받는다.
+
+    **왜 필요한가**: 지원자용 조회는 "지금 질문" 하나만 준다. 그래서 워커가 다음
+    질문을 알려면 답변을 저장해야 했고, 답변을 저장하려면 전사가 끝나야 했다 —
+    지원자가 전사를 기다린 이유가 이 사슬이다.
+
+    질문 목록을 미리 쥐면 **말이 끝나자마자 다음 질문을 보낼 수 있다.** 전사는
+    뒤에서 돌다가 끝나면 `seq` 를 붙여 저장한다.
+
+    **담당자가 넣은 질문이라 지원자 정보가 아니다** — 그래도 서비스 토큰 뒤에 둔다.
+    """
+    session = _find_session_or_404(db, token)
+    turns = db.scalars(
+        select(InterviewTurn)
+        .where(InterviewTurn.session_id == session.id)
+        .order_by(InterviewTurn.seq)
+    ).all()
+    return [QuestionOut(seq=t.seq, question=t.question) for t in turns]
+
+
+# --- 이력서 사진: 워커가 대리응시를 확인할 때 쓴다 (회의 2026-09-09 3번) ---
+#
+# **저장하지 않는다.** 워커가 면접 시작 때 한 번 받아서 얼굴을 대조하고 버린다.
+# 얼굴 지문을 DB 에 쌓으면 지켜야 할 민감정보가 하나 더 늘고, 대리응시 확인에는
+# 그때그때 비교로 충분하다 — InterviewSession 이 영상을 저장하지 않는 것과 같은 이유.
+#
+# 사진이 없으면 404 다. 워커는 그때 **확인을 건너뛴다** — 서식에 사진이 빠졌다고
+# 지원자가 면접을 못 보면 안 된다.
+
+
+@router.get(
+    "/interview/{token}/portrait",
+    dependencies=[Depends(_require_service_token)],
+    response_class=Response,
+    responses={200: {"content": {"image/jpeg": {}}}},
+)
+def get_portrait(token: str, db: Session = Depends(get_db)):
+    """면접 지원자의 이력서 증명사진 원본 바이트."""
+    from app.agent.photo import portrait_of
+
+    session = _find_session_or_404(db, token)
+    app_row = db.get(Application, session.application_id)
+    photo = portrait_of(app_row) if app_row else None
+    if photo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사진 없음")
+
+    # 이력서에 든 그림은 대개 JPEG 이지만 PNG 도 있다. 받는 쪽이 바이트를 보고
+    # 여는 만큼 정확한 서브타입까지 맞추지는 않는다.
+    return Response(content=photo, media_type="image/jpeg")
+
+
+class IdentityIn(BaseModel):
+    """워커가 보내는 동일인 확인 결과. 면접 한 건에 **한 번만** 온다."""
+
+    # same | different | unclear — 워커의 face_match.verdict() 와 같은 말
+    match: Literal["same", "different", "unclear"]
+    score: float
+
+
+@router.post(
+    "/interview/{token}/identity",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_require_service_token)],
+)
+async def push_identity(token: str, body: IdentityIn):
+    """이력서 사진 대조 결과를 담당자에게 민다.
+
+    **판정(`verdict`)과 다른 통로로 보낸다.** 참·거짓 판정은 매초 흐르는 값이고
+    이건 신원 확인이라 성격이 다르다 — 섞어 보내면 화면에서 "거짓말 지표"처럼
+    읽히고, 그건 이 값이 하려는 말이 아니다.
+    """
+    from app.api.interview_rtc import push_to_recruiter
+
+    await push_to_recruiter(token, {"type": "identity", **body.model_dump()})
+
+
+def _find_session_or_404(db: Session, token: str):
+    """토큰으로 면접 세션을 찾는다. 없으면 404 — 워커용 경로 셋이 같이 쓴다."""
+    from app.api.interview_rtc import _find_session
+
+    session = _find_session(db, token)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션 없음")
+    return session

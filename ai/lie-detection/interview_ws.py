@@ -81,6 +81,10 @@ MAX_SPEECH_SEC = 180
 # 표정은 매 프레임 보지 않는다. 초당 몇 장이면 신호가 충분하고, 그 이상은 CPU 만 쓴다.
 FRAME_STRIDE = 3
 
+# 이력서 사진과 대조할 때 볼 장 수. 한 장으로 정하지 않는다 — 눈 감은 장·흔들린 장이
+# 걸리면 멀쩡한 지원자가 낮게 나온다. 다 보고 **가장 잘 맞은 값**으로 한 번만 정한다.
+IDENTITY_FRAMES = 5
+
 # ── 말하는 동안 굴러가는 판정 ──────────────────────────────────
 # 한 번 판정할 때 보는 최근 구간. 짧으면 피치·MFCC 통계가 표본 부족으로 튀고,
 # 길면 방금 한 말이 앞의 말에 묻힌다. 4초는 문장 하나가 대체로 들어가는 길이다.
@@ -300,11 +304,27 @@ class InterviewSession:
         self.scorer = LiveScorer()
         # 판정 하나가 도는 동안 또 시작하지 않게. 겹치면 CPU 만 쓰고 값은 같다.
         self.scoring = False
+        # 이력서 사진의 얼굴 지문. 없으면 동일인 확인을 통째로 건너뛴다 —
+        # 서식에 사진이 빠졌다고 지원자가 불이익을 받으면 안 된다.
+        self.reference = None
+        self._identity_scores: list[float] = []
+        # 한 번 정해지면 안 바뀐다. 면접 내내 흔들리는 값이면 담당자가 못 읽는다.
+        self.identity: dict | None = None
         # 얼굴 추출 하나가 스레드에서 도는 동안 또 시작하지 않게 (app.py `_on_binary`)
         self.face_busy = False
-        # 전사가 도는 동안 판정을 쉬게 하는 표시 (app.py `_finish_answer`).
+        # 전사가 도는 동안 판정을 쉬게 하는 표시 (app.py `_transcribe_pump`).
         # 둘이 같은 CPU 를 다투면 전사가 45초 제한을 넘긴다 — 2026-09-10 실측.
+        #
+        # **#138 로 오히려 더 필요해졌다.** 전사가 대기줄로 빠지면서 지원자가
+        # 다음 질문에 답하는 **동안** 뒤에서 돌기 때문에, 초당 판정과 겹치는
+        # 시간이 예전보다 길다.
         self.transcribing = False
+        # 질문 전체와 지금 몇 번째인가. 비어 있으면 예전 방식(전사를 기다림)으로 돈다.
+        self.questions: list[dict] = []
+        self.cursor = 0
+        # 전사 대기줄. **지원자를 기다리게 하지 않으려고** 여기에 넣고 다음 질문을
+        # 먼저 보낸다. 세션마다 하나라 한 사람의 답변은 낸 순서대로 저장된다.
+        self.pending: asyncio.Queue = asyncio.Queue()
 
     # ── 받기 ────────────────────────────────────────────────
     def add_audio(self, pcm: bytes) -> str | None:
@@ -312,15 +332,67 @@ class InterviewSession:
         self.scorer.add_audio(pcm)
         return self.detector.feed(pcm)
 
-    def add_frame(self, jpeg: bytes) -> None:
-        """영상 프레임. **모으지 않고 그때그때 본다** — 쌓아 두면 그게 곧 저장이다."""
+    def add_frame(self, jpeg: bytes) -> dict | None:
+        """영상 프레임. **모으지 않고 그때그때 본다** — 쌓아 두면 그게 곧 저장이다.
+
+        동일인 판단이 이 프레임에서 정해졌으면 그것을 돌려준다(대개 None).
+        """
         self._frame_count += 1
         if self._frame_count % FRAME_STRIDE:
-            return
+            return None
         row = face_row_of_jpeg(jpeg)
         if row is not None:
             self.frames.append(row)
             self.scorer.add_face(row, time.monotonic())
+        return self.check_identity(jpeg)
+
+    def check_identity(self, jpeg: bytes) -> dict | None:
+        """이력서 사진과 대조. 판단이 방금 정해졌으면 그것을 돌려준다.
+
+        **가장 잘 맞은 장을 쓴다.** 낮게 나온 장을 골라 쓰면 각도·조명이 나쁜
+        지원자가 의심받는데, 여기서 틀리면 되돌릴 데가 없다.
+
+        판정(`verdict`)과 달리 **한 번만** 낸다. 신원은 면접 중에 바뀌는 값이
+        아니고, 매초 흔들리면 담당자가 뭘 봐야 할지 알 수 없다.
+        """
+        if self.reference is None or self.identity is not None:
+            return None
+
+        import cv2
+
+        import face_match
+
+        img = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+        vec = face_match.embed(img) if img is not None else None
+        if vec is None:
+            return None
+
+        self._identity_scores.append(face_match.similarity(self.reference, vec))
+        if len(self._identity_scores) < IDENTITY_FRAMES:
+            return None
+
+        best = max(self._identity_scores)
+        self.identity = {"match": face_match.verdict(best), "score": round(best, 3)}
+        return self.identity
+
+    # ── 질문 진행 ────────────────────────────────────────────
+    def current_seq(self) -> int | None:
+        """지금 답하고 있는 질문 번호. 목록이 없으면 None(번호 없이 저장한다)."""
+        if self.cursor < len(self.questions):
+            return self.questions[self.cursor]["seq"]
+        return None
+
+    def advance(self) -> dict | None:
+        """다음 질문으로 넘긴다. 더 없으면 None.
+
+        **전사를 기다리지 않는다.** 질문은 면접 시작 때 이미 다 받아 뒀고, 다음
+        질문을 고르는 데 방금 한 말이 필요하지 않다 — 백엔드도 "아직 답 안 한
+        가장 앞 질문"을 꺼내 줄 뿐이었다.
+        """
+        self.cursor += 1
+        if self.cursor < len(self.questions):
+            return self.questions[self.cursor]
+        return None
 
     def due_for_verdict(self, now: float) -> bool:
         """지금 판정을 낼 때인가. **말하는 동안에만** 낸다 — 조용할 때 낸 값은
@@ -481,6 +553,50 @@ async def push_verdict(client, token: str, verdict: dict) -> None:
     r.raise_for_status()
 
 
+async def fetch_reference(client, token: str):
+    """이력서 사진 → 얼굴 지문. 없거나 못 가져오면 None (확인을 건너뛴다).
+
+    **면접 시작 때 한 번만 받고 저장하지 않는다.** 지문은 메모리에만 두고 연결이
+    끊기면 같이 사라진다 — 갈아 끼울 수 없는 생체정보라 남기면 지켜야 할 것이 는다.
+
+    404 는 정상이다. 서식에 사진이 없는 지원서일 뿐이고, 그것 때문에 면접을 막지
+    않는다. 실패도 마찬가지로 조용히 넘어간다.
+    """
+    if not SERVICE_TOKEN:
+        return None
+    try:
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/internal/interview/{token}/portrait",
+            headers={"X-Service-Token": SERVICE_TOKEN},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            return None
+        import face_match
+
+        return await asyncio.to_thread(face_match.from_image_bytes, r.content)
+    except Exception:
+        logger.warning("이력서 사진을 못 받았다 — 동일인 확인을 건너뛴다", exc_info=True)
+        return None
+
+
+async def push_identity(client, token: str, identity: dict) -> None:
+    """동일인 확인 결과를 백엔드로 민다 (`/internal/.../identity`).
+
+    판정과 **다른 통로**로 보낸다 — 신원 확인은 참·거짓 판정이 아니고, 같은
+    스트림에 섞으면 화면에서 거짓말 지표처럼 읽힌다.
+    """
+    if not SERVICE_TOKEN:
+        return
+    r = await client.post(
+        f"{BACKEND_URL}/api/v1/internal/interview/{token}/identity",
+        json=identity,
+        headers={"X-Service-Token": SERVICE_TOKEN},
+        timeout=5,
+    )
+    r.raise_for_status()
+
+
 async def finish_interview(client, token: str) -> None:
     """면접을 닫는다. **`done` 을 보내는 쪽이 부른다.**
 
@@ -496,10 +612,41 @@ async def finish_interview(client, token: str) -> None:
     r.raise_for_status()
 
 
-async def submit_answer(client, token: str, transcript: str) -> dict:
+async def fetch_questions(client, token: str) -> list[dict]:
+    """면접 질문 전체. **시작할 때 한 번** 받아 둔다.
+
+    이게 있어야 전사를 안 기다리고 다음 질문을 보낼 수 있다 — 전에는 답변을
+    저장해야 다음 질문이 나왔고, 저장하려면 전사가 끝나야 했다.
+
+    서비스 토큰이 없으면 빈 목록이다. 그때는 예전처럼 전사를 기다린다.
+    """
+    if not SERVICE_TOKEN:
+        return []
+    try:
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/internal/interview/{token}/questions",
+            headers={"X-Service-Token": SERVICE_TOKEN},
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        logger.warning("질문 목록을 못 받았다 — 전사를 기다리는 방식으로 돈다", exc_info=True)
+        return []
+
+
+async def submit_answer(client, token: str, transcript: str, seq: int | None = None) -> dict:
+    """답변을 저장한다. `seq` 를 붙이면 그 질문 칸에만 들어간다.
+
+    번호 없이 보내면 백엔드가 "아직 답 안 한 가장 앞 질문"에 넣는다 — 전사가
+    뒤에서 도는 동안 다음 질문이 이미 나가 있으면 그 규칙은 한 칸씩 밀린다.
+    """
+    body: dict = {"transcript": transcript}
+    if seq is not None:
+        body["seq"] = seq
     r = await client.post(
         f"{BACKEND_URL}/api/v1/public/interview/{token}/answer",
-        json={"transcript": transcript},
+        json=body,
         timeout=20,
     )
     r.raise_for_status()

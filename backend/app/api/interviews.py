@@ -529,15 +529,19 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
             HTTPStatus.CONFLICT, "진행 중인 면접이 아닙니다"
         )
 
-    turn = db.scalar(
-        select(InterviewTurn)
-        .where(
-            InterviewTurn.session_id == session.id,
-            InterviewTurn.transcript.is_(None),
-        )
-        .order_by(InterviewTurn.seq)
-    )
+    where = [
+        InterviewTurn.session_id == session.id,
+        InterviewTurn.transcript.is_(None),
+    ]
+    # 번호를 보냈으면 그 칸에만 넣는다. 전사가 뒤에서 도는 동안 다음 질문이 이미
+    # 나가 있을 수 있어서, "가장 앞 빈칸" 규칙이면 답이 한 칸씩 밀린다.
+    if body.seq is not None:
+        where.append(InterviewTurn.seq == body.seq)
+
+    turn = db.scalar(select(InterviewTurn).where(*where).order_by(InterviewTurn.seq))
     if turn is None:
+        # 번호를 짚어 보냈는데 없다 = 이미 답이 들어갔거나 없는 번호다. 같은 답을
+        # 두 번 보내도 앞의 것을 덮어쓰지 않는다.
         raise HTTPException(
             HTTPStatus.CONFLICT, "답변할 질문이 없습니다 — 면접을 종료해 주세요"
         )
