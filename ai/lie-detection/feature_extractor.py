@@ -177,6 +177,63 @@ def expression_rows(crops):
     return np.concatenate(out)
 
 
+def _vit_labels() -> dict[int, str]:
+    """모델이 붙여 놓은 표정 이름. id2label 을 그대로 가져와 번역만 붙인다."""
+    if not VIT_MODEL:
+        return {}
+    _, model, _ = _vit_pair()
+    return {int(k): str(v) for k, v in model.config.id2label.items()}
+
+
+# 담당자에게 보여줄 한국어 라벨. 모델 라벨(id2label 은 영어)을 그대로 화면에
+# 띄우면 담당자가 못 읽는다. 이 표는 화면 표시용이지 학습 결과가 아니다.
+_EXPRESSION_KO = {
+    "angry": "화남",
+    "disgust": "역겨움",
+    "fear": "무서움",
+    "happy": "웃음",
+    "sad": "슬픔",
+    "surprise": "놀람",
+    "neutral": "무표정",
+}
+
+
+def expressions_from_frame(frame, top_k: int = 3) -> list[dict] | None:
+    """BGR 프레임 한 장 → 표정 top-K [{"label", "label_ko", "prob"}]. 못 뽑으면 None.
+
+    담당자 화면에 **표정을 라벨로 보여주려는 자리** (2026-09-10). 판정 모델 재학습
+    (107차원, ADR-0032 §정하지 못한 것 ③) 전이라도 시연에서 "우리가 학습한 ViT 가
+    이런 걸 봤다" 는 근거를 남긴다.
+
+    검출을 한 번만 한다 — 얼굴을 못 찾으면 즉시 None. VIT_MODEL 이 꺼져 있어도 None.
+    """
+    if not VIT_MODEL:
+        return None
+
+    lm, rgb = _detect(frame)
+    if lm is None:
+        return None
+    crop = _crop_of(lm, rgb)
+    if crop is None:
+        return None
+
+    probs = expression_rows([crop])
+    if probs is None or len(probs) == 0:
+        return None
+
+    labels = _vit_labels()
+    row = probs[0]
+    order = np.argsort(row)[::-1][:top_k]
+    return [
+        {
+            "label": labels.get(int(i), str(int(i))),
+            "label_ko": _EXPRESSION_KO.get(labels.get(int(i), "").lower(), labels.get(int(i), "")),
+            "prob": round(float(row[i]), 3),
+        }
+        for i in order
+    ]
+
+
 def extract_visual(video_path, max_frames=300, with_crops=False):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30

@@ -236,9 +236,32 @@ export default function InterviewRoom() {
                   lead={(analysis.latest.truth_pct ?? 0) < 50}
                 />
 
-                {/* 얼굴에서 실제로 잰 것들. **표정 이름이 아니다** — 표정 분류
-                    모델(ViT)은 아직 서버에 안 올라가 있다(torch 2.5GB · ADR-0032).
-                    여기 있는 것은 mediapipe 로 재는 값이라 지금 바로 나온다. */}
+                {/* 표정 top-3 — 우리가 학습한 ViT (`cloverky/arda-expression-vit`,
+                    2026-09-10) 가 본 결과. **판정에는 안 들어간다** — model.pkl 은
+                    아직 100차원이라 표정 7개가 벡터에 붙지 않는다(ADR-0032 §정하지 못한 것 ③).
+                    담당자에게 "우리 ViT 가 뭘 보고 있나" 를 근거로 보여 주는 자리다. */}
+                {analysis.latest.expressions?.length ? (
+                  <div className={styles.expressions}>
+                    <p className={styles.expressionsLabel}>
+                      표정 (우리 ViT · 판정엔 안 들어감)
+                    </p>
+                    <ul className={styles.expressionsList}>
+                      {analysis.latest.expressions.slice(0, 3).map((ex) => (
+                        <li key={ex.label} className={styles.expressionRow}>
+                          <span className={styles.expressionName}>
+                            {ex.label_ko || ex.label}
+                          </span>
+                          <span className={styles.expressionPct}>
+                            {Math.round(ex.prob * 100)}%
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {/* 얼굴에서 실제로 잰 것들 — mediapipe 로 재는 landmarks 기반 값.
+                    표정 라벨과 별개로 눈 깜빡임·눈썹 높이·고개 움직임 같은 것. */}
                 {analysis.latest.signals?.length ? (
                   <ul className={styles.signals}>
                     {analysis.latest.signals.map((sig) => (

@@ -343,21 +343,34 @@ def face_row_search(jpeg: bytes, known: int | None) -> tuple[list | None, int | 
     네 배로 들고, 그 CPU 는 전사가 써야 하는 것이다. 눈을 감았거나 흔들려서
     한 장이 실패하는 것은 흔한 일이라 그때마다 다시 뒤지지 않는다.
     """
+    row, rot, _ = face_row_search_full(jpeg, known)
+    return row, rot
+
+
+def face_row_search_full(
+    jpeg: bytes, known: int | None
+) -> tuple[list | None, int | None, "np.ndarray | None"]:
+    """`face_row_search` + 얼굴이 찾힌 회전 완료 BGR. 표정 판정용 (2026-09-10).
+
+    성공 시 세 번째 값은 회전된 BGR 이미지 — feature_extractor 의 `_detect`·
+    `expressions_from_frame` 이 그대로 받아서 쓸 수 있다. 실패 시 None.
+    """
     import cv2
 
     buf = np.frombuffer(jpeg, dtype=np.uint8)
     img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
     if img is None:
-        return None, known
+        return None, known, None
     FRAME_STATS["decoded"] += 1
     from feature_extractor import face_row
 
     for rot in (known,) if known is not None else _ROTATIONS:
-        row = face_row(_rotated(img, rot))
+        rotated = _rotated(img, rot)
+        row = face_row(rotated)
         if row is not None:
             FRAME_STATS["face"] += 1
-            return row, rot
-    return None, known
+            return row, rot, rotated
+    return None, known, None
 
 
 class InterviewSession:
@@ -417,7 +430,7 @@ class InterviewSession:
         self._frame_count += 1
         if self._frame_count % FRAME_STRIDE:
             return None
-        row, rot = face_row_search(jpeg, self.frame_rotation)
+        row, rot, rotated_bgr = face_row_search_full(jpeg, self.frame_rotation)
         if row is not None:
             if self.frame_rotation is None:
                 # 이 면접에서 처음 얼굴을 찾았다. 각도를 굳히고 밖에도 남긴다 —
@@ -426,7 +439,12 @@ class InterviewSession:
                 LAST_ROTATION = rot
                 logger.info("프레임 방향 %s° 로 확정: token=%s", rot, self.token[:8])
             self.frames.append(row)
-            self.scorer.add_face(row, time.monotonic())
+            now = time.monotonic()
+            self.scorer.add_face(row, now)
+            # 표정 판정용 BGR 도 남긴다 (2026-09-10, ADR-0032). VIT_MODEL 이 꺼져
+            # 있으면 score() 가 무시하므로 남겨 두는 자체는 무해.
+            if rotated_bgr is not None:
+                self.scorer.add_frame(rotated_bgr)
         return self.check_identity(jpeg)
 
     def check_identity(self, jpeg: bytes) -> dict | None:
@@ -533,17 +551,25 @@ def model():
     return _model
 
 
-def score(pcm: bytes, rows: list, seconds: float) -> dict:
-    """음성 조각 + 얼굴 행들 → 판정.
+def score(pcm: bytes, rows: list, seconds: float, latest_frame=None) -> dict:
+    """음성 조각 + 얼굴 행들 → 판정. 프레임이 있으면 표정 top-3 도 붙인다.
 
     **모자란 재료를 0 으로 채우지 않는다.** 파일 경로는 음성이 없으면 `zeros(86)`
     을 넣는데, 그건 "분석 못 했다"를 "특징이 전부 0 인 사람"으로 바꿔 놓는 짓이다.
     실시간에서는 판정을 미루는 편이 틀린 숫자를 내는 것보다 낫다 — 그래서
     안 되는 이유를 그대로 돌려준다.
+
+    표정(`expressions`)은 판정 벡터에 들어가지 않는다. 판정 모델(`model.pkl`)이
+    아직 100차원이라(ADR-0032 §정하지 못한 것 ③) 표정 7개는 지금 담당자 화면의
+    라벨로만 흐른다 — 우리가 학습한 ViT 가 뭘 보고 있는지 근거를 남기는 자리다.
     """
     import librosa
 
-    from feature_extractor import extract_audio_from_array, face_signals
+    from feature_extractor import (
+        expressions_from_frame,
+        extract_audio_from_array,
+        face_signals,
+    )
 
     if len(rows) < 5:
         return {"ok": False, "reason": "얼굴이 잘 안 보여요"}
@@ -564,13 +590,26 @@ def score(pcm: bytes, rows: list, seconds: float) -> dict:
 
     m = model()
     proba = m.predict_proba(feat)[0]
-    return {
+
+    # 표정: 프레임이 있고 VIT_MODEL 이 켜져 있을 때만. 실패해도 판정은 그대로 낸다.
+    expressions: list | None = None
+    if latest_frame is not None:
+        try:
+            expressions = expressions_from_frame(latest_frame, top_k=3)
+        except Exception:
+            logger.exception("표정 판정 실패 — 판정은 그대로 낸다")
+            expressions = None
+
+    out = {
         "ok": True,
         "pred": int(m.predict(feat)[0]),
         "truth_pct": round(float(proba[0]) * 100, 1),
         "lie_pct": round(float(proba[1]) * 100, 1),
         "signals": face_signals(arr, seconds),
     }
+    if expressions:
+        out["expressions"] = expressions
+    return out
 
 
 class LiveScorer:
@@ -586,6 +625,9 @@ class LiveScorer:
         self._pcm = bytearray()
         self._rows: list[tuple[float, list]] = []
         self._last_scored = 0.0
+        # ViT 표정용 최근 프레임 하나 (2026-09-10). 하나만 든다 — 쌓으면 그게 곧
+        # 저장이고 ADR-0029 취지에 어긋난다. 매 판정마다 갱신되므로 오래 남지도 않는다.
+        self._latest_frame: "np.ndarray | None" = None
 
     def add_audio(self, pcm: bytes) -> None:
         self._pcm += pcm
@@ -597,14 +639,19 @@ class LiveScorer:
         cutoff = now - self.window_sec
         self._rows = [r for r in self._rows if r[0] >= cutoff]
 
+    def add_frame(self, bgr) -> None:
+        """표정 판정용. 얼굴이 들어 있던 회전 완료 프레임만 넣는다."""
+        self._latest_frame = bgr
+
     def due(self, now: float) -> bool:
         if now - self._last_scored < LIVE_EVERY_SEC:
             return False
         self._last_scored = now
         return True
 
-    def snapshot(self) -> tuple[bytes, list]:
-        return bytes(self._pcm), [row for _, row in self._rows]
+    def snapshot(self):
+        """(pcm, rows, latest_frame). 세 번째는 표정 판정에 쓰이고 없으면 None."""
+        return bytes(self._pcm), [row for _, row in self._rows], self._latest_frame
 
 
 async def fetch_state(client, token: str) -> dict:
