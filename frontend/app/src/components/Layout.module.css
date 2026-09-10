@@ -1,11 +1,15 @@
 /* ── 아르 도크 ────────────────────────────────────────
-   사이드바 정사각형에서 화면 우하단으로 옮겼다 (2026-09-07).
-   접힌 사이드바(64px)에서 정사각형이 48px 로 뭉개졌고, 좁은 열을 내비·접기
-   손잡이와 다퉜다. 떠 있으면 폭에 안 매인다.
-   떠 있는 것이 내용을 가리면 방해물이므로, 본문은 아래쪽에 그만큼 자리를 비운다. */
+   사이드바 정사각형 → 우하단(2026-09-07) → 좌하단(2026-09-10).
+   폭에 안 매이려고 떠 있는 것은 그대로고, 자리만 왼쪽으로 돌렸다 —
+   사이드바 하단은 아르가 있던 빈 칸이라(Sidebar 의 .grow) 가릴 것이 없다.
+
+   **사이드바보다 위에 있어야 한다.** 사이드바가 backdrop-filter 로 쌓임
+   맥락을 만들면서 --z-dropdown 을 쓰는데, 도크가 --z-sticky 면 그 뒤로
+   깔려 아예 안 보인다. 접힌 폭(64px)에서는 도크가 경계를 조금 넘어서는데,
+   떠 있는 것이라 그렇게 읽히는 편이 맞다. */
 .arDock {
   position: absolute;
-  right: var(--sp-6);
+  left: var(--sp-6);
   bottom: var(--sp-5);
   width: 56px;
   height: 56px;
@@ -20,7 +24,9 @@
   box-shadow: var(--sh-overlay);
   overflow: hidden;
   cursor: pointer;
-  z-index: var(--z-sticky);
+  /* 사이드바(--z-dropdown) 바로 위에만 올린다. --z-modal 로 올리면 같은 값을
+     쓰는 패널·시트를 뒤에서 덮어 버린다(BottomNav 와 같은 방식) */
+  z-index: calc(var(--z-dropdown) + 1);
   transition:
     border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
@@ -32,14 +38,9 @@
   box-shadow: var(--sh-glow), var(--sh-overlay);
 }
 
-/* 패널이 열리면 도크가 채팅 입력창 위에 올라앉는다 — 아르 패널은 오버레이가
-   아니라 flex 형제라(SidePanel .rail) 본문만 좁아지고, 화면 오른쪽 끝에
-   붙어 있는 이 도크는 제자리에 남기 때문이다. 패널 폭만큼 비켜선다.
-   패널 폭은 즉시 바뀌므로(전환 없음) 여기도 흐르게 두지 않는다 — 따로 놀면
-   도크가 패널을 스치고 지나간다. */
-.arDock[aria-expanded='true'] {
-  right: calc(var(--right-panel-w) + var(--sp-6));
-}
+/* 좌하단으로 옮기면서 "패널 폭만큼 비켜서기" 규칙을 지웠다 (2026-09-10) —
+   아르 패널은 화면 오른쪽 끝에 붙으므로(SidePanel .rail) 왼쪽 도크와는
+   애초에 겹치지 않는다. */
 
 .arDock:focus-visible {
   outline: 2px solid var(--accent-text);
@@ -53,25 +54,27 @@
 
 .arHint {
   position: absolute;
-  right: calc(var(--sp-6) + 56px + var(--sp-3));
+  /* 도크 오른쪽에 선다 — 도크가 왼쪽으로 갔으니 글자도 따라 넘어왔다 */
+  left: calc(var(--sp-6) + 56px + var(--sp-3));
   bottom: calc(var(--sp-5) + 18px);
   font-size: var(--font-cap);
   color: var(--text-sub);
   opacity: .5;
   pointer-events: none;
-  z-index: var(--z-sticky);
+  /* 도크와 같은 층. --z-sticky 로 두면 사이드바(--z-dropdown) 뒤에 묻힌다 */
+  z-index: calc(var(--z-dropdown) + 1);
 }
 
 @media (max-width: 768px) {
   .main { padding-bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom)); }
 
-  /* 5칸 내비의 맨 오른쪽(더보기) 칸 중앙 = 오른쪽에서 10vw.
+  /* 5칸 내비의 맨 왼쪽(공고) 칸 중앙 = 왼쪽에서 10vw.
      버튼 폭의 절반만큼 되물려 그 중앙에 세운다.
      44px 최소 터치 타깃(§9)보다 크다. */
   .arDock {
     position: fixed;
     bottom: calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + var(--sp-2));
-    right: calc(10vw - var(--sp-8) / 2);
+    left: calc(10vw - var(--sp-8) / 2);
     width: var(--sp-8);
     height: var(--sp-8);
     border: 2px solid var(--accent);
