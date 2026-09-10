@@ -465,59 +465,6 @@
   flex-direction: column;
 }
 
-/* ── 일괄 단계 변경 (D9) ─────────────────────────────── */
-.bulkbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--content-x);
-  background: var(--accent-soft);
-  border-bottom: var(--border-w) solid var(--accent);
-  font-size: var(--font-sm);
-  color: var(--text);
-}
-
-.bulkCount { font-weight: 700; white-space: nowrap; }
-
-.bulkActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-left: auto;
-}
-
-.bulkReason {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  width: 100%;
-}
-
-.bulkReason input {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  padding: 0 var(--sp-3);
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  background: var(--bg-elev);
-  font-size: var(--font-sm);
-  color: var(--text);
-}
-
-.bulkReason input:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 1px; }
-
-.bulkErr {
-  width: 100%;
-  font-size: var(--font-sm);
-  color: var(--danger);
-  word-break: keep-all;
-}
-
-/* 체크박스 칸이 생기면서 열이 하나 늘어난다 */
-.rowSel {
-  grid-template-columns: 32px minmax(120px, 1.2fr) 96px 72px minmax(160px, 1.4fr) 72px 108px;
-}
 
 /* 패널에 물려 있는 행 — .vtoggle button.on 과 같은 연두 워시다. 새 색이 아니다 */
 .cur, .cur:hover { background: var(--accent-soft); }
@@ -558,23 +505,117 @@
     grid-template-columns: 1fr 80px;
     padding: 0 var(--sp-4);
   }
-  .rowSel {
-    grid-template-columns: 32px 1fr 80px;
-  }
-  /* 경력·이메일·평점·지원일 숨김 */
-  .row > span:nth-child(n+4),
-  .rowSel > span:nth-child(n+4),
-  .rowSel > input ~ span:nth-child(n+4) {
+  /* 경력·이메일·평점·지원일 숨김.
+     체크박스 칸을 없애면서 칸 번호가 하나씩 당겨졌다 — 전에는 체크박스가
+     1번이라 span 이 2번부터였고 n+4 가 세 번째 값이었다. 이제 이름이 1번이라
+     n+3 이 같은 자리다 (2026-09-10) */
+  .row > span:nth-child(n+3) {
     display: none;
   }
 }
 
-/* 성향 설문 일괄 발송 결과 — 사라지는 토스트가 아니라 줄로 남긴다:
-   건수 셋(발송·이미 발송·단계 제외)을 읽고 있을 시간이 필요하다 */
-.aptMsg {
-  margin: var(--sp-2) 0 0;
-  font-size: var(--font-sm);
-  color: var(--text-sub);
+
+
+/* ── 공고 바꾸기 드롭다운 (2026-09-10) ────────────────────
+   전에는 다른 공고를 보려면 목록으로 돌아갔다 다시 들어와야 했다.
+   지원자 화면의 공고 드롭다운과 같은 규격이다. */
+.jobDd {
+  position: relative;
+  flex: none;
+}
+
+.jobBtn {
+  /* 제목 옆에서 묻히면 안 된다 — --text-sub 에 가라앉은 배경이면
+     장식처럼 보여 아무도 안 누른다 */
+  height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid rgba(34, 211, 238, .35);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.jobBtn:hover { background: rgba(34, 211, 238, .22); }
+.jobBtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.jobBtn svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2.4; }
+
+.jobMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  /* 버튼 상자의 왼쪽 선과 맞춘다 — 떠 있는 것이 기준 밖으로 나가면
+     어디에 딸린 건지 안 읽힌다 */
+  left: 0;
+  min-width: 260px;
+  max-width: 360px;
+  margin: 0;
+  padding: var(--sp-2);
+  list-style: none;
+  z-index: var(--z-dropdown);
+  /* 불투명이어야 한다 — 반투명이면 뒤의 표가 비쳐 글자가 겹쳐 읽힌다 */
+  background: #10182A;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  box-shadow: var(--sh-overlay);
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+
+.jobDdOpen .jobMenu {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.jobRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-row);
+  cursor: pointer;
+  font-size: var(--font-caption);
+  color: var(--text);
+}
+.jobRow:hover { background: var(--sunken-hover); }
+.jobSel { background: var(--accent-soft); color: var(--accent-text); }
+
+.jobTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 마감은 상태 표시일 뿐 판단 대상이 아니라 가장 조용한 톤이다 */
+.jobClosed {
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  border: var(--border-w) solid var(--border-soft);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--neutral);
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 숫자는 자리가 고정돼야 목록이 세로로 정렬돼 보인다 */
+.jobCount {
+  flex: none;
+  min-width: 24px;
+  text-align: right;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
 }
