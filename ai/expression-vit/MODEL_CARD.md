@@ -82,8 +82,8 @@ FERPlus "무서움"    652장   ← 10명이 보니 84%는 무서움이 아니�
 from transformers import ViTForImageClassification, ViTImageProcessor
 from PIL import Image
 
-model = ViTForImageClassification.from_pretrained("<계정>/arda-expression-vit")
-proc = ViTImageProcessor.from_pretrained("<계정>/arda-expression-vit")
+model = ViTForImageClassification.from_pretrained("cloverky/arda-expression-vit")
+proc = ViTImageProcessor.from_pretrained("cloverky/arda-expression-vit")
 
 x = proc(Image.open("face.jpg").convert("RGB"), return_tensors="pt")
 probs = model(**x).logits.softmax(-1)[0]
