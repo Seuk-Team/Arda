@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api/client'
-import { applications, aptitude as aptitudeApi, evaluations, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, stages } from '../api/endpoints'
+import { applications, aptitude as aptitudeApi, evaluations, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
 import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import IntegrityBadge from '../components/IntegrityBadge'
@@ -347,6 +347,20 @@ function OverviewTab({
   onScored: () => void
   onMailSent: () => void
 }) {
+  const [postingTitle, setPostingTitle] = useState<string | null>(null)
+
+  useEffect(() => {
+    /* 지원자가 바뀌면 detail 이 null 이 되며 OverviewTab 이 통째로 언마운트되므로
+       여기서 따로 비울 필요가 없다 — 비우면 렌더가 한 번 더 돈다 */
+    const ac = new AbortController()
+    postingsApi
+      .get(detail.job_posting_id, ac.signal)
+      /* 못 받아 와도 화면은 선다 — 번호로 떨어질 뿐이다 */
+      .then((posting) => setPostingTitle(posting.title))
+      .catch(() => { /* 무시 */ })
+    return () => ac.abort()
+  }, [detail.job_posting_id])
+
   return (
     <>
       <EvalRow detail={detail} applicationId={applicationId} onScored={onScored} />
@@ -375,9 +389,14 @@ function OverviewTab({
           <dt>경력</dt><dd className={styles.cellNum}>{careerText(detail.career_years)}</dd>
         </div>
         <div className={styles.cell}>
-          {/* TODO 서버가 ApplicationDetail 에 posting_title 을 주면 제목을 쓴다.
-              지금은 job_posting_id 만 온다(다른 응답 타입에는 이미 있는 필드다). */}
-          <dt>공고</dt><dd className={styles.cellNum}>#{detail.job_posting_id}</dd>
+          {/* ApplicationDetail 에는 job_posting_id 만 온다. 번호만 적으면 무슨
+              공고인지 알 수 없어 여기서 직접 받아 온다 — 메모·인적성·면접처럼
+              이 패널의 다른 조각들도 각자 받아 오는 구조다.
+              서버가 posting_title 을 실어 주면 이 요청은 없앨 수 있다. */}
+          <dt>공고</dt>
+          <dd className={postingTitle === null ? styles.cellNum : undefined}>
+            {postingTitle ?? `#${detail.job_posting_id}`}
+          </dd>
         </div>
         {(detail.skills?.length ?? 0) > 0 && (
           <div className={`${styles.cell} ${styles.cellWide}`}>
