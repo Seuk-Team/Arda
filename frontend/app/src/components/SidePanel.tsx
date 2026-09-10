@@ -29,6 +29,8 @@ interface Props {
   /* 제목 왼쪽 아이콘. 시안 #agSurface 헤더의 28px 아르 —
      rail 만 쓴다(content 는 안 주므로 겉모습이 그대로다). */
   icon?: ReactNode
+  /* content 전용 — 넓은 폭(--detail-panel-w). 지원자 상세만 쓴다 */
+  wide?: boolean
   /* 바깥에서 aria-controls 로 가리킬 때 */
   id?: string
   /* 닫을 때 포커스를 되돌릴 곳 */
@@ -38,6 +40,7 @@ interface Props {
 
 export default function SidePanel({
   variant,
+  wide = false,
   open = true,
   onClose,
   label,
@@ -97,7 +100,7 @@ export default function SidePanel({
     <aside
       ref={panelRef}
       id={id}
-      className={`${styles.panel} ${styles[variant]} ${open ? styles.open : ''}`}
+      className={`${styles.panel} ${styles[variant]} ${wide ? styles.wide : ''} ${open ? styles.open : ''}`}
       aria-label={label}
       /* 닫힌 폭 0 안에 포커스가 갇히지 않게 */
       inert={!open}

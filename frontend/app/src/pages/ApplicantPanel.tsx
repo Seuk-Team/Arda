@@ -170,7 +170,7 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
   }
 
   return (
-    <SidePanel variant="content" onClose={onClose} label="지원자 상세" closeLabel="상세 닫기">
+    <SidePanel variant="content" wide onClose={onClose} label="지원자 상세" closeLabel="상세 닫기">
       {error !== null && <p className={styles.state} role="alert">{error}</p>}
       {error === null && detail === null && <p className={styles.state}>불러오는 중…</p>}
 

@@ -88,6 +88,27 @@
   /* 열림 모션은 없다 — 아르와 같은 이유다 (위 .rail 주석) */
 }
 
+/* .wide — 지원자 상세 전용 폭 (2026-09-10). --right-panel-w 를 올리면
+   아르·그날 일정까지 같이 넓어지므로 여기서만 갈아끼운다 */
+.content.wide {
+  --panel-w: var(--detail-panel-w);
+}
+
+/* 넓어진 만큼 밀어내기를 버티는 한계도 올라간다.
+   목록이 한 줄을 담으려면 560px 은 있어야 하는데
+   560 + 620(패널) + 216(사이드바) = 1396 이라 1400 에서 덮기로 넘긴다.
+   좁은 화면에서 목록을 444px 로 뭉개느니 덮는 편이 낫다. */
+@media (max-width: 1400px) {
+  .content.wide {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-modal);
+    box-shadow: var(--sh-overlay);
+  }
+}
+
 /* 1100px 이하에서만 화면을 덮는다 (§9) */
 @media (max-width: 1100px) {
   .content {
