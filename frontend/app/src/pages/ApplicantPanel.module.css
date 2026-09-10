@@ -776,7 +776,17 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 .trackRejected { border-top-color: var(--danger); background: var(--danger-soft); }
 .trackRejected b { color: var(--danger); }
 
-.stageWrap { position: relative; flex: none; display: flex; align-items: stretch; }
+/* 뒤쪽 버튼 자리. 고를 때(불합격 + 취소)가 평소(단계 변경)보다 넓으므로
+   그 폭을 미리 잡아 둔다 — 진행 바가 모드에 따라 줄었다 늘었다 하면 안 된다 */
+.stageActions {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  /* 평소 [단계 변경] 이 고를 때 [불합격] 보다 넓다 — 넓은 쪽으로 잡는다 */
+  min-width: 92px;
+}
 
 .menu {
   position: absolute;
@@ -1085,3 +1095,97 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 .badgeOk { background: var(--ok-soft); color: var(--ok-text); }
 .badgeWarn { background: rgba(251, 191, 36, .13); color: var(--warn-text); }
 .badgeDanger { background: var(--danger-soft); color: var(--danger); }
+
+/* ── 단계 변경 · 고르는 상태 (2026-09-10, 시안 C) ────────
+   뜨는 메뉴를 없애고 진행 바가 잠깐 고를 수 있게 바뀐다.
+   평소에는 안 눌린다 — 패널에서 제일 큰 요소가 늘 눌리면
+   스크롤하다 빗나간 손가락에 되돌리기 어려운 동작이 걸린다. */
+.trackPick {
+  border: 1px solid transparent;
+  border-top-width: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.trackPick:disabled {
+  cursor: default;
+  opacity: .45;
+}
+.trackPick:not(:disabled):hover { border-color: var(--accent); background: var(--sunken-hover); }
+.trackPick:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.trackSel {
+  border-color: var(--accent);
+  background: rgba(34, 211, 238, .2);
+  box-shadow: var(--sh-glow);
+}
+.trackSel b { color: var(--accent-text); }
+
+/* 램프 밖 — 칸으로 넣으면 4→5 로 늘어나면서 방금 보던 칸이 밀린다.
+   불합격은 진행의 끝이 아니라 종료라 버튼이 의미에도 맞는다. */
+.rejBtn {
+  flex: none;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-ctl);
+  border: 1px dashed rgba(240, 163, 143, .4);
+  background: transparent;
+  color: var(--danger);
+  font-family: inherit;
+  font-size: var(--font-cap);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.rejBtn:hover:not(:disabled),
+.rejOn { background: var(--danger-soft); border-style: solid; }
+.rejBtn:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+.rejBtn:disabled { opacity: .5; cursor: default; }
+
+/* ── 확인 줄 ─────────────────────────────────────────── */
+.confirmBar {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+}
+.confirmArmed { background: var(--accent-soft); border-color: rgba(34, 211, 238, .3); }
+.confirmDanger { background: var(--danger-soft); border-color: rgba(240, 163, 143, .35); }
+
+.confirmTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--font-caption);
+}
+.confirmHint { color: var(--text-sub); }
+.confirmActions { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
+.confirmFlow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.badgeNow { background: var(--accent-soft); color: var(--accent-text); }
+
+/* 메일은 단계 변경이 보내지 않는다 — 이어서 보낼 수 있다고만 적는다 */
+.confirmMail {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: var(--sp-2) 0 0;
+  font-size: var(--font-cap);
+  color: var(--warn-text);
+}
+.confirmMail svg { width: 12px; height: 12px; flex: none; }
+
+.confirmReason {
+  width: 100%;
+  margin-top: var(--sp-2);
+  background: rgba(7, 11, 20, .5);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-2);
+  resize: vertical;
+}
+.confirmReason:focus-visible { outline: none; border-color: var(--danger); }

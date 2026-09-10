@@ -97,7 +97,16 @@ function headLine(d: ApplicationDetail): string {
 /* 진행 바. **읽는 것이다** — role="img" 로 두고 클릭을 받지 않는다.
    패널에서 제일 큰 요소를 누를 수 있게 하면, 메일까지 나가는 동작이
    스크롤하다 빗나간 손가락에 걸린다. 동작은 옆의 버튼 하나뿐이다. */
-function StageTrack({ current }: { current: Stage }) {
+function StageTrack({
+  current, editing = false, target = null, canPick, onPick,
+}: {
+  current: Stage
+  /* 고르는 상태인가. 평소에는 읽는 것이라 클릭을 받지 않는다 */
+  editing?: boolean
+  target?: Stage | null
+  canPick?: (s: Stage) => boolean
+  onPick?: (s: Stage) => void
+}) {
   const rejected = current === 'rejected'
   const curIdx = PROGRESS_STAGES.indexOf(current)
   const label = rejected
@@ -105,17 +114,33 @@ function StageTrack({ current }: { current: Stage }) {
     : `진행 ${curIdx + 1} / ${PROGRESS_STAGES.length} · ${PROGRESS_LABEL[current] ?? current}`
 
   return (
-    <div className={styles.track} role="img" aria-label={label}>
-      {PROGRESS_STAGES.map((s, i) => (
-        <div
-          key={s}
-          className={`${styles.trackStep} ${i < curIdx ? styles.trackDone : ''} ${i === curIdx ? (s === 'accepted' ? styles.trackAccepted : styles.trackNow) : ''}`}
-        >
-          <b>{PROGRESS_LABEL[s]}</b>
-        </div>
-      ))}
-      {/* 불합격은 램프 밖이다 — 진행의 끝이 아니라 종료라서 칸을 따로 세운다 */}
-      {rejected && (
+    <div className={styles.track} role={editing ? undefined : 'img'} aria-label={editing ? undefined : label}>
+      {PROGRESS_STAGES.map((s, i) => {
+        const cls = `${styles.trackStep} ${i < curIdx ? styles.trackDone : ''} ${i === curIdx ? (s === 'accepted' ? styles.trackAccepted : styles.trackNow) : ''}`
+
+        if (!editing) return <div key={s} className={cls}><b>{PROGRESS_LABEL[s]}</b></div>
+
+        /* 갈 수 있는 곳은 기존 규칙(nextStages) 그대로다 — 여기서 넓히지 않는다.
+           못 가는 칸은 지우지 않고 흐리게 둔다: 사라지면 칸이 밀린다. */
+        const pickable = canPick?.(s) ?? false
+        return (
+          <button
+            key={s}
+            type="button"
+            role="radio"
+            data-stage={s}
+            aria-checked={target === s}
+            className={`${cls} ${styles.trackPick} ${target === s ? styles.trackSel : ''}`}
+            disabled={!pickable}
+            onClick={() => onPick?.(s)}
+          >
+            <b>{PROGRESS_LABEL[s]}</b>
+          </button>
+        )
+      })}
+      {/* 불합격은 램프 밖이다 — 진행의 끝이 아니라 종료라서 칸을 따로 세운다.
+          고르는 중에는 StageChanger 의 버튼이 이 자리를 대신한다 */}
+      {rejected && !editing && (
         <div className={`${styles.trackStep} ${styles.trackRejected}`}>
           <b>불합격</b>
         </div>
@@ -124,70 +149,191 @@ function StageTrack({ current }: { current: Stage }) {
   )
 }
 
-/* 단계 변경 — 화면에서 단계를 바꿀 수 있는 **유일한** 자리다.
-   예전에는 상단 진행바·메일 섹션의 합격/불합격·하단 고정 바 세 곳이었고,
-   상태만 바꾸고 메일을 빠뜨리는 사고가 났다. */
-function StageMenu({
-  current, busy, open, setOpen, onPick,
+/* 단계 변경 — 뜨는 메뉴가 아니라 **진행 바가 잠깐 고를 수 있는 상태**가 된다.
+   (2026-09-10, 시안 C)
+
+   ## 왜 팝오버가 아닌가
+
+   보는 자리와 고르는 자리가 같아야 "지금 면접이니 다음은 합격" 이 한 번에
+   읽힌다. 메뉴를 띄우면 진행 바를 보고 → 메뉴를 열고 → 머릿속에서 다시
+   맞춰야 한다. 500px 패널이 1275px 아래에서 오버레이가 되는 것도 있어서,
+   그 안에 팝오버를 얹으면 위치·z-index·바깥 클릭을 전부 따로 맞춰야 한다.
+
+   ## 왜 평소에는 안 눌리는가
+
+   진행 바는 패널에서 제일 큰 요소다. 늘 눌리면 스크롤하다·탭 누르려다
+   빗나간 손가락에 **메일까지 나가는 동작**이 걸린다. 그래서 [단계 변경] 을
+   눌러야 잠깐 고를 수 있는 상태가 된다 — 크면서도 안전하다.
+
+   ## 왜 불합격은 칸이 아닌가
+
+   칸으로 넣으면 4칸 → 5칸이 되면서 방금 보던 칸이 눈앞에서 밀린다. 되돌리기
+   어려운 동작에서 제일 하면 안 되는 일이다. 불합격은 진행의 끝이 아니라
+   **종료**라 램프 밖에 두는 것이 의미상으로도 맞다(StageTrack 도 그렇게 그린다). */
+function StageChanger({
+  current, busy, error, onCommit,
 }: {
   current: Stage
   busy: boolean
-  open: boolean
-  setOpen: (v: boolean) => void
-  onPick: (s: Stage) => void
+  error: string | null
+  onCommit: (to: Stage, reason: string) => void
 }) {
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const [editing, setEditing] = useState(false)
+  const [target, setTarget] = useState<Stage | null>(null)
+  const [reason, setReason] = useState('')
+  const rowRef = useRef<HTMLDivElement>(null)
 
+  /* 어디로 갈 수 있는지는 기존 규칙 그대로다 — 이 화면이 새로 넓히지 않는다 */
+  const allowed = nextStages(current)
+  const canPick = (s: Stage) => allowed.includes(s)
+
+  const stop = useCallback(() => {
+    setEditing(false)
+    setTarget(null)
+    setReason('')
+  }, [])
+
+  /* 지원자가 바뀌거나 단계가 옮겨지면 고르던 것을 버린다 */
+  useEffect(() => { stop() }, [current, stop])
+
+  /* Esc 는 **고르기만** 취소한다. SidePanel 도 Esc 로 패널을 닫는데(버블 단계
+     document 리스너), 그대로 두면 단계를 고르다 Esc 를 눌렀을 때 패널째 닫힌다.
+     캡처 단계에서 먼저 잡아 막는다 — 안쪽 상태가 있으면 그것부터 물러난다. */
   useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
+    if (!editing) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      stop()
     }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open, setOpen])
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [editing, stop])
+
+  /* 화살표로 고를 수 있는 칸 사이를 옮긴다 (radiogroup 의 관례) */
+  function onArrow(e: React.KeyboardEvent) {
+    if (!editing) return
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+    if (step === 0) return
+    e.preventDefault()
+    const i = target === null ? -1 : allowed.indexOf(target)
+    const next = allowed[(i + step + allowed.length) % allowed.length]
+    setTarget(next)
+    rowRef.current?.querySelector<HTMLElement>(`[data-stage="${next}"]`)?.focus()
+  }
+
+  const rejecting = target === 'rejected'
+  const ready = target !== null && (!rejecting || reason.trim() !== '')
 
   return (
-    <div className={styles.stageWrap} ref={wrapRef}>
-      <button
-        type="button"
-        className={styles.btnStage}
-        disabled={busy}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
+    <>
+      <div
+        className={styles.stagerow}
+        ref={rowRef}
+        role={editing ? 'radiogroup' : undefined}
+        aria-label={editing ? '옮길 단계 고르기' : undefined}
+        onKeyDown={onArrow}
       >
-        단계 변경
-        <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
+        <StageTrack
+          current={current}
+          editing={editing}
+          target={target}
+          canPick={canPick}
+          onPick={setTarget}
+        />
 
-      {open && (
-        <div className={styles.menu} role="menu">
-          <p className={styles.menuCap}>단계를 옮긴다</p>
-          {nextStages(current).map((s) => (
+        {/* 버튼 자리는 **가장 넓은 상태로 미리 잡아 둔다**(.stageActions min-width).
+            안 그러면 고르기로 들어갈 때 불합격 버튼이 자리를 뺏어 진행 바가
+            줄어들고, 방금 보던 칸이 눈앞에서 밀린다 — 되돌리기 어려운 동작에서
+            제일 하면 안 되는 일이다. */}
+        <span className={styles.stageActions}>
+          {editing && canPick('rejected') && (
             <button
-              key={s}
               type="button"
-              role="menuitem"
-              className={`${styles.mitem} ${s === 'accepted' ? styles.mitemOk : ''} ${s === 'rejected' ? styles.mitemDanger : ''}`}
+              role="radio"
+              data-stage="rejected"
+              aria-checked={rejecting}
+              className={`${styles.rejBtn} ${rejecting ? styles.rejOn : ''}`}
               disabled={busy}
-              onClick={() => onPick(s)}
+              onClick={() => setTarget('rejected')}
             >
-              {STAGE_LABEL[s]}
-              {s === 'rejected' && <small>사유 필수</small>}
+              불합격
             </button>
-          ))}
+          )}
+
+          {!editing && (
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => setEditing(true)}>
+              단계 변경
+            </button>
+          )}
+        </span>
+      </div>
+
+      {editing && (
+        <div className={`${styles.confirmBar} ${target === null ? '' : rejecting ? styles.confirmDanger : styles.confirmArmed}`}>
+          <div className={styles.confirmTop}>
+            {target === null ? (
+              <span className={styles.confirmHint}>옮길 칸을 누르세요</span>
+            ) : (
+              <span className={styles.confirmFlow}>
+                <span className={`${styles.badge} ${styles.badgeNow}`}>{STAGE_LABEL[current] ?? current}</span>
+                <span aria-hidden="true">→</span>
+                <span className={`${styles.badge} ${target === 'accepted' ? styles.badgeOk : target === 'rejected' ? styles.badgeDanger : ''}`}>
+                  {STAGE_LABEL[target] ?? target}
+                </span>
+              </span>
+            )}
+            {/* 취소는 여기 있다 — 진행 바 줄에 두면 불합격 바로 옆이라
+                취소하려다 불합격을 누른다. 줄의 역할도 이렇게 갈린다:
+                위는 "어디로", 아래는 "확정할까 말까" */}
+            <span className={styles.confirmActions}>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={stop}>취소</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy || !ready}
+                onClick={() => { if (target !== null) onCommit(target, reason.trim()) }}
+              >
+                {busy ? '옮기는 중…' : '확정'}
+              </button>
+            </span>
+          </div>
+
+          {/* 지금 서버는 단계 변경과 메일이 별개 호출이라 "나갑니다" 는 사실이
+              아니다. 이어서 보낼 수 있다고만 적는다 (연락처의 메일 보내기). */}
+          {target !== null && MAIL_AFTER[target] !== undefined && (
+            <p className={styles.confirmMail}>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 6h16v12H4z" /><path d="M4 7l8 6 8-6" />
+              </svg>
+              {MAIL_AFTER[target]}
+            </p>
+          )}
+
+          {rejecting && (
+            <textarea
+              className={styles.confirmReason}
+              rows={2}
+              aria-label="불합격 사유"
+              placeholder="불합격 사유 — 적어야 옮길 수 있습니다"
+              value={reason}
+              disabled={busy}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          )}
+
+          {error && <p className={styles.err} role="alert">{error}</p>}
         </div>
       )}
-    </div>
+    </>
   )
+}
+
+/* 옮긴 뒤 이어서 보낼 수 있는 메일. 단계 변경이 메일을 보내지는 않는다 */
+const MAIL_AFTER: Partial<Record<Stage, string>> = {
+  accepted: '합격 안내 메일을 이어서 보낼 수 있습니다',
+  rejected: '불합격 안내 메일을 이어서 보낼 수 있습니다',
 }
 
 /* ── 개요 탭 ────────────────────────────────────────────
@@ -511,15 +657,12 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const [pendingReject, setPendingReject] = useState(false)
-  const [reason, setReason] = useState('')
 
   const [mailHistoryKey, setMailHistoryKey] = useState(0)
 
   /* 탭은 URL 이 아니라 로컬 상태다 — Settings 는 ?tab= 을 쓰지만 그건 페이지고,
      이건 패널이라 지원자를 바꾸면 개요부터 다시 보는 편이 맞다. */
   const [tab, setTab] = useState<TabKey>('overview')
-  const [menuOpen, setMenuOpen] = useState(false)
 
   /* 탭 라벨 배지 — 안 열어봐도 조치가 필요한 것을 알 수 있어야 한다.
      각 상태는 해당 탭의 자식이 들고 있어서 여기로 올려 받는다. */
@@ -532,11 +675,8 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
     setNoteList(null)
     setError(null)
     setActionError(null)
-    setPendingReject(false)
-    setReason('')
     setDraft('')
     setTab('overview')
-    setMenuOpen(false)
     setIvStatus(null)
     setMailFailed(0)
 
@@ -559,17 +699,14 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
     catch { /* 실패해도 화면은 그대로 둔다 — 다음에 열 때 갱신된다 */ }
   }, [applicationId])
 
-  async function changeStage(to: Stage) {
+  /* 사유는 StageChanger 가 확정 전에 받아 온다 — 여기서 다시 묻지 않는다 */
+  async function changeStage(to: Stage, why: string) {
     if (!detail) return
-    if (to === 'rejected' && reason.trim() === '') { setPendingReject(true); return }
     setSaving(true)
     setActionError(null)
     try {
-      await stages.change(applicationId, to, to === 'rejected' ? reason.trim() : undefined)
+      await stages.change(applicationId, to, to === 'rejected' ? why : undefined)
       setDetail({ ...detail, current_stage: to })
-      setPendingReject(false)
-      setReason('')
-      setMenuOpen(false)
       onChanged()
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : '단계를 바꾸지 못했습니다')
@@ -643,45 +780,12 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
               </div>
             </div>
 
-            <div className={styles.stagerow}>
-              <StageTrack current={detail.current_stage} />
-              <StageMenu
-                current={detail.current_stage}
-                busy={saving}
-                onPick={(s) => { setMenuOpen(false); void changeStage(s) }}
-                open={menuOpen}
-                setOpen={setMenuOpen}
-              />
-            </div>
-
-            {/* 불합격 사유는 확정 전에 받아야 한다 — 메뉴를 닫고 헤더 아래에 편다 */}
-            {pendingReject && (
-              <div className={styles.reasonBox}>
-                <label htmlFor="reject-reason">불합격 사유</label>
-                <textarea
-                  id="reject-reason"
-                  className={styles.input}
-                  rows={2}
-                  value={reason}
-                  disabled={saving}
-                  placeholder="사유를 적어야 불합격으로 옮길 수 있습니다"
-                  onChange={(e) => setReason(e.target.value)}
-                />
-                <div className={styles.actions}>
-                  <button type="button" className={styles.btnSm} disabled={saving} onClick={() => { setPendingReject(false); setReason('') }}>취소</button>
-                  <button
-                    type="button"
-                    className={styles.btnReject}
-                    disabled={saving || reason.trim() === ''}
-                    onClick={() => void changeStage('rejected')}
-                  >
-                    {saving ? '변경 중…' : '불합격으로 옮기기'}
-                  </button>
-                </div>
-              </div>
-            )}
-            {actionError && <p className={styles.err} role="alert">{actionError}</p>}
-
+            <StageChanger
+              current={detail.current_stage}
+              busy={saving}
+              error={actionError}
+              onCommit={(to, why) => void changeStage(to, why)}
+            />
             <div className={styles.tabs} role="tablist" aria-label="지원자 상세 탭">
               {TABS.map((t) => (
                 <button
