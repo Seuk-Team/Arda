@@ -1,0 +1,282 @@
+# 적합도 확인용 지원자 데이터셋 (2026-09-10) — docs/07_eval/fit-check-2026-09.md 가 설명서.
+#
+# 목적: 코드브릿지 채용 요강(docs/06_company/01-채용요강-2026-09.md) 두 개에 대해
+# 아르의 요약·적합도(fit_score)·추천과 의미 검색이 "회사에 맞는 사람"을 실제로 앞에
+# 세우는지 데이터로 본다. 멘토링(09-10) 2·8번.
+#
+# 필드는 공개 지원 폼(POST /public/postings/{id}/applications, ApplicationCreate)과 같다.
+# 이력서 파일은 안 붙인다 — 요약기는 파일이 없으면 폼 필드 + self_intro 로 돈다.
+# expect.tier: A = 요건 대부분 충족 (fit_score 4~5 기대) · B = 일부 충족 (3) · C = 무관/부족 (1~2)
+# expect.why: 사람이 보는 정답 근거. 결과 표에서 아르의 fit/concerns 와 대조한다.
+#
+# 이메일은 fitcheck-<역할>-<번호>@example.com — 시연 계정과 같은 도메인이라 앱 로그인
+# 단축(test1 → @example.com)도 그대로 쓸 수 있다. 생년월일은 전부 1995-01-01.
+
+frontend:
+  - name: 한지우
+    email: fitcheck-fe-01@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 4
+    skills: [React, TypeScript, Vite, Zustand, Playwright]
+    self_intro: >-
+      커머스 스타트업에서 React·TypeScript 로 주문·정산 화면을 4년간 만들고 운영했습니다.
+      Vite 로 옮기며 초기 번들을 1.8MB 에서 620KB 로 줄였고, 인증 토큰 만료와 401 처리를
+      공통 클라이언트로 묶어 화면마다 흩어진 처리를 없앴습니다. 칸반 드래그의 낙관적 갱신과
+      실패 롤백을 직접 설계했습니다. 결정은 PR 본문에 근거를 적어 남기는 편이고, 배포가
+      깨졌을 때 원인·조치를 채널에 세 줄로 공지한 적이 여러 번 있습니다.
+    expect: {tier: A, why: "필수 4개 전부 충족 + 우대(Vite 최적화) + 인재상(문서·실패 공개)"}
+
+  - name: 오세린
+    email: fitcheck-fe-02@example.com
+    education: 학사 · 디자인
+    career_years: 3
+    skills: [React, TypeScript, Storybook, Figma, WebRTC]
+    self_intro: >-
+      디자인 시스템을 운영하는 프론트엔드 개발자입니다. Figma 토큰을 코드로 옮기는
+      파이프라인을 만들고 Storybook 으로 컴포넌트 40개를 문서화했습니다. 화상 상담
+      서비스에서 WebRTC 1:1 연결과 재접속 처리를 맡았습니다. 백엔드 API 는 OpenAPI 계약을
+      먼저 합의하고 붙입니다. 작은 결정도 설계 메모로 남깁니다.
+    expect: {tier: A, why: "React·TS 3년 + REST + 문서 습관, 우대(디자인 시스템·WebRTC)"}
+
+  - name: 김태호
+    email: fitcheck-fe-03@example.com
+    education: 학사 · 전자공학
+    career_years: 2
+    skills: [React, TypeScript, Next.js, Tailwind]
+    self_intro: >-
+      Next.js 기반 마케팅 사이트와 관리자 화면을 2년간 만들었습니다. REST API 연동과
+      토큰 갱신 처리를 해 봤습니다. Git 브랜치와 PR 로 협업했고, 리뷰 코멘트를 정리해
+      팀 위키에 남긴 경험이 있습니다. 성능 최적화는 아직 깊게 해 보지 않았습니다.
+    expect: {tier: B, why: "필수 충족(경력 하한 2년) · 우대 없음 · 운영 경험 얕음"}
+
+  - name: 박도윤
+    email: fitcheck-fe-04@example.com
+    education: 석사 · 컴퓨터공학
+    career_years: 6
+    skills: [Vue, JavaScript, Nuxt, GraphQL]
+    self_intro: >-
+      Vue 와 Nuxt 로 6년간 B2B 대시보드를 만들었습니다. GraphQL 클라이언트 캐시 설계와
+      대용량 표 가상 스크롤에 강합니다. React 는 사이드 프로젝트에서 써 봤고 TypeScript 는
+      1년 정도 썼습니다. 기술 결정은 팀 회의에서 함께 정하는 편입니다.
+    expect: {tier: B, why: "프론트 경력은 충분하나 React·TS 요건 미달, 회의 결정 선호(§8.2)"}
+
+  - name: 이서연
+    email: fitcheck-fe-05@example.com
+    education: 학사 · 경영학
+    career_years: 5
+    skills: [Python, FastAPI, PostgreSQL, Docker]
+    self_intro: >-
+      백엔드 개발자입니다. FastAPI 와 PostgreSQL 로 5년간 API 를 만들었고 Docker 로
+      배포합니다. 프론트는 필요할 때 React 화면을 고쳐 본 정도입니다. 이번에는 프론트로
+      영역을 넓히고 싶어 지원합니다.
+    expect: {tier: C, why: "직무 불일치(백엔드). 인재상 '남의 도메인도 고침'은 맞지만 필수 요건 미달"}
+
+  - name: 정민호
+    email: fitcheck-fe-06@example.com
+    education: 고졸
+    career_years: 0
+    skills: [HTML, CSS, JavaScript, React]
+    self_intro: >-
+      부트캠프에서 React 를 배웠고 개인 프로젝트로 할 일 앱과 포트폴리오 사이트를
+      만들었습니다. 실무 경험은 없지만 빠르게 배웁니다. GitHub 에 코드를 공개하고 있습니다.
+    expect: {tier: C, why: "경력 요건(2년) 미달, 운영 경험 없음. 우대(공개 포트폴리오)만 해당"}
+
+  - name: Emily Park
+    email: fitcheck-fe-07@example.com
+    education: BSc Computer Science
+    career_years: 5
+    skills: [React, TypeScript, Vite, Accessibility, Jest]
+    self_intro: >-
+      Frontend engineer with 5 years of React and TypeScript in production. I led the
+      migration of a fintech dashboard to Vite, cutting cold start by 40%, and own our
+      accessibility checklist (keyboard navigation, screen reader labels). I write short
+      design notes before non-trivial changes and merge my own PRs after CI passes.
+      I have also fixed backend endpoints when the contract was wrong.
+    expect: {tier: A, why: "영어 이력서 — 요건 전부 충족 + 우대(Vite·접근성) + 인재상. 멘토링 2번 검증용"}
+
+  - name: 최유진
+    email: fitcheck-fe-08@example.com
+    education: 학사 · 광고홍보학
+    career_years: 4
+    skills: [GA4, Meta Ads, Notion, Excel]
+    self_intro: >-
+      퍼포먼스 마케터로 4년간 광고 집행과 전환 분석을 했습니다. 개발자와 협업하며
+      랜딩 페이지 A/B 테스트를 많이 돌렸고, 간단한 HTML 수정은 직접 합니다. 데이터로
+      결정하는 문화를 좋아합니다.
+    expect: {tier: C, why: "비개발 직군. 멘토링 8번(다른 직종) 검증용 — insufficient 가 아니라 '요건 무관' 으로 나와야 정상"}
+
+  - name: 강현우
+    email: fitcheck-fe-09@example.com
+    education: 학사 · 소프트웨어학
+    career_years: 3
+    skills: [React, TypeScript, Redux, Jest]
+    self_intro: >-
+      React·TypeScript 로 3년간 사내 ERP 화면을 만들었습니다. 기능은 꼼꼼히 만들지만
+      릴리스는 QA 가 전부 확인한 뒤에만 하는 편이고, 새 작업은 팀장 승인을 받고
+      시작합니다. 정해진 스펙을 정확히 구현하는 데 자신 있습니다.
+    expect: {tier: B, why: "기술 요건은 충족. 인재상 §8.2(승인 대기·완벽할 때까지 릴리스 안 함) 정면 충돌 — 문화 신호를 잡는지 검증"}
+
+  - name: 윤하늘
+    email: fitcheck-fe-10@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 7
+    skills: [React, TypeScript, Flutter, Dart, WebSocket]
+    self_intro: >-
+      웹은 React·TypeScript, 앱은 Flutter 로 같은 API 를 두 클라이언트에서 쓰는 서비스를
+      7년간 만들었습니다. WebSocket 실시간 알림과 재접속 백오프를 설계했습니다. 자기
+      도메인은 스스로 결정하고 CI 초록이면 바로 머지합니다. 경력이 공고 상한(6년)을 조금
+      넘습니다.
+    expect: {tier: A, why: "요건·우대(Flutter·실시간)·인재상 전부. 경력 상한 초과를 concerns 로 잡는지 검증"}
+
+  - name: 서지훈
+    email: fitcheck-fe-11@example.com
+    education: 학사 · 정보통신
+    career_years: 2
+    skills: [Angular, TypeScript, RxJS]
+    self_intro: >-
+      Angular 로 2년간 금융 백오피스 화면을 만들었습니다. TypeScript 와 RxJS 에 익숙하고
+      REST 연동과 인터셉터로 토큰을 처리했습니다. React 는 배우는 중입니다.
+    expect: {tier: B, why: "TS·REST 는 충족, React 미달. '일부 충족'이 맞는 답"}
+
+  - name: 문가영
+    email: fitcheck-fe-12@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 3
+    skills: [React, TypeScript]
+    self_intro: >-
+      React 로 3년 일했습니다.
+    expect: {tier: B, why: "정보 부족 케이스 — insufficient 또는 낮은 확신으로 나와야 정상 (지어내면 안 됨)"}
+
+backend:
+  - name: 조민석
+    email: fitcheck-be-01@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 5
+    skills: [Python, FastAPI, PostgreSQL, alembic, Docker, pytest, AWS]
+    self_intro: >-
+      FastAPI 와 PostgreSQL 로 5년간 예약 플랫폼 API 를 만들고 운영했습니다. 스키마
+      변경은 alembic 리비전으로만 하고 ERD 문서를 같은 커밋에서 갱신합니다. JWT 와 역할
+      권한을 설계했고, pytest 800개를 CI 에서 돌립니다. 파일 업로드는 S3 presigned 로
+      서버를 우회시켰고, 메일은 SQS 워커로 분리했습니다. 기술 결정은 ADR 로 남깁니다.
+      배포 사고 두 번 모두 원인·조치·재발 방지를 팀에 공개했습니다.
+    expect: {tier: A, why: "필수 5개 전부 + 우대(큐·AWS) + 인재상(ADR·실패 공개)"}
+
+  - name: 배수아
+    email: fitcheck-be-02@example.com
+    education: 석사 · 컴퓨터공학
+    career_years: 4
+    skills: [Python, Django, PostgreSQL, Redis, Celery, Docker]
+    self_intro: >-
+      Django 로 4년간 구독 서비스 백엔드를 만들었습니다. Celery·Redis 로 결제 후처리를
+      비동기로 분리했고, PostgreSQL 인덱스 튜닝으로 목록 조회를 1.2초에서 90ms 로
+      줄였습니다. Docker 컴포즈로 배포하고 pytest 를 GitHub Actions 에서 돌립니다.
+      필요하면 프론트 코드도 고칩니다.
+    expect: {tier: A, why: "Django 도 요건 충족 + 튜닝 수치 + 우대(큐) + 인재상(남의 도메인)"}
+
+  - name: 임재원
+    email: fitcheck-be-03@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 3
+    skills: [Python, FastAPI, SQLite, Docker]
+    self_intro: >-
+      FastAPI 로 3년간 사내 도구 API 를 만들었습니다. DB 는 주로 SQLite 를 썼고
+      PostgreSQL 은 최근 옮기는 중입니다. 테스트는 손으로 하는 편이라 CI 는 아직
+      없습니다. Docker 배포는 해 봤습니다.
+    expect: {tier: B, why: "Python 경력 충족(하한 3년), 관계형 튜닝·CI 테스트 미달"}
+
+  - name: 신예은
+    email: fitcheck-be-04@example.com
+    education: 학사 · 전산학
+    career_years: 6
+    skills: [Java, Spring Boot, MySQL, Kafka, Kubernetes]
+    self_intro: >-
+      Spring Boot 와 MySQL 로 6년간 결제 시스템을 만들었습니다. Kafka 로 이벤트를
+      분리했고 Kubernetes 로 운영합니다. Python 은 스크립트 수준입니다. 대규모 트래픽
+      경험이 강점입니다.
+    expect: {tier: B, why: "백엔드 역량은 높으나 Python 요건 미달. 우대(큐) 해당. '일부 충족' 이 정답"}
+
+  - name: 홍지민
+    email: fitcheck-be-05@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 4
+    skills: [React, TypeScript, Node.js, Express, MongoDB]
+    self_intro: >-
+      프론트엔드 개발자입니다. React·TypeScript 4년, Node.js 로 BFF 를 만든 경험이
+      있습니다. Python 은 데이터 처리 스크립트 정도입니다. 백엔드로 전환하고 싶습니다.
+    expect: {tier: C, why: "직무 불일치(프론트). 프론트 공고와 교차 검증용"}
+
+  - name: 류성민
+    email: fitcheck-be-06@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 8
+    skills: [Python, FastAPI, PostgreSQL, pgvector, LangChain, Docker, AWS]
+    self_intro: >-
+      8년차 백엔드입니다. 최근 2년은 LLM 도구 호출 에이전트와 RAG 를 서비스에 붙이는
+      일을 했고, pgvector 로 의미 검색을 구현했습니다. FastAPI·PostgreSQL 이 주력이고
+      AWS EC2·S3 를 운영하다 비용 때문에 온프레미스로 옮긴 경험이 있습니다. 결정은
+      ADR 로 남기고 자기 PR 은 CI 뒤 바로 머지합니다.
+    expect: {tier: A, why: "요건 + 우대(LLM·pgvector·AWS→온프렘) + 인재상. 경력 상한(8년) 경계"}
+
+  - name: Daniel Kim
+    email: fitcheck-be-07@example.com
+    education: BEng Software Engineering
+    career_years: 4
+    skills: [Python, FastAPI, PostgreSQL, asyncio, WebSocket, Docker, pytest]
+    self_intro: >-
+      Backend engineer, 4 years of Python in production. I built an asyncio/WebSocket
+      signaling server for a video interview product, designed JWT-based auth with two
+      token types, and keep schema changes in alembic with the ERD updated in the same
+      commit. pytest runs in CI on every PR. I document decisions as short ADRs and post
+      incident write-ups (cause, fix, prevention) to the team channel.
+    expect: {tier: A, why: "영어 이력서 — 요건·우대(asyncio·WebSocket)·인재상. 멘토링 2번 검증용"}
+
+  - name: 오하람
+    email: fitcheck-be-08@example.com
+    education: 학사 · 통계학
+    career_years: 3
+    skills: [Python, pandas, scikit-learn, SQL, Airflow]
+    self_intro: >-
+      데이터 엔지니어입니다. Python 과 SQL 로 3년간 파이프라인을 만들었고 Airflow 로
+      스케줄링합니다. API 서버를 직접 만든 적은 없고 Docker 는 파이프라인 배포에 씁니다.
+    expect: {tier: B, why: "Python 3년이지만 API 개발·인증 설계 없음. 인접 직군"}
+
+  - name: 남기훈
+    email: fitcheck-be-09@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 5
+    skills: [Python, FastAPI, PostgreSQL, Docker, pytest]
+    self_intro: >-
+      FastAPI·PostgreSQL 5년입니다. 요건은 다 갖췄다고 생각합니다. 다만 저는 제
+      영역이 분명한 곳을 선호합니다. 인프라나 프론트는 담당자가 따로 있어야 하고,
+      큰 변경은 승인을 받은 뒤 진행하는 것이 안전하다고 봅니다.
+    expect: {tier: B, why: "기술 요건 충족. 인재상 §8.2(자기 도메인만·승인 라인) 정면 충돌 — 문화 신호 검증"}
+
+  - name: 백서준
+    email: fitcheck-be-10@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 2
+    skills: [Python, Flask, PostgreSQL, Docker]
+    self_intro: >-
+      Flask 로 2년간 소규모 서비스 API 를 만들었습니다. PostgreSQL 과 Docker 를 쓰고
+      pytest 를 로컬에서 돌립니다. 경력이 공고 하한(3년)에 1년 모자랍니다.
+    expect: {tier: B, why: "경력 하한 미달 1년, 나머지 요건은 근접"}
+
+  - name: 최유진
+    email: fitcheck-be-11@example.com
+    education: 학사 · 광고홍보학
+    career_years: 4
+    skills: [GA4, Meta Ads, Notion, Excel]
+    self_intro: >-
+      퍼포먼스 마케터로 4년간 광고 집행과 전환 분석을 했습니다. 개발자와 협업하며
+      랜딩 페이지 A/B 테스트를 많이 돌렸고, 간단한 HTML 수정은 직접 합니다. 데이터로
+      결정하는 문화를 좋아합니다.
+    expect: {tier: C, why: "비개발 직군(프론트 공고와 같은 사람). 멘토링 8번 검증용"}
+
+  - name: 장우진
+    email: fitcheck-be-12@example.com
+    education: 학사 · 컴퓨터공학
+    career_years: 4
+    skills: [Python, FastAPI]
+    self_intro: >-
+      파이썬 백엔드 4년.
+    expect: {tier: B, why: "정보 부족 케이스 — 지어내지 않고 insufficient/낮은 확신이어야 정상"}
