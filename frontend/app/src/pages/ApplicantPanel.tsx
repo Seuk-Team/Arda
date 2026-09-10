@@ -1215,6 +1215,20 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
     finally { setSavingQ((prev) => ({ ...prev, [sessionId]: false })) }
   }
 
+  async function removeSession(sessionId: number) {
+    // **되돌릴 수 없다** — 세션 · 질문 · 답변 · findings 를 함께 지운다. 담당자가
+    // "옛 세션 정리" 자리로 쓰는 기능이라 확인창을 반드시 띄운다 (2026-09-10).
+    if (!window.confirm('이 면접 세션을 삭제할까요?\n질문·답변·분석 결과가 함께 지워지고 되돌릴 수 없습니다.')) return
+    setErr(null)
+    try {
+      await interviewsApi.remove(sessionId)
+      if (expandedId === sessionId) { setExpandedId(null); setExpandedDetail(null) }
+      await load()
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '면접 세션을 지우지 못했습니다')
+    }
+  }
+
   /** 끝나지 않은 세션이 하나라도 있는가 — 있으면 새로 만들지 못하게 막는다 */
   const hasOpen = (sessions ?? []).some((s) => s.status !== 'done' && s.status !== 'expired')
 
@@ -1294,6 +1308,16 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
                   {isExpanded ? '닫기' : 'Q&A 보기'}
                 </button>
               )}
+              {/* 세션 삭제 — 옛것 정리 자리. 끝난 세션도 지울 수 있다. 확인창은
+                  removeSession 안에서 띄운다 (2026-09-10 팀장 요청). */}
+              <button
+                type="button"
+                className={styles.ivDelete}
+                onClick={() => removeSession(s.id)}
+                title="세션·질문·답변을 함께 지웁니다"
+              >
+                삭제
+              </button>
             </div>
             {notStarted && (
               <>
