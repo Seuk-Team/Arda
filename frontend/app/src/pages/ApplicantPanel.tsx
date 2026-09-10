@@ -398,6 +398,8 @@ function OverviewTab({
 
       <FilesSection detail={detail} applicationId={applicationId} />
 
+      <hr className={styles.rule} />
+
       <AptitudeSection applicationId={applicationId} />
     </>
   )
@@ -452,15 +454,17 @@ function EvalRow({
 
       {open && (
         <div className={styles.reasonBox}>
-          <label htmlFor="eval-score">점수</label>
-          <div className={styles.actions} style={{ justifyContent: 'flex-start' }}>
+          {/* 점수는 라디오다 — 하나만 고른다. 고른 것은 채워서 표시한다 */}
+          <div className={styles.scoreRow} role="radiogroup" aria-label="점수">
+            <span className={styles.scoreLabel}>점수</span>
             {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
                 type="button"
-                id={n === 1 ? 'eval-score' : undefined}
-                className={styles.btnSm}
-                aria-pressed={score === n}
+                role="radio"
+                aria-checked={score === n}
+                aria-label={`${n}점`}
+                className={`${styles.scoreBtn} ${score === n ? styles.scoreOn : ''}`}
                 disabled={busy}
                 onClick={() => setScore(n)}
               >

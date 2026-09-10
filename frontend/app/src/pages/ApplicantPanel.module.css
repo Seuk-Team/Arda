@@ -806,7 +806,15 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 .trackAccepted { border-top-color: var(--stage-4); background: var(--ok-soft); }
 .trackAccepted b { color: var(--ok-text); }
 /* 불합격은 램프 밖이다 — 진행이 아니라 종료라서 색을 따로 쓴다 */
-.trackRejected { border-top-color: var(--danger); background: var(--danger-soft); }
+/* 불합격 칸만 글자가 세 자라 균등 분배(flex:1)에서 잘렸다.
+   램프 밖이니 폭도 램프를 따를 이유가 없다 — 글자에 맞춘다 */
+.trackRejected {
+  flex: none;
+  border-top-color: var(--danger);
+  background: var(--danger-soft);
+  padding-left: var(--sp-3);
+  padding-right: var(--sp-3);
+}
 .trackRejected b { color: var(--danger); }
 
 /* 뒤쪽 버튼 자리. 고를 때(불합격 + 취소)가 평소(단계 변경)보다 넓으므로
@@ -901,6 +909,39 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 /* ── 개요 · 평가 행 ──────────────────────────────────────
    값이 없다고 줄표를 두지 않는다 — 빈 상태는 행동으로 바꾼다 */
 .evalRow { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+
+/* 점수 — .btnSm 은 글자 링크라 1~5 가 "12345" 로 붙어 버렸다 */
+.scoreRow { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.scoreLabel {
+  font-size: var(--font-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--text-sub);
+  font-weight: 600;
+  margin-right: var(--sp-1);
+}
+.scoreBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.scoreBtn:hover:not(:disabled) { background: var(--sunken-hover); border-color: var(--accent); }
+.scoreBtn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+/* 고른 것은 채운다 — 워시만으로는 눌렸는지 안 보인다 */
+.scoreOn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
 .stars { display: flex; align-items: center; gap: var(--sp-2); }
 .stars svg { width: 16px; height: 16px; color: var(--warn); }
 .score { font-family: var(--mono); font-size: var(--font-body); font-weight: 500; }
@@ -1010,47 +1051,7 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 .fnameNew { display: block; font-size: var(--font-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fmetaNew { display: block; font-size: var(--font-cap); color: var(--text-sub); }
 
-/* 도움말 툴팁 — 매번 세 줄을 차지하던 무결성 설명을 여기로 옮겼다 */
-.help {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  cursor: help;
-  border: var(--border-w) solid var(--border);
-  color: var(--text-sub);
-  font-size: 10px;
-  font-weight: 600;
-  background: var(--bg-sunken);
-  font-family: inherit;
-  padding: 0;
-}
-.tip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 260px;
-  padding: var(--sp-3);
-  border-radius: var(--r-card);
-  background: #10182A;
-  border: var(--border-w) solid var(--border);
-  box-shadow: var(--sh-overlay);
-  font-size: var(--font-caption);
-  font-weight: 400;
-  line-height: 1.55;
-  color: var(--text-sub);
-  text-align: left;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--dur-fast) var(--ease);
-  z-index: var(--z-dropdown);
-  pointer-events: none;
-}
-.help:hover .tip,
-.help:focus-visible .tip { opacity: 1; visibility: visible; }
+
 
 /* ── 접히는 행 (인적성 검사) ─────────────────────────── */
 .fold { border-top: var(--border-w) solid var(--border-soft); padding-top: var(--sp-3); }
@@ -1166,6 +1167,11 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   background: var(--bg-sunken);
 }
 .trackPick:disabled b { color: var(--text-sub); }
+/* 고르는 동안 띠는 "가면 이렇게 된다" 를 뜻한다. 지나온 칸은 램프 색이
+   있는데 아직 안 온 합격만 띠가 없으면 덜 된 것처럼 보인다 —
+   불합격이 이미 --danger 띠를 두르고 있는 것과 같은 규칙으로 맞춘다. */
+.trackPick[data-stage="accepted"]:not(:disabled) { border-top-color: var(--ok); }
+
 .trackPick:not(:disabled):hover {
   border-left-color: var(--accent);
   border-right-color: var(--accent);
