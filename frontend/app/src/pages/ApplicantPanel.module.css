@@ -315,6 +315,7 @@
 }
 
 .btnStage,
+.btnAccept,
 .btnReject {
   height: 36px;
   padding: 0 var(--sp-3);
@@ -331,9 +332,19 @@
 
 .btnStage:hover:not(:disabled) { background: var(--bg-sunken); }
 .btnStage:focus-visible,
+.btnAccept:focus-visible,
 .btnReject:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
-/* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
+/* 되돌릴 수 없는 판단이라 색으로 구분한다 (05-design §1 — 합격만 연두,
+   불합격만 적갈, 나머지는 무채). 불합격에만 색이 있으면 넷이 나란히 선
+   자리가 통째로 "불합격 고르는 곳" 처럼 읽힌다. */
+.btnAccept {
+  color: var(--ok-text);
+  border-color: rgba(52, 211, 153, .55);
+}
+
+.btnAccept:hover:not(:disabled) { background: var(--ok-soft); }
+
 .btnReject {
   color: var(--danger);
   border-color: var(--danger);
@@ -342,6 +353,7 @@
 .btnReject:hover:not(:disabled) { background: var(--danger-soft); }
 
 .btnStage:disabled,
+.btnAccept:disabled,
 .btnReject:disabled {
   color: var(--text-sub);
   border-color: var(--border);

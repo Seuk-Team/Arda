@@ -1281,7 +1281,7 @@ function MailSection({ applicationId, onSent, onCancel }: { applicationId: numbe
         <div className={styles.mailPresets}>
           {MAIL_PRESETS.map((p) => (
             <button key={p.stage} type="button"
-              className={p.stage === 'rejected' ? styles.btnReject : styles.btnStage}
+              className={p.stage === 'rejected' ? styles.btnReject : p.stage === 'accepted' ? styles.btnAccept : styles.btnStage}
               onClick={() => prefill(p.stage)}>{p.label}</button>
           ))}
         </div>
