@@ -240,11 +240,10 @@ function StageChanger({
           onPick={setTarget}
         />
 
-        {/* 버튼 자리는 **가장 넓은 상태로 미리 잡아 둔다**(.stageActions min-width).
-            안 그러면 고르기로 들어갈 때 불합격 버튼이 자리를 뺏어 진행 바가
-            줄어들고, 방금 보던 칸이 눈앞에서 밀린다 — 되돌리기 어려운 동작에서
-            제일 하면 안 되는 일이다. */}
-        <span className={styles.stageActions}>
+        {/* 합격 옆이다. 램프 밖이라 칸이 아니라 버튼이고 색도 다르다 —
+            나란히 서지만 같은 것으로는 안 읽힌다. 자리는 평소에도 비워 둬서
+            모드가 바뀌어도 칸이 안 밀린다. */}
+        <span className={styles.rejSlot}>
           {editing && canPick('rejected') && (
             <button
               type="button"
@@ -258,7 +257,11 @@ function StageChanger({
               불합격
             </button>
           )}
+        </span>
 
+        {/* [단계 변경] 이 있던 자리는 고르는 동안 **비워 둔다**. 여기에 무언가
+            나타나면, 방금 누른 손가락이 그대로 한 번 더 눌러 버린다. */}
+        <span className={styles.stageActions}>
           {!editing && (
             <button type="button" className="btn btn-primary" disabled={busy} onClick={() => setEditing(true)}>
               단계 변경
