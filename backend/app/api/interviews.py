@@ -83,6 +83,87 @@ def _to_out(session: InterviewSession) -> SessionOut:
 # ── 담당자용 ──────────────────────────────────────────────────────
 
 
+# 자동 생성이 뽑을 게 없거나 실패했을 때 넣는 폴백. 어느 지원자에게든 물을 수
+# 있는 안전한 첫 세 개다 (2026-09-10). 담당자가 원하면 편집기로 덮어쓸 수 있다.
+_DEFAULT_QUESTIONS = (
+    "성함과 지원하신 직무를 말씀해 주세요.",
+    "가장 자신 있는 기술 하나만 말씀해 주세요.",
+    "입사하면 가장 먼저 하고 싶은 일은 무엇인가요?",
+)
+
+
+def _seed_questions_bg(session_id: int) -> None:
+    """세션 만든 직후 자동으로 꼬리질문을 뽑아 넣는다 (2026-09-10, 팀장 결정).
+
+    담당자가 매번 수동으로 질문을 넣던 번거로움을 없앤다. 뽑을 게 없으면 폴백
+    3개가 들어가므로 지원자는 어느 경우에도 "준비된 질문이 없습니다" 를 안 본다.
+    담당자는 이후에도 언제든 편집기로 덮어쓸 수 있다 (`set_questions`).
+
+    실패해도 무해하다 — 로그만 남기고 세션은 그대로 (담당자가 수동으로 넣으면 됨).
+    """
+    import logging
+
+    from app.agent.interview_probe import generate_probes, sources_of
+    from app.db import SessionLocal
+
+    logger = logging.getLogger(__name__)
+
+    with SessionLocal() as db:
+        session = db.get(InterviewSession, session_id)
+        if session is None:
+            return
+
+        # 이미 질문이 있으면 덮어쓰지 않는다 — 담당자가 수동으로 먼저 넣은 경우
+        existing = db.scalar(
+            select(InterviewTurn).where(InterviewTurn.session_id == session_id)
+        )
+        if existing is not None:
+            return
+
+        application = db.get(Application, session.application_id)
+        if application is None:
+            return
+
+        try:
+            sources = sources_of(application, db)
+        except Exception:
+            logger.exception("면접 질문 자동 생성 실패 (sources_of): session=%s", session_id)
+            sources = None
+
+        questions: list[str] = []
+        if sources and (sources["cover_letter"].strip() or sources["resume"].strip()):
+            try:
+                claims = generate_probes(sources)
+            except Exception:
+                logger.exception(
+                    "면접 질문 자동 생성 실패 (generate_probes): session=%s", session_id
+                )
+                claims = None
+            if claims:
+                # 주장별로 첫 질문을 먼저 뽑고 (다양한 주장 커버) 그 뒤에 두 번째,
+                # 이런 순서로 최대 10개. 같은 주장의 두 질문이 붙어 나가면 흐름이
+                # 지루해진다.
+                for i in range(2):
+                    for c in claims:
+                        qs = c.get("questions") or []
+                        if i < len(qs):
+                            questions.append(qs[i].strip())
+                questions = [q for q in questions if q][:10]
+
+        if not questions:
+            questions = list(_DEFAULT_QUESTIONS)
+
+        for seq, q in enumerate(questions, start=1):
+            db.add(
+                InterviewTurn(session_id=session_id, seq=seq, question=q)
+            )
+        db.commit()
+        logger.info(
+            "면접 질문 자동 생성 완료: session=%s 개수=%s (폴백=%s)",
+            session_id, len(questions), questions == list(_DEFAULT_QUESTIONS),
+        )
+
+
 @router.post(
     "/applications/{application_id}/interview-sessions",
     response_model=SessionOut,
@@ -91,6 +172,7 @@ def _to_out(session: InterviewSession) -> SessionOut:
 def create_session(
     application_id: int,
     body: SessionCreate,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -99,6 +181,9 @@ def create_session(
     **재생성하지 않고 매번 새 행을 만든다.** 옛 세션은 그대로 남는다 —
     이력이 사라지지 않는 편이 낫다(stage_history·schedule_proposals 와 같은 철학).
     그래서 링크를 다시 뽑아도 **이전 링크가 죽지 않는다** — 공고 public-link 와 다른 점이다.
+
+    **질문은 뒤에서 자동으로 뽑는다** (2026-09-10, 팀장 결정). 자기소개서·이력서에서
+    꼬리 질문 최대 10개, 뽑을 게 없으면 폴백 3개. 담당자는 여전히 편집기로 덮어쓸 수 있다.
     """
     application = db.get(Application, application_id)
     if application is None:
@@ -116,6 +201,10 @@ def create_session(
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # 자동 질문 생성 — 백그라운드로. 담당자를 응답 앞에 세워 두지 않는다.
+    background.add_task(_seed_questions_bg, session.id)
+
     return _to_out(session)
 
 
