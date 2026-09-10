@@ -53,7 +53,10 @@ const ITEM_STATUS: Record<string, { label: string; tone: string }> = {
   unreadable: { label: '못 읽음', tone: 'warn' },
 }
 
-export default function IntegrityBadge({ applicationId }: { applicationId: number }) {
+/* compact — 첨부 파일 라벨 옆에 배지 하나로만 선다 (2026-09-10).
+   예전에는 '제출물 무결성' 이 독립 섹션이라 설명 세 줄이 매번 자리를
+   차지했다. 설명은 툴팁으로 내리고, 판단에 필요한 것(같은가 아닌가)만 남긴다. */
+export default function IntegrityBadge({ applicationId, compact = false }: { applicationId: number; compact?: boolean }) {
   const [data, setData] = useState<ApplicationIntegrity | null>(null)
   const [pubs, setPubs] = useState<Publication[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -86,6 +89,14 @@ export default function IntegrityBadge({ applicationId }: { applicationId: numbe
     return () => ac.abort()
   }, [applicationId])
 
+  /* compact 는 인라인이다 — 여기서 섹션(div·h2·p)을 돌려주면 부모의 <p> 안에
+     블록이 들어가 HTML 이 깨진다(React 가 DOM 을 재구성하며 상태까지 잃는다). */
+  if (compact && (error !== null || data === null)) {
+    return error !== null
+      ? null
+      : <span className={styles.badge}>확인 중…</span>
+  }
+
   if (error !== null) {
     return (
       <div className={styles.sec}>
@@ -105,6 +116,18 @@ export default function IntegrityBadge({ applicationId }: { applicationId: numbe
   }
 
   const v = VERDICT[data.verdict]
+
+  if (compact) {
+    return (
+      <>
+        <span className={`${styles.badge} ${styles[v.tone]}`}>{v.label}</span>
+        <span className={styles.help} tabIndex={0} role="button" aria-label="무결성 배지 설명">
+          ?
+          <span className={styles.tip} role="tooltip">{v.note}</span>
+        </span>
+      </>
+    )
+  }
 
   /* 공개 체인에 올라간 구간인지. covered_through_seq 보다 seq 가 작거나 같은
      고리가 이미 밖에서 확인 가능한 것이다. 확정(confirmed)된 기록만 센다 —
