@@ -340,9 +340,16 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     kind, payload = data[0], data[1:]
 
     if kind == KIND_VIDEO:
+        # **받은 즉시 센다.** `add_frame` 안에서 세면 아래 `face_busy` 로 버린 것이
+        # "안 온 것"과 구별되지 않는다 — 2026-09-10 실측에서 `in=0` 을 보고도
+        # 앱이 안 보낸 것인지 서버가 버린 것인지 갈리지 않았다.
+        iw.FRAME_STATS["recv"] += 1
+
         # `/ws/live` 와 같은 이유로 스레드에서, 도는 중이면 버린다 (`add_frame` 의
         # FRAME_STRIDE 는 그 안에서 그대로 적용된다). 프레임 하나가 mediapipe 를
         # 두 번(특징 + 얼굴 대조) 타므로 이벤트 루프에서 부르면 오디오까지 늦는다.
+        if session.face_busy:
+            iw.FRAME_STATS["dropped_busy"] += 1
         if not session.face_busy:
             session.face_busy = True
 

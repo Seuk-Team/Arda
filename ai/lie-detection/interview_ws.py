@@ -311,10 +311,13 @@ LAST_ROTATION: int | None = None
 # 것과, 보내는데 얼굴을 못 찾는 것. 오늘 그 둘을 못 갈라 회전 가설을 붙들고
 # 두 번 헛돌았다. 도착·해독·검출을 따로 세면 그 자리에서 갈린다.
 #
-#   in=0                 → 앱이 안 보낸다 (카메라·구독 문제)
-#   in>0, decoded=0      → JPEG 이 깨졌다 (앱의 변환 문제)
-#   decoded>0, face=0    → 그림은 멀쩡한데 얼굴을 못 찾는다 (흑백·크기·화질)
-FRAME_STATS = {"in": 0, "decoded": 0, "face": 0}
+#   recv=0                 → 앱이 아예 안 보낸다 (카메라·구독 문제)
+#   recv>0, in=0           → 다 버려졌다 (`face_busy` 가 안 풀린다)
+#   in>0, decoded=0        → JPEG 이 깨졌다 (앱의 변환 문제)
+#   decoded>0, face=0      → 그림은 멀쩡한데 얼굴을 못 찾는다 (흑백·크기·화질)
+#
+# `recv` 는 소켓이 받은 즉시(app.py `_on_binary`), `in` 은 분석에 들어간 것만 센다.
+FRAME_STATS = {"recv": 0, "dropped_busy": 0, "in": 0, "decoded": 0, "face": 0}
 
 
 def _rotated(img, degrees: int):
