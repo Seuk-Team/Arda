@@ -91,8 +91,13 @@ export const postings = {
 
 interface SearchQuery {
   q?: string
-  stage?: Stage
+  /* 여러 개를 주면 OR 다 — "종료" 칩이 합격·불합격을 한 번에 보낸다 */
+  stage?: Stage | Stage[]
   posting_id?: number
+  /* 서버가 받는 값은 둘뿐이다 (backend/app/api/search.py SORTS).
+     경력 순은 없다 — 필요하면 백엔드에 먼저 요청해야 한다 */
+  sort?: 'created_at' | 'score'
+  order?: 'desc' | 'asc'
   limit?: number
   offset?: number
   with_total?: boolean

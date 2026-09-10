@@ -79,7 +79,7 @@ export class ApiError extends Error {
 interface RequestOptions {
   method?: string
   body?: unknown
-  query?: Record<string, string | number | boolean | undefined>
+  query?: Record<string, string | number | boolean | readonly (string | number)[] | undefined>
   /* 공개 엔드포인트(C·F 일부)는 토큰을 붙이지 않는다 */
   auth?: boolean
   /* 지원자 토큰으로 부른다 (ADR-0033). 담당자 토큰과 섞이지 않게 따로 고른다. */
@@ -91,7 +91,12 @@ function buildUrl(path: string, query?: RequestOptions['query']) {
   // BASE 가 비면 같은 출처다. URL 은 절대 주소를 요구하므로 현재 출처를 바탕으로 만든다.
   const url = new URL(BASE + PREFIX + path, window.location.origin)
   for (const [k, v] of Object.entries(query ?? {})) {
-    if (v !== undefined) url.searchParams.set(k, String(v))
+    if (v === undefined) continue
+    /* 배열은 같은 키를 여러 번 붙인다(?stage=a&stage=b) — set 으로 넣으면
+       "a,b" 한 값이 되어 서버가 리스트로 못 읽는다. 단계 필터의 "종료"가
+       합격+불합격 둘을 한 번에 보내야 해서 필요하다 */
+    if (Array.isArray(v)) { for (const one of v) url.searchParams.append(k, String(one)) }
+    else url.searchParams.set(k, String(v))
   }
   return url.toString()
 }
