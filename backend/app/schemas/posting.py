@@ -25,6 +25,11 @@ class PostingCreate(BaseModel):
     description: str | None = None
     status: PostingStatus = "draft"
     deadline: date | None = None  # B4. NULL = 상시 접수
+    # 자동 심사 (ADR-0034). 임계 이상이면 아르가 면접으로, 미만이면 불합격으로 옮긴다.
+    pass_threshold: int = Field(default=60, ge=0, le=100)
+    screening_mode: Literal["auto", "manual"] = "auto"
+    # 기본 면접관 풀 — 자동 배정 재료. 컬럼이 아니라 posting_interviewers 행이다.
+    interviewer_ids: list[int] | None = None
 
     _check_deadline = field_validator("deadline")(_reject_past)
 
@@ -34,6 +39,9 @@ class PostingUpdate(BaseModel):
     description: str | None = None
     status: PostingStatus | None = None
     deadline: date | None = None
+    pass_threshold: int | None = Field(default=None, ge=0, le=100)
+    screening_mode: Literal["auto", "manual"] | None = None
+    interviewer_ids: list[int] | None = None  # 보내면 풀 전체를 이 목록으로 바꾼다
 
     # 보낸 필드만 반영하므로(exclude_unset) 이 검사는 deadline 을 실제로 보낼 때만 돈다.
     # `null` 을 명시적으로 보내면 마감일을 지우는 뜻이고, 그건 막지 않는다.
@@ -53,6 +61,10 @@ class PostingOut(BaseModel):
     updated_at: datetime
     application_count: int = 0  # B3 — 집계 쿼리로 채운다. 컬럼이 아니다
     stage_counts: dict[str, int] = Field(default_factory=dict)  # B3 — 단계별 집계
+    # 자동 심사 (ADR-0034)
+    pass_threshold: int = 60
+    screening_mode: str = "auto"
+    interviewer_ids: list[int] = Field(default_factory=list)  # posting_interviewers 에서 채운다
 
     @computed_field
     @property

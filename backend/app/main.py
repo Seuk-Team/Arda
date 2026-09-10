@@ -240,6 +240,7 @@ from app.api.portal import router as portal_router  # noqa: E402
 from app.api.postings import router as postings_router  # noqa: E402
 from app.api.public import router as public_router  # noqa: E402
 from app.api.schedules import router as schedules_router  # noqa: E402
+from app.api.scoring import router as scoring_router  # noqa: E402
 from app.api.users import router as users_router  # noqa: E402
 from app.api.agent import router as agent_router  # noqa: E402
 from app.api.search import router as search_router  # noqa: E402
@@ -263,5 +264,6 @@ app.include_router(portal_router)
 app.include_router(postings_router)
 app.include_router(public_router)
 app.include_router(schedules_router)
+app.include_router(scoring_router)
 app.include_router(search_router)
 app.include_router(users_router)

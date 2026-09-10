@@ -223,15 +223,30 @@ class VerdictIn(BaseModel):
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(_require_service_token)],
 )
-async def push_verdict(token: str, body: VerdictIn):
+async def push_verdict(token: str, body: VerdictIn, db: Session = Depends(get_db)):
     """면접 한 건의 실시간 판정을 담당자에게 민다.
 
     **토큰으로 방을 찾는다** — 시그널링과 같은 방이라 담당자가 이미 앉아 있다.
     받는 사람이 없으면 204 로 조용히 끝난다(워커가 재시도하지 않게).
+
+    ADR-0034: 판정 개별 값은 여전히 저장하지 않지만, 면접 점수의 "진위 일관성" 재료로
+    세션에 **집계값**(표본 수·truth_pct 합)만 더한다. 이 부분이 실패해도 담당자
+    화면으로 미는 것은 이미 끝났으므로 로그만 남긴다.
     """
     from app.api.interview_rtc import push_to_recruiter
 
     await push_to_recruiter(token, {"type": "verdict", **body.model_dump()})
+
+    if body.truth_pct is not None:
+        try:
+            from app.interview_scoring import record_truth_sample
+            from app.models import InterviewSession
+
+            session = db.scalar(select(InterviewSession).where(InterviewSession.token == token))
+            if session is not None and session.status == "in_progress":
+                record_truth_sample(db, session, float(body.truth_pct))
+        except Exception:
+            logger.exception("진위 표본 집계 실패: token=%s", token[:8])
 
 
 class QuestionOut(BaseModel):

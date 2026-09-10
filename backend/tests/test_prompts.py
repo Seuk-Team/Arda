@@ -62,10 +62,29 @@ class TestVariables:
         assert variables("chain_summarize") == {"resume_text", "cover_letter_text"}
 
     def test_chain_evaluate_takes_posting_and_summary(self):
+        # v2 (ADR-0034): 우대·인재상까지 대조해 세 갈래 100점을 낸다.
         assert variables("chain_evaluate") == {
             "posting_title",
             "posting_requirements",
+            "posting_preferred",
+            "talent_profile",
             "profile_summary",
+        }
+        # v1 은 지우지 않는다 — ai_summary_model 태그가 그 버전을 가리킨다.
+        assert variables("chain_evaluate", 1) == {
+            "posting_title",
+            "posting_requirements",
+            "profile_summary",
+        }
+
+    def test_interview_score_takes_posting_summary_and_transcript(self):
+        assert variables("interview_score") == {
+            "posting_title",
+            "posting_requirements",
+            "posting_preferred",
+            "talent_profile",
+            "profile_summary",
+            "transcript",
         }
 
     def test_chain_recommend_takes_evaluation(self):

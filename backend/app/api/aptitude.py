@@ -86,6 +86,11 @@ def _new_session(db: Session, application_id: int, user_id: int) -> AptitudeSess
     return session
 
 
+def new_session(db: Session, application_id: int, user_id: int) -> AptitudeSession:
+    """자동 심사(ADR-0034)가 서류 합격 직후 부르는 공개 이름. 본체는 `_new_session`."""
+    return _new_session(db, application_id, user_id)
+
+
 def _mail_log(
     db: Session,
     application: Application,
@@ -93,11 +98,30 @@ def _mail_log(
     session: AptitudeSession,
     actor: User,
 ) -> int:
+    """담당자가 직접 보낼 때. 본체는 `queue_aptitude_mail`."""
+    return queue_aptitude_mail(
+        db, application, posting, session,
+        actor_kind="human", actor_name=actor.name, actor_id=actor.id,
+    )
+
+
+def queue_aptitude_mail(
+    db: Session,
+    application: Application,
+    posting: JobPosting,
+    session: AptitudeSession,
+    *,
+    actor_kind: str,
+    actor_name: str | None,
+    actor_id: int | None,
+) -> int:
     """설문 링크 메일을 email_logs 에 queued 로 쌓는다. **커밋·발행은 호출부가.**
 
     문구는 mail._TEMPLATES 에 넣지 않았다 — 저긴 단계 메일이고 여긴 링크가
     필요해 변수 집합이 다르다. 본문을 행에 실어 두는 create_custom_log 경로가
     정확히 이 용도다 (보낸 그대로가 감사 기록으로 남는다).
+
+    자동 심사(ADR-0034)는 actor_kind="agent" 로 부른다 — 서명이 "채용 에이전트 아르 드림".
     """
     kst = timezone(timedelta(hours=9))
     expires_str = (
@@ -106,7 +130,7 @@ def _mail_log(
         else "별도 안내"
     )
     signature = mail.build_signature(
-        "custom", actor_kind="human", actor_name=actor.name
+        "custom", actor_kind=actor_kind, actor_name=actor_name
     )
     subject = f"[{mail.COMPANY_NAME}] {posting.title} 사전 성향 설문 요청"
     body = f"""{application.name} 님, 안녕하세요.
@@ -127,8 +151,8 @@ def _mail_log(
         to_email=application.email,
         subject=subject,
         body=body,
-        actor_kind="human",
-        actor_id=actor.id,
+        actor_kind=actor_kind,
+        actor_id=actor_id,
     )
     return log.id
 

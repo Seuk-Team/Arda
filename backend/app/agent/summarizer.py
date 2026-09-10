@@ -93,7 +93,14 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
 
     posting = db.get(JobPosting, app.job_posting_id)
     posting_title = posting.title if posting else "공고 정보 없음"
-    posting_requirements = (posting.description or "요건 정보 없음") if posting else "요건 정보 없음"
+    # 요건 = description + requirements(0013). 둘 다 비면 "정보 없음" 을 그대로 보여 준다 —
+    # 프롬프트가 빈 문장을 요건으로 오해하지 않게. 우대·인재상도 같은 규칙 (ADR-0034).
+    req_parts = [p.strip() for p in ((posting.description if posting else None),
+                                     (getattr(posting, "requirements", None) if posting else None)) if p and p.strip()]
+    posting_requirements = "\n".join(req_parts) if req_parts else "요건 정보 없음"
+    posting_preferred = (getattr(posting, "preferred", None) or "").strip() if posting else ""
+    posting_preferred = posting_preferred or "우대 정보 없음"
+    talent_profile = _talent_profile(db)
 
     profile_parts: list[str] = []
     if app.name:
@@ -124,9 +131,28 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
     return {
         "posting_title": posting_title,
         "posting_requirements": posting_requirements,
+        "posting_preferred": posting_preferred,
+        "talent_profile": talent_profile,
         "resume_text": resume_text,
         "cover_letter_text": cover_letter_text,
     }
+
+
+def _talent_profile(db: Session) -> str:
+    """회사 인재상(company_profile.talent_profile). 없으면 "정보 없음" — 지어내지 않게."""
+    try:
+        from app.company import get_profile
+
+        text = (get_profile(db).talent_profile or "").strip()
+    except Exception:  # 가짜 DB(테스트)·프로파일 표 없음
+        text = ""
+    return text or "인재상 정보 없음"
+
+
+def _clamp_score(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return max(0, min(100, int(round(value))))
 
 
 def _call_llm(
@@ -255,12 +281,14 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         db.commit()
         return summary_json
 
-    # ── Step 2: 평가 ──
+    # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v2, ADR-0034) ──
     try:
         step2_text, step2_tag = render(
             "chain_evaluate",
             posting_title=prompt_vars["posting_title"],
             posting_requirements=prompt_vars["posting_requirements"],
+            posting_preferred=prompt_vars["posting_preferred"],
+            talent_profile=prompt_vars["talent_profile"],
             profile_summary=json.dumps(step1, ensure_ascii=False),
         )
         prompt_tags.append(step2_tag)
@@ -274,7 +302,27 @@ def generate_summary(db: Session, application_id: int) -> str | None:
 
     step2 = _parse_json(raw2, "step2", application_id, stop2)
     if step2 is None:
-        step2 = {"fit_score": None, "fit": [], "concerns": []}
+        step2 = {"fit": [], "concerns": []}
+
+    # 세 갈래 → 서류 100점(회사 가중치) → 옛 화면용 1~5점은 100점에서 내려 만든다.
+    # v1 응답(fit_score 만 있음)이 와도 죽지 않게 fit_score 를 먼저 살린다.
+    from app import screening
+
+    parts = {
+        "requirements": _clamp_score(step2.get("requirements_score")),
+        "preferred": _clamp_score(step2.get("preferred_score")),
+        "culture": _clamp_score(step2.get("culture_score")),
+    }
+    doc_score = screening.doc_score_from(parts, screening.weights(db))
+    legacy_fit = step2.get("fit_score")
+    if doc_score is not None:
+        fit_score = max(1, min(5, int(round(doc_score / 20)) or 1))
+    elif isinstance(legacy_fit, (int, float)):
+        fit_score = int(legacy_fit)
+        doc_score = max(0, min(100, int(round(float(legacy_fit) * 20))))
+    else:
+        fit_score = None
+    step2["fit_score"] = fit_score
 
     # ── Step 3: 추천 ──
     try:
@@ -303,8 +351,11 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         "key_skills": step1.get("key_skills", []),
         "key_experiences": step1.get("key_experiences", []),
         "fit_score": step2.get("fit_score"),
+        "doc_score": doc_score,
+        "scores": parts,
         "fit": step2.get("fit", []),
         "concerns": step2.get("concerns", []),
+        "evidence": step2.get("evidence", []),
         "recommendation": {
             "action": step3.get("action"),
             "reasons": step3.get("reasons", []),
@@ -320,6 +371,16 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     app.ai_summary = summary_json
     app.ai_summary_at = datetime.now(UTC)
     app.ai_summary_model = f"{model_tag}/{'+'.join(prompt_tags)}"
+    # 자동 심사 재료 (ADR-0034). 판정(단계 이동)은 generate_summary_bg 가 이어서 한다 —
+    # 여기서 하면 요약 테스트가 가짜 DB 로 단계까지 옮기려 든다.
+    app.doc_score = doc_score
+    app.doc_score_detail = {
+        **parts,
+        "fit": step2.get("fit", []),
+        "concerns": step2.get("concerns", []),
+        "evidence": step2.get("evidence", []),
+        "weights": {k: v for k, v in screening.weights(db).items() if k.startswith("doc_")},
+    }
     db.commit()
 
     logger.info(
@@ -347,14 +408,25 @@ def generate_summary_bg(application_id: int) -> None:
 
     db = SessionLocal()
     try:
+        summary = None
         try:
-            generate_summary(db, application_id)
+            summary = generate_summary(db, application_id)
         except Exception:
             logger.exception("백그라운드 요약 실패: application_id=%d", application_id)
         try:
             _generate_embedding(db, application_id)
         except Exception:
             logger.exception("백그라운드 임베딩 실패: application_id=%d", application_id)
+        # 자동 심사 (ADR-0034) — 점수가 나왔을 때만. 요약이 없으면 사람이 본다.
+        if summary is not None:
+            try:
+                from app import screening
+
+                app = db.get(Application, application_id)
+                if app is not None:
+                    screening.decide_document(db, app)
+            except Exception:
+                logger.exception("백그라운드 자동 심사 실패: application_id=%d", application_id)
     finally:
         db.close()
 

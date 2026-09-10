@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v2.1 · 2026-09-04** — v2.1: `chain_publications.proof` 추가(OpenTimestamps 증명 보관 — EVM 체인(운영 Sepolia)은 `tx_hash` 만 있으면 되지만 OTS 는 증명 파일이 근거다) + `(network, chain_hash)` 부분 유일 인덱스로 **같은 머리를 같은 네트워크에 두 번 올리는 것**만 막는다. **alembic `0009`**.
+> **상태: 확정 v2.2 · 2026-09-10** — v2.2: **자동 심사**([ADR-0034](../03_decision/0034-에이전트-자동심사.md)). `job_postings.pass_threshold`·`screening_mode`, 신규 `posting_interviewers`(공고별 기본 면접관 풀), `applications.doc_score`·`doc_score_detail`·`doc_decision`·`doc_decided_at`·`decision_source`, `interview_sessions.ai_score`·`ai_score_detail`·`truth_samples`·`scored_at`, `company_profile.scoring_weights`·`talent_profile`. 전부 NULL 허용 또는 기본값이라 기존 행 영향 없음. **alembic `0016`**. 0013·0014 가 만든 `company_profile`·공고 상세 컬럼도 이 판에서 문서에 반영했다(코드가 먼저였다).
+> v2.1 · 2026-09-04 — v2.1: `chain_publications.proof` 추가(OpenTimestamps 증명 보관 — EVM 체인(운영 Sepolia)은 `tx_hash` 만 있으면 되지만 OTS 는 증명 파일이 근거다) + `(network, chain_hash)` 부분 유일 인덱스로 **같은 머리를 같은 네트워크에 두 번 올리는 것**만 막는다. **alembic `0009`**.
 > v2.0 · 2026-09-04 — v2.0: 사슬 머리를 공개 체인에 못 박은 기록 `chain_publications` 추가, `document_anchors` 의 `ots_status`·`ots_proof` **제거**(아무도 쓴 적 없는 칸이고, 열려 있으면 그게 원장의 유일한 구멍이 된다). 이제 `document_anchors` 는 **UPDATE 가 아예 안 되는 표**다. **alembic `0008`** ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 2단계).
 > v1.9 · 2026-09-04 — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**. 이어서 **alembic `0007`** 이 앱 롤의 권한을 SELECT·INSERT 로 좁힌다 — **`ARDA_APP_DB_ROLE` 환경변수가 없으면 아무것도 하지 않는다**(절차는 [ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "권한 분리 절차").
 > v1.8 · 2026-09-04 — v1.8: 제출물 무결성 앵커 `document_anchors` 1테이블 추가 ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md)). **alembic `0005`** 로 이행한다 — 신규 테이블만 만들므로 기존 DB 에 영향이 없다.
@@ -84,8 +85,37 @@ erDiagram
 | public_token | varchar(64) | UNIQUE, NULL 허용 | 공개 지원 링크 토큰 (B6). NULL = 미발급 |
 | created_by | bigint | FK → users.id | |
 | created_at / updated_at | timestamptz | NOT NULL | |
+| location · employment_type · experience_min/max · salary_min/max · remote_policy · requirements · preferred · benefits | — | NULL 허용 | 상세 필드 (0013). `requirements`·`preferred` 는 v2.2 부터 아르의 서류 채점 재료 |
+| pass_threshold | smallint | NOT NULL, 기본 60, 0~100 | **자동 심사 임계 (v2.2, ADR-0034).** `applications.doc_score` 가 이 값 이상이면 아르가 면접 단계로, 미만이면 불합격으로 옮긴다 |
+| screening_mode | varchar(20) | NOT NULL, 기본 `auto` | `auto` / `manual`. manual 이면 점수만 매기고 단계는 사람이 옮긴다 |
 
 비고: B3 지원자 수는 집계 쿼리로(컬럼 안 둠).
+
+## posting_interviewers — 공고별 기본 면접관 풀 (v2.2, ADR-0034)
+
+서류 합격이 자동으로 나면 이 풀에서 **앞으로의 가용 시간이 있고 배정 건수가 가장 적은 1명**이 자동 배정된다(`app/screening.py`). 수동 배정·변경은 admin(ADR-0013).
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| job_posting_id | bigint | FK → job_postings.id (CASCADE), NOT NULL | |
+| user_id | bigint | FK → users.id (CASCADE), NOT NULL | 누구나 면접관이 될 수 있다(ADR-0017) |
+| created_at | timestamptz | NOT NULL | |
+
+UNIQUE(job_posting_id, user_id).
+
+## company_profile — 회사 소개 (단일 행, 0013·0014, v2.2 확장)
+
+아르 시스템 프롬프트·메일 `{회사명}` 치환의 원본. `id = 1` 한 행만 허용(CHECK). 사람이 쓰는 원본은 [docs/06_company/00-회사-소개.md](../06_company/00-회사-소개.md).
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK, CHECK id = 1 | |
+| name | varchar(100) | NOT NULL, 기본 '' | 빈 문자열이면 `COMPANY_NAME` 환경변수로 폴백 |
+| tagline · hr_email · website · description · narrative | — | NULL 허용 | 아르 프롬프트 "회사 정보" 절 |
+| scoring_weights | json | NULL 허용 | **자동 심사 가중치 (v2.2, ADR-0034).** 키·기본값은 `app/screening.py DEFAULT_WEIGHTS` — doc/interview(최종) · doc_requirements/preferred/culture(서류) · itv_answers/truth(면접) |
+| talent_profile | text | NULL 허용 | 인재상 원문(회사 소개 §8). 서류·면접 채점의 "문화 적합" 재료 |
+| updated_at | timestamptz | NOT NULL | |
 
 ## applications — 지원서 (C1·D1·D6) ★핵심 테이블
 
@@ -105,6 +135,11 @@ erDiagram
 | self_intro | text | | 자기소개서 |
 | ai_summary | text | | 담당자용 AI 요약 — 자소서 요지 + 공고 요건 대비 적합/우려. NULL = 미생성 |
 | ai_summary_at | timestamptz | | 생성 시각. 공고 요건 변경 시 재생성 판단 기준 |
+| doc_score | smallint | NULL 허용 | **아르 서류 점수 0~100 (v2.2, ADR-0034).** 요건·우대·인재상 세 갈래의 회사 가중 평균. 요약 2단계(`chain_evaluate.v2`)가 만든다 |
+| doc_score_detail | json | NULL 허용 | requirements · preferred · culture(각 0~100) · fit · concerns · evidence · weights · threshold · needs_manual_assignment · aptitude_sent · auto_interviewer_id |
+| doc_decision | varchar(20) | NULL 허용, CHECK | `pass` / `reject` / `hold`. hold = 점수만 있고 안 옮김(수동 모드·사람이 먼저 옮김·점수 없음) |
+| doc_decided_at | timestamptz | NULL 허용 | |
+| decision_source | varchar(10) | NULL 허용, CHECK | `agent` / `human`. **사람이 한 번이라도 단계를 옮기면 human** — 그 뒤 자동 판정은 이 지원자를 건드리지 않는다(`stage_service.apply_stage_change` 가 changed_by 유무로 정한다) |
 | ai_summary_model | varchar(200) | | 생성 모델명 + 프롬프트 태그 — 발표 때 근거 제시용. 값 예: `claude-haiku-4-5-20251001/chain_summarize.v1+chain_evaluate.v1+chain_recommend.v1` (81자). **50 이던 것을 2026-09-01 에 200 으로 고쳤다** — models.py 는 이미 String(200) 인데 이 표만 50 으로 남아 낡아 있었고, 50 인 DB 에서는 요약이 생성된 뒤 저장에서 StringDataRightTruncation 으로 죽는다 |
 | current_stage | varchar(20) | NOT NULL, default `applied` | 위 stage enum |
 | privacy_agreed_at | timestamptz | NOT NULL | 개인정보 동의 시각 (C3) |
@@ -366,6 +401,10 @@ erDiagram
 | started_at · ended_at | timestamptz | NULL 허용 | |
 | created_by | bigint | FK → users.id, NOT NULL | 만든 담당자 |
 | created_at | timestamptz | NOT NULL | |
+| ai_score | smallint | NULL 허용 | **아르 면접 점수 0~100 (v2.2, ADR-0034).** 답변 대조 × w + 진위 일관성 × w. `finish` 뒤 백그라운드 채점 |
+| ai_score_detail | json | NULL 허용 | answers · truth · per_question · strengths · concerns · weights · prompt · model |
+| truth_samples | json | NULL 허용 | 실시간 판정 **집계값만** `{"n", "truth_sum"}` — 개별 판정·프레임은 저장하지 않는다(ADR-0029 취지 유지) |
+| scored_at | timestamptz | NULL 허용 | |
 
 - **영상을 저장하지 않는다 — 현재 결정(v1.6).** 음성만 S3 에 둔다 — 저장하면 민감정보 보관 의무가 붙는데 대리 응시 확인·표정 판별은 실시간 표시로 충분하다(ADR-0026·0029). 개정하면 보관 정책·동의·별도 테이블이 같이 온다([AI면접-설계 §7](../02_tasks/AI면접-설계.md))
 
