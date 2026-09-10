@@ -228,6 +228,26 @@ export function mockResponse(method: string, path: string, query: Query = {}): u
   const proposal = /^\/applications\/(\d+)\/schedule-proposals$/.exec(path)
   if (proposal) return serve(SCHEDULE_STATUS[Number(proposal[1])] ?? FALLBACK_STATUS)
 
+  /* 인적성 검사 (ADR-0027). 진짜 서버는 세션이 없어도 404 가 아니라
+     status='none' 을 준다 — 목이 이 경로를 안 받으면 401 로 떨어져
+     담당자 화면에서 행 자체가 사라진다. 홀수 id 는 응답 완료로 둔다. */
+  const apt = /^\/applications\/(\d+)\/aptitude$/.exec(path)
+  if (apt) {
+    const done = Number(apt[1]) % 2 === 1
+    return serve(done
+      ? {
+        status: 'done', url: null, expires_at: null,
+        submitted_at: '2026-09-08T11:32:00+09:00',
+        answers: [], stats: [],
+        ai_summary: '(로컬 목 데이터) 응답 사실의 재서술입니다 — 유형 판정·점수는 없습니다.',
+        ai_summary_model: null,
+      }
+      : {
+        status: 'none', url: null, expires_at: null, submitted_at: null,
+        answers: [], stats: [], ai_summary: null, ai_summary_model: null,
+      })
+  }
+
   const noteList = /^\/applications\/(\d+)\/notes$/.exec(path)
   if (noteList) return serve([] satisfies Note[])
 
