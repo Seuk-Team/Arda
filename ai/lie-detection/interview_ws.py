@@ -302,6 +302,9 @@ class InterviewSession:
         self.scoring = False
         # 얼굴 추출 하나가 스레드에서 도는 동안 또 시작하지 않게 (app.py `_on_binary`)
         self.face_busy = False
+        # 전사가 도는 동안 판정을 쉬게 하는 표시 (app.py `_finish_answer`).
+        # 둘이 같은 CPU 를 다투면 전사가 45초 제한을 넘긴다 — 2026-09-10 실측.
+        self.transcribing = False
 
     # ── 받기 ────────────────────────────────────────────────
     def add_audio(self, pcm: bytes) -> str | None:

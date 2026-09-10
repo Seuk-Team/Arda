@@ -75,7 +75,15 @@ async def _warm() -> None:
 # 거절한 것인지가 전부 조용한 실패다. 숫자 네 개면 그 자리에서 갈린다.
 #
 # **비밀은 안 낸다** — 토큰이 있는지(true/false)만 낸다.
-_live_stats = {"scored": 0, "ok": 0, "pushed": 0, "push_failed": 0}
+_live_stats = {
+    "scored": 0,
+    "ok": 0,
+    "pushed": 0,
+    "push_failed": 0,
+    # 판정을 못 낸 이유. `scored - ok` 를 이 둘이 나눠 갖는다.
+    "no_face": 0,
+    "short_audio": 0,
+}
 
 
 @app.get("/health")
@@ -315,7 +323,11 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
 
     # 말하는 동안 판정을 굴려 담당자에게 민다. 답변이 끝날 때까지 기다리지 않는다 —
     # 담당자는 **면접 중에** 봐야 한다. 지원자 소켓으로는 보내지 않는다(ADR-0029).
-    if not session.scoring and session.due_for_verdict(time.monotonic()):
+    if (
+        not session.scoring
+        and not session.transcribing
+        and session.due_for_verdict(time.monotonic())
+    ):
         session.scoring = True
         asyncio.create_task(_live_verdict(client, session))
 
@@ -337,7 +349,17 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
     pcm, rows = session.take_answer()
     # 전사는 CPU 로 발화 길이의 절반쯤 걸린다. 이벤트 루프에서 부르면 그 동안
     # 이 워커의 모든 면접이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-    transcript = await transcribe_async(pcm)
+    #
+    # **전사가 도는 동안에는 판정을 쉰다** (2026-09-10 실측). 판정은 한 번에
+    # 185ms 를 쓰는데 초당 한 번 돌아, 8.9초 발화의 전사가 45초 제한
+    # (`STT_TIMEOUT_SEC`)을 넘겨 `[전사 지연]` 자리표시자가 저장됐다. 답변이
+    # 통째로 날아가는 것보다 그 몇 초 판정을 거르는 편이 낫다 — 판정은 곁들이고
+    # 답변은 면접 그 자체다. 지금 창에 든 것은 어차피 답변이 끝난 뒤의 방이다.
+    session.transcribing = True
+    try:
+        transcript = await transcribe_async(pcm)
+    finally:
+        session.transcribing = False
 
     if not transcript:
         # 말이 안 담긴 것을 답변으로 저장하면 그 질문은 "답한 것"이 되어
@@ -390,9 +412,17 @@ async def _live_verdict(client, session: InterviewSession) -> None:
         if not result.get("ok"):
             # 얼굴이 모자라거나 소리가 짧다. **조용히 넘어가되 세어는 둔다** —
             # 담당자 화면이 비어 있을 때 여기가 원인인지 알아야 한다
-            logger.info(
-                "판정 못 냄: token=%s %s", session.token[:8], result.get("reason")
-            )
+            #
+            # **이유별로 나눠 센다** (2026-09-10). `ok` 가 0 이라는 것만으로는
+            # 얼굴 문제인지 소리 문제인지 밖에서 못 갈라, 앱 프레임이 누워 있던
+            # 진짜 원인을 찾는 데 실측 두 번이 들었다. 서버 로그를 볼 수 없는
+            # 사람이 `/ai/health` 만으로 갈릴 수 있어야 한다.
+            reason = result.get("reason") or ""
+            if "얼굴" in reason:
+                _live_stats["no_face"] += 1
+            else:
+                _live_stats["short_audio"] += 1
+            logger.info("판정 못 냄: token=%s %s", session.token[:8], reason)
             return
         _live_stats["ok"] += 1
         await push_verdict(
