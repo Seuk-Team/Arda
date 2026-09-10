@@ -347,12 +347,13 @@ const MAIL_ON_CHANGE: Partial<Record<Stage, string>> = {
    평가 → 아르 요약 → 지원 정보 → 연락처 → 첨부 → 인적성 검사.
    판단에 쓰는 것만 모았다. */
 function OverviewTab({
-  detail, applicationId, onScored, onMailSent,
+  detail, applicationId, onScored, onMailSent, startRating,
 }: {
   detail: ApplicationDetail
   applicationId: number
   onScored: () => void
   onMailSent: () => void
+  startRating: boolean
 }) {
   const [postingTitle, setPostingTitle] = useState<string | null>(null)
 
@@ -370,7 +371,7 @@ function OverviewTab({
 
   return (
     <>
-      <EvalRow detail={detail} applicationId={applicationId} onScored={onScored} />
+      <EvalRow detail={detail} applicationId={applicationId} onScored={onScored} startOpen={startRating} />
 
       <hr className={styles.rule} />
 
@@ -433,13 +434,15 @@ function OverviewTab({
 
 /* 평가 — 없으면 줄표 대신 행동을 둔다 */
 function EvalRow({
-  detail, applicationId, onScored,
+  detail, applicationId, onScored, startOpen = false,
 }: {
   detail: ApplicationDetail
   applicationId: number
   onScored: () => void
+  /* 목록에서 [평가] 를 눌러 들어왔는가 */
+  startOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(startOpen)
   const [score, setScore] = useState(0)
   const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
@@ -676,9 +679,12 @@ interface Props {
   applicationId: number
   onClose: () => void
   onChanged: () => void
+  /* 목록의 [평가] 를 눌러 들어온 경우. 개요 탭의 평가 입력을 펼친 채로 연다 —
+     새 모달을 만들지 않는다(입력 자리는 여기 하나뿐이어야 한다) */
+  startRating?: boolean
 }
 
-export default function ApplicantPanel({ applicationId, onClose, onChanged }: Props) {
+export default function ApplicantPanel({ applicationId, onClose, onChanged, startRating = false }: Props) {
   const [detail, setDetail] = useState<ApplicationDetail | null>(null)
   const [noteList, setNoteList] = useState<Note[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -848,6 +854,7 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
               <OverviewTab
                 detail={detail}
                 applicationId={applicationId}
+                startRating={startRating}
                 onScored={reloadDetail}
                 onMailSent={() => setMailHistoryKey((k) => k + 1)}
               />
