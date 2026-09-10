@@ -181,9 +181,6 @@ import type {
   AgentConfirmRequest,
   AgentConfirmResponse,
   AgentHistoryMessage,
-  AgentLabelRequest,
-  AgentTraceItem,
-  AgentTraceListResponse,
   InterviewSession,
   InterviewSessionDetail,
 } from './types'
@@ -222,26 +219,6 @@ export const agent = {
       { tool_name, arguments: args } satisfies AgentConfirmRequest,
       { signal },
     ),
-
-  /* ── 라벨 UI (Qwen 학습 데이터) ─────────────────────────────
-     agent_traces 를 담당자가 훑으며 good/needs_fix/bad. 커서(next_cursor)로 페이지. */
-  listTraces: (
-    params: { status?: string; limit?: number; beforeId?: number } = {},
-    signal?: AbortSignal,
-  ) => {
-    const q = new URLSearchParams()
-    if (params.status) q.set('status', params.status)
-    if (params.limit) q.set('limit', String(params.limit))
-    if (params.beforeId) q.set('before_id', String(params.beforeId))
-    const qs = q.toString()
-    return api.get<AgentTraceListResponse>(
-      `/agent/traces${qs ? `?${qs}` : ''}`,
-      { signal },
-    )
-  },
-
-  labelTrace: (id: number, body: AgentLabelRequest, signal?: AbortSignal) =>
-    api.patch<AgentTraceItem>(`/agent/traces/${id}`, body, { signal }),
 }
 
 /* ── 인적성(사전 성향) 설문 (ADR-0027) ─────────────────────────────

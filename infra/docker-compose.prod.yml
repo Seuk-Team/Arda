@@ -83,7 +83,15 @@ services:
     # 주세요」의 "피크가 1.5g 를 넘으면 2.5g 로 올리는 편이 안전" 근거가 서버에서
     # 그대로 재현된 것 — 처리 피크가 조금만 더 겹치면 OOM. **3g 로 올린다**
     # (여유 ~600 MiB). t3.large 8GB 라 남은 서버 4.8G available 로 여유 있다.
-    mem_limit: 3g
+    #
+    # 2026-09-09 밤 재실측: 3g 상한에서 `memory.peak = 3,221,225,472 bytes
+    # (3.00 GiB)` — 상한과 정확히 일치. `memory.current` 도 2.95 GiB 로 붙어
+    # 있었다. OOMKilled=false, Restart=0 로 아직 살아있지만 처리 피크가 잠깐만
+    # 넘어도 즉시 OOM. 상한을 올리면 peak 도 따라 올라가는 패턴이 세 번 재현됨
+    # (2g→2.5g: peak 2.36 GiB, 2.5g→3g: peak 3.00 GiB) — 여러 세션 겹칠 때
+    # 계속 늘어나는 것으로 보인다. **4g 로 올린다** (여유 ~1 GiB). 서버 available
+    # 4.7 GiB 로 자원 충분.
+    mem_limit: 4g
     restart: unless-stopped
     logging: *default-logging
 

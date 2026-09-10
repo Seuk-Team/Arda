@@ -389,6 +389,45 @@ class TestAnswer:
         assert turns[1].transcript is None
         assert turns[2].transcript is None
 
+    def test_번호를_주면_그_칸에_넣는다(self, public, db: Session, running):
+        """워커가 전사를 뒤에서 돌리면 도착 순서가 어긋난다 — 그때 3번 답이
+        1번 칸에 들어가면 담당자가 엉뚱한 대조를 한다."""
+        public.post(
+            "/api/v1/public/interview/tok-test/answer",
+            json={"transcript": "셋째 답", "seq": 3},
+        )
+        turns = db.scalars(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == running.id)
+            .order_by(InterviewTurn.seq)
+        ).all()
+        assert turns[0].transcript is None
+        assert turns[2].transcript == "셋째 답"
+
+    def test_이미_답한_번호면_409(self, public, running):
+        """같은 답이 두 번 도착해도 앞의 것을 덮어쓰지 않는다."""
+        public.post(
+            "/api/v1/public/interview/tok-test/answer",
+            json={"transcript": "첫 답", "seq": 1},
+        )
+        again = public.post(
+            "/api/v1/public/interview/tok-test/answer",
+            json={"transcript": "다시", "seq": 1},
+        )
+        assert again.status_code == 409
+
+    def test_번호를_안_주면_지금까지와_같다(self, public, db: Session, running):
+        """워커 말고도 부르는 곳이 있다 — 기본값이 바뀌면 그쪽이 깨진다."""
+        public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "첫 답"}
+        )
+        turns = db.scalars(
+            select(InterviewTurn)
+            .where(InterviewTurn.session_id == running.id)
+            .order_by(InterviewTurn.seq)
+        ).all()
+        assert turns[0].transcript == "첫 답"
+
     def test_다_답하면_현재_질문이_없다(self, public, db: Session, running):
         for t in ["1", "2", "3"]:
             public.post(

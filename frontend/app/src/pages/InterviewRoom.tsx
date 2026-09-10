@@ -79,6 +79,27 @@ export default function InterviewRoom() {
     return () => ac.abort()
   }, [id, valid])
 
+  /* 답변 전사 갱신 (2026-09-09) — 지원자가 답을 마칠 때마다 서버가 저장하지만
+     담당자 브라우저에는 밀어 넣지 않는다. 3초 간격으로 다시 읽어 새 답변을
+     붙인다. **폴링이 심하지 않은 이유**: 면접이 도는 동안만 돌고, 응답은 세션
+     한 개(질문 목록·답변)라 서버 부담이 작다. */
+  useEffect(() => {
+    if (!valid) return
+    const ac = new AbortController()
+    const timer = window.setInterval(() => {
+      interviews
+        .detail(id, ac.signal)
+        .then(setDetail)
+        .catch(() => {
+          /* 한 번 실패해도 다음 주기를 기다린다 */
+        })
+    }, 3000)
+    return () => {
+      window.clearInterval(timer)
+      ac.abort()
+    }
+  }, [id, valid])
+
   const copyLink = useCallback(async () => {
     if (!detail?.url) return
     try {
@@ -150,12 +171,18 @@ export default function InterviewRoom() {
 
         <aside className={styles.side}>
           <section className={styles.panel}>
-            <h2 className={styles.panelTitle}>질문</h2>
+            <h2 className={styles.panelTitle}>질문·답변</h2>
             {detail?.turns?.length ? (
               <ol className={styles.questions}>
                 {detail.turns.map((t) => (
                   <li key={t.seq} className={styles.question}>
                     {t.question}
+                    {/* 서버가 저장한 답변 전사(2026-09-09).
+                        아직 안 온 것은 자리만 남긴다 — "아직 답 없음" 을 안 적으면
+                        지원자가 지금 답하는 중인지 다 넘긴 것인지 화면으로 알 수 없다. */}
+                    <div className={styles.answer}>
+                      {t.transcript ?? <em className={styles.pending}>아직 답이 저장되지 않았습니다.</em>}
+                    </div>
                   </li>
                 ))}
               </ol>

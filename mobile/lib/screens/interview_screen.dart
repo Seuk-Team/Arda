@@ -38,6 +38,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api/api_error.dart';
 import '../data/applicant_portal_repository.dart';
@@ -174,6 +175,10 @@ class _InterviewScreenState extends State<InterviewScreen>
     WidgetsBinding.instance.addObserver(this);
     _camera.addListener(_onCamera);
     _answer.addListener(_onTyping);
+    // 면접 화면이 열려 있는 동안 화면이 꺼지지 않게 한다 (2026-09-09).
+    // 안드로이드 기본 3분 뒤 화면이 꺼지면 카메라·마이크가 다 끊겨 면접이 멎는다.
+    // 이 화면을 나가면 dispose 에서 놓아 주므로 배터리는 다른 곳에서 원래대로 산다.
+    if (widget.active) WakelockPlus.enable().ignore();
     if (widget.token != null) _load();
   }
 
@@ -187,6 +192,8 @@ class _InterviewScreenState extends State<InterviewScreen>
     if (_ownsCamera) _camera.dispose();
     if (_ownsMic) _mic.dispose().ignore();
     _answer.dispose();
+    // 면접이 끝나면 화면은 원래대로 꺼질 수 있어야 한다.
+    WakelockPlus.disable().ignore();
     super.dispose();
   }
 
@@ -242,6 +249,13 @@ class _InterviewScreenState extends State<InterviewScreen>
       _camera.start();
     } else {
       _camera.stop();
+    }
+    // 다른 탭으로 나가면 화면이 원래대로 꺼져도 된다 — 배터리를 위해서다.
+    // 다시 돌아오면 켠다.
+    if (widget.active) {
+      WakelockPlus.enable().ignore();
+    } else {
+      WakelockPlus.disable().ignore();
     }
   }
 

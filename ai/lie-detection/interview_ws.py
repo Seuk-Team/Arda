@@ -270,6 +270,12 @@ class _SpeechDetector:
         # 너무 짧으면 답변으로 세지 않는다. 잡음이었다고 보고 계속 듣는다.
         return "end" if spoke >= MIN_SPEECH_SEC else None
 
+    def reset(self) -> None:
+        """말 상태만 지운다 — 바닥값·보정은 그대로 (`InterviewSession.force_end`)."""
+        self._speaking = False
+        self._silence_started = None
+        self._speech_started = None
+
 
 def face_row_of_jpeg(jpeg: bytes) -> list | None:
     """JPEG 한 장 → 얼굴 특징 7개. 얼굴이 없거나 못 읽으면 None. 약 2ms."""
@@ -304,6 +310,14 @@ class InterviewSession:
         self._identity_scores: list[float] = []
         # 한 번 정해지면 안 바뀐다. 면접 내내 흔들리는 값이면 담당자가 못 읽는다.
         self.identity: dict | None = None
+        # 얼굴 추출 하나가 스레드에서 도는 동안 또 시작하지 않게 (app.py `_on_binary`)
+        self.face_busy = False
+        # 질문 전체와 지금 몇 번째인가. 비어 있으면 예전 방식(전사를 기다림)으로 돈다.
+        self.questions: list[dict] = []
+        self.cursor = 0
+        # 전사 대기줄. **지원자를 기다리게 하지 않으려고** 여기에 넣고 다음 질문을
+        # 먼저 보낸다. 세션마다 하나라 한 사람의 답변은 낸 순서대로 저장된다.
+        self.pending: asyncio.Queue = asyncio.Queue()
 
     # ── 받기 ────────────────────────────────────────────────
     def add_audio(self, pcm: bytes) -> str | None:
@@ -354,6 +368,25 @@ class InterviewSession:
         self.identity = {"match": face_match.verdict(best), "score": round(best, 3)}
         return self.identity
 
+    # ── 질문 진행 ────────────────────────────────────────────
+    def current_seq(self) -> int | None:
+        """지금 답하고 있는 질문 번호. 목록이 없으면 None(번호 없이 저장한다)."""
+        if self.cursor < len(self.questions):
+            return self.questions[self.cursor]["seq"]
+        return None
+
+    def advance(self) -> dict | None:
+        """다음 질문으로 넘긴다. 더 없으면 None.
+
+        **전사를 기다리지 않는다.** 질문은 면접 시작 때 이미 다 받아 뒀고, 다음
+        질문을 고르는 데 방금 한 말이 필요하지 않다 — 백엔드도 "아직 답 안 한
+        가장 앞 질문"을 꺼내 줄 뿐이었다.
+        """
+        self.cursor += 1
+        if self.cursor < len(self.questions):
+            return self.questions[self.cursor]
+        return None
+
     def due_for_verdict(self, now: float) -> bool:
         """지금 판정을 낼 때인가. **말하는 동안에만** 낸다 — 조용할 때 낸 값은
         지원자가 아니라 방을 보고 있는 것이다."""
@@ -367,6 +400,18 @@ class InterviewSession:
         self.audio = []
         self.frames = []
         return pcm, rows
+
+    def force_end(self) -> bool:
+        """지원자가 [답변 완료] 를 눌렀다 — 침묵을 기다리지 않고 여기까지를 답변으로 끊는다.
+
+        감지기 상태와 무관하다: 목소리가 작아 '말' 로 안 잡혔어도 버퍼에 소리가
+        있으면 전사로 넘긴다(비면 전사가 빈 문자열을 내고 서버가 `retry` 를 보낸다).
+        붙자마자 눌러 [MIN_SPEECH_SEC] 도 안 쌓였으면 답변으로 세지 않는다.
+        바닥값은 남긴다 — 다음 답변도 같은 방이다.
+        """
+        seconds = sum(len(p) for p in self.audio) / (SAMPLE_RATE * SAMPLE_WIDTH)
+        self.detector.reset()
+        return seconds >= MIN_SPEECH_SEC
 
     def signal(self, rows: list) -> dict | None:
         """표정 신호. 프레임이 너무 적으면 내지 않는다 — 없는 것이 틀린 것보다 낫다."""
@@ -560,10 +605,41 @@ async def finish_interview(client, token: str) -> None:
     r.raise_for_status()
 
 
-async def submit_answer(client, token: str, transcript: str) -> dict:
+async def fetch_questions(client, token: str) -> list[dict]:
+    """면접 질문 전체. **시작할 때 한 번** 받아 둔다.
+
+    이게 있어야 전사를 안 기다리고 다음 질문을 보낼 수 있다 — 전에는 답변을
+    저장해야 다음 질문이 나왔고, 저장하려면 전사가 끝나야 했다.
+
+    서비스 토큰이 없으면 빈 목록이다. 그때는 예전처럼 전사를 기다린다.
+    """
+    if not SERVICE_TOKEN:
+        return []
+    try:
+        r = await client.get(
+            f"{BACKEND_URL}/api/v1/internal/interview/{token}/questions",
+            headers={"X-Service-Token": SERVICE_TOKEN},
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        logger.warning("질문 목록을 못 받았다 — 전사를 기다리는 방식으로 돈다", exc_info=True)
+        return []
+
+
+async def submit_answer(client, token: str, transcript: str, seq: int | None = None) -> dict:
+    """답변을 저장한다. `seq` 를 붙이면 그 질문 칸에만 들어간다.
+
+    번호 없이 보내면 백엔드가 "아직 답 안 한 가장 앞 질문"에 넣는다 — 전사가
+    뒤에서 도는 동안 다음 질문이 이미 나가 있으면 그 규칙은 한 칸씩 밀린다.
+    """
+    body: dict = {"transcript": transcript}
+    if seq is not None:
+        body["seq"] = seq
     r = await client.post(
         f"{BACKEND_URL}/api/v1/public/interview/{token}/answer",
-        json={"transcript": transcript},
+        json=body,
         timeout=20,
     )
     r.raise_for_status()

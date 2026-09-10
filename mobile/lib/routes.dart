@@ -60,4 +60,11 @@ abstract final class Routes {
   /// AI 면접만 따로 여는 길. 인자로 면접 토큰(String) 을 받는다.
   /// **평소엔 셸의 탭으로 들어간다** — 이 경로는 개발 중 확인용이다
   static const interview = '/applicant/interview';
+
+  /// 실시간 면접(WebRTC — 사람 대 사람 화상). 인자로 면접 토큰(String) 을 받는다.
+  ///
+  /// [interview] 와 성격이 다르다: 저것은 아르가 진행하는 AI 면접, 이것은
+  /// 담당자(웹)와 지원자(앱)가 1:1 로 얼굴을 마주 보는 화상 면접이다
+  /// (docs/02_tasks/실시간-면접-시그널링.md, 2026-09-09).
+  static const interviewLive = '/applicant/interview-live';
 }

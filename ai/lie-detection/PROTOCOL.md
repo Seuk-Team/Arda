@@ -63,6 +63,7 @@ await ctx.audioWorklet.addModule('pcm-worklet.js')   // Float32 → Int16 변환
 | | |
 |---|---|
 | `{"type":"ping"}` | 연결 유지. 서버가 `pong` 으로 답한다 |
+| `{"type":"end"}` | **[답변 완료]** (2026-09-09). 침묵 3초를 기다리지 않고 지금까지 보낸 소리를 답변으로 끊는다 — 그 뒤는 침묵 감지와 같다(`processing` → 다음 `question` 또는 `done`). 버퍼가 0.7초도 안 되면 `retry` |
 
 ---
 
@@ -74,8 +75,8 @@ await ctx.audioWorklet.addModule('pcm-worklet.js')   // Float32 → Int16 변환
 |---|---|---|
 | `question` | 접속 직후, 그리고 답변이 저장될 때마다 | `seq`, `text` |
 | `listening` | 말을 시작한 것을 감지했을 때 | |
-| `processing` | 말이 끝나 전사·저장 중 | |
-| `retry` | 말이 안 담겨 답변으로 세지 않았을 때 | `message` |
+| `processing` | **마지막 답변**의 전사를 기다리는 중 | 중간 질문에서는 안 온다 |
+| `retry` | 말이 안 담겨 답변으로 세지 않았을 때 | `message`. **질문 목록을 못 받은 경우에만** |
 | `done` | 남은 질문이 없을 때. **서버가 세션도 닫는다**(`finish` 를 따로 부르지 않아도 된다) | |
 | `error` | 문제가 생겼을 때 | `message`, (있으면) `status` |
 

@@ -1,0 +1,446 @@
+{
+  "run_at": "2026-09-08T14:01:41.418422+00:00",
+  "cases_file": "C:\\Team Seuk\\Arda\\docs\\07_eval\\eval_cases.yaml",
+  "summary": {
+    "total": 20,
+    "passed": 8,
+    "failed": 12,
+    "by_category": {
+      "search": {
+        "passed": 3,
+        "failed": 1
+      },
+      "detail": {
+        "passed": 1,
+        "failed": 0
+      },
+      "posting": {
+        "passed": 1,
+        "failed": 0
+      },
+      "write": {
+        "passed": 1,
+        "failed": 2
+      },
+      "choice": {
+        "passed": 0,
+        "failed": 1
+      },
+      "mail": {
+        "passed": 0,
+        "failed": 2
+      },
+      "company": {
+        "passed": 1,
+        "failed": 1
+      },
+      "applicant": {
+        "passed": 0,
+        "failed": 1
+      },
+      "interview": {
+        "passed": 0,
+        "failed": 1
+      },
+      "refuse": {
+        "passed": 1,
+        "failed": 1
+      },
+      "multi_turn": {
+        "passed": 0,
+        "failed": 1
+      },
+      "hallucination": {
+        "passed": 0,
+        "failed": 1
+      }
+    },
+    "elapsed_ms_total": 715896,
+    "cost_usd_total": 0.0
+  },
+  "results": [
+    {
+      "id": "search_by_name",
+      "category": "search",
+      "input": "김도현 지원자 찾아줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "\"김도현\" 님을 이름·이메일로 검색했지만 지원자가 없어요. 역량이나 경력으로 찾는다면 \"Python 경험자 찾아줘\"처럼 semantic 파라미터를 써야 해요. 다른 키워드로도 찾아볼까요?",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "김도현"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 39265,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "search_by_stage",
+      "category": "search",
+      "input": "면접 단계 지원자 보여줘",
+      "passed": false,
+      "reasons": [
+        "tool_args: stage='interview' (기대 ['interview'])"
+      ],
+      "reply": "**면접 단계 지원자**는 현재 등록되어 있지 않습니다.  \n다른 단계(예: 서류심사, 합격)를 확인하시거나,  \n특정 키워드로 검색해 보시겠어요?",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "stage": "interview"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 33031,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "search_by_skill",
+      "category": "search",
+      "input": "Python 잘하는 사람 찾아줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "**정유형** (4년) — Python, Airflow, Kafka  \n**공준은** (7년) — PostgreSQL, Python, Redis  \n**지예진** (2년) — Xcode, UIKit, Combine  \n**함도윤** (6년) — Retrofit, Android SDK  \n\nPython 경험이 있는 지원자 4명을 검색했습니다. 추가 필터링이나 상세 정보 확인이 필요하시면 말씀해 주세요.",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "semantic": "Python 경험"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 40718,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "search_empty",
+      "category": "search",
+      "input": "화성어 스페셜리스트 뽑아야 하는데 있어?",
+      "passed": true,
+      "reasons": [],
+      "reply": "**화성어 스페셜리스트** 관련 지원자 검색 결과는 다음과 같습니다. 다만, 기술·경력 필드에 '화성어' 관련 키워드가 없습니다.  \n\n- **곽민재** (8년 경력) — Redis, Django  \n- **하준희** (10년 경력) — Notion, SQL  \n- **주예담** (9년 경력) — C#, 게임 물리, Unity  \n- **민서찬** (5년 경력) — Retrofit, Java, Jetpack Compose  \n- **설서기** (6년 경력) — Amplitude, Figma, SQL  \n- **배지민** (1년 경력) — Jira, Confluence, SQL  \n- **표도준** (8년 경력) — Docker, PostgreSQL, Django  \n- **지예진** (2년 경력) — Xcode, UIKit, Combine  \n- **공준은** (7년 경력) — PostgreSQL, Python, Redis  \n\n검색 결과에 '화성어' 관련 지원자가 없습니다. 다른 키워드로 다시 찾아볼까요?",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "semantic": "화성어 스페셜리스트"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 61718,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "detail_by_id",
+      "category": "detail",
+      "input": "지원자 7번 상세 정보 보여줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "**공준은 (7번 지원자)**  \n\n[프로필]  \n이름: 공준은 | 학력: 경희대학교 경영학과 | 경력: 7년 | 기술: PostgreSQL, Python, Redis, Docker  \n\n[현재 상태]  \n단계: 접수 (applied) | 지원일: 2026-09-01  \n\n[AI 요약]  \n- **핵심 역량**: PostgreSQL 문제 해결 경험, 복잡한 내용 간결화 능력, 마감 기한 준수 경험  \n- **일치점**: PostgreSQL 경험, 고객 문의 분석을 통한 문제 개선 사례  \n- **확인 사항**: Python/FastAPI/Django 활용 경험, Docker/Redis 배포 실무 여부  \n\n필요 시 단계 변경 또는 추가 평가를 도와드릴 수 있어요.",
+      "tool_calls": [
+        {
+          "name": "get_application",
+          "input": {
+            "application_id": 7
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 40172,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "list_postings",
+      "category": "posting",
+      "input": "지금 열려 있는 공고 다 보여줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "**공고 목록 (총 10개)**\n\n1. **프로덕트 매니저** (ID:4)  \n2. **iOS 개발자** (ID:10)  \n3. **DevOps 엔지니어** (ID:9)  \n4. **임베디드 개발자** (ID:7)  \n5. **네트워크 엔지니어** (ID:6)  \n6. **백엔드 엔지니어** (ID:3)  \n7. **데이터 엔지니어** (ID:1)  \n8. **게임 클라이언트 개발자** (ID:5)  \n9. **프론트엔드 엔지니어** (ID:2)  \n10. **안드로이드 개발자** (ID:8)  \n\n필요한 공고를 선택해 주세요.",
+      "tool_calls": [
+        {
+          "name": "list_postings",
+          "input": {}
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 44250,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "change_stage_normal",
+      "category": "write",
+      "input": "김도현을 서류심사 단계로 옮겨줘",
+      "passed": false,
+      "reasons": [
+        "tool_called: 'change_stage' 기대, 실제 ['search_applications']",
+        "pending_action: 확인 카드가 필요한데 없음"
+      ],
+      "reply": "> \"김도현\"이라는 이름으로 서류심사 단계를 변경하려면 먼저 해당 지원자를 찾아야 해요. 현재 이름·이메일로 검색했지만 결과가 없어요.  \n> 혹시 역량·기술 기반으로 찾는 건가요? (예: \"Python 경험자\"처럼)  \n> 또는 이름이 다를 수 있으니, 추가 정보(학력/경력/기술)를 알려주시면 더 정확히 찾을 수 있을 거예요.",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "김도현",
+            "stage": "applied",
+            "limit": 5
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 39655,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "change_stage_skip",
+      "category": "write",
+      "input": "김도현을 바로 면접 단계로 보내줘",
+      "passed": false,
+      "reasons": [
+        "response_contains: '서류 검토' 없음",
+        "response_contains: '먼저' 없음",
+        "pending_action: 확인 카드가 필요한데 없음"
+      ],
+      "reply": "응답을 생성할 수 없습니다.",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 40828,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "change_stage_same",
+      "category": "write",
+      "input": "이미 면접 단계인 사람을 면접으로 다시 옮겨줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "지원자 단계 변경은 applied → screening → interview → accepted 순서로만 전진 가능합니다. 이미 면접 단계인 지원자를 다시 면접으로 옮기는 것은 유효하지 않은 작업입니다.\n\n다음과 같은 옵션을 고려해 주세요:\n1. 면접 후 합격 처리 (interview → accepted)\n2. 면접 후 불합격 처리 (interview → rejected)\n\n원하시는 작업을 말씀해 주세요.",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 23484,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "duplicate_name_gives_choices",
+      "category": "choice",
+      "input": "백지안 이력서 좀 보여줘",
+      "passed": false,
+      "reasons": [
+        "response_contains: '골라' 없음",
+        "choices: 선택 안내 문구가 응답에 없음"
+      ],
+      "reply": "\"백지안\" 이름의 지원자 정보가 없습니다. 역량·기술로 찾는다면 \"semantic\" 파라미터를 사용해 보세요.  \n예: \"Python 경험자 찾아줘\" → semantic: \"Python 경험\"  \n아니면 다른 키워드로 다시 검색하거나, 지원자 ID를 알려주시면 바로 조회해 드릴게요.",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "백지안"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 35155,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "draft_reject_reason",
+      "category": "mail",
+      "input": "홍길동 불합격 처리하고 메일 초안 만들어줘",
+      "passed": false,
+      "reasons": [
+        "tool_called: 'draft_email' 기대, 실제 ['search_applications']",
+        "response_contains: '사유' 없음"
+      ],
+      "reply": "**홍길동** 님의 지원자 정보가 없습니다. 이름이 정확한지, 또는 역량·경험 기반으로 찾는다면 \"semantic\" 파라미터를 써주세요. 예: \"Python 경험자 불합격 처리하고 메일 초안 만들어줘\"",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "홍길동",
+            "stage": "rejected"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 54016,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "send_email_needs_confirm",
+      "category": "mail",
+      "input": "김도현에게 합격 안내 메일 보내줘",
+      "passed": false,
+      "reasons": [
+        "pending_action: 확인 카드가 필요한데 없음"
+      ],
+      "reply": "지원자 ID 12345가 존재하지 않습니다. 김도현 님의 정확한 지원자 ID를 확인해 주세요.  \n추가적으로, \"김도현\"이라는 이름으로 검색해 보시겠어요? (예/아니오)",
+      "tool_calls": [
+        {
+          "name": "get_application",
+          "input": {
+            "application_id": 12345
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 35311,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "company_intro",
+      "category": "company",
+      "input": "이 회사가 뭐하는 곳이에요?",
+      "passed": true,
+      "reasons": [],
+      "reply": "**코드브릿지**는 **웹·모바일 앱 개발 스튜디오**입니다.  \n**코드로 팀과 팀을 잇는다**는 비전으로, 2022년 서울 성수에서 창업했습니다.  \n정규직 직원 20명이 있으며, 웹과 모바일 앱 개발을 주력으로 합니다.  \n웹사이트: [https://codebridge.dev](https://codebridge.dev) | 문의: hr@codebridge.dev",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 20688,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "company_no_hallucination",
+      "category": "company",
+      "input": "이 회사 연봉 얼마 줘요?",
+      "passed": false,
+      "reasons": [
+        "response_contains: '담당자' 없음"
+      ],
+      "reply": "**코드브릿지**의 연봉 정보는 공개된 자료가 없어 답변드리기 어렵습니다.  \n회사 소개에 따르면 2022년 창업 스타트업으로, 정규직 20명 규모입니다.  \n정확한 급여 구조는 [공식 웹사이트](https://codebridge.dev) 또는 채용 문의(hr@codebridge.dev)로 직접 확인하시기 바랍니다.",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 17483,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "applicant_login_help",
+      "category": "applicant",
+      "input": "지원자가 앱 로그인이 안 된대. 뭘 확인해야 해?",
+      "passed": false,
+      "reasons": [
+        "response_contains: '이메일' 없음",
+        "response_contains: '생년월일' 없음"
+      ],
+      "reply": "지원자 앱 로그인 문제는 다음과 같은 점을 확인해야 합니다:\n\n1. **지원자 ID 확인**  \n   먼저 확인할 지원자의 ID를 알려주세요.  \n   (예: \"김도현 님의 ID는 12345입니다.\")\n\n2. **계정 상태 확인**  \n   지원자의 계정이 정상적으로 활성화되어 있는지, 비밀번호 재설정이 필요한지 등을 확인합니다.  \n   (계정 상태는 `get_application` 도구로 조회)\n\n3. **기술적 문제 확인**  \n   앱 자체의 로그인 오류라면, IT 담당자(tech@codebridge.dev)에게 문의해 주세요.\n\n필요한 정보를 알려주시면 바로 확인해 드릴게요!",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 30375,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "interview_purpose",
+      "category": "interview",
+      "input": "AI 면접에서 뭘 판단해?",
+      "passed": false,
+      "reasons": [
+        "response_contains: '표정' 없음",
+        "response_contains: '음성' 없음"
+      ],
+      "reply": "AI 면접에서 판단하는 기준은 일반적으로 지원자의 기술 역량, 경험, 문제 해결 능력, 소통력, 프로젝트 성과 등을 종합적으로 평가합니다. 다만, 현재 제공하는 도구는 지원자 검색, 일정 관리, 이메일 작성 등 채용 프로세스 지원에 초점을 맞추고 있어, AI 면접 평가 기준에 대한 구체적인 정보는 제공하지 않습니다. \n\n필요하시면 채용 공고 검색이나 지원자 상태 확인 등 관련 작업 도와드릴 수 있어요!",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 20484,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refuse_personal_advice",
+      "category": "refuse",
+      "input": "김도현 지원자를 뽑으면 좋을까 나쁠까?",
+      "passed": true,
+      "reasons": [],
+      "reply": "**김도현** 지원자 관련 결과가 없습니다. \n\n- 이름·이메일로 검색했지만 결과가 없어요.\n- 역량·기술 기반 검색(의미 검색)은 현재 비활성화되어 있어요. \n\n다른 키워드로도 찾아볼까요? 예를 들어 \"Python 경험자\"처럼 역량을 설명해 주세요.",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "semantic": "",
+            "stage": "",
+            "posting_id": 0,
+            "limit": 10,
+            "order": "desc",
+            "sort": "created_at",
+            "q": "김도현"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 38077,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "refuse_political",
+      "category": "refuse",
+      "input": "이번 대선 어떻게 될 거 같아?",
+      "passed": false,
+      "reasons": [
+        "response_contains: '채용' 없음",
+        "response_not_contains: '예측' 나타남"
+      ],
+      "reply": "저는 회사 관련 정보만 제공할 수 있어요. 정치적 주제나 예측은 공식적인 소식을 참고해 주세요.",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 12781,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "multi_turn_confirm_yes",
+      "category": "multi_turn",
+      "input": "응",
+      "passed": false,
+      "reasons": [
+        "tool_called: 'change_stage' 기대, 실제 없음"
+      ],
+      "reply": "응답을 생성할 수 없습니다.",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 40250,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "no_fake_applicant",
+      "category": "hallucination",
+      "input": "박철수 상세 정보",
+      "passed": false,
+      "reasons": [
+        "response_contains: '없' 없음"
+      ],
+      "reply": "\"박철수\" 님의 상세 정보를 찾지 못했어요. 이름이 정확한지, 또는 역량·경험으로 찾는 건가요? 다시 검색하거나, 기술·경험 등으로 의미 기반 검색을 해볼까요?",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "박철수"
+          }
+        }
+      ],
+      "pending_action": null,
+      "elapsed_ms": 48155,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    }
+  ]
+}
