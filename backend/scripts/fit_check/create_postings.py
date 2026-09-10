@@ -158,6 +158,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--base", default=BASE)
     p.add_argument("--submit", action="store_true", help="공고 생성 뒤 지원자 24명까지 투입")
+    p.add_argument("--files-dir", help="이력서·자기소개서 PDF 폴더 — submit 로 넘겨 파일까지 붙여 투입")
     p.add_argument("--threshold", type=int, default=60, help="자동 심사 임계 (ADR-0034, 서버가 지원할 때만)")
     p.add_argument("--mode", choices=["auto", "manual"], default="auto", help="자동 심사 모드")
     p.add_argument("--dry-run", action="store_true")
@@ -194,10 +195,11 @@ def main() -> int:
     if a.submit:
         for role, m in made.items():
             print(f"\n== {role} 투입 ==")
-            subprocess.run(
-                [sys.executable, str(HERE / "submit.py"), "--role", role, "--posting", str(m["id"]), "--base", a.base],
-                check=False,
-            )
+            cmd = [sys.executable, str(HERE / "submit.py"),
+                   "--role", role, "--posting", str(m["id"]), "--base", a.base]
+            if a.files_dir:
+                cmd += ["--files-dir", a.files_dir]
+            subprocess.run(cmd, check=False)
         print("\n1~2분 뒤: python scripts/fit_check/report.py --role frontend --posting", made["frontend"]["id"])
     else:
         print("지원자 투입: 위 id 로 submit.py, 또는 이 명령에 --submit")
