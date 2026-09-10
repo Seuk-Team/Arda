@@ -42,6 +42,10 @@ except ImportError:
 
 # ── 고정값 (코드 상수) ────────────────────────────────────────────────
 STAGES = ("applied", "screening", "interview", "accepted", "rejected")
+# 자동 심사 스위치 (0016, ADR-0034). manual = 점수만 매기고 단계는 사람이 옮긴다.
+SCREENING_MODES = ("auto", "manual")
+DOC_DECISIONS = ("pass", "reject", "hold")
+DECISION_SOURCES = ("agent", "human")
 ROLES = ("admin", "member")
 POSTING_STATUSES = ("draft", "open", "closed")
 APPLICATION_SOURCES = ("form", "manual")
@@ -133,8 +137,50 @@ class JobPosting(Base):
     preferred: Mapped[str | None] = mapped_column(Text)
     benefits: Mapped[str | None] = mapped_column(Text)
 
+    # 자동 심사 (0016, ADR-0034). doc_score 가 이 값 이상이면 아르가 면접 단계로,
+    # 미만이면 불합격으로 옮긴다. screening_mode='manual' 이면 점수만 매기고 안 옮긴다.
+    pass_threshold: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("60")
+    )
+    screening_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'auto'")
+    )
+
+    # 기본 면접관 풀 — 자동 배정의 재료 (0016). 컬럼이 아니라 관계다.
+    interviewers: Mapped[list["PostingInterviewer"]] = relationship(
+        cascade="all, delete-orphan"
+    )
+
     __table_args__ = (
         CheckConstraint(_in("status", POSTING_STATUSES), name="ck_job_postings_status"),
+        CheckConstraint(
+            _in("screening_mode", SCREENING_MODES), name="ck_job_postings_screening_mode"
+        ),
+        CheckConstraint(
+            "pass_threshold BETWEEN 0 AND 100", name="ck_job_postings_pass_threshold"
+        ),
+    )
+
+
+# ── posting_interviewers — 공고별 기본 면접관 풀 (0016, ADR-0034) ─────
+# 서류 합격이 자동으로 나면 이 풀에서 가용 시간이 있고 배정이 가장 적은 사람이
+# 자동 배정된다. 수동 배정·변경은 여전히 admin(ADR-0013).
+class PostingInterviewer(Base):
+    __tablename__ = "posting_interviewers"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    job_posting_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("job_posting_id", "user_id", name="uq_posting_interviewers"),
     )
 
 
@@ -154,6 +200,10 @@ class CompanyProfile(Base):
     description: Mapped[str | None] = mapped_column(Text)
     # 회사 전체 이야기 — 아르 프롬프트 뒤에 그대로 붙는 마크다운.
     narrative: Mapped[str | None] = mapped_column(Text)
+    # 자동 심사 가중치 (0016, ADR-0034). 키·기본값은 app/screening.py DEFAULT_WEIGHTS.
+    scoring_weights: Mapped[dict | None] = mapped_column(JSON)
+    # 인재상 원문 — 서류·면접 채점의 "문화 적합" 재료. 회사 소개 §8 을 옮긴 것.
+    talent_profile: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),
         onupdate=func.now(),
@@ -232,6 +282,14 @@ class Application(Base):
     ai_summary_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ai_summary_model: Mapped[str | None] = mapped_column(String(200))
 
+    # 자동 심사 (0016, ADR-0034). 서류 100점 · 내역 · 판정 · 누가 정했나.
+    # decision_source='human' 이면 아르는 더 이상 이 지원자의 단계를 옮기지 않는다.
+    doc_score: Mapped[int | None] = mapped_column(SmallInteger)
+    doc_score_detail: Mapped[dict | None] = mapped_column(JSON)
+    doc_decision: Mapped[str | None] = mapped_column(String(20))
+    doc_decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_source: Mapped[str | None] = mapped_column(String(10))
+
     current_stage: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=text("'applied'")
     )
@@ -280,6 +338,14 @@ class Application(Base):
         UniqueConstraint("job_posting_id", "email", name="uq_applications_posting_email"),
         CheckConstraint(_in("current_stage", STAGES), name="ck_applications_stage"),
         CheckConstraint(_in("source", APPLICATION_SOURCES), name="ck_applications_source"),
+        CheckConstraint(
+            "doc_decision IS NULL OR " + _in("doc_decision", DOC_DECISIONS),
+            name="ck_applications_doc_decision",
+        ),
+        CheckConstraint(
+            "decision_source IS NULL OR " + _in("decision_source", DECISION_SOURCES),
+            name="ck_applications_decision_source",
+        ),
         # 칸반·단계 필터 (H2)
         Index("ix_applications_posting_stage", "job_posting_id", "current_stage"),
         # 최신순 목록·커서 페이지네이션 (H4·H5) — 측정 근거: docs/perf-search.md (#68)
@@ -864,6 +930,14 @@ class InterviewSession(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+    # 면접 AI 점수 (0016, ADR-0034). 답변 대조 + 진위 일관성의 가중 합.
+    # truth_samples 는 실시간 판정의 **집계값만** ({"n": 표본 수, "truth_sum": 합}) —
+    # 프레임·개별 판정은 저장하지 않는다(ADR-0029 취지 유지).
+    ai_score: Mapped[int | None] = mapped_column(SmallInteger)
+    ai_score_detail: Mapped[dict | None] = mapped_column(JSON)
+    truth_samples: Mapped[dict | None] = mapped_column(JSON)
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     turns: Mapped[list["InterviewTurn"]] = relationship(
         back_populates="session", order_by="InterviewTurn.seq"

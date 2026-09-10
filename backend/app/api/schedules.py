@@ -21,6 +21,7 @@ from app.deps import get_current_user
 from app.labels import STAGE_LABEL_KR
 from app.models import (
     Application,
+    EmailLog,
     InterviewerAssignment,
     InterviewerAvailability,
     JobPosting,
@@ -87,6 +88,95 @@ def _build_candidates(
     return candidates[:max_slots]
 
 
+class NoCandidateSlots(ValueError):
+    """가용 시간이 없어 후보 슬롯을 하나도 못 만들었다. 호출부가 422 또는 폴백으로."""
+
+
+def build_proposal(
+    db: Session,
+    application: Application,
+    interviewer_ids: list[int],
+    *,
+    slot_minutes: int,
+    max_slots: int,
+    expires_at: datetime | None,
+    created_by: int,
+    actor_kind: str,
+    actor_id: int | None,
+    now: datetime,
+) -> tuple[ScheduleProposal, list[ScheduleSlot], EmailLog]:
+    """제안 한 건을 만든다 — 후보 슬롯·제안 행·제안 메일 행까지. **커밋·발행은 호출부가.**
+
+    담당자 REST(`create_proposal`)와 자동 심사(ADR-0034, `app/screening.py`)가 같이 쓴다.
+    흐름: 면접관 가용 시간 → 후보 슬롯 → 기존 proposed 취소 → 제안 저장 → 메일 행.
+    후보가 없으면 NoCandidateSlots — 자동 경로는 그때 사람에게 넘긴다.
+    """
+    windows = list(
+        db.scalars(
+            select(InterviewerAvailability)
+            .where(InterviewerAvailability.interviewer_id.in_(interviewer_ids))
+            .where(InterviewerAvailability.end_at > now)
+        )
+    )
+
+    # 이미 확정된 면접(같은 면접관의 다른 지원자 포함)과 겹치면 후보에서 뺀다
+    confirmed: dict[int, list[tuple[datetime, datetime]]] = {}
+    rows = db.execute(
+        select(ScheduleSlot.interviewer_id, ScheduleSlot.start_at, ScheduleSlot.end_at)
+        .join(ScheduleProposal, ScheduleProposal.confirmed_slot_id == ScheduleSlot.id)
+        .where(ScheduleProposal.status == "confirmed")
+        .where(ScheduleSlot.interviewer_id.in_(interviewer_ids))
+        .where(ScheduleSlot.end_at > now)
+    ).all()
+    for iid, s, e in rows:
+        confirmed.setdefault(iid, []).append((s, e))
+
+    candidates = _build_candidates(windows, confirmed, slot_minutes, max_slots, now)
+    if not candidates:
+        raise NoCandidateSlots("생성 가능한 후보 슬롯이 없습니다 — 면접관 가용 시간을 확인하세요")
+
+    # 재제안: 라이브 제안은 항상 최대 1건. 이전 것은 canceled 로 이력만 남긴다
+    db.execute(
+        update(ScheduleProposal)
+        .where(ScheduleProposal.application_id == application.id)
+        .where(ScheduleProposal.status == "proposed")
+        .values(status="canceled", updated_at=now)
+    )
+
+    proposal = ScheduleProposal(
+        application_id=application.id,
+        # public_token(B6)과 같은 근거 — 128비트라 추측으로 맞힐 수 없다
+        token=secrets.token_urlsafe(16),
+        status="proposed",
+        expires_at=expires_at,
+        created_by=created_by,
+    )
+    db.add(proposal)
+    db.flush()  # 슬롯이 proposal.id 를 참조한다
+
+    slots = [
+        ScheduleSlot(
+            proposal_id=proposal.id,
+            interviewer_id=interviewer_id,
+            start_at=start,
+            end_at=end,
+        )
+        for interviewer_id, start, end in candidates
+    ]
+    db.add_all(slots)
+
+    # 제안 메일 — 워커가 stage=interview 렌더 때 라이브 제안을 보고 링크를 싣는다
+    log = mail.create_log(
+        db,
+        application_id=application.id,
+        to_email=application.email,
+        stage="interview",
+        actor_kind=actor_kind,  # 제안을 만든 담당자, 또는 자동 심사의 아르 (G4)
+        actor_id=actor_id,
+    )
+    return proposal, slots, log
+
+
 @router.post(
     "/applications/{application_id}/schedule-proposals",
     response_model=ProposalOut,
@@ -124,75 +214,15 @@ def create_proposal(
 
     now = datetime.now(timezone.utc)
 
-    # 아직 끝나지 않은 가용 시간 창
-    windows = list(
-        db.scalars(
-            select(InterviewerAvailability)
-            .where(InterviewerAvailability.interviewer_id.in_(interviewer_ids))
-            .where(InterviewerAvailability.end_at > now)
+    try:
+        proposal, slots, log = build_proposal(
+            db, application, interviewer_ids,
+            slot_minutes=body.slot_minutes, max_slots=body.max_slots,
+            expires_at=body.expires_at, created_by=user.id,
+            actor_kind="human", actor_id=user.id, now=now,
         )
-    )
-
-    # 이미 확정된 면접(같은 면접관의 다른 지원자 포함)과 겹치면 후보에서 뺀다
-    confirmed: dict[int, list[tuple[datetime, datetime]]] = {}
-    rows = db.execute(
-        select(ScheduleSlot.interviewer_id, ScheduleSlot.start_at, ScheduleSlot.end_at)
-        .join(ScheduleProposal, ScheduleProposal.confirmed_slot_id == ScheduleSlot.id)
-        .where(ScheduleProposal.status == "confirmed")
-        .where(ScheduleSlot.interviewer_id.in_(interviewer_ids))
-        .where(ScheduleSlot.end_at > now)
-    ).all()
-    for iid, s, e in rows:
-        confirmed.setdefault(iid, []).append((s, e))
-
-    candidates = _build_candidates(
-        windows, confirmed, body.slot_minutes, body.max_slots, now
-    )
-    if not candidates:
-        raise HTTPException(
-            HTTPStatus.UNPROCESSABLE_ENTITY,
-            "생성 가능한 후보 슬롯이 없습니다 — 면접관 가용 시간을 확인하세요",
-        )
-
-    # 재제안: 라이브 제안은 항상 최대 1건. 이전 것은 canceled 로 이력만 남긴다
-    db.execute(
-        update(ScheduleProposal)
-        .where(ScheduleProposal.application_id == application_id)
-        .where(ScheduleProposal.status == "proposed")
-        .values(status="canceled", updated_at=now)
-    )
-
-    proposal = ScheduleProposal(
-        application_id=application_id,
-        # public_token(B6)과 같은 근거 — 128비트라 추측으로 맞힐 수 없다
-        token=secrets.token_urlsafe(16),
-        status="proposed",
-        expires_at=body.expires_at,
-        created_by=user.id,
-    )
-    db.add(proposal)
-    db.flush()  # 슬롯이 proposal.id 를 참조한다
-
-    slots = [
-        ScheduleSlot(
-            proposal_id=proposal.id,
-            interviewer_id=interviewer_id,
-            start_at=start,
-            end_at=end,
-        )
-        for interviewer_id, start, end in candidates
-    ]
-    db.add_all(slots)
-
-    # 제안 메일 — 워커가 stage=interview 렌더 때 라이브 제안을 보고 링크를 싣는다
-    log = mail.create_log(
-        db,
-        application_id=application_id,
-        to_email=application.email,
-        stage="interview",
-        actor_kind="human",  # 제안을 만든 담당자가 발송 주체다 (G4)
-        actor_id=user.id,
-    )
+    except NoCandidateSlots as e:
+        raise HTTPException(HTTPStatus.UNPROCESSABLE_ENTITY, str(e))
     db.commit()
 
     # 커밋 뒤 발행 — 큐가 죽어도 제안은 이미 성공이다. 행은 queued 로 남는다

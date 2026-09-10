@@ -78,10 +78,13 @@ class FindingOut(BaseModel):
 
 
 class SessionDetailOut(SessionOut):
-    """담당자용 상세 — 전사와 대조 결과까지."""
+    """담당자용 상세 — 전사와 대조 결과, 아르의 면접 점수(ADR-0034)까지."""
 
     turns: list[TurnOut] = []
     findings: list[FindingOut] = []
+    ai_score: int | None = None
+    ai_score_detail: dict | None = None
+    scored_at: datetime | None = None
 
 
 class PacingHintOut(BaseModel):

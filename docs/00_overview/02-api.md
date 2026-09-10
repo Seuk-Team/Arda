@@ -38,7 +38,8 @@
 | GET | /postings | 공고 목록 (+ 지원자 수) | B1·B3 |
 | POST | /postings | 공고 생성 | B1 |
 | GET | /postings/{id} | 공고 상세 | |
-| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 | B1·B2·B4. `deadline`(date, null 허용) — 과거 날짜는 422 |
+| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 · 자동 심사 설정 | B1·B2·B4. `deadline`(date, null 허용) — 과거 날짜는 422. **ADR-0034**: `pass_threshold`(0~100, 기본 60) · `screening_mode`(`auto`/`manual`) · `interviewer_ids`(기본 면접관 풀, 보내면 통째로 교체). POST 도 같은 필드. 응답 `PostingOut` 에 세 값이 실린다 |
+| POST | /postings/{id}/send-rejections | 아르가 불합격시킨 지원자에게 불합격 메일 일괄 발행 | **ADR-0034**. 자동 판정은 메일을 즉시 안 보낸다(마감 전 번복 여지). 이미 보낸 사람·사람이 직접 불합격시킨 사람은 건너뜀. 응답 `{queued}` |
 | DELETE | /postings/{id} | 삭제 | B1 |
 | POST | /postings/{id}/public-link | 공개 지원 링크 토큰 발급·재발급 | B6. 재발급하면 이전 토큰 즉시 무효 |
 
@@ -63,7 +64,7 @@
 
 - **검색 범위 = 이름·이메일 확정.** 자소서 본문·메모 전문 검색은 H 복합 필터 튜닝 완료 후 여유가 있을 때만 `pg_trgm` GIN 인덱스로 확장한다. 스키마 변경이 아니라 인덱스+쿼리 추가라 미루는 비용이 없다. (한국어는 Postgres 기본 FTS로 형태소 분석이 안 되고, 자소서 5천 자 × 10만 건이면 인덱스 용량·쓰기 비용이 커진다)
 | POST | /postings/{id}/applications | 담당자 직접 등록 | D6 |
-| GET | /applications/{id} | 지원자 상세 | D4 |
+| GET | /applications/{id} | 지원자 상세 | D4. **ADR-0034** 필드: `doc_score`(0~100) · `doc_score_detail`(requirements/preferred/culture · fit · concerns · evidence · threshold · needs_manual_assignment) · `doc_decision`(pass/reject/hold) · `doc_decided_at` · `decision_source`(agent/human) · `interview_ai_score`(가장 최근 끝난 면접) · `final_score`(서류·면접 둘 다 있을 때만) · `grade`(S/A/B/C) |
 | PATCH | /applications/{id}/stage | 단계 변경 | D3. 이력 기록(D5) + 메일 큐 발행(G1) 트리거. `reason`(선택) — **`to_stage="rejected"` 인데 없으면 422** (D8) |
 | POST | /applications/bulk-stage | 여러 명 단계 일괄 변경 | D9. 본문 `{application_ids, to_stage, reason?}`. 한 번에 **200명**까지(넘으면 422) |
 | GET | /applications/{id}/history | 단계 이력 | D5. 응답에 `reason` 포함 (D8) |
@@ -122,7 +123,7 @@
 | POST | /public/interview/{token}/audio-upload-url | 답변 녹화 업로드 URL 발급 | **공개**. 본문 `{filename, content_type, size_bytes}`. **진행 중인 면접만** — 아니면 409·만료 410. 허용 `webm`·`m4a`·`mp3`·`wav`·`mp4`, **50MB 이하**(카메라를 켜면 같은 길이가 훨씬 커진다 — 이력서 상한 10MB 와 따로 둔다). 키는 서버가 만든다(`interviews/<uuid>/answer.<ext>`) |
 | POST | /interview-turns/{id}/analyze | 녹화 진위 분석 (ADR-0029) | 담당자용. **`LIE_SERVICE_URL` 이 없으면 503** — 설정을 안 넣으면 꺼져 있다. 녹화 없는 회차 409 · 서비스 실패 502. **결과를 저장하지 않는다** |
 | POST | /public/interview/{token}/answer | 현재 질문에 답변 | **공개**. 본문 `{transcript}` **또는** `{audio_s3_key}` — **둘 다 보내면 422**. 음성이면 서버가 읽어 전사하고 길이·비용까지 적는다. **`seq` 를 주면 그 칸**, 안 주면 **답 안 한 가장 앞 질문**에 붙는다(2026-09-09). 남은 질문이 없으면 409 — `seq` 를 짚었는데 이미 답이 들어간 칸이어도 409라 같은 답을 두 번 보내도 덮어쓰지 않는다. 응답에 **`pacing`** 이 붙을 수 있다(아래) |
-| POST | /public/interview/{token}/finish | 면접 종료 → **대조 생성** | **공개**. **다 답하지 않아도 끝낼 수 있다.** 두 번 눌러도 200. 대조(`findings`)는 **뒤에서** 만든다(아래) |
+| POST | /public/interview/{token}/finish | 면접 종료 → **대조 생성** + **AI 채점** | **공개**. **다 답하지 않아도 끝낼 수 있다.** 두 번 눌러도 200. 대조(`findings`)는 **뒤에서** 만든다(아래). **ADR-0034**: 같은 백그라운드에서 아르가 `interview_sessions.ai_score` 를 채운다(상세 `GET /interview-sessions/{id}` 의 `ai_score`·`ai_score_detail`·`scored_at`) |
 | POST | /interview-sessions/{id}/rtc-ticket | 실시간 면접 입장권 (채용자) | 로그인 필요. **60초·1회용.** 응답 `{ticket, token, expires_in, ice_servers}` — 접속 직전에 받는다 |
 | WS | /ws/interview/{token}/rtc | 실시간 면접 시그널링 | 지원자는 토큰만, **채용자는 `?ticket=` 까지** 있어야 한다. 프로토콜은 [실시간-면접-시그널링](../02_tasks/실시간-면접-시그널링.md) |
 
@@ -351,6 +352,15 @@
 - 밀려도 면접은 안 멈춘다. **담당자가 글을 몇 초 늦게 볼 뿐**이다
 - 잃은 것: 전사가 비었을 때의 **"다시 답변해 주세요"**. 다음 질문이 이미 나간
   뒤라 되물을 수 없다 — 그 칸은 빈칸으로 남고 담당자가 보고 판단한다
+
+## 자동 심사 설정 (ADR-0034, 2026-09-10)
+
+| 메서드 | 경로 | 설명 | 비고 |
+|---|---|---|---|
+| GET | /settings/scoring | 가중치 7개 · 인재상 · 기본값 · 등급 경계 | admin. 값이 없으면 기본값(`app/screening.py DEFAULT_WEIGHTS`)이 채워져 온다 |
+| PUT | /settings/scoring | 가중치·인재상 변경 | admin. `weights`(7개 전부, 각 0~100 — 묶음 합이 100 이 아니어도 됨, 합으로 나눈다) · `talent_profile`(text). 보낸 키만 반영 |
+
+점수 규칙(원본은 [N1 지시서](../02_tasks/N1-자동심사-파이프라인.md)): 서류 = 요건·우대·인재상 가중 평균 → `applications.doc_score` · 임계(`job_postings.pass_threshold`) 이상이면 아르가 `applied→screening→interview`, 미만이면 `→rejected`(이력 `changed_by` NULL + 점수 사유, 메일은 `send-rejections` 로 일괄) · 면접 = 답변 대조 + 진위 일관성 → `interview_sessions.ai_score` · 최종 = 서류×w + 면접×w → 상세의 `final_score`·`grade`. 사람이 단계를 옮기면 `decision_source=human` 이 되어 그 뒤 자동은 손대지 않는다. `accepted` 는 사람만.
 
 ## 백그라운드 (HTTP 아님)
 

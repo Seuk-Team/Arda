@@ -88,8 +88,19 @@ class ApplicationDetail(BaseModel):
     notes: list[NoteOut] = []
     files: list[FileOut] = []
 
-    avg_score: float | None = None  # 평가 평균. 평가가 없으면 None
+    avg_score: float | None = None  # 평가 평균(면접관 참고값). 평가가 없으면 None
     eval_count: int = 0  # 평가 건수
+
+    # 자동 심사 (ADR-0034). 서류 100점·판정·누가 정했나 / 면접 AI 점수 / 최종 합계·등급.
+    # final_score 는 서류·면접이 **둘 다** 있을 때만 값이 있다.
+    doc_score: int | None = None
+    doc_score_detail: dict | None = None
+    doc_decision: str | None = None
+    doc_decided_at: datetime | None = None
+    decision_source: str | None = None
+    interview_ai_score: int | None = None
+    final_score: float | None = None
+    grade: str | None = None
 
 
 class ManualApplicationCreate(BaseModel):

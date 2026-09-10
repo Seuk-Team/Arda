@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import Application, JobPosting, User
+from app.models import Application, JobPosting, PostingInterviewer, User
 from app.schemas.posting import PostingCreate, PostingOut, PostingUpdate, PublicLinkOut
 
 router = APIRouter(prefix="/api/v1/postings", tags=["postings"])
@@ -75,7 +75,7 @@ def list_postings(
     if any([_expire(row.JobPosting) for row in rows]):
         db.commit()
     return [
-        PostingOut.model_validate(row.JobPosting).model_copy(update={
+        _out(row.JobPosting).model_copy(update={
             "application_count": row.total,
             "stage_counts": {
                 "applied": row.n_applied,
@@ -89,16 +89,40 @@ def list_postings(
     ]
 
 
+def _out(posting: JobPosting) -> PostingOut:
+    """응답 조립. 면접관 풀은 관계(posting_interviewers)라 여기서 id 목록으로 편다."""
+    return PostingOut.model_validate(posting).model_copy(
+        update={"interviewer_ids": sorted(i.user_id for i in posting.interviewers)}
+    )
+
+
+def _set_interviewers(db: Session, posting: JobPosting, user_ids: list[int]) -> None:
+    """기본 면접관 풀을 이 목록으로 **통째로** 바꾼다 (ADR-0034). 없는 사용자는 404."""
+    wanted = sorted(set(user_ids))
+    if wanted:
+        found = set(db.scalars(select(User.id).where(User.id.in_(wanted))))
+        if found != set(wanted):
+            raise HTTPException(http.HTTP_404_NOT_FOUND, "없는 사용자가 있습니다")
+    posting.interviewers = [
+        PostingInterviewer(job_posting_id=posting.id, user_id=uid) for uid in wanted
+    ]
+
+
 @router.post("", response_model=PostingOut, status_code=http.HTTP_201_CREATED)
 def create_posting(
     body: PostingCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    posting = JobPosting(**body.model_dump(), created_by=user.id)
+    data = body.model_dump()
+    interviewer_ids = data.pop("interviewer_ids", None)
+    posting = JobPosting(**data, created_by=user.id)
     db.add(posting)
+    db.flush()
+    if interviewer_ids:
+        _set_interviewers(db, posting, interviewer_ids)
     db.commit()
-    return PostingOut.model_validate(posting)
+    return _out(posting)
 
 
 @router.get("/{posting_id}", response_model=PostingOut)
@@ -107,7 +131,7 @@ def get_posting(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),  # #97 — 목록과 같은 이유
 ):
-    return PostingOut.model_validate(auto_close(db, _get_or_404(db, posting_id)))
+    return _out(auto_close(db, _get_or_404(db, posting_id)))
 
 
 @router.patch("/{posting_id}", response_model=PostingOut)
@@ -118,10 +142,31 @@ def update_posting(
     user: User = Depends(get_current_user),
 ):
     posting = _get_or_404(db, posting_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    interviewer_ids = data.pop("interviewer_ids", None)
+    for field, value in data.items():
         setattr(posting, field, value)
+    if interviewer_ids is not None:
+        _set_interviewers(db, posting, interviewer_ids)
     db.commit()
-    return PostingOut.model_validate(posting)
+    return _out(posting)
+
+
+@router.post("/{posting_id}/send-rejections")
+def send_rejections(
+    posting_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """아르가 불합격으로 옮긴 지원자에게 불합격 메일을 **일괄** 만든다 (ADR-0034).
+
+    자동 판정은 메일을 바로 보내지 않는다 — 마감 전엔 번복 여지를 두기로 했다.
+    이미 메일이 나간 사람·사람이 직접 불합격시킨 사람은 건너뛴다. 두 번 눌러도 안전.
+    """
+    from app import screening
+
+    _get_or_404(db, posting_id)
+    return {"queued": screening.send_pending_rejections(db, posting_id)}
 
 
 @router.post(

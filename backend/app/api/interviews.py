@@ -595,6 +595,8 @@ def finish_interview(
     **대조(`findings`)는 뒤에서 만든다** (설계 §5-6). 여기서 sLLM 을 기다리면
     끝내기 요청이 몇십 초 멈춘다 — 지원자는 이미 다 답했는데 화면만 붙잡힌다.
     담당자 화면은 잠시 뒤 새로고침하면 채워져 있다.
+    끝나면 아르가 백그라운드로 **면접 점수**도 매긴다 (ADR-0034, app/interview_scoring.py) —
+    findings 와 독립. 둘 다 실패해도 세션은 이미 done 이라 지원자는 완료 화면을 본다.
     """
     session = _get_by_token(db, token)
 
@@ -609,6 +611,8 @@ def finish_interview(
     db.commit()
 
     from app.agent.interview_findings import generate_findings_bg
+    from app.interview_scoring import score_interview_bg
 
     background.add_task(generate_findings_bg, session.id)
+    background.add_task(score_interview_bg, session.id)
     return get_interview_public(token, db)

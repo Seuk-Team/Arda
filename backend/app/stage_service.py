@@ -43,24 +43,33 @@ def apply_stage_change(
     db: Session,
     application: Application,
     to_stage: str,
-    changed_by: int,
+    changed_by: int | None,
     reason: str | None,
     now: datetime,
+    *,
+    notify: bool = True,
+    actor_kind: str = "human",
 ) -> int | None:
     """단계 하나를 바꾸고 이력·메일 행을 남긴다. **커밋하지 않는다.**
 
-    단건 변경(D3)·일괄 변경(D9)·에이전트 도구가 전부 이 함수를 쓴다 — 규칙이
-    여러 곳에 있으면 반드시 어긋난다. 규칙 자체는 `app/stages.py` 에만 있다.
+    단건 변경(D3)·일괄 변경(D9)·에이전트 도구·자동 심사(ADR-0034)가 전부 이 함수를
+    쓴다 — 규칙이 여러 곳에 있으면 반드시 어긋난다. 규칙 자체는 `app/stages.py` 에만 있다.
 
     SQS 발행은 하지 않고 `email_logs.id` 만 돌려준다. 호출부가 **커밋한 뒤에**
     `publish_all` 로 발행해야 롤백된 건의 메시지가 큐에 남지 않는다.
     메일이 필요 없는 단계면 None.
+
+    `changed_by=None` 은 시스템(아르 자동 심사)이다 — stage_history.changed_by 의
+    NULL 규약과 같다. 그때 `decision_source` 는 agent, 사람이 옮기면 human 이 되어
+    이후 자동 판정이 그 지원자를 건드리지 않는다. `notify=False` 는 단계는 옮기되
+    메일 행을 만들지 않는다(불합격 메일을 마감 뒤 일괄로 미루는 경우).
     """
     from_stage = application.current_stage
     validate_transition(from_stage, to_stage)  # 어긋나면 StageTransitionError
 
     application.current_stage = to_stage
     application.updated_at = now
+    application.decision_source = "human" if changed_by is not None else "agent"
 
     db.add(
         StageHistory(
@@ -73,7 +82,7 @@ def apply_stage_change(
         )
     )
 
-    if to_stage not in NOTIFY_STAGES:
+    if to_stage not in NOTIFY_STAGES or not notify:
         return None
 
     # 메일은 여기서 보내지 않는다 — 큐에 올리기만 하고 워커가 발송한다 (G2·G3).
@@ -86,8 +95,8 @@ def apply_stage_change(
         stage=to_stage,
         # 단계를 옮긴 사람이 곧 발송 주체다 (G4). 에이전트의 change_stage 도
         # 사람이 승인해야 실행되므로 그 승인자가 여기 들어온다 — actor_kind 는
-        # "문안을 누가 썼나"이지 "어느 화면에서 눌렀나"가 아니다.
-        actor_kind="human",
+        # "문안을 누가 썼나"이지 "어느 화면에서 눌렀나"가 아니다. 자동 심사는 agent.
+        actor_kind=actor_kind,
         actor_id=changed_by,
     ).id
 

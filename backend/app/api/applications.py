@@ -81,10 +81,22 @@ def get_application(
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     scores = [e.score for e in row.evaluations]
+
+    # 자동 심사 합계 (ADR-0034) — 서류 점수는 행에, 면접 점수는 가장 최근 끝난 세션에 있다.
+    from app import screening
+    from app.interview_scoring import latest_interview_score
+
+    interview_ai = latest_interview_score(db, row.id)
+    weights = screening.weights(db)
+    final = screening.final_score(row.doc_score, interview_ai, weights)
+
     return ApplicationDetail.model_validate(row).model_copy(
         update={
             "avg_score": round(sum(scores) / len(scores), 1) if scores else None,
             "eval_count": len(scores),
+            "interview_ai_score": interview_ai,
+            "final_score": final,
+            "grade": screening.grade(final),
         }
     )
 
