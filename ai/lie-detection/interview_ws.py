@@ -290,6 +290,60 @@ def face_row_of_jpeg(jpeg: bytes) -> list | None:
     return face_row(img)
 
 
+# ── 프레임 방향 ────────────────────────────────────────────────
+# **누운 얼굴은 못 찾는다.** 폰 카메라의 *스트림* 프레임은 센서 방향 그대로
+# 나오는데(세로로 들면 90° 누움), 그 각도가 기기마다 다르고 앞 카메라는 좌우가
+# 뒤집혀 있어 공식이 또 다르다. 2026-09-10 실측에서 앱 면접의 판정이 세 번에 걸쳐
+# 전부 실패했고(`no_face`), 클라이언트에서 각도를 맞추려던 시도도 한 번 빗나갔다.
+#
+# **그래서 맞추는 쪽을 서버로 옮긴다.** 첫 얼굴을 찾을 때만 네 방향을 뒤져 보고,
+# 찾은 각도를 그 면접 내내 쓴다. 기기가 바뀌어도 앱을 다시 굽지 않는다.
+# (같은 판단을 소연님이 오디오 조각 크기에서 먼저 했다 — "맞춰야 하는 쪽은 서버".)
+_ROTATIONS = (0, 270, 90, 180)
+
+# 가장 최근에 확정된 각도. `/ai/health` 가 이 값을 낸다 — 앱을 영구히 고칠 때
+# 짐작이 아니라 실측값으로 고치기 위한 것이다.
+LAST_ROTATION: int | None = None
+
+
+def _rotated(img, degrees: int):
+    """시계 방향으로 돌린다. 0 이면 원본 그대로 (복사도 하지 않는다)."""
+    if not degrees:
+        return img
+    import cv2
+
+    return cv2.rotate(
+        img,
+        {
+            90: cv2.ROTATE_90_CLOCKWISE,
+            180: cv2.ROTATE_180,
+            270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+        }[degrees],
+    )
+
+
+def face_row_search(jpeg: bytes, known: int | None) -> tuple[list | None, int | None]:
+    """얼굴을 찾을 때까지 방향을 바꿔 본다. 반환: (특징 7개, 그때 쓴 각도).
+
+    **이미 찾은 각도가 있으면 그것만 본다.** 매 프레임 네 방향을 다 보면 CPU 가
+    네 배로 들고, 그 CPU 는 전사가 써야 하는 것이다. 눈을 감았거나 흔들려서
+    한 장이 실패하는 것은 흔한 일이라 그때마다 다시 뒤지지 않는다.
+    """
+    import cv2
+
+    buf = np.frombuffer(jpeg, dtype=np.uint8)
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    if img is None:
+        return None, known
+    from feature_extractor import face_row
+
+    for rot in (known,) if known is not None else _ROTATIONS:
+        row = face_row(_rotated(img, rot))
+        if row is not None:
+            return row, rot
+    return None, known
+
+
 class InterviewSession:
     """연결 하나. 미디어를 받아 신호를 만들고, 질문은 백엔드에서 가져온다."""
 
@@ -312,6 +366,10 @@ class InterviewSession:
         self.identity: dict | None = None
         # 얼굴 추출 하나가 스레드에서 도는 동안 또 시작하지 않게 (app.py `_on_binary`)
         self.face_busy = False
+        # 이 면접의 프레임이 몇 도 누워 있는가. **처음 얼굴을 찾을 때 정해진다**
+        # (`face_row_search`). None 이면 아직 안 정해진 것이고, 그동안만 네 방향을
+        # 뒤진다.
+        self.frame_rotation: int | None = None
         # 전사가 도는 동안 판정을 쉬게 하는 표시 (app.py `_transcribe_pump`).
         # 둘이 같은 CPU 를 다투면 전사가 45초 제한을 넘긴다 — 2026-09-10 실측.
         #
@@ -337,11 +395,19 @@ class InterviewSession:
 
         동일인 판단이 이 프레임에서 정해졌으면 그것을 돌려준다(대개 None).
         """
+        global LAST_ROTATION
+
         self._frame_count += 1
         if self._frame_count % FRAME_STRIDE:
             return None
-        row = face_row_of_jpeg(jpeg)
+        row, rot = face_row_search(jpeg, self.frame_rotation)
         if row is not None:
+            if self.frame_rotation is None:
+                # 이 면접에서 처음 얼굴을 찾았다. 각도를 굳히고 밖에도 남긴다 —
+                # 담당자 화면이 비어 있을 때 방향 탓인지 알 수 있어야 한다.
+                self.frame_rotation = rot
+                LAST_ROTATION = rot
+                logger.info("프레임 방향 %s° 로 확정: token=%s", rot, self.token[:8])
             self.frames.append(row)
             self.scorer.add_face(row, time.monotonic())
         return self.check_identity(jpeg)
