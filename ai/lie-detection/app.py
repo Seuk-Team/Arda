@@ -100,6 +100,9 @@ def health():
         "verdict_push_configured": bool(SERVICE_TOKEN),
         # 면접이 도는 동안 실제로 몇 번이나 갔는지
         "live": dict(_live_stats),
+        # 가장 최근 면접에서 프레임이 몇 도 누워 있었나 (`face_row_search`).
+        # null 이면 얼굴을 한 번도 못 찾은 것이다 — 방향 말고 다른 문제다.
+        "frame_rotation": iw.LAST_ROTATION,
     }
 
 
