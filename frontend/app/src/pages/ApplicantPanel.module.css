@@ -315,6 +315,7 @@
 }
 
 .btnStage,
+.btnAccept,
 .btnReject {
   height: 36px;
   padding: 0 var(--sp-3);
@@ -331,9 +332,19 @@
 
 .btnStage:hover:not(:disabled) { background: var(--bg-sunken); }
 .btnStage:focus-visible,
+.btnAccept:focus-visible,
 .btnReject:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
-/* 되돌릴 수 없는 판단이라 색으로 구분한다 (§1 — 불합격만 적갈) */
+/* 되돌릴 수 없는 판단이라 색으로 구분한다 (05-design §1 — 합격만 연두,
+   불합격만 적갈, 나머지는 무채). 불합격에만 색이 있으면 넷이 나란히 선
+   자리가 통째로 "불합격 고르는 곳" 처럼 읽힌다. */
+.btnAccept {
+  color: var(--ok-text);
+  border-color: rgba(52, 211, 153, .55);
+}
+
+.btnAccept:hover:not(:disabled) { background: var(--ok-soft); }
+
 .btnReject {
   color: var(--danger);
   border-color: var(--danger);
@@ -342,6 +353,7 @@
 .btnReject:hover:not(:disabled) { background: var(--danger-soft); }
 
 .btnStage:disabled,
+.btnAccept:disabled,
 .btnReject:disabled {
   color: var(--text-sub);
   border-color: var(--border);
@@ -703,3 +715,556 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   flex-direction: column;
   gap: var(--sp-2);
 }
+
+/* ══ 재설계 (2026-09-10) ══════════════════════════════════
+   세로 1열 10섹션 → 고정 헤더 + 탭 4개.
+   판단 재료(개요) · 도구(면접·메모) · 로그(이력) 를 갈랐다. */
+
+/* ── 고정 헤더 ──────────────────────────────────────────
+   버그 수정: 예전 .head 는 background 가 --bg-elev(62% 반투명)이라
+   스크롤된 본문이 글자 뒤로 비쳤다. 부모(.panel)의 backdrop-filter 는
+   자기 밑으로 스크롤해 오는 자식에게는 안 먹힌다 — 불투명 바탕을 준다. */
+.phead {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky, 10);
+  background: #0D1322;
+  border-bottom: var(--border-w) solid var(--border);
+  padding: var(--sp-5) var(--sp-5) 0;
+  /* 떠 있는 닫기 버튼(SidePanel .closeFloat) 자리를 비운다 */
+  padding-right: calc(var(--sp-8) + var(--sp-5));
+}
+
+.ptop { display: flex; align-items: flex-start; gap: var(--sp-3); }
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-violet));
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: var(--font-body);
+  color: #08101F;
+}
+
+.pwho { flex: 1; min-width: 0; }
+.pnameRow { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.pname { font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.pmeta { color: var(--text-sub); font-size: var(--font-caption); margin: 2px 0 0; }
+
+/* ── 진행 바 + 단계 변경 (한 줄) ────────────────────────
+   진행 바는 읽는 것이다(role="img"). 클릭 가능한 큰 바로 두면 패널에서
+   제일 큰 타깃이 메일까지 나가는 동작이 되어 오발 비용이 크다.
+   동작은 오른쪽 끝 버튼 하나뿐이라 진입점도 정확히 하나다. */
+.stagerow { display: flex; align-items: stretch; gap: var(--sp-3); margin: var(--sp-4) 0 var(--sp-3); }
+.track { flex: 1; min-width: 0; display: flex; gap: 3px; }
+.trackStep {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-2) 6px;
+  border-radius: var(--r-row);
+  background: var(--bg-sunken);
+  /* 4px — 3px 에서는 램프 색이 선으로만 남아 접수·서류가 안 읽혔다 */
+  border-top: 4px solid #232B3D;
+  /* 좌우·아래는 평소에도 자리를 잡아 둔다. 고를 때만 테두리가 생기면
+     글자가 1px 안쪽으로 밀려 모드 전환이 눈에 띈다 */
+  border-left: var(--border-w) solid transparent;
+  border-right: var(--border-w) solid transparent;
+  border-bottom: var(--border-w) solid transparent;
+  /* 고를 때는 button 이 되는데 UA 기본이 가운데 정렬이라 글자가 튄다.
+     양쪽 모드가 같은 자리에 있어야 모드 전환이 안 보인다 */
+  text-align: left;
+}
+.trackStep b {
+  display: block;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  /* 아직 안 온 단계만 흐리다. 지나온 단계는 읽혀야 한다 */
+  color: rgba(154, 167, 192, .55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 지나온 칸은 램프를 그대로 쓴다 (05-design §1 --stage-1~4).
+   전부 --stage-2 로 칠하면 어디까지 왔는지가 색으로 안 보인다. */
+.trackDone { background: rgba(255, 255, 255, .085); }
+.trackDone b { color: var(--text); }
+.trackDone:nth-child(1) { border-top-color: var(--stage-1); }
+.trackDone:nth-child(2) { border-top-color: var(--stage-2); }
+.trackDone:nth-child(3) { border-top-color: var(--stage-3); }
+.trackNow {
+  border-top-color: var(--accent);
+  background: rgba(34, 211, 238, .18);
+  box-shadow: var(--sh-glow);
+}
+.trackNow b { color: var(--accent-text); }
+/* 합격 칸에 닿으면 램프의 --stage-4(=--ok) 를 쓴다 — 퍼널이 쓰는 색과 같다 */
+.trackAccepted { border-top-color: var(--stage-4); background: var(--ok-soft); }
+.trackAccepted b { color: var(--ok-text); }
+/* 불합격은 램프 밖이다 — 진행이 아니라 종료라서 색을 따로 쓴다 */
+.trackRejected { border-top-color: var(--danger); background: var(--danger-soft); }
+.trackRejected b { color: var(--danger); }
+
+/* 뒤쪽 버튼 자리. 고를 때(불합격 + 취소)가 평소(단계 변경)보다 넓으므로
+   그 폭을 미리 잡아 둔다 — 진행 바가 모드에 따라 줄었다 늘었다 하면 안 된다 */
+/* 불합격 자리. 평소에도 폭을 잡아 둬서 고르기로 들어갈 때 칸이 안 밀린다 */
+.rejSlot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-width: 78px;
+}
+/* [단계 변경] 자리. 고르는 동안에는 비어 있다 */
+.stageActions {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  min-width: 92px;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 240px;
+  background: #10182A;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-overlay);
+  padding: var(--sp-2);
+  z-index: var(--z-dropdown);
+}
+.menuCap {
+  font-size: var(--font-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--text-sub);
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  font-weight: 600;
+  margin: 0;
+}
+.mitem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2);
+  border-radius: var(--r-row);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-sm);
+  color: var(--text);
+  text-align: left;
+}
+.mitem:hover:not(:disabled) { background: var(--sunken-hover); }
+.mitem:disabled { opacity: .5; cursor: default; }
+.mitem small { color: var(--text-sub); font-size: var(--font-cap); }
+/* 05-design §1 "색은 판단에만" — 합격만 연두, 불합격만 적갈, 나머지는 무채.
+   불합격에만 색이 있으면 메뉴 전체가 불합격 얘기처럼 읽힌다. */
+.mitemOk { color: var(--ok-text); }
+.mitemDanger { color: var(--danger); }
+
+/* ── 탭바 ────────────────────────────────────────────────
+   안 열어보면 안에 뭐가 있는지 모른다 — 조치가 필요한 상태만 배지로
+   내보낸다(면접 대기·발송 실패·메모 수). 없으면 배지도 없다. */
+.tabs { display: flex; gap: var(--sp-1); }
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-bottom: 2px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: calc(var(--border-w) * -1);
+  transition: color var(--dur-fast) var(--ease);
+}
+.tab:hover { color: var(--text); }
+.tabOn { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+.tabBadge { height: 18px; padding: 0 6px; font-size: 10px; }
+
+.tabPanel { padding: var(--sp-5); }
+
+/* ── 개요 · 평가 행 ──────────────────────────────────────
+   값이 없다고 줄표를 두지 않는다 — 빈 상태는 행동으로 바꾼다 */
+.evalRow { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.stars { display: flex; align-items: center; gap: var(--sp-2); }
+.stars svg { width: 16px; height: 16px; color: var(--warn); }
+.score { font-family: var(--mono); font-size: var(--font-body); font-weight: 500; }
+.score small { color: var(--text-sub); font-size: var(--font-caption); font-weight: 400; }
+
+.rule { height: 1px; background: var(--border-soft); margin: var(--sp-4) 0; border: 0; }
+
+.secRow2 { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.secLabel {
+  font-size: var(--font-cap);
+  letter-spacing: var(--ls-cap);
+  text-transform: uppercase;
+  color: var(--text-sub);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+.linkBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-caption);
+  color: var(--accent-text);
+}
+.linkBtn:hover { text-decoration: underline; }
+
+/* ── 지원 정보 ──────────────────────────────────────────
+   4칸에서는 620px 에서도 값이 잘렸다. 연락처를 아래 블록으로 빼서
+   3칸으로 줄이고, 자르는 대신 줄바꿈한다 — 잘린 값은 없는 값이다. */
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.cell { background: var(--bg-sunken); border-radius: var(--r-row); padding: var(--sp-2) var(--sp-3); min-width: 0; }
+.cell dt { font-size: var(--font-cap); letter-spacing: .04em; color: var(--text-sub); margin: 0 0 2px; }
+.cell dd { margin: 0; font-size: var(--font-sm); line-height: 1.35; overflow-wrap: anywhere; }
+.cellNum { font-family: var(--mono); }
+.cellWide { grid-column: 1 / -1; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  height: 24px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-caption);
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  border: var(--border-w) solid var(--border-soft);
+}
+
+/* 전화와 이메일은 원래 한 덩어리다 */
+.contact {
+  margin-top: var(--sp-2);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  align-items: center;
+  background: var(--bg-sunken);
+  border-radius: var(--r-card);
+  padding: var(--sp-3);
+}
+.clab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-cap);
+  letter-spacing: .04em;
+  color: var(--text-sub);
+  white-space: nowrap;
+}
+.clab svg { width: 13px; height: 13px; }
+.cval {
+  font-family: var(--mono);
+  font-size: var(--font-caption);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── 첨부 ────────────────────────────────────────────── */
+.files { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.fileCard {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-card);
+  min-width: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+.fileCard:hover:not(:disabled) { background: var(--sunken-hover); }
+.fileCard:disabled { opacity: .6; cursor: default; }
+.fileIcon { flex: none; width: 18px; height: 18px; color: var(--text-sub); }
+.fmain { flex: 1; min-width: 0; }
+.fnameNew { display: block; font-size: var(--font-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fmetaNew { display: block; font-size: var(--font-cap); color: var(--text-sub); }
+
+/* 도움말 툴팁 — 매번 세 줄을 차지하던 무결성 설명을 여기로 옮겼다 */
+.help {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  cursor: help;
+  border: var(--border-w) solid var(--border);
+  color: var(--text-sub);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-sunken);
+  font-family: inherit;
+  padding: 0;
+}
+.tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: #10182A;
+  border: var(--border-w) solid var(--border);
+  box-shadow: var(--sh-overlay);
+  font-size: var(--font-caption);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-sub);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-fast) var(--ease);
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+}
+.help:hover .tip,
+.help:focus-visible .tip { opacity: 1; visibility: visible; }
+
+/* ── 접히는 행 (인적성 검사) ─────────────────────────── */
+.fold { border-top: var(--border-w) solid var(--border-soft); padding-top: var(--sp-3); }
+.foldSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  cursor: pointer;
+  list-style: none;
+}
+.foldSummary::-webkit-details-marker { display: none; }
+
+/* ── 단계 미달 안내 ─────────────────────────────────── */
+.gate {
+  text-align: center;
+  padding: var(--sp-7) var(--sp-5);
+  border: var(--border-w) dashed var(--border);
+  border-radius: var(--r-card);
+  color: var(--text-sub);
+  font-size: var(--font-sm);
+  line-height: 1.6;
+}
+.gate strong { display: block; color: var(--text); font-weight: 600; margin-bottom: var(--sp-1); }
+
+/* ── 메일 작성 — 연락처 행에서 펼쳐진다 ───────────────── */
+.mailbox {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-card);
+}
+.mailtop { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.mailsel { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--font-cap); color: var(--text-sub); }
+.mailsel select {
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  padding: 4px var(--sp-2);
+}
+/* 단계가 안 바뀐다는 것을 그 자리에서 말한다 */
+.mailnote { font-size: var(--font-cap); color: var(--warn-text); }
+.mailsub {
+  width: 100%;
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.mailacts { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
+
+/* ── 이력 ────────────────────────────────────────────── */
+.hrow {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: var(--border-w) solid var(--border-soft);
+  font-size: var(--font-caption);
+}
+.hrow:last-child { border-bottom: none; }
+.hdate { font-family: var(--mono); color: var(--text-sub); flex: none; width: 92px; }
+.hbody { flex: 1; min-width: 0; }
+
+/* ── 좁은 화면 ───────────────────────────────────────── */
+@media (max-width: 620px) {
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .files { grid-template-columns: 1fr; }
+  .contact { grid-template-columns: 1fr; gap: var(--sp-1); }
+  .cval { flex-wrap: wrap; }
+}
+
+/* 배지 톤 — 탭 라벨과 상태 표시가 같은 색 규칙을 쓴다 */
+.badgeOk { background: var(--ok-soft); color: var(--ok-text); }
+.badgeWarn { background: rgba(251, 191, 36, .13); color: var(--warn-text); }
+.badgeDanger { background: var(--danger-soft); color: var(--danger); }
+
+/* ── 단계 변경 · 고르는 상태 (2026-09-10, 시안 C) ────────
+   뜨는 메뉴를 없애고 진행 바가 잠깐 고를 수 있게 바뀐다.
+   평소에는 안 눌린다 — 패널에서 제일 큰 요소가 늘 눌리면
+   스크롤하다 빗나간 손가락에 되돌리기 어려운 동작이 걸린다. */
+/* 고르는 동안에는 칸이 "누를 수 있는 것" 으로 보여야 한다 — 평소의 조용한
+   진행 표시 그대로 두면 뭘 눌러야 할지 모른다 */
+.trackPick {
+  /* 위 띠는 건드리지 않는다 — 램프가 "어디까지 왔는지" 를 말한다.
+     테두리 자리는 .trackStep 이 이미 잡아 뒀으므로 색만 켠다 */
+  border-left-color: var(--border);
+  border-right-color: var(--border);
+  border-bottom-color: var(--border);
+  background: rgba(255, 255, 255, .14);
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.trackPick b { color: var(--text); font-size: var(--font-caption); }
+/* 고르는 동안에는 **고를 수 있는 것이 제일 밝다**. 지나온 칸(.trackDone)이
+   더 밝으면 위계가 뒤집혀서 못 누르는 칸에 먼저 눈이 간다. */
+.trackPick:disabled {
+  cursor: default;
+  opacity: .38;
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  background: var(--bg-sunken);
+}
+.trackPick:disabled b { color: var(--text-sub); }
+.trackPick:not(:disabled):hover {
+  border-left-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: rgba(34, 211, 238, .14);
+}
+.trackPick:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+/* 고른 것은 **채운다**. 워시를 조금 밝히는 정도로는 눌렀는지 안 눌렀는지
+   구분이 안 된다 — 이 줄에서 유일하게 채워진 것이 지금 고른 것이다. */
+.trackSel {
+  border-left-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+  border-top-color: var(--accent);
+  background: var(--accent);
+  box-shadow: var(--sh-glow);
+}
+.trackSel b { color: var(--on-accent); }
+.trackSel:not(:disabled):hover { background: var(--accent-hover); }
+
+/* 램프 밖 — 칸으로 넣으면 4→5 로 늘어나면서 방금 보던 칸이 밀린다.
+   불합격은 진행의 끝이 아니라 종료라 버튼이 의미에도 맞는다. */
+/* 합격 옆에 서지만 램프 밖이다 — 칸이 아니라 버튼이고 색도 danger 다.
+   찾아야 하는 동작이라 테두리와 바탕을 준다. */
+/* 칸과 같은 생김새로 선다 — 혼자 크고 둥글면 "한 줄에 규격이 둘" 로 읽힌다.
+   램프 밖이라는 것은 크기가 아니라 색(danger)과 자리로 말한다. */
+.rejBtn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-row);
+  border: var(--border-w) solid rgba(240, 163, 143, .45);
+  border-top: 4px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.rejBtn:hover:not(:disabled) { background: rgba(240, 163, 143, .2); border-color: var(--danger); }
+.rejOn {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-accent);
+}
+.rejOn:hover:not(:disabled) { background: var(--danger); }
+.rejBtn:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+.rejBtn:disabled { opacity: .5; cursor: default; }
+
+/* ── 확인 줄 ─────────────────────────────────────────── */
+.confirmBar {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+}
+.confirmArmed { background: var(--accent-soft); border-color: rgba(34, 211, 238, .3); }
+.confirmDanger { background: var(--danger-soft); border-color: rgba(240, 163, 143, .35); }
+
+.confirmTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--font-caption);
+}
+.confirmHint { color: var(--text-sub); }
+.confirmActions { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
+.confirmFlow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.badgeNow { background: var(--accent-soft); color: var(--accent-text); }
+
+/* 메일은 단계 변경이 보내지 않는다 — 이어서 보낼 수 있다고만 적는다 */
+.confirmMail {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: var(--sp-2) 0 0;
+  font-size: var(--font-cap);
+  color: var(--warn-text);
+}
+.confirmMail svg { width: 12px; height: 12px; flex: none; }
+
+.confirmReason {
+  width: 100%;
+  margin-top: var(--sp-2);
+  background: rgba(7, 11, 20, .5);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-caption);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+  padding: var(--sp-2);
+  resize: vertical;
+}
+.confirmReason:focus-visible { outline: none; border-color: var(--danger); }
