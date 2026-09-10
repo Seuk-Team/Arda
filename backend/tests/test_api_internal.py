@@ -14,7 +14,14 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.main import app
-from app.models import Application, EmailLog, JobPosting, User
+from app.models import (
+    Application,
+    EmailLog,
+    InterviewSession,
+    InterviewTurn,
+    JobPosting,
+    User,
+)
 
 
 @pytest.fixture()
@@ -240,3 +247,57 @@ class TestPublishDispatch:
 
         mail.publish(1)
         assert calls == {"sqs": 0, "n8n": 1}
+
+
+class TestQuestions:
+    """워커가 시작할 때 받는 질문 목록 — 전사를 안 기다리려면 이게 있어야 한다."""
+
+    @pytest.fixture()
+    def running(self, db: Session, admin_user: User) -> InterviewSession:
+        posting = JobPosting(
+            title="공고", description="본문", status="open", created_by=admin_user.id
+        )
+        db.add(posting)
+        db.flush()
+        application = Application(
+            job_posting_id=posting.id,
+            name="지원자김",
+            email="c@test.local",
+            phone="010-0000-0000",
+            privacy_agreed_at=datetime.now(UTC),
+        )
+        db.add(application)
+        db.flush()
+        session = InterviewSession(
+            application_id=application.id,
+            token="tok-q",
+            status="in_progress",
+            created_by=admin_user.id,
+        )
+        db.add(session)
+        db.flush()
+        for seq, q in enumerate(["첫 질문", "둘째 질문"], start=1):
+            db.add(InterviewTurn(session_id=session.id, seq=seq, question=q))
+        db.flush()
+        return session
+
+    def test_번호순으로_전부_준다(self, client, running):
+        r = client.get(
+            "/api/v1/internal/interview/tok-q/questions",
+            headers={"X-Service-Token": "test-token-x"},
+        )
+        assert r.status_code == 200
+        assert r.json() == [
+            {"seq": 1, "question": "첫 질문"},
+            {"seq": 2, "question": "둘째 질문"},
+        ]
+
+    def test_토큰_없으면_401(self, client, running):
+        assert client.get("/api/v1/internal/interview/tok-q/questions").status_code == 401
+
+    def test_없는_세션이면_404(self, client):
+        r = client.get(
+            "/api/v1/internal/interview/nope/questions",
+            headers={"X-Service-Token": "test-token-x"},
+        )
+        assert r.status_code == 404

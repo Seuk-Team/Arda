@@ -25,11 +25,12 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import mail
 from app.db import get_db
-from app.models import EmailLog
+from app.models import EmailLog, InterviewTurn
 from app.worker import _actor, _context, _reply_to
 
 logger = logging.getLogger(__name__)
@@ -231,3 +232,39 @@ async def push_verdict(token: str, body: VerdictIn):
     from app.api.interview_rtc import push_to_recruiter
 
     await push_to_recruiter(token, {"type": "verdict", **body.model_dump()})
+
+
+class QuestionOut(BaseModel):
+    seq: int
+    question: str
+
+
+@router.get(
+    "/interview/{token}/questions",
+    response_model=list[QuestionOut],
+    dependencies=[Depends(_require_service_token)],
+)
+def get_questions(token: str, db: Session = Depends(get_db)):
+    """면접 질문 전체. 워커가 시작할 때 한 번 받는다.
+
+    **왜 필요한가**: 지원자용 조회는 "지금 질문" 하나만 준다. 그래서 워커가 다음
+    질문을 알려면 답변을 저장해야 했고, 답변을 저장하려면 전사가 끝나야 했다 —
+    지원자가 전사를 기다린 이유가 이 사슬이다.
+
+    질문 목록을 미리 쥐면 **말이 끝나자마자 다음 질문을 보낼 수 있다.** 전사는
+    뒤에서 돌다가 끝나면 `seq` 를 붙여 저장한다.
+
+    **담당자가 넣은 질문이라 지원자 정보가 아니다** — 그래도 서비스 토큰 뒤에 둔다.
+    """
+    from app.api.interview_rtc import _find_session
+
+    session = _find_session(db, token)
+    if session is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="세션 없음")
+
+    turns = db.scalars(
+        select(InterviewTurn)
+        .where(InterviewTurn.session_id == session.id)
+        .order_by(InterviewTurn.seq)
+    ).all()
+    return [QuestionOut(seq=t.seq, question=t.question) for t in turns]
