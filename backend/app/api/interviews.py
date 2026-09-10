@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -583,14 +583,18 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
 
 
 @router.post("/public/interview/{token}/finish", response_model=InterviewPublicOut)
-def finish_interview(token: str, db: Session = Depends(get_db)):
+def finish_interview(
+    token: str, background: BackgroundTasks, db: Session = Depends(get_db)
+):
     """면접 종료. 공개 — 지원자가 끝낸다.
 
     **답을 다 안 해도 끝낼 수 있다.** 중간에 그만두는 것도 지원자의 선택이고,
     막으면 창을 닫아 버려 상태가 `in_progress` 로 영영 남는다. 어디까지 답했는지는
     `turns` 에 그대로 남으므로 담당자가 보고 판단한다.
 
-    대조(`findings`) 생성은 설계 §5 의 6번에서 여기에 붙는다.
+    **대조(`findings`)는 뒤에서 만든다** (설계 §5-6). 여기서 sLLM 을 기다리면
+    끝내기 요청이 몇십 초 멈춘다 — 지원자는 이미 다 답했는데 화면만 붙잡힌다.
+    담당자 화면은 잠시 뒤 새로고침하면 채워져 있다.
     """
     session = _get_by_token(db, token)
 
@@ -603,4 +607,8 @@ def finish_interview(token: str, db: Session = Depends(get_db)):
     session.status = "done"
     session.ended_at = datetime.now(timezone.utc)
     db.commit()
+
+    from app.agent.interview_findings import generate_findings_bg
+
+    background.add_task(generate_findings_bg, session.id)
     return get_interview_public(token, db)

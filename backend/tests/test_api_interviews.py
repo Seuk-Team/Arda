@@ -476,6 +476,29 @@ class TestFinish:
         db.refresh(s)
         assert s.ended_at is not None
 
+    def test_대조를_뒤에서_돌린다(
+        self, public, db: Session, application: Application, admin_user: User, monkeypatch
+    ):
+        """**여기서 sLLM 을 기다리지 않는다.** 끝내기 요청이 몇십 초 멈추면 지원자는
+        이미 다 답했는데 화면만 붙잡힌다 (설계 §5-6)."""
+        import app.agent.interview_findings as fnd
+
+        called = []
+        monkeypatch.setattr(fnd, "generate_findings_bg", called.append)
+
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        _question(db, s)
+        db.commit()
+
+        assert public.post("/api/v1/public/interview/tok-test/finish").status_code == 200
+        assert called == [s.id]
+
     def test_두_번_눌러도_같은_결과(
         self, public, db: Session, application: Application, admin_user: User
     ):
