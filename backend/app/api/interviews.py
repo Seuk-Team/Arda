@@ -511,14 +511,75 @@ def _transcribe_answer(turn: InterviewTurn, key: str) -> str:
     return text
 
 
+def _generate_followup_bg(session_id: int, prev_turn_id: int) -> None:
+    """직전 답변을 재료로 꼬리질문 하나를 만들어 다음 자리에 삽입한다.
+
+    지원자를 기다리게 하지 않는 자리다 — 답변 저장 뒤 백그라운드로 돈다.
+    다음 질문이 이미 나가 있어도 상관없다: 이 새 턴은 그 뒤로 들어가고,
+    지원자가 다음다음 질문 필요할 때 자연스럽게 나간다 (2026-09-10, 팀장 결정).
+
+    실패는 무해하다 — 로그만 남기고 사전 질문 흐름이 그대로 굴러간다.
+    """
+    from app.agent.interview_probe import probe_from_answer
+    from app.db import SessionLocal
+
+    with SessionLocal() as db:
+        prev = db.get(InterviewTurn, prev_turn_id)
+        if prev is None or prev.transcript is None:
+            return  # 사라졌거나 아직 전사 안 됨
+
+        # 지원자 요약이 있으면 문맥에 넣는다. 없어도 답변만으로 굴러간다.
+        summary = ""
+        session = db.get(InterviewSession, session_id)
+        if session is not None:
+            app = db.get(Application, session.application_id)
+            if app is not None and app.ai_summary:
+                summary = app.ai_summary
+
+        question = probe_from_answer(
+            prev_question=prev.question,
+            prev_answer=prev.transcript,
+            applicant_summary=summary,
+        )
+        if question is None:
+            return
+
+        # 마지막 번호 다음에 붙인다. 다른 세션은 안 건드리므로 락 없이 안전 —
+        # 이 세션 안에서 두 답변이 거의 동시에 도착해도 각각의 배경 태스크가
+        # 서로 다른 seq 를 딴다 (uniqueness 는 DB 가 지킨다).
+        max_seq = (
+            db.query(InterviewTurn.seq)
+            .filter(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.seq.desc())
+            .limit(1)
+            .scalar()
+            or 0
+        )
+        new_turn = InterviewTurn(
+            session_id=session_id,
+            seq=max_seq + 1,
+            question=question,
+            generated_from_turn_id=prev_turn_id,
+        )
+        db.add(new_turn)
+        db.commit()
+
+
 @router.post("/public/interview/{token}/answer", response_model=InterviewPublicOut)
-def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)):
+def submit_answer(
+    token: str,
+    body: AnswerRequest,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """현재 질문에 답한다. 공개.
 
     **아직 답 안 한 가장 앞 질문**에 붙인다 — 지원자가 순번을 보내지 않는다.
     보내게 하면 어긋난 번호로 남의 칸에 답이 들어갈 수 있다.
 
-    지금은 텍스트만 받는다. 음성 업로드 → STT 는 설계 §5 의 4번이다.
+    저장이 끝나면 백그라운드로 **꼬리질문 하나**를 만들어 다음 자리에 넣는다 —
+    지원자는 이 사이에 이미 미리 준비된 다음 질문을 답하고 있고, 꼬리는 그
+    다음이나 그 뒤에 자연스럽게 나간다. 실패해도 흐름은 그대로.
     """
     session = _get_by_token(db, token)
 
@@ -567,6 +628,10 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
 
     turn.transcript = transcript
     db.commit()
+
+    # 꼬리질문 하나를 뒤에서 만든다 (2026-09-10, ADR-0034 후속).
+    # 답변이 짧거나 백엔드가 안 되면 함수가 자체적으로 조용히 접는다.
+    background.add_task(_generate_followup_bg, session.id, turn.id)
 
     out = get_interview_public(token, db)
 

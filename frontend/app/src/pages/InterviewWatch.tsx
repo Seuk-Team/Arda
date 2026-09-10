@@ -214,7 +214,17 @@ export default function InterviewWatch() {
             {detail?.turns?.length ? (
               <ol className={styles.questions}>
                 {detail.turns.map((t) => (
-                  <li key={t.seq} className={styles.question}>{t.question}</li>
+                  <li key={t.seq} className={styles.question}>
+                    {t.generated_from_turn_id != null && (
+                      <span
+                        className={styles.autoBadge}
+                        title="아르가 이전 답변에서 만든 꼬리질문"
+                      >
+                        🤖 자동
+                      </span>
+                    )}
+                    {t.question}
+                  </li>
                 ))}
               </ol>
             ) : (

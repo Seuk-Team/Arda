@@ -965,6 +965,11 @@ class InterviewTurn(Base):
     transcript: Mapped[str | None] = mapped_column(Text)
     audio_duration_sec: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     stt_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    # 아르가 어느 답변을 재료로 이 질문을 만들었나. 값이 있으면 "AI 자동 생성" 이고
+    # 담당자 화면이 배지로 표시한다. 없으면 담당자가 미리 넣어 둔 사전 질문 (0017).
+    generated_from_turn_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("interview_turns.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -148,6 +148,82 @@ def generate_probes(sources: dict[str, str] | str) -> list[dict] | None:
     return claims
 
 
+# ── 답변 기반 꼬리질문 (2026-09-10) ────────────────────────────
+# `generate_probes` 는 **면접 시작 전** 자소서·이력서에서 미리 뽑는다. 이쪽은
+# **답변 직후** 그 답변만 재료로 하나 만든다 — 지원자가 다음 질문 답하는 동안
+# 백그라운드로 도는 자리라 지연에 여유가 있고, 그래서 실시간 흐름을 안 막는다.
+
+FOLLOWUP_MAX_TOKENS = 200
+
+# 짧은 답변에서는 억지로 꼬리를 뽑지 않는다 — "파이썬입니다" 에서 나오는 꼬리는
+# 지원자에게 해롭다. 이 값 미만이면 즉시 None.
+FOLLOWUP_MIN_ANSWER_CHARS = 20
+
+
+def probe_from_answer(
+    prev_question: str, prev_answer: str, applicant_summary: str = ""
+) -> str | None:
+    """직전 질문·답변 → 자연스러운 꼬리질문 하나. 못 뽑으면 None.
+
+    `applicant_summary` 는 있으면 문맥에 넣지만 없어도 돈다 — 요약이 없거나
+    실패한 지원자도 답변 자체로 꼬리를 만들 수 있어야 한다.
+
+    **답변이 짧으면 즉시 포기한다** (억지 꼬리 방지, 위 상수). LLM 호출도 안 한다.
+    반환 문자열은 그대로 다음 질문에 저장되므로 여기서 다듬는다 — 코드블록
+    제거, 앞뒤 따옴표 제거, 250자 초과 컷.
+    """
+    answer = (prev_answer or "").strip()
+    if len(answer) < FOLLOWUP_MIN_ANSWER_CHARS:
+        return None
+
+    from app.agent.backends import get_summary_backend
+
+    backend = get_summary_backend()
+    reason = backend.unavailable_reason()
+    if reason:
+        logger.warning("꼬리질문 생성 불가 (백엔드): %s", reason)
+        return None
+
+    context = f"[지원자 요약]\n{applicant_summary.strip()}\n\n" if applicant_summary.strip() else ""
+    prompt = (
+        "면접 진행자다. 방금 지원자가 답한 것을 재료로 **한 문장 짜리 꼬리 질문**을 만든다.\n\n"
+        "규칙:\n"
+        "- 답변에서 지원자가 실제로 한 말을 근거로 삼는다 — 지원자 요약은 참고만.\n"
+        "- 추궁이 아니라 지원자가 세부를 펼칠 자리를 만든다. 실제로 해 본 사람은 세부가 있고 아닌 사람은 없다.\n"
+        "- 한 문장. 물음표로 끝난다. 앞뒤 따옴표·번호·설명 붙이지 않는다.\n"
+        "- 60자 이내. 넘으면 지원자가 못 따라온다.\n"
+        "- 답변이 감상·다짐만 있어 물을 세부가 없으면 `SKIP` 한 단어만.\n\n"
+        f"{context}"
+        f"[직전 질문]\n{prev_question}\n\n"
+        f"[지원자 답변]\n{answer}\n\n"
+        "[꼬리 질문]"
+    )
+    result = backend.complete(prompt=prompt, max_tokens=FOLLOWUP_MAX_TOKENS)
+    text = (result.text or "").strip()
+
+    # 모델이 코드블록으로 감쌌으면 벗긴다
+    if text.startswith("```"):
+        first_nl = text.index("\n") if "\n" in text else len(text)
+        text = text[first_nl + 1 :]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+    # 앞뒤 따옴표 제거
+    if len(text) >= 2 and text[0] in "\"'“‘「『" and text[-1] in "\"'”’」』":
+        text = text[1:-1].strip()
+
+    if not text or text.upper().startswith("SKIP"):
+        return None
+
+    # 250자 초과는 다듬어도 못 살린다 — 프롬프트를 뚫고 큰 응답이 온 경우
+    if len(text) > 250:
+        logger.warning("꼬리질문이 너무 길어 버림 (%d자)", len(text))
+        return None
+
+    return text
+
+
 def _fingerprint(text: str) -> str:
     """대조용 지문 — 공백을 지우고 따옴표를 통일한다.
 
