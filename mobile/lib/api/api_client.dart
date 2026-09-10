@@ -170,13 +170,23 @@ class ApiClient {
     }
   }
 
-  /// FastAPI 의 `{"detail": "..."}`. 우리 백엔드는 한국어로 답하므로 그대로 쓴다.
+  /// 서버가 준 한국어 문구를 꺼낸다 — `detail`(FastAPI 기본)과 `message`
+  /// (우리 백엔드의 `ErrorResponse`) 둘 다 본다.
   /// 검증 오류(422)는 detail 이 배열이라 문자열일 때만 쓴다.
   String? _detail(http.Response response) {
     try {
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-      if (decoded is Map && decoded['detail'] is String) {
-        return decoded['detail'] as String;
+      if (decoded is! Map) return null;
+      // FastAPI 기본은 `detail`, 우리 백엔드는 `message` 다
+      // (`backend/app/errors.py` 의 `ErrorResponse`: code · message · request_id).
+      //
+      // **`detail` 만 보다가 모든 서버 오류를 "요청을 처리하지 못했습니다" 로
+      // 뭉갰다** (2026-09-10 실측). 면접 시작이 422 로 막혔을 때 서버는
+      // "준비된 질문이 없습니다 — 담당자에게 문의해 주세요" 를 정확히 보내고
+      // 있었는데 지원자에게는 한 글자도 안 보였다. 둘 다 본다.
+      for (final key in const ['detail', 'message']) {
+        final value = decoded[key];
+        if (value is String && value.isNotEmpty) return value;
       }
     } on Exception {
       // 본문이 JSON 이 아니면 기본 문구를 쓴다

@@ -2,7 +2,7 @@
 # ~2.5GB 커지는데, 지금 운영 서버(t3.medium 4GB)에서는 어차피 못 켠다.
 # GPU 서버에서만 이것까지 설치하고 VIT_MODEL 을 준다.
 #   pip install -r requirements-vit.txt
-#   export VIT_MODEL=trpakov/vit-face-expression
+#   export VIT_MODEL=cloverky/arda-expression-vit   # 우리가 학습한 것 (ai/expression-vit)
 torch>=2.0
 torchvision>=0.15
 transformers>=4.40
