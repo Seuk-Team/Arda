@@ -60,6 +60,9 @@ class TurnOut(BaseModel):
     question: str
     transcript: str | None
     audio_duration_sec: float | None
+    # 아르가 어느 답변에서 이 질문을 만들었나. 값이 있으면 자동생성이고 화면이
+    # 배지를 그린다 (2026-09-10, 0017 마이그레이션).
+    generated_from_turn_id: int | None = None
 
 
 class FindingOut(BaseModel):

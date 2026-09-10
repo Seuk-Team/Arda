@@ -325,6 +325,8 @@ export interface InterviewTurn {
   question: string
   transcript: string | null
   audio_duration_sec: number | null
+  /** 아르가 어느 답변에서 이 질문을 만들었나. 값이 있으면 자동생성 */
+  generated_from_turn_id: number | null
 }
 
 export interface InterviewFinding {
