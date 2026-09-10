@@ -18,7 +18,10 @@
 #            환경변수 BACKUP_BUCKET (없으면 아래 기본값).
 set -euo pipefail
 
-COMPOSE="${COMPOSE:-/home/ubuntu/arda/docker-compose.prod.yml}"
+# compose 는 저장소 안 infra/ 에 있다 (2026-09-09 이동, #105). 루트 경로를 보던 09-09 밤
+# 백업이 `no such file` 로 죽었고 20B 빈 gzip 만 남았다 — 로그에 "실패" 단어가 없어
+# status.sh 의 grep 에도 안 걸렸다. 그래서 아래에서 파일 존재를 먼저 확인하고 "실패" 로 적는다.
+COMPOSE="${COMPOSE:-/home/ubuntu/arda/infra/docker-compose.prod.yml}"
 ENV_FILE="${ENV_FILE:-/home/ubuntu/arda/.env}"
 BACKUP_BUCKET="${BACKUP_BUCKET:-arda-db-backups-seuk}"
 LOCAL_DIR="${LOCAL_DIR:-/home/ubuntu/backups}"
@@ -41,6 +44,10 @@ if [[ -f "$ENV_FILE" ]]; then
   done < <(grep -E '^(AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY|AWS_REGION)=' "$ENV_FILE" | sed -E 's/="?/=/')
 fi
 export AWS_DEFAULT_REGION="${AWS_REGION:-ap-northeast-2}"
+
+if [[ ! -f "$COMPOSE" ]]; then
+  log "실패: compose 파일 없음 — $COMPOSE (infra/ 로 옮겨졌는지 확인)"; exit 1
+fi
 
 log "덤프 시작 → $OUT"
 # 컨테이너 안의 POSTGRES_USER/DB 를 그대로 쓴다 — 여기 비밀번호를 적지 않는다.

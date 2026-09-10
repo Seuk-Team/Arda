@@ -9,7 +9,8 @@
 set -uo pipefail
 
 ARDA="${ARDA:-/home/ubuntu/arda}"
-COMPOSE="${COMPOSE:-$ARDA/docker-compose.prod.yml}"
+# compose 는 infra/ 안이다 (2026-09-09 이동). 루트 경로는 이제 없다.
+COMPOSE="${COMPOSE:-$ARDA/infra/docker-compose.prod.yml}"
 DISK_WARN="${DISK_WARN:-80}"   # 이 % 넘으면 빨간 표시
 
 c() { printf '\033[%sm%s\033[0m' "$1" "$2"; }

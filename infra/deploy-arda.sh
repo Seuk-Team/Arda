@@ -32,11 +32,17 @@ docker compose -p arda -f infra/docker-compose.prod.yml build >> "$LOG" 2>&1
 echo "$(date -Is) alembic upgrade..." >> "$LOG"
 docker compose -p arda -f infra/docker-compose.prod.yml run --rm api /app/.venv/bin/alembic upgrade head >> "$LOG" 2>&1
 docker compose -p arda -f infra/docker-compose.prod.yml up -d >> "$LOG" 2>&1
-sleep 10
-if curl -sf http://localhost:8000/health >> "$LOG" 2>&1; then
+# 헬스는 최대 60초 재시도 — 10초 한 번은 api 가 뜨는 중이라 가짜 WARN 이 났다
+# (09-09 15:12Z a6cb5c3: 컨테이너는 다 떴는데 "health check 실패" 로 기록됨).
+HEALTHY=0
+for _ in $(seq 1 20); do
+  if curl -sf http://localhost:8000/health >> "$LOG" 2>&1; then HEALTHY=1; break; fi
+  sleep 3
+done
+if [ "$HEALTHY" = 1 ]; then
   echo "$(date -Is) deploy ok: $REMOTE" >> "$LOG"
 else
-  echo "$(date -Is) deploy WARN: health check 실패 — 로그 확인 필요" >> "$LOG"
+  echo "$(date -Is) deploy WARN: health check 60초 실패 — 로그 확인 필요" >> "$LOG"
 fi
 docker image prune -f > /dev/null 2>&1 || true
 docker builder prune -f --keep-storage 3g > /dev/null 2>&1 || true
