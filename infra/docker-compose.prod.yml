@@ -66,6 +66,11 @@ services:
     # 이 컨테이너도 backend/.env 를 읽는다. STT_MODEL 이 없으면 전사가 꺼지고(#95),
     # 앞으로 붙을 판정 워커→백엔드 콜에 필요한 ARDA_SERVICE_TOKEN 도 같은 이유로 못 받는다.
     env_file: ../backend/.env
+    # ViT 표정 모델 (ADR-0032, 2026-09-10). env_file 값을 덮어써서 서버 .env
+    # 편집 없이 켠다 — 모델 이름은 `ai/expression-vit` 산출물이라 브랜치 상관없이
+    # 고정이다. 이미지에 requirements-vit.txt 가 이미 설치돼 있어야 뜬다.
+    environment:
+      VIT_MODEL: cloverky/arda-expression-vit
     volumes:
       # Whisper (HF Hub) 모델 캐시. 컨테이너를 재생성하면 안 것이 사라져 다음 STT 첫 요청이
       # 모델 다운로드 (~1.6GB) 를 다시 하는데, 이 시간이 실제 면접의 첫 답변에 그대로
@@ -91,7 +96,12 @@ services:
     # (2g→2.5g: peak 2.36 GiB, 2.5g→3g: peak 3.00 GiB) — 여러 세션 겹칠 때
     # 계속 늘어나는 것으로 보인다. **4g 로 올린다** (여유 ~1 GiB). 서버 available
     # 4.7 GiB 로 자원 충분.
-    mem_limit: 4g
+    #
+    # 2026-09-10: ViT 표정 (torch + 328MB 모델) 을 켜면서 상한을 **5g 로**. torch
+    # 로드가 ~0.9 GiB 을 잡아먹어 4g 에 붙어 있던 여유가 사라진다. 서버 t3.large
+    # 8GB 에서 api·worker 몫을 빼도 아직 3g 남는다. peak 이 5g 에 붙으면 다음 단계는
+    # ViT 자체를 GPU 로 옮기는 것 (ADR-0032).
+    mem_limit: 5g
     restart: unless-stopped
     logging: *default-logging
 
