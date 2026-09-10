@@ -46,15 +46,23 @@ def main():
     p = argparse.ArgumentParser()
     # 비우면 모델이 들어 있는 가장 최근 회차를 쓴다
     p.add_argument("--model", default="")
+    # **학습에 쓴 정답지와 같아야 한다.** FERPlus 로 학습한 모델을 FER2013 라벨로
+    # 채점하면 점수가 통째로 낮게 나온다 — 모델이 아니라 채점이 틀린 것이다.
+    p.add_argument("--data", default="ferplus", choices=("fer2013", "ferplus"))
     p.add_argument("--batch", type=int, default=64)
     args = p.parse_args()
 
-    if not Path(args.model).exists():
-        raise SystemExit(f"모델이 없다: {args.model}\n먼저 `python train.py` 를 돌린다.")
+    run = latest_run()
+    model_dir = Path(args.model) if args.model else (run / "best" if run else None)
+    if model_dir is None or not model_dir.exists():
+        raise SystemExit(f"모델이 없다: {model_dir}\n먼저 `python train.py` 를 돌린다.")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = ViTForImageClassification.from_pretrained(model_dir).to(device)
-    loader = DataLoader(Fer2013("test", EVAL_TF), batch_size=args.batch)
+    loader = DataLoader(
+        Fer2013("test", EVAL_TF, source=args.data), batch_size=args.batch
+    )
+    print(f"모델 {model_dir} · 정답지 {args.data}")
 
     truths, preds = collect(model, loader, device)
     n = len(LABELS)

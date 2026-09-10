@@ -587,6 +587,9 @@ function InterviewSection({ applicationId }: { applicationId: number }) {
     finally { setSavingQ((prev) => ({ ...prev, [sessionId]: false })) }
   }
 
+  /** 끝나지 않은 세션이 하나라도 있는가 — 있으면 새로 만들지 못하게 막는다 */
+  const hasOpen = (sessions ?? []).some((s) => s.status !== 'done' && s.status !== 'expired')
+
   async function toggleExpand(session: InterviewSession) {
     if (expandedId === session.id) { setExpandedId(null); setExpandedDetail(null); return }
     setExpandedId(session.id); setExpandedDetail(null)
@@ -597,10 +600,27 @@ function InterviewSection({ applicationId }: { applicationId: number }) {
     <div className={styles.sec}>
       <h2>AI 면접</h2>
       <div className={styles.actions}>
-        <button type="button" className={styles.btnStage} disabled={creating} onClick={create}>
+        <button
+          type="button"
+          className={styles.btnStage}
+          disabled={creating || hasOpen}
+          onClick={create}
+        >
           {creating ? '만드는 중…' : 'AI 면접 만들기'}
         </button>
       </div>
+      {/* 끝나지 않은 세션이 있으면 못 만들게 한다.
+          **누를 때마다 새 행이 생긴다**(백엔드가 일부러 그렇게 한다 — 옛 링크를
+          죽이지 않으려고). 그런데 앱은 끝나지 않은 것 중 **가장 먼저 만든 것**을
+          잡는다(`applicant_summary_screen.dart` 의 `open.first`). 그래서 두 번
+          누르면 담당자가 보고 있는 세션과 지원자가 들어간 세션이 갈린다 —
+          2026-09-10 실측에서 관전 화면이 끝까지 "기다리는 중"이었던 원인이다. */}
+      {hasOpen && (
+        <p className={styles.state}>
+          진행 중이거나 아직 시작하지 않은 면접이 있습니다. 그것을 쓰거나, 끝난 뒤에 새로
+          만들어 주세요 — 여러 개를 만들면 지원자는 가장 먼저 만든 것으로 들어갑니다.
+        </p>
+      )}
       {err && <p className={styles.err} role="alert">{err}</p>}
       {sessions?.map((s) => {
         const isDone = s.status === 'done'
@@ -652,7 +672,13 @@ function InterviewSection({ applicationId }: { applicationId: number }) {
                 <textarea
                   className={styles.input}
                   rows={3}
-                  placeholder={'질문을 한 줄에 하나씩 입력하세요\n(비워두면 기본 질문으로 진행됩니다)'}
+                  placeholder={
+                    // **기본 질문 같은 것은 없다.** 비워 두면 지원자가 시작할 때
+                    // 서버가 422 로 막는다("준비된 질문이 없습니다 — 담당자에게
+                    // 문의해 주세요"). 문구가 반대로 적혀 있어 2026-09-10 에
+                    // 면접이 시작조차 되지 않았다.
+                    '질문을 한 줄에 하나씩 입력하세요\n(하나 이상 저장해야 면접을 시작할 수 있습니다)'
+                  }
                   value={questions[s.id] ?? ''}
                   disabled={savingQ[s.id]}
                   onChange={(e) => setQuestions((prev) => ({ ...prev, [s.id]: e.target.value }))}

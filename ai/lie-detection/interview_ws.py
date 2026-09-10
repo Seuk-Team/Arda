@@ -312,6 +312,13 @@ class InterviewSession:
         self.identity: dict | None = None
         # 얼굴 추출 하나가 스레드에서 도는 동안 또 시작하지 않게 (app.py `_on_binary`)
         self.face_busy = False
+        # 전사가 도는 동안 판정을 쉬게 하는 표시 (app.py `_transcribe_pump`).
+        # 둘이 같은 CPU 를 다투면 전사가 45초 제한을 넘긴다 — 2026-09-10 실측.
+        #
+        # **#138 로 오히려 더 필요해졌다.** 전사가 대기줄로 빠지면서 지원자가
+        # 다음 질문에 답하는 **동안** 뒤에서 돌기 때문에, 초당 판정과 겹치는
+        # 시간이 예전보다 길다.
+        self.transcribing = False
         # 질문 전체와 지금 몇 번째인가. 비어 있으면 예전 방식(전사를 기다림)으로 돈다.
         self.questions: list[dict] = []
         self.cursor = 0

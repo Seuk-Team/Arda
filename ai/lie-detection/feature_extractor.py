@@ -111,7 +111,16 @@ def face_row(frame):
 # ── 표정 (ViT · ADR-0032) ─────────────────────────────────────
 # **비어 있으면 꺼진 채로 돈다.** torch 가 없는 이미지에서도 그대로 뜨고, 판정은
 # 지금과 같은 100차원으로 간다. 켜면 표정 7종 평균·표준편차 14개가 더 붙는다.
-#   켤 때: pip install -r requirements-vit.txt && export VIT_MODEL=trpakov/vit-face-expression
+#   켤 때: pip install -r requirements-vit.txt && export VIT_MODEL=cloverky/arda-expression-vit
+#
+# **우리가 학습시킨 모델을 쓴다** (`ai/expression-vit`, 2026-09-10). 전에는 예시가
+# 남의 모델(`trpakov/vit-face-expression`)을 가리켰다 — 켜면 그쪽이 돌았다.
+# 우리 것은 FERPlus 로 학습해 무서움 재현율이 49% → 76% 다.
+#
+# **`disgust` 정밀도가 5.9% 다** — "역겨움" 이라고 답한 780장 중 527장이 실은
+# 무표정이었다. 여기서는 걸러내지 않는다: 이 7개는 담당자에게 이름으로 보이지
+# 않고 특징 벡터로만 들어가서, 얼마나 믿을지는 판정 모델이 정한다. 사람이 읽는
+# 화면(`ai/expression-vit/serve.py`)에서는 그대로 믿으면 안 된다.
 VIT_MODEL = os.environ.get("VIT_MODEL", "").strip()
 VIT_BATCH = int(os.environ.get("VIT_BATCH", "16"))
 

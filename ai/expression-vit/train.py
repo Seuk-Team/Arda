@@ -70,6 +70,21 @@ def _next_name() -> str:
     return f"{n:02d}-실험"
 
 
+def processor():
+    """평가용 변환(`EVAL_TF`)과 같은 전처리를 하는 HuggingFace 프로세서.
+
+    학습은 torchvision 으로 하고 배포는 프로세서로 받는다. 두 길이 갈리면
+    정확도가 조용히 떨어지므로 **여기 한 곳에서만** 값을 정한다.
+    """
+    from transformers import ViTImageProcessor
+
+    return ViTImageProcessor(
+        do_resize=True, size={"height": 224, "width": 224}, resample=2,
+        do_rescale=True, rescale_factor=1 / 255,
+        do_normalize=True, image_mean=MEAN, image_std=STD,
+    )
+
+
 def latest_run() -> Path | None:
     """모델이 들어 있는 가장 최근 회차. 평가·데모가 기본으로 쓴다."""
     runs = sorted(d for d in OUT.glob("*") if (d / "best").exists())
@@ -214,6 +229,10 @@ def main():
         if macro > best:
             best = macro
             model.save_pretrained(out / "best")
+            # **전처리 설정을 같이 남긴다.** 이게 없으면 받아 쓰는 쪽이 나름대로
+            # 전처리해서 학습 때와 달라진다 — 에러가 아니라 값이 조금 달라질 뿐이라
+            # 정확도가 조용히 떨어지고 원인이 안 보인다.
+            processor().save_pretrained(out / "best")
             print(f"    → 최고 기록. {out / 'best'} 에 저장")
 
     (out / "history.json").write_text(
