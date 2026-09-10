@@ -226,6 +226,45 @@ def list_sessions(
     return [_to_out(s) for s in rows]
 
 
+@router.delete(
+    "/interview-sessions/{session_id}", status_code=HTTPStatus.NO_CONTENT
+)
+def delete_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """세션 하나를 지운다. **끝난 것도 지울 수 있다.**
+
+    담당자가 옛 세션 (잘못 만든 것 · 시연 리허설용 · 만들어 두고 안 쓴 것) 을 지울
+    자리 (2026-09-10, 팀장 요청). 자식 표 (interview_turns · interview_findings) 는
+    수동 CASCADE — FK 에 ondelete 를 안 걸어 뒀기 때문이다.
+
+    **`in_progress` 는 허용한다.** 오늘 사고 났던 세션(23 스타일) 도 지울 수 있어야
+    담당자 UI 로 정리할 수 있다. 지원자가 그 순간에 접속 중이었어도 방을 닫힐
+    뿐이라 되돌릴 수 없는 손해는 없다.
+    """
+    from app.models import InterviewFinding
+
+    session = db.get(InterviewSession, session_id)
+    if session is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
+
+    # 자식 먼저 — FK ondelete 가 없어 순서를 지켜야 한다
+    db.execute(
+        InterviewFinding.__table__.delete().where(
+            InterviewFinding.session_id == session_id
+        )
+    )
+    db.execute(
+        InterviewTurn.__table__.delete().where(
+            InterviewTurn.session_id == session_id
+        )
+    )
+    db.delete(session)
+    db.commit()
+
+
 @router.post("/interview-turns/{turn_id}/analyze")
 def analyze_turn(
     turn_id: int,

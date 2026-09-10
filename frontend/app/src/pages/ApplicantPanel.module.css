@@ -641,6 +641,26 @@
 }
 .ivExpand:hover { background: var(--accent-soft); }
 
+/* 세션 삭제 버튼 (2026-09-10). 옆의 실용 버튼들과 나란히 두되 색만 danger
+   계열로 — 되돌릴 수 없는 조작이라는 것을 색으로 알려 준다. */
+.ivDelete {
+  height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--danger-soft);
+  background: var(--bg-elev);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--danger);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ivDelete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .ivTurns {
   display: flex;
   flex-direction: column;

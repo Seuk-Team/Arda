@@ -203,6 +203,11 @@ export const interviews = {
   detail: (sessionId: number, signal?: AbortSignal) =>
     api.get<InterviewSessionDetail>(`/interview-sessions/${sessionId}`, { signal }),
 
+  /* 세션 삭제 (2026-09-10). 자식 표(turns·findings) 도 함께 지운다.
+     끝난 세션도 지울 수 있다 — 담당자가 옛것 정리하는 자리다. */
+  remove: (sessionId: number) =>
+    api.delete<void>(`/interview-sessions/${sessionId}`),
+
   /* 지금 진행 중인 면접들. 대시보드가 실시간 분석으로 바로 들어가는 데 쓴다 */
   active: (signal?: AbortSignal) =>
     api.get<ActiveInterview[]>('/interview-sessions/active', { signal }),
