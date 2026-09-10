@@ -36,6 +36,17 @@ MAX_FINDINGS = 8
 VERDICTS = ("consistent", "inconsistent", "unverified")
 SOURCES = ("self_intro", "resume")
 
+# 담당자 화면에 나갈 말. **여기서 한 번만 정한다** — 화면과 프롬프트와 문서가
+# 저마다 다른 낱말을 쓰면 같은 값이 세 이름으로 불린다.
+#
+# `unverified` 를 "확인 안 됨" 이 아니라 **"확인필요"** 로 부른다. 앞의 말은
+# 지원자가 뭘 못 했다는 소리로 읽히는데, 실제로는 **우리가 안 물어본 것**이다.
+KOREAN = {
+    "consistent": "일치",
+    "inconsistent": "불일치",
+    "unverified": "확인필요",
+}
+
 _FINDINGS_SCHEMA = {
     "type": "object",
     "properties": {

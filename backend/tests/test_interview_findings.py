@@ -14,6 +14,7 @@ import json
 import pytest
 
 from app.agent.interview_findings import (
+    KOREAN,
     MAX_FINDINGS,
     _parse_findings,
     generate_findings,
@@ -151,6 +152,14 @@ class TestShape:
     def test_코드펜스를_벗겨_읽는다(self):
         raw = "```json\n" + _raw(_one()) + "\n```"
         assert len(_parse_findings(raw, COVER, RESUME, SAID)) == 1
+
+
+class TestKorean:
+    def test_판정마다_화면_문구가_있다(self):
+        """빠지면 담당자 화면에 `unverified` 가 영어로 그대로 뜬다."""
+        from app.agent.interview_findings import VERDICTS
+
+        assert set(KOREAN) == set(VERDICTS)
 
 
 class TestTranscriptOf:
