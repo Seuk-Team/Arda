@@ -28,6 +28,10 @@ import yaml
 BASE = "https://api.seuk.suvisdev.cloud/api/v1"
 HERE = Path(__file__).parent
 OUT_DIR = HERE.parents[2] / "docs" / "07_eval" / "fit-check-results"
+
+for _stream in (sys.stdout, sys.stderr):  # Windows 콘솔 cp949 대비
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 TIER_OF_SCORE = {5: "A", 4: "A", 3: "B", 2: "C", 1: "C"}
 
 
