@@ -297,6 +297,51 @@
   word-break: keep-all;
 }
 
+/* 자동 불합격 판정 근거 (ADR-0034, 2026-09-10). 요약 다음에 붙어 담당자가
+   판정 이유를 즉시 볼 수 있게 한다. 배경은 danger-soft — 결정이 이미 난
+   자리라는 것을 색으로 알려 준다. */
+.rejectionReason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+}
+
+.rejectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.rejectionLabel {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--danger);
+  letter-spacing: 0.02em;
+}
+
+.rejectionScore {
+  font-size: var(--font-sm);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rejectionScoreRow {
+  display: flex;
+  gap: var(--sp-4);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+.rejectionScoreRow strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .list {
   display: grid;
   grid-template-columns: 72px 1fr;

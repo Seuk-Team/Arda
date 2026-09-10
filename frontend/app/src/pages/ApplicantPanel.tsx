@@ -54,6 +54,59 @@ function AiSummaryBody({ raw }: { raw: string }) {
   )
 }
 
+/** 자동 심사(ADR-0034) 로 불합격 판정된 지원자에게 판정 근거를 보여 준다.
+ *  요약(`AiSummaryBody`) 옆에 붙어 담당자가 **왜 떨어졌나** 를 즉시 볼 수 있게 한다.
+ *  점수·기준·구체 concerns 를 한 자리에 모은다 — 되짚기 위한 자리이지 재판정 자리가 아니다. */
+function RejectionReason({
+  score,
+  threshold,
+  detail,
+}: {
+  score: number | null
+  threshold: number | null
+  detail: NonNullable<ApplicationDetail['doc_score_detail']>
+}) {
+  const concerns = detail.concerns ?? []
+  return (
+    <div className={styles.rejectionReason}>
+      <div className={styles.rejectionHead}>
+        <span className={styles.rejectionLabel}>아르 자동 불합격</span>
+        {score !== null && (
+          <span className={styles.rejectionScore}>
+            <strong>{score}점</strong>
+            {threshold !== null && ` · 기준 ${threshold}점`}
+          </span>
+        )}
+      </div>
+      {/* 항목별 세부 점수. threshold 는 총점 기준이라 여기 하위 세 개와는 축이 다르지만,
+          담당자가 어느 축이 부족했나 를 한 눈에 볼 수 있게 함께 둔다. */}
+      {(detail.requirements !== undefined ||
+        detail.preferred !== undefined ||
+        detail.culture !== undefined) && (
+        <div className={styles.rejectionScoreRow}>
+          {detail.requirements !== undefined && (
+            <span>필수 <strong>{detail.requirements}</strong></span>
+          )}
+          {detail.preferred !== undefined && (
+            <span>우대 <strong>{detail.preferred}</strong></span>
+          )}
+          {detail.culture !== undefined && (
+            <span>인재상 <strong>{detail.culture}</strong></span>
+          )}
+        </div>
+      )}
+      {concerns.length > 0 && (
+        <div>
+          <p className={styles.ailabel}>불합격 사유</p>
+          <ul className={styles.ailist}>
+            {concerns.map((t, i) => <li key={i}>{t}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ORDER: Stage[] = ['applied', 'screening', 'interview', 'accepted']
 
 function nextStages(from: Stage): Stage[] {
@@ -384,6 +437,21 @@ function OverviewTab({
           {/* 테두리를 두르지 않는다 — 카드 안에 또 박스가 있으면 선이 겹친다.
               구분선만으로 충분하다 */}
           <AiSummaryBody raw={detail.ai_summary} />
+          {/* 불합격한 지원자에게는 자동 심사(ADR-0034) 의 판정 근거를 함께 보여
+              준다 — 요약(사전)과 심사(사후)는 다른 자리에서 나오고, 담당자는
+              **왜 떨어졌나** 를 되짚어야 한다 (2026-09-10 팀장 요청). 사람이
+              옮긴 경우(decision_source='human')는 여기서 이유를 알 수 없어
+              생략 — 그때는 stage_history 의 changed_by/타임스탬프로 추적. */}
+          {detail.current_stage === 'rejected' &&
+            detail.doc_decision === 'reject' &&
+            detail.decision_source === 'agent' &&
+            detail.doc_score_detail && (
+              <RejectionReason
+                score={detail.doc_score ?? null}
+                threshold={detail.doc_score_detail.threshold ?? null}
+                detail={detail.doc_score_detail}
+              />
+            )}
           <hr className={styles.rule} />
         </>
       )}

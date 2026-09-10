@@ -133,6 +133,19 @@ export interface Evaluation {
   created_at: string
 }
 
+/** 자동 심사(ADR-0034) 가 낸 세부 근거. 담당자가 판정 이유를 되짚는 자리다.
+    `concerns` 가 곧 불합격의 실질 사유이고, `fit` 은 합격 근거다. */
+export interface DocScoreDetail {
+  requirements?: number
+  preferred?: number
+  culture?: number
+  fit?: string[]
+  concerns?: string[]
+  evidence?: string[]
+  weights?: Record<string, number>
+  threshold?: number
+}
+
 export interface ApplicationDetail {
   id: number
   job_posting_id: number
@@ -151,6 +164,11 @@ export interface ApplicationDetail {
   evaluations?: Evaluation[]
   files?: FileOut[]
   stage_history?: StageHistoryItem[]
+  /** 자동 심사 (ADR-0034). doc_score 는 100점 기준, decision_source='agent' 면 아르 자동. */
+  doc_score?: number | null
+  doc_score_detail?: DocScoreDetail | null
+  doc_decision?: 'pass' | 'reject' | 'hold' | null
+  decision_source?: 'agent' | 'human' | null
 }
 
 export interface Note {
