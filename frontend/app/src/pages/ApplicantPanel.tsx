@@ -193,9 +193,6 @@ function StageChanger({
     setReason('')
   }, [])
 
-  /* 지원자가 바뀌거나 단계가 옮겨지면 고르던 것을 버린다 */
-  useEffect(() => { stop() }, [current, stop])
-
   /* Esc 는 **고르기만** 취소한다. SidePanel 도 Esc 로 패널을 닫는데(버블 단계
      document 리스너), 그대로 두면 단계를 고르다 Esc 를 눌렀을 때 패널째 닫힌다.
      캡처 단계에서 먼저 잡아 막는다 — 안쪽 상태가 있으면 그것부터 물러난다. */
@@ -781,6 +778,9 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
             </div>
 
             <StageChanger
+              /* 단계가 옮겨지거나 지원자가 바뀌면 고르던 것을 버린다.
+                 effect 로 초기화하면 렌더가 한 번 더 돈다 — key 로 새로 만든다 */
+              key={detail.current_stage}
               current={detail.current_stage}
               busy={saving}
               error={actionError}
