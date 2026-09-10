@@ -153,11 +153,32 @@ def _seed_questions_bg(session_id: int) -> None:
         if not questions:
             questions = list(_DEFAULT_QUESTIONS)
 
+        # LLM 이 도는 사이 담당자가 세션을 지웠을 수 있다 (2026-09-10 실측:
+        # session 48 이 6초만에 삭제됐고, 그 뒤 이 훅이 INSERT 하다 FK 위반).
+        # 재확인해 세션이 사라졌으면 조용히 종료 — 담당자가 만든 것을 지운 것이니
+        # 그 위에 질문을 남기지 않는 편이 맞다.
+        if db.get(InterviewSession, session_id) is None:
+            logger.info(
+                "면접 질문 자동 생성 취소: session=%s (LLM 사이 세션이 삭제됨)",
+                session_id,
+            )
+            return
+
         for seq, q in enumerate(questions, start=1):
             db.add(
                 InterviewTurn(session_id=session_id, seq=seq, question=q)
             )
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            # 위 재확인이 지나간 뒤에도 삭제될 수 있다 (그 사이 두 요청이 동시에
+            # 왔을 때). 이 자리에서는 FK 위반이 나오므로 롤백 후 조용히 종료.
+            logger.info(
+                "면접 질문 자동 생성 커밋 실패: session=%s (경합 · 롤백)",
+                session_id,
+            )
+            db.rollback()
+            return
         logger.info(
             "면접 질문 자동 생성 완료: session=%s 개수=%s (폴백=%s)",
             session_id, len(questions), questions == list(_DEFAULT_QUESTIONS),
