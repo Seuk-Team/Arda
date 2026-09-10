@@ -5,19 +5,29 @@ import ApplicantPanel from './ApplicantPanel'
 import { ApiError } from '../api/client'
 import { applications, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, Stage } from '../api/types'
-import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
+import { STAGE_LABEL, careerText, fmtDate } from '../lib/stage'
 import styles from './Applicants.module.css'
 
 const FIELDS = ['전체', '이름', '공고'] as const
 type Field = (typeof FIELDS)[number]
 
-const PAGE_SIZE = 20
+/* 1280×720 에서 스크롤 없이 들어가는 수. 20 이면 절반이 화면 밖이라,
+   목록을 보려면 스크롤부터 해야 했다 (2026-09-10) */
+const PAGE_SIZE = 10
 
-const TONE_CLASS = {
-  progress: styles.stageProgress,
+/* 단계마다 다른 배지. lib/stage.ts 의 stageTone 은 셋(진행/합격/불합격)으로만
+   나눠서 면접을 따로 강조할 수 없다 — 그 함수는 공고별 지원자 화면도 쓰므로
+   건드리지 않고 여기서 다섯으로 편다. */
+const STAGE_CLASS: Record<Stage, string> = {
+  applied: styles.stageProgress,
+  screening: styles.stageProgress,
+  interview: styles.stageNow,
   accepted: styles.stageAccepted,
   rejected: styles.stageRejected,
 }
+
+/* 끝난 건 — 시선만 낮춘다. 클릭은 그대로 된다 */
+const isClosed = (s: Stage) => s === 'accepted' || s === 'rejected'
 
 const STAGE_PILLS: { value: Stage | null; label: string }[] = [
   { value: null, label: '전체' },
@@ -59,8 +69,12 @@ export default function Applicants() {
   const detailOpen = openId !== null && rightPanel.active === 'applicant'
   const [tick, setTick] = useState(0)
 
-  function openDetail(id: number) {
+  /* 목록의 [평가] 로 들어왔는지. 상세가 평가 입력을 펼친 채로 열린다 */
+  const [startRating, setStartRating] = useState(false)
+
+  function openDetail(id: number, rating = false) {
     setOpenId(id)
+    setStartRating(rating)
     rightPanel.open('applicant')
   }
 
@@ -276,7 +290,7 @@ export default function Applicants() {
               {rows?.map((a) => (
                 <div
                   key={a.id}
-                  className={`${styles.row} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
+                  className={`${styles.row} ${styles.item} ${isClosed(a.current_stage) ? styles.closed : ''} ${a.id === openId ? styles.cur : ''}`}
                   tabIndex={0}
                   role="button"
                   aria-current={a.id === openId ? 'true' : undefined}
@@ -287,9 +301,26 @@ export default function Applicants() {
                 >
                   <span className={styles.name}>{a.name}</span>
                   <span className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
-                  <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
+                  <span>
+                    <span className={`${styles.stageBadge} ${STAGE_CLASS[a.current_stage]}`}>
+                      {STAGE_LABEL[a.current_stage]}
+                    </span>
+                  </span>
                   <span className={styles.num}>{careerText(a.career_years)}</span>
-                  <span className={styles.num}>{a.avg_score === null ? '—' : a.avg_score.toFixed(1)}</span>
+                  {/* 값이 없다고 줄표를 두면 컬럼이 통째로 죽는다 — 리스트에
+                      평가를 넣을 자리가 없어서 아무도 안 채우고 있었다.
+                      빈 상태를 행동으로 바꾼다 (행 클릭과 겹치지 않게 stopPropagation) */}
+                  <span className={styles.num}>
+                    {a.avg_score === null ? (
+                      <button
+                        type="button"
+                        className={styles.rate}
+                        onClick={(e) => { e.stopPropagation(); openDetail(a.id, true) }}
+                      >
+                        평가
+                      </button>
+                    ) : a.avg_score.toFixed(1)}
+                  </span>
                   <span className={styles.num}>{fmtDate(a.created_at)}</span>
                 </div>
               ))}
@@ -320,6 +351,7 @@ export default function Applicants() {
       {detailOpen && openId !== null && (
         <ApplicantPanel
           applicationId={openId}
+          startRating={startRating}
           onClose={closeDetail}
           onChanged={() => setTick((n) => n + 1)}
         />

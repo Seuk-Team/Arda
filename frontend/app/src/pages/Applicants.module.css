@@ -267,18 +267,81 @@
 }
 
 /* 단계 색 — 판단 전은 무채, 합격만 연두, 불합격만 적갈 (05-design §1) */
+/* ── 단계 배지 (2026-09-10 재설계) ──────────────────────
+   전에는 최종 합격(accent)과 불합격(danger)이 둘 다 밝고, 정작 담당자가
+   처리해야 하는 면접이 회색이었다. 끝난 것이 눈에 띄고 할 일이 묻혔다.
+
+   이제 강조는 **지금 내 차례**에만 준다:
+     접수·서류  중립      진행 중이지만 아직 내 차례 아님
+     면접      accent    지금 담당자 차례 — 진행 단계 중 유일하게 강조
+     최종 합격  연두      종료 · 긍정
+     불합격     중립      종료 · 중립
+
+   불합격에 danger 를 쓰지 않는다. 채용에서 불합격은 사고가 아니라 정상적인
+   결과다 — '끝났다' 는 뜻의 회색이 맞다. (05-design §1 색은 판단에만) */
+.stageBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: var(--font-cap);
+  font-weight: 600;
+  border: var(--border-w) solid transparent;
+  white-space: nowrap;
+}
+
+/* 진행 중 — 아직 내 차례가 아니다 */
 .stageProgress {
+  background: var(--bg-sunken);
   color: var(--text-sub);
+  border-color: var(--border-soft);
+}
+
+/* 지금 담당자 차례 */
+.stageNow {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: rgba(34, 211, 238, .28);
 }
 
 .stageAccepted {
-  color: var(--accent-text);
-  font-weight: 700;
+  background: var(--ok-soft);
+  color: var(--ok-text);
+  border-color: rgba(52, 211, 153, .28);
 }
 
+/* 종료 · 중립. 배경도 두지 않는다 — 가장 조용한 상태다 */
 .stageRejected {
-  color: var(--danger);
-  font-weight: 700;
+  background: transparent;
+  color: var(--neutral);
+  border-color: var(--border-soft);
+}
+
+/* 목록에서 바로 평가를 걸 수 있는 자리. 전에는 전 행이 줄표였다 */
+.rate {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-caption);
+  color: var(--accent-text);
+}
+.rate:hover { text-decoration: underline; }
+.rate:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+/* ── 종료된 행 ──────────────────────────────────────────
+   시선 우선순위만 낮춘다. **기능은 그대로다** — 클릭하면 상세가 열리고,
+   hover 하면 원래 밝기로 돌아온다. pointer-events 를 끄지 않는다. */
+.closed {
+  opacity: .5;
+}
+
+.closed:hover,
+.closed:focus-visible,
+.closed.cur {
+  opacity: 1;
 }
 
 .empty {
