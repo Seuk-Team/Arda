@@ -156,16 +156,18 @@ class _ApplicantShellState extends State<ApplicantShell> {
 
     /// 어느 것을 열 것인가.
     ///
-    /// **아직 할 일이 남은 것을 먼저 고른다.** 2026-09-09 부터 서버가 끝난
-    /// 것(`done`)도 같이 내리는데(02-api.md), 재발급으로 여러 개가 있으면
-    /// 옛 것이 목록 앞에 온다(id 순) — 그대로 첫 번째를 열면 **새로 받은
-    /// 면접을 두고 어제 끝낸 것을 연다.**
+    /// **아직 할 일이 남은 것 중 새 것을 먼저 고른다.** 2026-09-09 부터 서버가
+    /// 끝난 것(`done`)도 같이 내리는데(02-api.md), 재발급으로 여러 개가
+    /// 있으면 옛 것이 목록 앞에 온다(id 순). 앞에서부터 훑어 첫 번째 non-done
+    /// 을 잡으면 **새로 받은 방을 두고 옛 방(예: 어제 in_progress 로 남은
+    /// 세션)을 연다** — 채용자는 새 방에서 대기 중인데 앱은 옛 방에 붙어
+    /// 매칭이 안 되는 사고가 있었다. 뒤에서부터(=새 것부터) 훑는다.
     ///
     /// 다 끝났으면 마지막 것을 준다. 화면이 "완료" 라고 말할 수 있어야 한다 —
     /// null 을 주면 "아직 없습니다" 가 되어 방금 마친 사람이 헷갈린다.
     String? pick(List<TokenLink> links) {
       if (links.isEmpty) return null;
-      for (final l in links) {
+      for (final l in links.reversed) {
         if (l.status != 'done') return l.token;
       }
       return links.last.token;
