@@ -4,10 +4,14 @@
 # `No space left on device` 로 배포가 계속 실패했다 (2026-09-10 실측).
 #
 # 아래 `--index-url` 는 CPU 전용 whl 저장소. torch 자체는 ~200MB.
-# GPU 서버로 옮길 때는 이 줄만 지우고 다시 빌드한다.
+# **버전을 pin 하지 않는다** — CPU 인덱스에 있는 최신을 자동으로 잡는다. 옛 특정
+# `+cpu` 태그 (예: torchvision==0.20.1+cpu) 는 게시가 취소된 것들이 있어서 pin 하면
+# 오히려 다시 터진다. 지금은 `>=` 만 걸고 pip 에게 결정을 맡긴다.
+#
+# GPU 서버로 옮길 때는 이 `--extra-index-url` 줄만 지우고 다시 빌드한다.
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-torch==2.5.1+cpu
-torchvision==0.20.1+cpu
+torch>=2.5
+torchvision>=0.20
 transformers>=4.40
 pillow>=10.0
