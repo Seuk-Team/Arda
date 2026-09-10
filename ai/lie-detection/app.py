@@ -51,6 +51,24 @@ from interview_ws import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _face_and_bgr(jpeg: bytes):
+    """JPEG 한 장 → (얼굴 특징 7개, BGR 이미지). 얼굴이 없으면 (None, bgr).
+
+    /ws/live 데모 소켓용 (2026-09-10). 표정 판정을 붙이려면 얼굴 있는 BGR 을
+    scorer 에 남겨야 하는데, face_row_of_jpeg 는 row 만 돌려주고 BGR 을 버린다.
+    같은 이미지를 두 번 디코드하지 않도록 한 곳에서 처리한다.
+    """
+    import cv2
+
+    from feature_extractor import face_row
+
+    buf = np.frombuffer(jpeg, dtype=np.uint8)
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    if img is None:
+        return None, None
+    return face_row(img), img
+
 _HERE = Path(__file__).parent
 DEMO_HTML = (_HERE / "demo.html").read_text(encoding="utf-8")
 
@@ -187,9 +205,14 @@ async def live(ws: WebSocket):
             # **이벤트 루프에서 부르지 않는다** (2026-09-09 실측). 워커가 하나라 이게
             # 루프를 잡으면 같은 프로세스의 면접 소켓 전사가 GIL 을 못 얻어 8초 발화에
             # 36초 걸리고, uvicorn 은 ping 응답을 못 넘겨 40초에 소켓을 닫았다.
-            row = await asyncio.to_thread(face_row_of_jpeg, jpeg)
+            #
+            # 얼굴이 있는 프레임의 BGR 도 함께 잡아 표정 판정에 넘긴다 (2026-09-10,
+            # ADR-0032 §6 시연 자리). VIT_MODEL 이 꺼져 있으면 저장만 되고 미사용.
+            row, bgr = await asyncio.to_thread(_face_and_bgr, jpeg)
             if row is not None:
                 scorer.add_face(row, at)
+                if bgr is not None:
+                    scorer.add_frame(bgr)
         except Exception:
             logger.exception("얼굴 추출 실패")
         finally:
@@ -198,10 +221,13 @@ async def live(ws: WebSocket):
     async def run_score() -> None:
         nonlocal busy
         try:
-            pcm, rows = scorer.snapshot()
+            pcm, rows, frame = scorer.snapshot()
             # 판정은 CPU 로 약 185ms 걸린다. 여기서 그냥 부르면 그 동안 이 워커의
             # **모든 연결**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-            result = await asyncio.to_thread(score, pcm, rows, scorer.window_sec)
+            # frame 이 있고 VIT_MODEL 이 켜져 있으면 표정 top-3 도 붙는다.
+            result = await asyncio.to_thread(
+                score, pcm, rows, scorer.window_sec, frame
+            )
             await ws.send_json({"type": "live", **result})
         except Exception:
             logger.exception("실시간 판정 실패")
@@ -522,10 +548,13 @@ async def _live_verdict(client, session: InterviewSession) -> None:
     """최근 4초를 판정해 백엔드로 민다. 실패해도 면접에는 영향이 없다."""
     try:
         _live_stats["scored"] += 1
-        pcm, rows = session.scorer.snapshot()
+        pcm, rows, frame = session.scorer.snapshot()
         # 판정은 CPU 로 약 185ms 걸린다. 이벤트 루프에서 부르면 그 동안 이 워커의
         # **모든 면접**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-        result = await asyncio.to_thread(score, pcm, rows, session.scorer.window_sec)
+        # frame 이 있고 VIT_MODEL 이 켜져 있으면 표정 top-3 도 붙는다.
+        result = await asyncio.to_thread(
+            score, pcm, rows, session.scorer.window_sec, frame
+        )
         if not result.get("ok"):
             # 얼굴이 모자라거나 소리가 짧다. **조용히 넘어가되 세어는 둔다** —
             # 담당자 화면이 비어 있을 때 여기가 원인인지 알아야 한다
@@ -542,15 +571,18 @@ async def _live_verdict(client, session: InterviewSession) -> None:
             logger.info("판정 못 냄: token=%s %s", session.token[:8], reason)
             return
         _live_stats["ok"] += 1
+        payload = {
+            "truth_pct": result["truth_pct"],
+            "lie_pct": result["lie_pct"],
+            "window_sec": session.scorer.window_sec,
+            "signals": result.get("signals", []),
+        }
+        if result.get("expressions"):
+            payload["expressions"] = result["expressions"]
         await push_verdict(
             client,
             session.token,
-            {
-                "truth_pct": result["truth_pct"],
-                "lie_pct": result["lie_pct"],
-                "window_sec": session.scorer.window_sec,
-                "signals": result.get("signals", []),
-            },
+            payload,
         )
         _live_stats["pushed"] += 1
     except Exception:

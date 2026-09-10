@@ -427,3 +427,47 @@
   color: var(--text);
   font-weight: 600;
 }
+
+/* 표정 top-3 — 우리가 학습한 ViT 결과 (2026-09-10). signals 와 별개 자리.
+   판정 벡터에 안 들어가는 값이라 "참고" 라는 라벨을 반드시 붙인다. */
+.expressions {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-sunken);
+  border-left: 2px solid var(--brand, #0a3b6b);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+}
+
+.expressionsLabel {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  letter-spacing: 0.02em;
+}
+
+.expressionsList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.expressionRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  font-size: var(--font-sm);
+}
+
+.expressionName {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.expressionPct {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

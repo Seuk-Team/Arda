@@ -40,11 +40,21 @@ export type FaceSignal = {
   flag?: string
 }
 
+/** 표정 판정 하나. 우리가 학습한 ViT (`cloverky/arda-expression-vit`) 결과다.
+    라벨은 영어 · `label_ko` 는 담당자용 한국어. `prob` 는 0~1 (2026-09-10). */
+export type Expression = {
+  label: string
+  label_ko: string
+  prob: number
+}
+
 export type LiveVerdict = {
   truth_pct?: number
   lie_pct?: number
   /** 얼굴에서 관찰된 것들. 프레임이 적으면 비어 있다 */
   signals?: FaceSignal[]
+  /** ViT 로 읽은 표정 top-3. VIT_MODEL 꺼져 있으면 undefined */
+  expressions?: Expression[]
   /** 못 낸 이유. 얼굴이 안 보이거나 소리가 짧을 때 서버가 준다 */
   reason?: string
   at: number
@@ -168,6 +178,7 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
           lie_pct?: number
           reason?: string
           signals?: FaceSignal[]
+          expressions?: Expression[]
         }
         try {
           m = JSON.parse(e.data)
@@ -184,6 +195,7 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
           truth_pct: typeof m.truth_pct === 'number' ? m.truth_pct : undefined,
           lie_pct: typeof m.lie_pct === 'number' ? m.lie_pct : undefined,
           signals: Array.isArray(m.signals) ? m.signals : undefined,
+          expressions: Array.isArray(m.expressions) ? m.expressions : undefined,
           reason: m.ok === false ? m.reason : undefined,
           at: Date.now(),
         }
