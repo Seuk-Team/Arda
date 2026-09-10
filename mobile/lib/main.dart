@@ -12,6 +12,7 @@ import 'routes.dart';
 import 'screens/applicant_detail_screen.dart';
 import 'screens/applicant_shell.dart';
 import 'screens/applicants_screen.dart';
+import 'screens/interview_live_screen.dart';
 import 'screens/interview_screen.dart';
 import 'screens/evaluation_queue_screen.dart';
 import 'screens/evaluations_screen.dart';
@@ -41,6 +42,19 @@ void main() {
 /// 안 넣으면 빈 문자열이고, 그러면 화면이 그냥 "유효하지 않은 링크" 로 뜬다 —
 /// 릴리스 빌드에 남아도 아무 일도 안 한다.
 const _devInterviewToken = String.fromEnvironment('INTERVIEW_TOKEN');
+
+/// 실시간 면접(WebRTC) 을 실기기에서 열어 보는 문 (2026-09-09).
+///
+/// 웹 담당자 화면(/interview-room/{sessionId}) 에 앱이 붙는 시나리오다.
+/// 시연:
+///
+/// ```
+/// flutter run --route=/applicant/interview-live \
+///   --dart-define=LIVE_INTERVIEW_TOKEN=<면접 토큰>
+/// ```
+///
+/// 토큰은 담당자 화면에서 [지원자에게 링크 보내기] 로 나오는 것과 같은 값이다.
+const _devLiveInterviewToken = String.fromEnvironment('LIVE_INTERVIEW_TOKEN');
 
 /// 번들한 IBM Plex Sans KR 의 라이선스를 앱에 등록한다.
 ///
@@ -92,7 +106,14 @@ class ArdaApp extends StatelessWidget {
       // 그 12시간이 의미가 없다 (큐 7).
       //
       // 개발 중 로그인을 건너뛰려면: flutter run --route=/
-      initialRoute: initialRoute ?? Routes.launch,
+      //
+      // 실시간 면접 실기연 (2026-09-09): 빌드 때 [_devLiveInterviewToken] 을
+      // 넣어 주면 첫 화면이 그 토큰으로 여는 WebRTC 지원자 자리가 된다.
+      // 릴리스 빌드에서는 이 상수가 빈 문자열이라 아무 일도 안 한다.
+      initialRoute: initialRoute ??
+          (_devLiveInterviewToken.isNotEmpty
+              ? Routes.interviewLive
+              : Routes.launch),
       routes: {
         Routes.home: (_) => const HomeShell(),
         Routes.launch: (_) => LaunchScreen(auth: auth),
@@ -112,6 +133,16 @@ class ArdaApp extends StatelessWidget {
           return MaterialPageRoute(
             settings: settings,
             builder: (_) => InterviewScreen(token: token),
+          );
+        }
+        if (settings.name == Routes.interviewLive) {
+          final token =
+              (settings.arguments as String?) ?? _devLiveInterviewToken;
+          return MaterialPageRoute(
+            settings: settings,
+            builder: (_) => InterviewLiveScreen(
+              token: token.isEmpty ? null : token,
+            ),
           );
         }
         if (settings.name == Routes.applicants) {

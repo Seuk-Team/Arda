@@ -175,14 +175,12 @@ export const assignments = {
 /* ── 아르 에이전트 (agent.py) ─────────────────────────────────
    맨 위 import 블록을 건드리지 않으려고 여기서 따로 들여온다 — 같은 파일을 여럿이 고친다. */
 import type {
+  ActiveInterview,
   AgentChatRequest,
   AgentChatResponse,
   AgentConfirmRequest,
   AgentConfirmResponse,
   AgentHistoryMessage,
-  AgentLabelRequest,
-  AgentTraceItem,
-  AgentTraceListResponse,
   InterviewSession,
   InterviewSessionDetail,
 } from './types'
@@ -199,6 +197,10 @@ export const interviews = {
 
   detail: (sessionId: number, signal?: AbortSignal) =>
     api.get<InterviewSessionDetail>(`/interview-sessions/${sessionId}`, { signal }),
+
+  /* 지금 진행 중인 면접들. 대시보드가 실시간 분석으로 바로 들어가는 데 쓴다 */
+  active: (signal?: AbortSignal) =>
+    api.get<ActiveInterview[]>('/interview-sessions/active', { signal }),
 }
 
 export const agent = {
@@ -217,26 +219,6 @@ export const agent = {
       { tool_name, arguments: args } satisfies AgentConfirmRequest,
       { signal },
     ),
-
-  /* ── 라벨 UI (Qwen 학습 데이터) ─────────────────────────────
-     agent_traces 를 담당자가 훑으며 good/needs_fix/bad. 커서(next_cursor)로 페이지. */
-  listTraces: (
-    params: { status?: string; limit?: number; beforeId?: number } = {},
-    signal?: AbortSignal,
-  ) => {
-    const q = new URLSearchParams()
-    if (params.status) q.set('status', params.status)
-    if (params.limit) q.set('limit', String(params.limit))
-    if (params.beforeId) q.set('before_id', String(params.beforeId))
-    const qs = q.toString()
-    return api.get<AgentTraceListResponse>(
-      `/agent/traces${qs ? `?${qs}` : ''}`,
-      { signal },
-    )
-  },
-
-  labelTrace: (id: number, body: AgentLabelRequest, signal?: AbortSignal) =>
-    api.patch<AgentTraceItem>(`/agent/traces/${id}`, body, { signal }),
 }
 
 /* ── 인적성(사전 성향) 설문 (ADR-0027) ─────────────────────────────

@@ -14,7 +14,6 @@
 library;
 
 import 'dart:async';
-import 'dart:isolate';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
@@ -73,6 +72,9 @@ abstract class CameraService extends ChangeNotifier {
   /// 아무것도 안 나온다 — **면접이 그것 때문에 멈추지는 않는다**(얼굴 분석은
   /// 곁들이고, 질문·답변은 소리만으로 돈다).
   Stream<Uint8List> frames();
+
+  /// 지금까지 서버로 보낸 얼굴 장수. 0 이면 **얼굴이 아예 안 가고 있다**
+  int get framesSent;
 
   /// 미리보기. 켜져 있지 않으면 빈 것을 준다 — 부르는 쪽이 상태로 갈라
   /// 그리지만, 여기서도 안전하게 둔다
@@ -201,14 +203,28 @@ class DeviceCameraService extends CameraService {
   //
   // 서버는 초당 5장을 권한다(PROTOCOL.md). 카메라는 초당 30장을 주므로 그대로
   // 다 바꾸면 폰이 그 일만 한다 — 시간으로 걸러 보낸다.
-  static const Duration _frameEvery = Duration(milliseconds: 200);
+  //
+  // **초당 5장으로는 모자랐다** (2026-09-09 실측). 서버는 받은 것의 3장에 1장만
+  // 분석하고(`FRAME_STRIDE`), 판정에는 4초 창에 얼굴 5장이 필요하다. 5장/초로
+  // 보내면 분석되는 것이 1.7장/초 — 창에 6~7장이라 아슬아슬한데, 폰에서 변환이
+  // 밀리면 곧바로 5장 밑으로 떨어진다. 실제로 51번 판정 시도가 **전부** 실패했다.
+  static const Duration _frameEvery = Duration(milliseconds: 100);
+
+  /// 보낼 그림의 크기. **카메라 해상도 그대로 보내지 않는다** — 얼굴 특징을
+  /// 잡는 데 720p 가 필요 없고, 크면 변환이 그만큼 느려진다. 웹이 480×360 을
+  /// 보내므로 그 언저리로 맞춘다.
+  static const int _sendWidth = 320;
 
   StreamController<Uint8List>? _frames;
 
-  /// 변환 하나가 아직 안 끝났으면 다음 장을 건너뛴다. **밀린 것을 쌓지 않는다** —
-  /// 쌓으면 늦은 얼굴이 뒤늦게 도착해 분석이 과거를 본다
-  bool _encoding = false;
   DateTime _lastFrame = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// 지금까지 보낸 장수. **화면이 보여 준다** — 얼굴이 안 가고 있는지를
+  /// 지원자도 담당자도 알 길이 없었다(2026-09-09)
+  int _framesSent = 0;
+
+  @override
+  int get framesSent => _framesSent;
 
   @override
   Stream<Uint8List> frames() {
@@ -250,40 +266,28 @@ class DeviceCameraService extends CameraService {
 
   void _onImage(CameraImage image) {
     final out = _frames;
-    if (out == null || out.isClosed || _encoding) return;
+    if (out == null || out.isClosed) return;
     final now = DateTime.now();
     if (now.difference(_lastFrame) < _frameEvery) return;
     _lastFrame = now;
 
     final plane = image.planes.first;
-    // **넘기기 전에 복사한다.** 플러그인은 다음 프레임에 같은 버퍼를 다시 쓴다 —
-    // 그대로 보내면 변환하는 사이에 내용이 바뀐다
-    final luma = Uint8List.fromList(plane.bytes);
-    _encoding = true;
-    unawaited(
-      _sendFrame(out, luma, image.width, image.height, plane.bytesPerRow),
-    );
-  }
-
-  Future<void> _sendFrame(
-    StreamController<Uint8List> out,
-    Uint8List luma,
-    int width,
-    int height,
-    int rowStride,
-  ) async {
     try {
-      // **딴 일꾼에게 시킨다.** JPEG 으로 바꾸는 데 수십 ms 가 드는데, 그것을
-      // 화면과 같은 자리에서 하면 미리보기가 그 사이 멈춘다
-      final jpeg = await Isolate.run(
-        () => _grayJpeg(luma, width, height, rowStride),
+      // **줄이면서 바로 바꾼다.** 예전에는 원본 크기로 딴 일꾼(Isolate)에게
+      // 시켰는데, 일꾼을 프레임마다 새로 만드는 값이 변환 자체만큼 들었다
+      // (실측 33ms vs 34.6ms — 얻는 것이 없었다). 320×240 으로 줄이면 10ms 라
+      // 이 자리에서 해도 미리보기가 안 밀린다.
+      final jpeg = _grayJpeg(
+        plane.bytes,
+        image.width,
+        image.height,
+        plane.bytesPerRow,
       );
+      _framesSent++;
       if (!out.isClosed) out.add(jpeg);
     } on Exception catch (e) {
       // 한 장 실패는 넘어간다. 얼굴 분석은 곁들이지 면접의 조건이 아니다
       if (kDebugMode) debugPrint('[camera] 프레임 변환 실패: $e');
-    } finally {
-      _encoding = false;
     }
   }
 
@@ -314,15 +318,26 @@ class DeviceCameraService extends CameraService {
 /// `rowStride` 를 그대로 넘긴다 — 카메라는 줄 끝에 여백을 넣어 주는 일이 잦고,
 /// 그것을 무시하면 그림이 비스듬히 밀린다.
 Uint8List _grayJpeg(Uint8List luma, int width, int height, int rowStride) {
+  // **줄이면서 뽑는다.** 원본 크기로 만들었다가 나중에 줄이면 큰 그림을 한 번
+  // 만드는 값이 그대로 든다. 몇 칸씩 건너뛰며 읽으면 그 값이 안 든다.
+  final step = (width / DeviceCameraService._sendWidth).ceil().clamp(1, 8);
+  final w = width ~/ step;
+  final h = height ~/ step;
+  final small = Uint8List(w * h);
+  var o = 0;
+  for (var y = 0; y < h; y++) {
+    final row = y * step * rowStride;
+    for (var x = 0; x < w; x++) {
+      small[o++] = luma[row + x * step];
+    }
+  }
   final image = img.Image.fromBytes(
-    width: width,
-    height: height,
-    bytes: luma.buffer,
-    bytesOffset: luma.offsetInBytes,
+    width: w,
+    height: h,
+    bytes: small.buffer,
     numChannels: 1,
-    rowStride: rowStride,
   );
-  // 60 — 얼굴 특징은 남고 크기는 초당 5장을 보낼 만하다
+  // 60 — 얼굴 특징은 남고 크기는 초당 10장을 보낼 만하다
   return img.encodeJpg(image, quality: 60);
 }
 

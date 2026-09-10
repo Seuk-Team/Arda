@@ -1,0 +1,104 @@
+{
+  "run_at": "2026-09-08T14:33:53.009840+00:00",
+  "cases_file": "C:\\Team Seuk\\Arda\\docs\\07_eval\\eval_cases.yaml",
+  "summary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "by_category": {
+      "write": {
+        "passed": 2,
+        "failed": 1
+      }
+    },
+    "elapsed_ms_total": 131577,
+    "cost_usd_total": 0.0
+  },
+  "results": [
+    {
+      "id": "change_stage_normal",
+      "category": "write",
+      "input": "김도현을 서류심사 단계로 옮겨줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "김도현"
+          }
+        },
+        {
+          "name": "change_stage",
+          "input": {
+            "application_id": 31,
+            "to_stage": "screening",
+            "reason": "서류심사로 단계 변경"
+          }
+        }
+      ],
+      "pending_action": {
+        "tool_name": "change_stage",
+        "arguments": {
+          "application_id": 31,
+          "to_stage": "screening",
+          "reason": "서류심사로 단계 변경"
+        }
+      },
+      "elapsed_ms": 55171,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "change_stage_skip",
+      "category": "write",
+      "input": "김도현을 바로 면접 단계로 보내줘",
+      "passed": false,
+      "reasons": [
+        "response_contains_any: ['서류', '먼저', '순서', '건너'] 중 어느 것도 없음"
+      ],
+      "reply": "",
+      "tool_calls": [
+        {
+          "name": "search_applications",
+          "input": {
+            "q": "김도현"
+          }
+        },
+        {
+          "name": "change_stage",
+          "input": {
+            "application_id": 31,
+            "to_stage": "interview",
+            "reason": "면접 단계로 변경합니다."
+          }
+        }
+      ],
+      "pending_action": {
+        "tool_name": "change_stage",
+        "arguments": {
+          "application_id": 31,
+          "to_stage": "interview",
+          "reason": "면접 단계로 변경합니다."
+        }
+      },
+      "elapsed_ms": 50109,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    },
+    {
+      "id": "change_stage_same",
+      "category": "write",
+      "input": "이미 면접 단계인 사람을 면접으로 다시 옮겨줘",
+      "passed": true,
+      "reasons": [],
+      "reply": "이미 면접 단계인 지원자를 다시 면접 단계로 변경할 수 없어요. 다른 단계로 변경하시겠어요? (예: 합격/불합격 등)",
+      "tool_calls": [],
+      "pending_action": null,
+      "elapsed_ms": 26297,
+      "model": "ollama:ollama:qwen3:8b",
+      "cost_usd": 0.0
+    }
+  ]
+}

@@ -205,6 +205,25 @@
   word-break: keep-all;
 }
 
+/* 답변 전사 — 질문 아래에 붙는다 (2026-09-09). 서버가 STT 해 저장한 것이 붙는
+   자리라, 아직 안 들어온 것은 "아직 답이 저장되지 않았습니다" 로 표시된다. */
+.answer {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-sunken);
+  border-radius: var(--r-ctl);
+  font-size: var(--font-sm);
+  color: var(--text);
+  line-height: 1.55;
+  word-break: keep-all;
+  white-space: pre-wrap;
+}
+
+.pending {
+  color: var(--text-sub);
+  font-style: italic;
+}
+
 .empty {
   font-size: var(--font-sm);
   color: var(--text-sub);

@@ -277,45 +277,6 @@ export interface AgentConfirmResponse {
   result: Record<string, unknown>
 }
 
-/* ── 담당자 라벨 UI (Qwen QLoRA 학습 데이터 수집) ─────────────────
-   agent_traces 표에 쌓인 대화를 담당자가 훑으며 good/needs_fix/bad 라벨한다.
-   label_verdict='good' 만 QLoRA SFT 학습셋으로 넘어간다. */
-
-export type AgentLabelVerdict = 'good' | 'needs_fix' | 'bad'
-
-export interface AgentTraceItem {
-  id: number
-  request_id: string | null
-  session_id: string | null
-  turn_index: number
-  user_message: string
-  assistant_reply: string
-  history: AgentHistoryMessage[]
-  tool_calls: AgentToolCall[]
-  backend: string
-  model_tag: string
-  input_tokens: number
-  output_tokens: number
-  cost_usd: number
-  created_at: string
-  label_verdict: AgentLabelVerdict | null
-  label_correction: string | null
-  label_by: number | null
-  label_at: string | null
-}
-
-export interface AgentTraceListResponse {
-  items: AgentTraceItem[]
-  /* 다음 페이지 시작점 (id desc 커서). 더 없으면 null */
-  next_cursor: number | null
-}
-
-export interface AgentLabelRequest {
-  label_verdict: AgentLabelVerdict
-  /* needs_fix 일 때만 학습 시 의미가 있다. 다른 verdict 에도 담당자 메모로 겸용 가능 */
-  label_correction: string | null
-}
-
 /* ── AI 면접 (public/interview) ───────────────────────────────────── */
 
 /* 면접 진행 보조 (ADR-0026 결정 4). **판정이 아니라 제안이다.**
@@ -495,6 +456,17 @@ export interface ApplicantLoginOut {
 
 /* 지원자가 지금 들어갈 수 있는 면접. **끝났거나 만료된 것은 서버가 안 준다** —
    들어가 봐야 막히는 문을 화면에 보여 주지 않기 위해서다. */
+/* 지금 진행 중인 면접 하나 — 대시보드가 바로 들어가는 데 쓴다.
+   **이름과 공고가 같이 온다** (서버가 실어 준다). 세션 번호만으로는
+   담당자가 어느 면접인지 고를 수 없다. */
+export interface ActiveInterview {
+  id: number
+  application_id: number
+  applicant_name: string
+  posting_title: string
+  started_at: string | null
+}
+
 export interface MyInterview {
   token: string
   status: string

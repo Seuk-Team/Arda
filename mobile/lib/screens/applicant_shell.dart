@@ -42,7 +42,7 @@ import '../widgets/app_top_bar.dart';
 import 'applicant_more_screen.dart';
 import 'applicant_summary_screen.dart';
 import 'aptitude_screen.dart';
-import 'interview_screen.dart';
+import 'interview_live_screen.dart';
 import 'schedule_screen.dart';
 
 enum ApplicantTab implements NavTab {
@@ -185,12 +185,8 @@ class _ApplicantShellState extends State<ApplicantShell> {
         onOpen: _go,
         onRefresh: _load,
       ),
-      ApplicantTab.interview => InterviewScreen(
+      ApplicantTab.interview => InterviewLiveScreen(
         token: app == null ? null : pick(app.interviews),
-        showChrome: false,
-        // 보이는 동안만 카메라를 켠다 — 안 넘기면 다른 탭에 있는 내내
-        // 카메라가 잡혀 있다(InterviewScreen.active 주석 참고)
-        active: _current == ApplicantTab.interview,
         portal: _portal,
       ),
       ApplicantTab.more => ApplicantMoreScreen(me: me, onLeave: _leave),

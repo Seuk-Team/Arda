@@ -266,6 +266,12 @@ class _SpeechDetector:
         # 너무 짧으면 답변으로 세지 않는다. 잡음이었다고 보고 계속 듣는다.
         return "end" if spoke >= MIN_SPEECH_SEC else None
 
+    def reset(self) -> None:
+        """말 상태만 지운다 — 바닥값·보정은 그대로 (`InterviewSession.force_end`)."""
+        self._speaking = False
+        self._silence_started = None
+        self._speech_started = None
+
 
 def face_row_of_jpeg(jpeg: bytes) -> list | None:
     """JPEG 한 장 → 얼굴 특징 7개. 얼굴이 없거나 못 읽으면 None. 약 2ms."""
@@ -294,6 +300,8 @@ class InterviewSession:
         self.scorer = LiveScorer()
         # 판정 하나가 도는 동안 또 시작하지 않게. 겹치면 CPU 만 쓰고 값은 같다.
         self.scoring = False
+        # 얼굴 추출 하나가 스레드에서 도는 동안 또 시작하지 않게 (app.py `_on_binary`)
+        self.face_busy = False
         # 질문 전체와 지금 몇 번째인가. 비어 있으면 예전 방식(전사를 기다림)으로 돈다.
         self.questions: list[dict] = []
         self.cursor = 0
@@ -349,6 +357,18 @@ class InterviewSession:
         self.audio = []
         self.frames = []
         return pcm, rows
+
+    def force_end(self) -> bool:
+        """지원자가 [답변 완료] 를 눌렀다 — 침묵을 기다리지 않고 여기까지를 답변으로 끊는다.
+
+        감지기 상태와 무관하다: 목소리가 작아 '말' 로 안 잡혔어도 버퍼에 소리가
+        있으면 전사로 넘긴다(비면 전사가 빈 문자열을 내고 서버가 `retry` 를 보낸다).
+        붙자마자 눌러 [MIN_SPEECH_SEC] 도 안 쌓였으면 답변으로 세지 않는다.
+        바닥값은 남긴다 — 다음 답변도 같은 방이다.
+        """
+        seconds = sum(len(p) for p in self.audio) / (SAMPLE_RATE * SAMPLE_WIDTH)
+        self.detector.reset()
+        return seconds >= MIN_SPEECH_SEC
 
     def signal(self, rows: list) -> dict | None:
         """표정 신호. 프레임이 너무 적으면 내지 않는다 — 없는 것이 틀린 것보다 낫다."""

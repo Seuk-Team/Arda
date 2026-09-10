@@ -149,6 +149,28 @@ class TestNoWaiting:
             assert ws.sent[-1]["text"] == "다음"
         asyncio.run(_t())
 
+    def test_답변_완료_버튼도_기다리지_않는다(self, monkeypatch, saved):
+        """[답변 완료](`{"type":"end"}`, #140)와 침묵 감지가 같은 길을 탄다 —
+        끝을 누가 정했든 그 뒤는 같아야 한다."""
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _slow_stt(2.0))
+            ws, s = FakeWS(), _session()
+            pump = asyncio.create_task(srv._transcribe_pump(None, s))
+
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            assert s.force_end() is True
+
+            t = time.monotonic()
+            await srv._finish_answer(ws, None, s)
+            assert time.monotonic() - t < 1.0
+            assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
+
+            await s.pending.join()
+            assert saved == [(1, "답변입니다")]
+            pump.cancel()
+        asyncio.run(_t())
+
 
 def _returns(value):
     async def _fn():

@@ -99,6 +99,14 @@ abstract class InterviewSocket {
   /// 영상 한 장 (JPEG)
   void sendVideo(Uint8List jpeg);
 
+  /// "이 답변은 여기까지" — 지원자가 [답변 완료] 를 눌렀다 (2026-09-09).
+  ///
+  /// 서버의 침묵 감지(3초 연속 무음)에만 기대면 바닥 소음이 높은 환경에서 답변이
+  /// 영영 안 넘어간다. 서버가 `{"type":"end"}` 를 알면 즉시 전사로 넘어가고,
+  /// 모르는 서버는 조용히 무시한다(`_on_text` 는 아는 type 만 본다) — 그래서
+  /// 화면이 무음 조각을 3.5초 같이 보내 감지기의 자연 종료도 함께 유도한다.
+  void sendEnd();
+
   Future<void> close();
 }
 
@@ -210,6 +218,16 @@ class LiveInterviewSocket implements InterviewSocket {
 
   @override
   void sendVideo(Uint8List jpeg) => _send(kindVideo, jpeg);
+
+  @override
+  void sendEnd() {
+    if (_closed) return;
+    try {
+      _channel.sink.add(jsonEncode({'type': 'end'}));
+    } on StateError {
+      // 이미 닫힌 소켓. 버튼이 한 박자 늦게 눌린 것은 정상이다
+    }
+  }
 
   @override
   Future<void> close() async {
