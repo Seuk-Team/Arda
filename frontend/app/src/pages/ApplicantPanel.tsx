@@ -350,8 +350,9 @@ function OverviewTab({
   const [postingTitle, setPostingTitle] = useState<string | null>(null)
 
   useEffect(() => {
+    /* 지원자가 바뀌면 detail 이 null 이 되며 OverviewTab 이 통째로 언마운트되므로
+       여기서 따로 비울 필요가 없다 — 비우면 렌더가 한 번 더 돈다 */
     const ac = new AbortController()
-    setPostingTitle(null)
     postingsApi
       .get(detail.job_posting_id, ac.signal)
       /* 못 받아 와도 화면은 선다 — 번호로 떨어질 뿐이다 */
