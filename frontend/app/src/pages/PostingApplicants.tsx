@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { applications, aptitude as aptitudeApi, postings as postingsApi, stages as stagesApi } from '../api/endpoints'
+import { applications, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, Stage } from '../api/types'
-import { STAGE_LABEL, careerText, fmtDate, stageTone, withRo } from '../lib/stage'
+import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import ApplicantPanel from './ApplicantPanel'
 import { useRightPanel } from '../components/RightPanel'
 import Kanban from './Kanban'
@@ -36,6 +36,10 @@ const FUNNEL: { stage: Stage; color: string }[] = [
 
 export default function PostingApplicants() {
   const { id } = useParams<{ id: string }>()
+  /* 공고를 바꿀 수 있게 목록을 받아 둔다 — 지원자 화면과 같은 방식이다.
+     전에는 이 화면에서 다른 공고로 가려면 목록으로 돌아가야 했다 */
+  const [allPostings, setAllPostings] = useState<Posting[]>([])
+  const [jobOpen, setJobOpen] = useState(false)
   const [params] = useSearchParams()
   const postingId = Number(id)
 
@@ -59,8 +63,6 @@ export default function PostingApplicants() {
   const [page, setPage] = useState(0)
   const [view, setView] = useState<'list' | 'kanban'>('list')
   /* 성향 설문 일괄 발송 (ADR-0027) — 결과는 이유별 건수로 보여준다 */
-  const [aptSending, setAptSending] = useState(false)
-  const [aptMsg, setAptMsg] = useState<string | null>(null)
 
   /* 상세 패널에 열려 있는 지원자. 아르 패널과 오른쪽 한 자리를 나눠 쓴다 —
      아르를 열면 이쪽이 닫힌다 (RightPanel) */
@@ -107,25 +109,15 @@ export default function PostingApplicants() {
     if (was === 'applicant' && rightPanel.active !== 'applicant') setOpenId(null)
   }, [rightPanel.active])
 
-  async function aptBulkSend() {
-    setAptSending(true)
-    setAptMsg(null)
-    try {
-      const r = await aptitudeApi.bulkSend(postingId)
-      setAptMsg(`성향 설문 발송 ${r.sent}건 · 이미 발송 ${r.skipped_already_sent}건 · 대상 단계 아님 ${r.skipped_stage}건`)
-    } catch (e) {
-      setAptMsg(e instanceof ApiError ? e.message : '설문을 보내지 못했습니다')
-    } finally {
-      setAptSending(false)
-    }
-  }
 
-  /* 일괄 단계 변경 (D9) — 고른 사람들 */
-  const [picked, setPicked] = useState<Set<number>>(new Set())
-  const [bulkReject, setBulkReject] = useState(false)
-  const [bulkReason, setBulkReason] = useState('')
-  const [bulkBusy, setBulkBusy] = useState(false)
-  const [bulkError, setBulkError] = useState<string | null>(null)
+  /* 공고 목록은 화면당 한 번만 받는다 — 드롭다운을 열 때마다 부르면
+     같은 값을 계속 다시 받는다 */
+  useEffect(() => {
+    const ac = new AbortController()
+    postingsApi.list(ac.signal).then(setAllPostings).catch(() => {})
+    return () => ac.abort()
+  }, [])
+
   /* 목록·퍼널을 다시 세게 하는 방아쇠 */
   const [tick, setTick] = useState(0)
 
@@ -187,59 +179,6 @@ export default function PostingApplicants() {
     return () => ac.abort()
   }, [postingId, term, stage, page, tick])
 
-  /* 조건이 바뀌면 고른 사람들을 비운다. 안 보이는 행이 선택된 채로 남으면
-     "3명 선택됨" 이라고 떠 있는데 화면에는 한 명도 체크돼 있지 않게 된다. */
-  useEffect(() => {
-    setPicked(new Set())
-    setBulkReject(false)
-    setBulkReason('')
-    setBulkError(null)
-  }, [term, stage, page, postingId])
-
-  function toggle(id: number) {
-    setPicked((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const allPicked = rows !== null && rows.length > 0 && rows.every((r) => picked.has(r.id))
-
-  function toggleAll() {
-    setPicked(allPicked ? new Set() : new Set(rows?.map((r) => r.id) ?? []))
-  }
-
-  /* D9 — 전부 성공하거나 전부 롤백된다. 한 건이라도 규칙에 걸리면 서버가 409 로
-     돌려보내고 아무도 안 바뀐다. 그래서 낙관적 업데이트를 하지 않고 응답을 기다린다. */
-  async function bulkChange(to: Stage) {
-    if (picked.size === 0) return
-    if (to === 'rejected' && bulkReason.trim() === '') {
-      setBulkReject(true)
-      return
-    }
-    setBulkBusy(true)
-    setBulkError(null)
-    try {
-      const res = await stagesApi.bulk(
-        [...picked],
-        to,
-        to === 'rejected' ? bulkReason.trim() : undefined,
-      )
-      setPicked(new Set())
-      setBulkReject(false)
-      setBulkReason('')
-      setTick((n) => n + 1)
-      if (res.skipped.length > 0) {
-        setBulkError(`${res.changed}명 변경, ${res.skipped.length}명은 이미 그 단계라 건너뛰었습니다.`)
-      }
-    } catch (err) {
-      setBulkError(err instanceof ApiError ? err.message : '단계를 바꾸지 못했습니다')
-    } finally {
-      setBulkBusy(false)
-    }
-  }
 
   const grandTotal = counts?.reduce((a, b) => a + b, 0) ?? 0
   const pages = total === null ? 1 : Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -275,6 +214,37 @@ export default function PostingApplicants() {
               {posting.status === 'open' ? '진행중' : posting.status === 'closed' ? '마감' : '작성중'}
             </span>
           )}
+
+          {/* 다른 공고로 바로 건너뛴다 — 목록으로 돌아갔다 다시 들어올 이유가 없다.
+              지원자 화면의 공고 드롭다운과 같은 규격이다 */}
+          <div className={`${styles.jobDd} ${jobOpen ? styles.jobDdOpen : ''}`}>
+            <button
+              type="button"
+              className={styles.jobBtn}
+              aria-haspopup="listbox"
+              aria-expanded={jobOpen}
+              aria-label="다른 공고 보기"
+              onClick={() => setJobOpen((v) => !v)}
+            >
+              다른 공고
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            <ul className={styles.jobMenu} role="listbox">
+              {allPostings.map((o) => (
+                <li
+                  key={o.id}
+                  role="option"
+                  aria-selected={o.id === postingId}
+                  className={`${styles.jobRow} ${o.id === postingId ? styles.jobSel : ''}`}
+                  onClick={() => { setJobOpen(false); if (o.id !== postingId) navigate(`/postings/${o.id}`) }}
+                >
+                  <span className={styles.jobTitle}>{o.title}</span>
+                  {o.status === 'closed' && <span className={styles.jobClosed}>마감</span>}
+                  <span className={styles.jobCount}>{o.application_count}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
           <span className={styles.meta}>
             {dday && `마감 ${dday} · `}총 {grandTotal.toLocaleString()}명
           </span>
@@ -361,15 +331,6 @@ export default function PostingApplicants() {
           </button>
         )}
 
-        <button
-          type="button"
-          className={styles.chip}
-          disabled={aptSending}
-          title="접수·서류검토 단계 중 아직 안 받은 전원에게 사전 성향 설문 링크를 메일로 보냅니다 (ADR-0027)"
-          onClick={() => void aptBulkSend()}
-        >
-          {aptSending ? '설문 발송 중…' : '성향 설문 일괄 발송'}
-        </button>
 
         {/* 칸반은 큐 8번(D2·D3)이라 아직 없다. 자리만 두고 잠가 둔다 */}
         <div className={styles.vtoggle} role="group" aria-label="보기 방식">
@@ -392,67 +353,14 @@ export default function PostingApplicants() {
         </div>
       </div>
 
-      {aptMsg && <p className={styles.aptMsg} role="status">{aptMsg}</p>}
 
-      {/* 고른 사람이 있을 때만 뜬다. D9 — 한 번에 200명까지 */}
-      {picked.size > 0 && (
-        <div className={styles.bulkbar}>
-          <span className={styles.bulkCount}>{picked.size}명 선택됨</span>
-          <button type="button" className={styles.chip} onClick={() => setPicked(new Set())}>
-            선택 해제
-          </button>
-          <div className={styles.bulkActions}>
-            {(['screening', 'interview', 'accepted', 'rejected'] as Stage[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={s === 'rejected' ? styles.btnReject : styles.btnStage}
-                disabled={bulkBusy}
-                onClick={() => bulkChange(s)}
-              >
-                {withRo(STAGE_LABEL[s])}
-              </button>
-            ))}
-          </div>
-
-          {/* 불합격은 사유가 필수다 (D8) */}
-          {bulkReject && (
-            <div className={styles.bulkReason}>
-              <input
-                type="text"
-                value={bulkReason}
-                disabled={bulkBusy}
-                placeholder="불합격 사유 — 적어야 옮길 수 있습니다"
-                aria-label="불합격 사유"
-                onChange={(e) => setBulkReason(e.target.value)}
-              />
-              <button
-                type="button"
-                className={styles.btnReject}
-                disabled={bulkBusy || bulkReason.trim() === ''}
-                onClick={() => bulkChange('rejected')}
-              >
-                {bulkBusy ? '변경 중…' : `${picked.size}명 불합격`}
-              </button>
-            </div>
-          )}
-
-          {bulkError && <p className={styles.bulkErr} role="alert">{bulkError}</p>}
-        </div>
-      )}
 
       <main className="page-content">
         {view === 'kanban' ? (
           <Kanban postingId={postingId} tick={tick} onChanged={() => setTick((n) => n + 1)} />
         ) : (
         <div className={styles.panel}>
-          <div className={`${styles.row} ${styles.rowSel} ${styles.thead}`}>
-            <input
-              type="checkbox"
-              aria-label="이 페이지 전체 선택"
-              checked={allPicked}
-              onChange={toggleAll}
-            />
+          <div className={`${styles.row} ${styles.thead}`}>
             <span>이름</span>
             <span>단계</span>
             <span className={styles.num}>경력</span>
@@ -464,19 +372,11 @@ export default function PostingApplicants() {
           {rows?.map((a) => (
             <div
               key={a.id}
-              className={`${styles.row} ${styles.rowSel} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
+              className={`${styles.row} ${styles.item} ${a.id === openId ? styles.cur : ''}`}
               tabIndex={0}
               aria-current={a.id === openId ? 'true' : undefined}
               onClick={() => openDetail(a.id)}
             >
-              {/* 체크는 행 열기와 다른 동작이다 — 여기서 멈춘다 */}
-              <input
-                type="checkbox"
-                aria-label={`${a.name} 선택`}
-                checked={picked.has(a.id)}
-                onClick={(e) => e.stopPropagation()}
-                onChange={() => toggle(a.id)}
-              />
               <span className={styles.name}>{a.name}</span>
               <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
               <span className={styles.num}>{careerText(a.career_years)}</span>
