@@ -150,3 +150,45 @@
   color: var(--text-sub);
   word-break: keep-all;
 }
+
+/* 도움말 툴팁 — 매번 세 줄을 차지하던 무결성 설명을 여기로 옮겼다 */
+.help {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  cursor: help;
+  border: var(--border-w) solid var(--border);
+  color: var(--text-sub);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-sunken);
+  font-family: inherit;
+  padding: 0;
+}
+.tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: #10182A;
+  border: var(--border-w) solid var(--border);
+  box-shadow: var(--sh-overlay);
+  font-size: var(--font-caption);
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-sub);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-fast) var(--ease);
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+}
+.help:hover .tip,
+.help:focus-visible .tip { opacity: 1; visibility: visible; }
