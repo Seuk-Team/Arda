@@ -17,7 +17,9 @@ from app.agent.interview_findings import (
     KOREAN,
     MAX_FINDINGS,
     _parse_findings,
+    enabled_backend,
     generate_findings,
+    generate_findings_bg,
     transcript_of,
 )
 
@@ -172,8 +174,35 @@ class TestTranscriptOf:
         assert "질문1" in text and "질문2" not in text and "질문3" not in text
 
 
+class TestSwitch:
+    """**기본은 꺼짐.** 머지만으로 과금이 시작되면 안 된다."""
+
+    def test_스위치가_비면_모델을_안_부른다(self, monkeypatch):
+        monkeypatch.delenv("AGENT_FINDINGS_BACKEND", raising=False)
+
+        def boom(*a, **kw):
+            raise AssertionError("꺼져 있는데 모델을 불렀다")
+
+        monkeypatch.setattr("app.agent.backends.build_backend", boom)
+        assert generate_findings({"cover_letter": COVER, "resume": RESUME}, SAID) == []
+
+    def test_스위치가_비면_DB_도_안_건드린다(self, monkeypatch):
+        """앞서 만들어 둔 대조가 있으면 그대로 남아야 한다."""
+        monkeypatch.delenv("AGENT_FINDINGS_BACKEND", raising=False)
+
+        def boom(*a, **kw):
+            raise AssertionError("꺼져 있는데 DB 를 열었다")
+
+        monkeypatch.setattr("app.db.SessionLocal", boom)
+        generate_findings_bg(1)  # 조용히 끝나야 한다
+
+    def test_켜면_그_백엔드를_쓴다(self, monkeypatch):
+        monkeypatch.setenv("AGENT_FINDINGS_BACKEND", "ollama")
+        assert type(enabled_backend()).__name__ == "OllamaBackend"
+
+
 class TestNoBackendCall:
-    """**부를 것이 없으면 토큰을 쓰지 않는다.** 모델을 세우면 여기서 걸린다."""
+    """**부를 것이 없으면 토큰을 쓰지 않는다.** 스위치가 켜져 있어도 그렇다."""
 
     @pytest.mark.parametrize(
         "sources,transcript",
@@ -184,8 +213,10 @@ class TestNoBackendCall:
         ],
     )
     def test_서류나_답변이_없으면_빈_리스트(self, sources, transcript, monkeypatch):
-        def boom():
+        monkeypatch.setenv("AGENT_FINDINGS_BACKEND", "ollama")
+
+        def boom(*a, **kw):
             raise AssertionError("모델을 부르면 안 된다")
 
-        monkeypatch.setattr("app.agent.backends.get_summary_backend", boom)
+        monkeypatch.setattr("app.agent.backends.build_backend", boom)
         assert generate_findings(sources, transcript) == []

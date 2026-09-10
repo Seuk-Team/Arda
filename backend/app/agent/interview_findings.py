@@ -7,6 +7,11 @@
 **점수를 만들지 않는다.** 갈래는 `consistent` · `inconsistent` · `unverified`
 셋뿐이다. 합불에 곱해지는 수치가 생기는 순간 "AI 는 추천까지만" 이 무너진다.
 
+## 기본은 꺼짐
+
+면접이 끝날 때마다 LLM 을 한 번 부르므로, **머지만으로 과금이 시작되면 안 된다.**
+`AGENT_FINDINGS_BACKEND` 를 넣어야 켜진다 (`FINDINGS_BACKEND_ENV` 주석 참고).
+
 ## 인용을 코드로 보증한다
 
 프롬프트에 "원문 그대로 옮겨라" 라고 적어도 모델은 글자를 흘린다. 그러면 면접관이
@@ -19,11 +24,24 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 
 from app.agent.interview_probe import _fingerprint
 
 logger = logging.getLogger(__name__)
+
+# **비어 있으면 꺼진 채로 돈다.** 면접이 끝날 때마다 LLM 을 한 번 부르는 기능이라,
+# 머지만으로 과금이 시작되면 안 된다 — 켜는 것은 돈을 낼 사람이 정한다
+# (`STT_MODEL` · `VIT_MODEL` · `LIE_SERVICE_URL` 과 같은 방식).
+#
+#   끄기(기본): 아무것도 안 넣는다
+#   로컬로:     AGENT_FINDINGS_BACKEND=ollama
+#   클라우드로: AGENT_FINDINGS_BACKEND=anthropic   ← 과금된다
+#
+# 전역 `AGENT_SUMMARY_BACKEND` 를 그대로 쓰지 않는 이유: 요약은 이미 켜져 있고,
+# 그 스위치를 따라가면 **요약을 켜 두는 것만으로 대조까지 같이 켜진다.**
+FINDINGS_BACKEND_ENV = "AGENT_FINDINGS_BACKEND"
 
 # 인용 앞에 모델이 붙이는 표지 — `[면접 전사에서의 답변] 처음엔…`, `[답변 2] …`.
 # 전사를 `[질문 N]` · `[답변 N]` 으로 넘겨 주니 그 형식을 따라 적는다(exaone 3.5
@@ -83,6 +101,17 @@ def transcript_of(turns) -> str:
     return "\n\n".join(parts)
 
 
+def enabled_backend():
+    """켜져 있으면 쓸 백엔드, 꺼져 있으면 None.
+
+    **꺼진 것은 실패가 아니다.** 아무 일도 안 일어나고 대조가 안 생길 뿐이다.
+    """
+    from app.agent.backends import build_backend
+
+    name = os.getenv(FINDINGS_BACKEND_ENV, "").strip()
+    return build_backend(name, "summary") if name else None
+
+
 def generate_findings(sources: dict[str, str], transcript: str) -> list[dict] | None:
     """서류와 전사를 맞춰 본다.
 
@@ -98,10 +127,11 @@ def generate_findings(sources: dict[str, str], transcript: str) -> list[dict] | 
     if not (cover or resume) or not transcript:
         return []
 
-    from app.agent.backends import get_summary_backend
     from app.agent.prompts import render
 
-    backend = get_summary_backend()
+    backend = enabled_backend()
+    if backend is None:
+        return []
     reason = backend.unavailable_reason()
     if reason:
         logger.error("대조 생성 불가: %s", reason)
@@ -212,6 +242,10 @@ def generate_findings_bg(session_id: int) -> None:
 
     from app.db import SessionLocal
     from app.models import Application, InterviewFinding, InterviewSession, InterviewTurn
+
+    if enabled_backend() is None:
+        # 꺼져 있다. **DB 도 건드리지 않는다** — 앞서 만들어 둔 대조가 있다면 그대로.
+        return
 
     db = SessionLocal()
     try:
