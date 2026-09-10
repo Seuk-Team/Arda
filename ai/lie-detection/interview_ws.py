@@ -120,6 +120,17 @@ STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", _default_compute_type)
 STT_LANGUAGE = os.getenv("STT_LANGUAGE", "ko")
 # 1 이면 탐색을 안 한다. 실시간이라 정확도보다 지연이 중요하다.
 STT_BEAM_SIZE = int(os.getenv("STT_BEAM_SIZE", "1"))
+# **면접 질문을 whisper 에게 힌트로 준다.** 질문에 나온 낱말을 후보로 먼저 놓아
+# 그 분야 용어를 덜 틀린다 — 실측: "데이터베이스 퀄리" → "데이터베이스 쿼리",
+# "엘라스틱 서치" → "엘라스틱서치". 속도는 그대로(12.8초 → 12.8초).
+#
+# **용어 목록을 코드에 박지 않는다.** 그러면 IT 면접에만 맞는다. 질문은 직군마다
+# 다르게 들어오므로 거기서 얻으면 저절로 맞춰진다.
+#
+# **말하지 않은 낱말이 전사에 새지 않는다** — 질문에만 있는 말 4개로 확인했고
+# (테라폼·코틀린·러스트·선호), 없는 낱말 60개를 넣어도 전사가 그대로였다.
+# `initial_prompt` 는 whisper 문맥의 절반(224 토큰)까지만 쓰이므로 여기서 자른다.
+STT_HINT_CHARS = int(os.getenv("STT_HINT_CHARS", "200"))
 
 
 def _rms(pcm: bytes) -> float:
@@ -813,7 +824,7 @@ def warm_stt() -> None:
     logger.info("전사 모델 예열 완료: %.1f초", time.monotonic() - started)
 
 
-async def transcribe_async(pcm: bytes) -> str:
+async def transcribe_async(pcm: bytes, hint: str = "") -> str:
     """전사를 딴 스레드에서 하되 **[STT_TIMEOUT_SEC] 를 넘기면 포기한다.**
 
     포기하면 자리표시자를 돌려준다 — 빈 문자열이 아니다. 빈 문자열은 "말이 안
@@ -823,7 +834,7 @@ async def transcribe_async(pcm: bytes) -> str:
     seconds = len(pcm) / (SAMPLE_RATE * SAMPLE_WIDTH)
     try:
         return await asyncio.wait_for(
-            asyncio.to_thread(transcribe, pcm), timeout=STT_TIMEOUT_SEC
+            asyncio.to_thread(transcribe, pcm, hint), timeout=STT_TIMEOUT_SEC
         )
     except asyncio.TimeoutError:
         logger.warning(
@@ -832,7 +843,13 @@ async def transcribe_async(pcm: bytes) -> str:
         return f"[전사 지연 · 발화 {seconds:.1f}초]"
 
 
-def transcribe(pcm: bytes) -> str:
+def hint_of(questions: list[dict]) -> str:
+    """면접 질문 → whisper 힌트. 질문이 없으면 빈 문자열(힌트 없이 돈다)."""
+    text = " ".join((q.get("question") or "").strip() for q in questions).strip()
+    return text[:STT_HINT_CHARS]
+
+
+def transcribe(pcm: bytes, hint: str = "") -> str:
     """음성 → 글. **CPU 로 약 0.55배**(35초 음성에 19초) 걸리므로 스레드에서 부른다.
 
     `STT_MODEL` 이 비어 있으면 꺼진 채로 자리표시자를 돌려준다 — 팀이 쓰는 방식
@@ -860,14 +877,16 @@ def transcribe(pcm: bytes) -> str:
         queued = time.monotonic() - waited
         if queued > 1:
             logger.info("전사 대기 %.1f초 (앞에 다른 전사가 돌고 있었다)", queued)
-        return _run_transcribe(model, audio)
+        return _run_transcribe(model, audio, hint)
 
 
-def _run_transcribe(model, audio) -> str:
+def _run_transcribe(model, audio, hint: str = "") -> str:
     segments, _ = model.transcribe(
         audio,
         language=STT_LANGUAGE or None,
         beam_size=STT_BEAM_SIZE,
+        # 면접 질문(`hint_of`). 빈 문자열이면 whisper 가 무시한다.
+        initial_prompt=hint or None,
         # **whisper 는 무음에 말을 지어낸다.** 실측: 무음 3초·잡음 3초 모두
         # "감사합니다." 를 냈다. 그대로 두면 기침이 답변으로 저장되고 그 질문은
         # 답한 것이 되어 다시 물어볼 길이 없어진다. VAD 로 말이 없는 구간을

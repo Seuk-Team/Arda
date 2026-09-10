@@ -69,7 +69,7 @@ async def _noop(*a, **kw):
 
 
 def _slow_stt(delay, text="답변입니다"):
-    async def fake(pcm):
+    async def fake(pcm, hint=""):
         await asyncio.sleep(delay)
         return text
 
