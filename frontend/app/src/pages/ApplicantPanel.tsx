@@ -302,12 +302,12 @@ function StageChanger({
 
           {/* 지금 서버는 단계 변경과 메일이 별개 호출이라 "나갑니다" 는 사실이
               아니다. 이어서 보낼 수 있다고만 적는다 (연락처의 메일 보내기). */}
-          {target !== null && MAIL_AFTER[target] !== undefined && (
+          {target !== null && MAIL_ON_CHANGE[target] !== undefined && (
             <p className={styles.confirmMail}>
               <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M4 6h16v12H4z" /><path d="M4 7l8 6 8-6" />
               </svg>
-              {MAIL_AFTER[target]}
+              {MAIL_ON_CHANGE[target]}
             </p>
           )}
 
@@ -330,10 +330,17 @@ function StageChanger({
   )
 }
 
-/* 옮긴 뒤 이어서 보낼 수 있는 메일. 단계 변경이 메일을 보내지는 않는다 */
-const MAIL_AFTER: Partial<Record<Stage, string>> = {
-  accepted: '합격 안내 메일을 이어서 보낼 수 있습니다',
-  rejected: '불합격 안내 메일을 이어서 보낼 수 있습니다',
+/* 단계를 옮기면 **서버가 알아서 메일을 보낸다** — 단계·이력·메일이 한
+   트랜잭션이다(backend/app/api/applications.py change_stage, G1).
+   담당자가 따로 누를 것이 없으므로 "보낼 수 있습니다" 가 아니라
+   "나갑니다" 라고 적어야 한다 — 안 그러면 이미 나간 메일을 또 보낸다.
+
+   나가는 단계는 backend/app/stages.py 의 NOTIFY_STAGES 셋뿐이다.
+   접수·서류 검토로 옮길 때는 아무 메일도 안 나간다. */
+const MAIL_ON_CHANGE: Partial<Record<Stage, string>> = {
+  interview: '면접 안내 메일이 함께 나갑니다',
+  accepted: '합격 안내 메일이 함께 나갑니다',
+  rejected: '불합격 안내 메일이 함께 나갑니다',
 }
 
 /* ── 개요 탭 ────────────────────────────────────────────
