@@ -103,6 +103,8 @@ def health():
         # 가장 최근 면접에서 프레임이 몇 도 누워 있었나 (`face_row_search`).
         # null 이면 얼굴을 한 번도 못 찾은 것이다 — 방향 말고 다른 문제다.
         "frame_rotation": iw.LAST_ROTATION,
+        # 프레임이 어디까지 갔는가. 셋을 나눠 봐야 "안 보낸다"와 "못 찾는다"가 갈린다.
+        "frames": dict(iw.FRAME_STATS),
     }
 
 

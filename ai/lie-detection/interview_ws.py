@@ -305,6 +305,17 @@ _ROTATIONS = (0, 270, 90, 180)
 # 짐작이 아니라 실측값으로 고치기 위한 것이다.
 LAST_ROTATION: int | None = None
 
+# 프레임이 어디까지 갔는가 (2026-09-10).
+#
+# **`no_face` 만으로는 두 가지가 구별되지 않는다** — 앱이 프레임을 안 보내는
+# 것과, 보내는데 얼굴을 못 찾는 것. 오늘 그 둘을 못 갈라 회전 가설을 붙들고
+# 두 번 헛돌았다. 도착·해독·검출을 따로 세면 그 자리에서 갈린다.
+#
+#   in=0                 → 앱이 안 보낸다 (카메라·구독 문제)
+#   in>0, decoded=0      → JPEG 이 깨졌다 (앱의 변환 문제)
+#   decoded>0, face=0    → 그림은 멀쩡한데 얼굴을 못 찾는다 (흑백·크기·화질)
+FRAME_STATS = {"in": 0, "decoded": 0, "face": 0}
+
 
 def _rotated(img, degrees: int):
     """시계 방향으로 돌린다. 0 이면 원본 그대로 (복사도 하지 않는다)."""
@@ -335,11 +346,13 @@ def face_row_search(jpeg: bytes, known: int | None) -> tuple[list | None, int | 
     img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
     if img is None:
         return None, known
+    FRAME_STATS["decoded"] += 1
     from feature_extractor import face_row
 
     for rot in (known,) if known is not None else _ROTATIONS:
         row = face_row(_rotated(img, rot))
         if row is not None:
+            FRAME_STATS["face"] += 1
             return row, rot
     return None, known
 
@@ -397,6 +410,7 @@ class InterviewSession:
         """
         global LAST_ROTATION
 
+        FRAME_STATS["in"] += 1
         self._frame_count += 1
         if self._frame_count % FRAME_STRIDE:
             return None
