@@ -46,6 +46,7 @@ from interview_ws import (
     score,
     submit_answer,
     transcribe_async,
+    voice_seconds,
     warm_stt,
 )
 
@@ -124,6 +125,9 @@ def health():
         "frame_rotation": iw.LAST_ROTATION,
         # 프레임이 어디까지 갔는가. 셋을 나눠 봐야 "안 보낸다"와 "못 찾는다"가 갈린다.
         "frames": dict(iw.FRAME_STATS),
+        # "답변 끝" 이 몇 번 답변으로 인정됐나 (2026-09-11). `rejected` 는 목소리가
+        # 없어 질문을 넘기지 않은 횟수 — 질문이 안 넘어간다는 말이 나오면 여기부터.
+        "answers": dict(iw.ANSWER_STATS),
     }
 
 
@@ -457,6 +461,27 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
     답변에서만** 나간다 — 중간에는 보낼 이유가 없다.
     """
     pcm, rows = session.take_answer()
+
+    # **목소리가 없으면 답변이 아니다** (2026-09-11, `iw.voice_seconds` 주석). 넘기기
+    # 전에 거른다 — 넘긴 뒤에는 "답함" 이 찍혀 그 질문으로 돌아올 길이 없다.
+    # 세션 57 에서 폰 스피커 소리·잡음이 58초 만에 질문 10개를 전사 0자로 소진시켰다.
+    voiced = await asyncio.to_thread(voice_seconds, pcm)
+    if voiced is None:
+        iw.ANSWER_STATS["unmeasured"] += 1
+    elif voiced < iw.MIN_VOICE_SEC:
+        iw.ANSWER_STATS["rejected"] += 1
+        logger.info(
+            "목소리가 없어 답변으로 세지 않는다: token=%s 소리 %.1f초 · 목소리 %.2f초",
+            session.token[:8],
+            len(pcm) / (iw.SAMPLE_RATE * iw.SAMPLE_WIDTH),
+            voiced,
+        )
+        await ws.send_json(
+            {"type": "retry", "message": "말이 들리지 않았어요. 다시 답변해 주세요"}
+        )
+        return
+    else:
+        iw.ANSWER_STATS["voiced"] += 1
 
     if not session.questions:
         # 질문 목록을 못 받은 경우(서비스 토큰 없음·조회 실패)는 예전 방식으로 돈다

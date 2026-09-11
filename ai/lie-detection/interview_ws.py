@@ -956,3 +956,40 @@ def _run_transcribe(model, audio) -> str:
         condition_on_previous_text=False,
     )
     return " ".join(s.text.strip() for s in segments).strip()
+
+
+# ── 답변인가 (2026-09-11) ─────────────────────────────────────
+# 발화 끝을 가르는 감지기(`_SpeechDetector`)는 **소리 크기**만 본다. 폰 스피커로
+# 나오는 담당자 쪽 방 소리·잡음도 0.7초만 넘으면 "답변 끝" 이 되는데, 그 순간 질문을
+# 답한 것으로 찍으면(`mark_answered`) 전사가 비어도 질문이 넘어간다 — 2026-09-11
+# 세션 57 에서 58초 만에 질문 10개가 전사 0자로 소진됐다(세션 56 의 6~10번도 같다).
+# 그래서 넘기기 전에 **전사와 같은 VAD**(faster-whisper 의 silero)로 사람 목소리가
+# 있는지 잰다. 이 VAD 가 아무것도 못 찾으면 전사도 빈 문자열이다 — 답변이 아니다.
+MIN_VOICE_SEC = float(os.getenv("MIN_VOICE_SEC", "0.3"))
+
+# 밖에서 갈라 볼 계기판 (`/health`) — 넘긴 것 · 거른 것 · 못 잰 것(→ 막지 않고 넘김).
+# 질문이 안 넘어간다는 말이 나오면 `rejected` 가 느는지부터 본다.
+ANSWER_STATS = {"voiced": 0, "rejected": 0, "unmeasured": 0}
+
+
+def voice_seconds(pcm: bytes) -> float | None:
+    """발화 안에 사람 목소리가 몇 초 있나. 못 재면 None — **그때는 막지 않는다.**
+
+    VAD 가 고장 났다고 면접이 멈추면 안 된다. 못 재면 예전처럼 넘긴다.
+    전사가 쓰는 것과 같은 판정 기준(`VadOptions` 기본값)이고, 앞뒤 여백
+    (`speech_pad_ms`)만 빼서 목소리 길이 자체를 잰다. 수십 ms 걸린다.
+    """
+    usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
+    if usable == 0:
+        return 0.0
+    try:
+        from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+        audio = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+        spans = get_speech_timestamps(
+            audio, VadOptions(speech_pad_ms=0), sampling_rate=SAMPLE_RATE
+        )
+    except Exception:
+        logger.exception("목소리 재기 실패 — 막지 않고 넘긴다")
+        return None
+    return sum(s["end"] - s["start"] for s in spans) / SAMPLE_RATE
