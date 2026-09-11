@@ -43,7 +43,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_applicant_email
-from app.api.portal import STAGE_LABEL
+from app.application.api.portal import STAGE_LABEL
 from app.models import (
     Application,
     AptitudeSession,
