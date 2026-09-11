@@ -233,7 +233,7 @@ def _after_pass(
 
     # ① 인적성 설문 — 점수에는 안 들어간다(ADR-0027). 최종 판단 전 참고.
     try:
-        from app.api.aptitude import new_session, queue_aptitude_mail
+        from app.application.api.aptitude import new_session, queue_aptitude_mail
 
         if actor_id is not None:
             session = new_session(db, application.id, actor_id)

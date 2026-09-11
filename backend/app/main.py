@@ -222,28 +222,28 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # 라우터는 여기에 한 줄씩 추가한다. 각 라우터가 자기 prefix 를 갖는다.
-from app.api.applicant_auth import router as applicant_auth_router  # noqa: E402
-from app.api.applications import router as applications_router  # noqa: E402
-from app.api.aptitude import router as aptitude_router  # noqa: E402
-from app.api.assignments import router as assignments_router  # noqa: E402
-from app.api.auth import router as auth_router  # noqa: E402
-from app.api.availability import router as availability_router  # noqa: E402
-from app.api.emails import router as emails_router  # noqa: E402
-from app.api.evaluations import router as evaluations_router  # noqa: E402
-from app.api.files import router as files_router  # noqa: E402
-from app.api.integrity import router as integrity_router  # noqa: E402
-from app.api.internal import router as internal_router  # noqa: E402
-from app.api.interviews import router as interviews_router  # noqa: E402
-from app.api.interview_rtc import router as interview_rtc_router  # noqa: E402
-from app.api.notes import router as notes_router  # noqa: E402
-from app.api.portal import router as portal_router  # noqa: E402
-from app.api.postings import router as postings_router  # noqa: E402
-from app.api.public import router as public_router  # noqa: E402
-from app.api.schedules import router as schedules_router  # noqa: E402
-from app.api.scoring import router as scoring_router  # noqa: E402
-from app.api.users import router as users_router  # noqa: E402
-from app.api.agent import router as agent_router  # noqa: E402
-from app.api.search import router as search_router  # noqa: E402
+from app.talent.api.applicant_auth import router as applicant_auth_router  # noqa: E402
+from app.application.api.applications import router as applications_router  # noqa: E402
+from app.application.api.aptitude import router as aptitude_router  # noqa: E402
+from app.interview.api.assignments import router as assignments_router  # noqa: E402
+from app.talent.api.auth import router as auth_router  # noqa: E402
+from app.interview.api.availability import router as availability_router  # noqa: E402
+from app.application.api.emails import router as emails_router  # noqa: E402
+from app.application.api.evaluations import router as evaluations_router  # noqa: E402
+from app.shared.api.files import router as files_router  # noqa: E402
+from app.shared.api.integrity import router as integrity_router  # noqa: E402
+from app.shared.api.internal import router as internal_router  # noqa: E402
+from app.interview.api.interviews import router as interviews_router  # noqa: E402
+from app.interview.api.interview_rtc import router as interview_rtc_router  # noqa: E402
+from app.application.api.notes import router as notes_router  # noqa: E402
+from app.application.api.portal import router as portal_router  # noqa: E402
+from app.hiring.api.postings import router as postings_router  # noqa: E402
+from app.application.api.public import router as public_router  # noqa: E402
+from app.interview.api.schedules import router as schedules_router  # noqa: E402
+from app.interview.api.scoring import router as scoring_router  # noqa: E402
+from app.talent.api.users import router as users_router  # noqa: E402
+from app.application.api.agent import router as agent_router  # noqa: E402
+from app.application.api.search import router as search_router  # noqa: E402
 
 app.include_router(agent_router)
 app.include_router(applicant_auth_router)
