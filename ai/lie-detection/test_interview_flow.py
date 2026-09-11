@@ -42,12 +42,26 @@ def _session(questions=QUESTIONS) -> iw.InterviewSession:
 
 
 async def _speak(ws, session, seconds=0.05):
-    """말했다가 멈춘다 — `_on_binary` 가 'end' 를 보게 만든다."""
+    """말하고 [답변 완료] 를 누른다.
+
+    2026-09-11 부터 **침묵으로는 넘어가지 않는다** — 답변 끝은 지원자가 정한다
+    (버튼 · "이상입니다"). 흐름 시험은 버튼으로 끝낸다. 멈춤·"이상입니다" 는
+    `TestEndByWord` 가 따로 본다.
+    """
+    for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+        session.add_audio(LOUD)
+    return await srv._on_text(ws, None, session, '{"type": "end"}')
+
+
+async def _pause(ws, session, wait_check=True):
+    """말했다가 멈춘다 — 감지기가 '멈춤' 을 내고 "이상입니다" 확인이 돈다."""
     session.add_audio(LOUD)                      # begin
     await asyncio.sleep(iw.MIN_SPEECH_SEC + 0.05)
     session.add_audio(QUIET)                     # 침묵 시작
-    await asyncio.sleep(iw.SILENCE_END_SEC + 0.05)
-    return await srv._on_binary(ws, None, session, bytes([srv.KIND_AUDIO]) + QUIET)
+    await asyncio.sleep(iw.PAUSE_CHECK_SEC + 0.05)
+    await srv._on_binary(ws, None, session, bytes([srv.KIND_AUDIO]) + QUIET)
+    if wait_check and session.end_check is not None:
+        await session.end_check
 
 
 @pytest.fixture()
@@ -320,5 +334,117 @@ class TestAnsweredFirst:
             pump = asyncio.create_task(srv._transcribe_pump(None, s))
             await _speak(ws, s)
             assert ws.types()[-1] == "done"
+            pump.cancel()
+        asyncio.run(_t())
+
+
+class TestEndByWord:
+    """답변 끝은 지원자가 정한다 — [답변 완료] 또는 "이상입니다" (2026-09-11).
+
+    3초 침묵으로 넘기던 때는 문장 사이에 쉰 순간 답이 반토막 나고(세션 59: 대본
+    3~6번이 둘째 문장만 저장), 폰 스피커 소리가 질문을 넘겼다(세션 57).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _quiet_verdict(self, monkeypatch):
+        """말하는 동안 도는 실시간 판정은 이 시험의 관심사가 아니다."""
+        monkeypatch.setattr(srv, "_live_verdict", _noop)
+
+    def test_조용해진_것만으로는_넘어가지_않는다(self, monkeypatch, saved):
+        async def _t():
+            marked = []
+
+            async def fake_mark(client, token, seq):
+                marked.append(seq)
+
+            monkeypatch.setattr(srv, "mark_answered", fake_mark)
+            monkeypatch.setattr(srv, "says_done", lambda pcm: False)
+            ws, s = FakeWS(), _session()
+            await _pause(ws, s)
+            assert "question" not in ws.types()
+            assert marked == [] and s.current_seq() == 1
+            assert s.audio, "멈춘 동안의 소리도 버리지 않는다 — 이어서 말하면 한 답이 된다"
+        asyncio.run(_t())
+
+    def test_이상입니다로_끝나면_넘어간다(self, monkeypatch, saved):
+        async def _t():
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(srv, "says_done", lambda pcm: True)
+            before = iw.ANSWER_STATS["by_phrase"]
+            ws, s = FakeWS(), _session()
+            await _pause(ws, s)
+            assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
+            assert iw.ANSWER_STATS["by_phrase"] == before + 1
+        asyncio.run(_t())
+
+    def test_멈출_때마다_끝부분만_받아쓴다(self, monkeypatch, saved):
+        """답변 전체를 매번 받아쓰면 CPU 가 전사 줄과 싸운다 — 끝 몇 초만."""
+        async def _t():
+            seen = []
+            monkeypatch.setattr(srv, "says_done", lambda pcm: seen.append(len(pcm)) or False)
+            ws, s = FakeWS(), _session()
+            for _ in range(200):                     # 10초치를 먼저 쌓아 둔다
+                s.audio.append(LOUD)
+            await _pause(ws, s)
+            assert seen and seen[0] <= int(iw.END_TAIL_SEC * iw.SAMPLE_RATE) * iw.SAMPLE_WIDTH
+        asyncio.run(_t())
+
+    def test_확인하는_사이_버튼을_누르면_한_번만_넘어간다(self, monkeypatch, saved):
+        async def _t():
+            def slow_yes(pcm):
+                time.sleep(0.3)
+                return True
+
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(srv, "says_done", slow_yes)
+            ws, s = FakeWS(), _session()
+            await _pause(ws, s, wait_check=False)    # 확인이 뒤에서 도는 중
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            await srv._on_text(ws, None, s, '{"type": "end"}')
+            await s.end_check
+            assert [m for m in ws.sent if m["type"] == "question"] == [
+                {"type": "question", "seq": 2, "text": "둘째 질문"}
+            ]
+            assert s.current_seq() == 2
+        asyncio.run(_t())
+
+    def test_이상입니다를_못_재면_버튼만_남는다(self, monkeypatch, saved):
+        """전사가 꺼져 있거나 확인이 실패해도 면접이 멈추지 않는다 — 버튼은 된다."""
+        async def _t():
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(srv, "says_done", lambda pcm: None)
+            ws, s = FakeWS(), _session()
+            await _pause(ws, s)
+            assert "question" not in ws.types()
+            await _speak(ws, s)
+            assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
+        asyncio.run(_t())
+
+    def test_답변이_상한을_넘으면_끊는다(self, monkeypatch, saved):
+        """버튼도 "이상입니다" 도 없이 이어지면 끝이 없다 — 상한에서 끊는다."""
+        async def _t():
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(iw, "MAX_ANSWER_SEC", 0.2)
+            before = iw.ANSWER_STATS["by_limit"]
+            ws, s = FakeWS(), _session()
+            s.add_audio(LOUD)                        # 첫 말
+            await asyncio.sleep(0.25)
+            await srv._on_binary(ws, None, s, bytes([srv.KIND_AUDIO]) + LOUD)
+            assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
+            assert iw.ANSWER_STATS["by_limit"] == before + 1
+        asyncio.run(_t())
+
+    def test_저장하는_답변에서_이상입니다를_뗀다(self, monkeypatch, saved):
+        async def _t():
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(
+                srv, "transcribe_async", _slow_stt(0.01, text="캐시를 붙였습니다. 이상입니다.")
+            )
+            ws, s = FakeWS(), _session()
+            pump = asyncio.create_task(srv._transcribe_pump(None, s))
+            await _speak(ws, s)
+            await s.pending.join()
+            assert saved == [(1, "캐시를 붙였습니다.")]
             pump.cancel()
         asyncio.run(_t())
