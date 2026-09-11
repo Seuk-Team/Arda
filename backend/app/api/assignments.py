@@ -37,7 +37,10 @@ def assign_interviewers(
 
     # 대상 사용자 존재 확인. 역할 검사는 없다 — 누구나 면접관으로 배정될 수
     # 있다 (ADR-0017). "면접관"은 역할이 아니라 그 건에서 맡은 자리다.
-    users = db.scalars(select(User).where(User.id.in_(body.interviewer_ids))).all()
+    # TalentRepository 로 위임 (ADR-0035 Phase 3c).
+    from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
+
+    users = PgTalentRepository(db).find_users_by_ids(body.interviewer_ids)
     if len(users) != len(set(body.interviewer_ids)):
         raise HTTPException(HTTPStatus.NOT_FOUND, "없는 사용자가 있습니다")
 
