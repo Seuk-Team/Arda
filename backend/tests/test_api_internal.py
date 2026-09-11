@@ -212,41 +212,36 @@ class TestResult:
 
 
 class TestPublishDispatch:
-    """mail.publish 가 MAIL_DISPATCH 값에 따라 갈리는지."""
+    """mail.publish 가 MAIL_DISPATCH 값에 따라 어떤 MailDispatcher 를 쓰는지.
 
-    def test_worker_default_uses_sqs(self, monkeypatch):
+    ADR-0035 Phase 3g · 이제 Port(MailDispatcher) 로 위임. 이 테스트는 팩토리 선택
+    로직만 검증하고, 실제 SQS/n8n 호출은 어댑터 전용 테스트에서.
+    """
+
+    def test_worker_default_uses_sqs_dispatcher(self, monkeypatch):
         from app.shared import mail
+        from app.adapter.outbound.mail import SqsMailDispatcher
 
         monkeypatch.delenv("MAIL_DISPATCH", raising=False)
+        assert isinstance(mail._get_dispatcher(), SqsMailDispatcher)
 
-        calls = {"sqs": 0, "n8n": 0}
-
-        class _FakeSqs:
-            def send_message(self, **_kw):
-                calls["sqs"] += 1
-
-        monkeypatch.setattr(mail, "_sqs", lambda: _FakeSqs())
-        monkeypatch.setattr(mail, "_queue_url", lambda: "q")
-        monkeypatch.setattr(mail, "_publish_to_n8n", lambda _id: calls.__setitem__("n8n", calls["n8n"] + 1))
-
-        mail.publish(1)
-        assert calls == {"sqs": 1, "n8n": 0}
-
-    def test_n8n_dispatch_calls_webhook(self, monkeypatch):
+    def test_n8n_env_uses_n8n_dispatcher(self, monkeypatch):
         from app.shared import mail
+        from app.adapter.outbound.mail import N8nMailDispatcher
 
         monkeypatch.setenv("MAIL_DISPATCH", "n8n")
+        assert isinstance(mail._get_dispatcher(), N8nMailDispatcher)
 
-        calls = {"sqs": 0, "n8n": 0}
-        monkeypatch.setattr(mail, "_publish_to_n8n", lambda _id: calls.__setitem__("n8n", calls["n8n"] + 1))
+    def test_publish_delegates_to_injected_dispatcher(self):
+        """DI 로 mock dispatcher 를 넣으면 그것을 쓴다 — env 무시."""
+        from unittest.mock import MagicMock
 
-        def _fail_sqs():
-            raise AssertionError("worker path called when n8n set")
+        from app.shared import mail
+        from app.ports.output.mail_dispatcher_port import MailDispatcher
 
-        monkeypatch.setattr(mail, "_sqs", _fail_sqs)
-
-        mail.publish(1)
-        assert calls == {"sqs": 0, "n8n": 1}
+        dispatcher = MagicMock(spec=MailDispatcher)
+        mail.publish(42, dispatcher=dispatcher)
+        dispatcher.publish.assert_called_once_with(42)
 
 
 class TestQuestions:
