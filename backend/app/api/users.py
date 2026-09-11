@@ -18,6 +18,7 @@ from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import User
 from app.schemas.user import UserItemOut, UserListOut, UserPatch
+from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 router = APIRouter(prefix="/api/v1", tags=["users"])
 
@@ -61,7 +62,7 @@ def update_user(
     정당한 조작까지 막고, 정작 마지막 한 명을 남이 강등하는 경로는 열려 있다.
     막아야 하는 것은 **아무도 admin 이 아닌 상태**뿐이다.
     """
-    target = db.get(User, user_id)
+    target = PgTalentRepository(db).get_user(user_id)
     if target is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "사용자를 찾을 수 없습니다")
 

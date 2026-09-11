@@ -22,6 +22,8 @@ from app.schemas.stage import (
 )
 from app.stage_service import apply_stage_change, publish_all, require_reason
 from app.stages import StageTransitionError
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 router = APIRouter(prefix="/api/v1", tags=["applications"])
 
@@ -31,7 +33,7 @@ BULK_LIMIT = 200
 
 
 def _get_or_404(db: Session, application_id: int) -> Application:
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
     return application
@@ -47,7 +49,7 @@ def list_applications(
 
     조회는 로그인한 사람 전체에게 열려 있다 (ADR-0017).
     """
-    if db.get(JobPosting, posting_id) is None:
+    if PgHiringRepository(db).get_posting(posting_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "공고를 찾을 수 없습니다")
 
     stmt = select(Application).where(Application.job_posting_id == posting_id)
@@ -249,7 +251,7 @@ def create_manual_application(
 
     메일·전화로 이력서를 받은 경우를 위한 경로다. 외부 지원(C1)과 세 가지가 다르다.
     """
-    if db.get(JobPosting, posting_id) is None:
+    if PgHiringRepository(db).get_posting(posting_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "공고를 찾을 수 없습니다")
     # 외부 지원과 달리 공고 status 를 보지 않는다. 마감된 공고에도 담당자는 넣을 수 있다.
 

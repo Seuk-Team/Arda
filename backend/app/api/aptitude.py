@@ -39,6 +39,8 @@ from app.schemas.aptitude import (
     SessionOut,
     SubmitRequest,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +183,7 @@ def bulk_send(
     accepted/rejected 등 지난 단계도 건너뛰고, **몇 건이 왜 빠졌는지 숫자로
     돌려준다** — 조용히 빼면 담당자가 빠진 사람을 찾을 방법이 없다.
     """
-    posting = db.get(JobPosting, posting_id)
+    posting = PgHiringRepository(db).get_posting(posting_id)
     if posting is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "공고를 찾을 수 없습니다")
 
@@ -233,7 +235,7 @@ def send_one(
     만료된 지원자에게 다시 보낼 때 이 경로를 쓴다. 단계 제한은 일괄 발송과
     같다 — 서류검토가 지난 지원자에게 보내는 것은 목적(ADR-0027)이 아니다.
     """
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
     if application.current_stage not in SENDABLE_STAGES:
@@ -241,7 +243,7 @@ def send_one(
             HTTPStatus.UNPROCESSABLE_ENTITY,
             "접수·서류검토 단계에서만 발송할 수 있습니다",
         )
-    posting = db.get(JobPosting, application.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
 
     session = _new_session(db, application.id, user.id)
     log_id = _mail_log(db, application, posting, session, user)
@@ -265,7 +267,7 @@ def get_detail(
     드러나야 한다 (ADR-0027). 세션이 없으면 status='none' 뿐이다 —
     미응답 표시는 화면이 하고, 여기서 불이익 요소를 만들지 않는다.
     """
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
@@ -324,8 +326,8 @@ def get_public(token: str, db: Session = Depends(get_db)):
     문항은 pending 일 때만 — 제출이 끝난 설문의 문항을 다시 보여 줄 이유가 없다.
     """
     session = _get_by_token(db, token)
-    application = db.get(Application, session.application_id)
-    posting = db.get(JobPosting, application.job_posting_id) if application else None
+    application = PgApplicationRepository(db).get(session.application_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id) if application else None
 
     questions: list[PublicQuestionOut] = []
     labels: dict[int, str] = {}

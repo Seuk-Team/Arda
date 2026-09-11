@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.shared import chain, ots, s3
 from app.models import Application, ChainPublication, DocumentAnchor, File
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ def anchor_application(db: Session, application_id: int) -> list[DocumentAnchor]
     파일 하나가 실패해도 나머지는 앵커한다. S3 에서 못 읽는 파일 하나 때문에
     자기소개까지 지문이 안 남으면 손해가 크다.
     """
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         return []
 
@@ -233,7 +234,7 @@ def verify_anchor(db: Session, anchor: DocumentAnchor) -> dict:
       "없어졌다"와 "바뀌었다"는 담당자가 해야 할 일이 다르다.
     """
     if anchor.doc_type == "self_intro":
-        application = db.get(Application, anchor.application_id)
+        application = PgApplicationRepository(db).get(anchor.application_id)
         current = application.self_intro if application else None
         if current is None:
             return {"status": "unreadable", "reason": "자기소개가 비어 있습니다"}

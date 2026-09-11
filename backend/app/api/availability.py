@@ -23,6 +23,7 @@ from app.schemas.availability import (
     AvailabilityListOut,
     AvailabilityOut,
 )
+from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 router = APIRouter(prefix="/api/v1", tags=["availability"])
 
@@ -33,7 +34,7 @@ def _assert_target_exists(db: Session, user_id: int) -> User:
     역할 검사는 없다 — 누구나 면접관으로 배정될 수 있으므로(ADR-0017)
     누구의 가용 시간이든 의미가 있다.
     """
-    target = db.get(User, user_id)
+    target = PgTalentRepository(db).get_user(user_id)
     if target is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "사용자를 찾을 수 없습니다")
     return target
