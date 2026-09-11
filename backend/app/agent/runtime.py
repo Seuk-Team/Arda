@@ -39,6 +39,7 @@ from .backends.base import (  # noqa: F401  (기존 임포트 경로 유지)
 )
 from .tools import TOOL_DEFINITIONS, WRITE_TOOL_NAMES, execute_tool
 from .tools.guard import GuardedToolRunner
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def _applicant_label(db: Session, application_id: int | None) -> str:
     if application_id is None:
         return "지원자"
     from app.models import Application
-    app = db.get(Application, int(application_id))
+    app = PgApplicationRepository(db).get(int(application_id))
     if app is None:
         return f"지원자 #{application_id}"
     parts = [app.name]

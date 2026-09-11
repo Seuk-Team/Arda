@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def sources_of(app, db=None) -> dict[str, str]:
     if db is not None and app.job_posting_id:
         from app.models import JobPosting
 
-        posting = db.get(JobPosting, app.job_posting_id)
+        posting = PgHiringRepository(db).get_posting(app.job_posting_id)
         if posting:
             requirements = posting.description or ""
 

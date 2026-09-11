@@ -21,6 +21,8 @@ from app.models import (
     ScheduleSlot,
     User,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 
 # ── 시맨틱 검색어에서 키워드를 뽑는 규칙 ─────────────────────────────
@@ -400,7 +402,7 @@ def _get_latest_schedule(db: Session, application_id: int) -> dict | None:
     if proposal.status == "confirmed" and proposal.confirmed_slot_id:
         slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
         if slot:
-            interviewer = db.get(User, slot.interviewer_id)
+            interviewer = PgTalentRepository(db).get_user(slot.interviewer_id)
             result["confirmed_slot"] = {
                 "start_at": slot.start_at.isoformat(),
                 "end_at": slot.end_at.isoformat(),
@@ -413,7 +415,7 @@ def list_availability(db: Session, user: User, params: dict) -> list[dict]:
     """면접관 가용 시간 조회. 로그인한 사람이면 누구나 (ADR-0017)."""
     interviewer_id = int(params["interviewer_id"])
 
-    target = db.get(User, interviewer_id)
+    target = PgTalentRepository(db).get_user(interviewer_id)
     if target is None:
         return {"error": f"사용자 {interviewer_id}를 찾을 수 없습니다"}
 
@@ -453,7 +455,7 @@ def get_schedule_status(db: Session, user: User, params: dict) -> dict:
     """지원자의 최신 면접 일정 제안 상태 조회."""
     application_id = int(params["application_id"])
 
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
@@ -487,7 +489,7 @@ def get_schedule_status(db: Session, user: User, params: dict) -> dict:
     if proposal.status == "confirmed" and proposal.confirmed_slot_id:
         slot = db.get(ScheduleSlot, proposal.confirmed_slot_id)
         if slot:
-            interviewer = db.get(User, slot.interviewer_id)
+            interviewer = PgTalentRepository(db).get_user(slot.interviewer_id)
             result["confirmed_slot"] = {
                 "start_at": slot.start_at.isoformat(),
                 "end_at": slot.end_at.isoformat(),

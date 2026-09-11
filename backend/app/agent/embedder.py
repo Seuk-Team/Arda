@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
@@ -181,7 +182,7 @@ def embed_application(db: Session, application_id: int) -> None:
         logger.warning("임베딩 건너뜀: %s", exc.reason)
         return
 
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         return
 
