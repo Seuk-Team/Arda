@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app import screening
 from app.company import get_profile
 from app.models import Application, InterviewSession, JobPosting
+from app.ports.output.interview_repository import InterviewRepository
 
 logger = logging.getLogger(__name__)
 
@@ -123,18 +124,25 @@ def score_interview_bg(session_id: int) -> None:
         db.close()
 
 
-def latest_interview_score(db: Session, application_id: int) -> int | None:
-    """지원자의 가장 최근 끝난 면접의 AI 점수. 없으면 None."""
-    from sqlalchemy import select
+def latest_interview_score(
+    db: Session,
+    application_id: int,
+    *,
+    interview_repo: InterviewRepository | None = None,
+) -> int | None:
+    """지원자의 가장 최근 끝난 면접의 AI 점수. 없으면 None.
 
-    return db.scalar(
-        select(InterviewSession.ai_score)
-        .where(InterviewSession.application_id == application_id)
-        .where(InterviewSession.status == "done")
-        .where(InterviewSession.ai_score.is_not(None))
-        .order_by(InterviewSession.ended_at.desc().nulls_last(), InterviewSession.id.desc())
-        .limit(1)
-    )
+    조회는 `InterviewRepository` 로 위임한다 (ADR-0035 Phase 3a). `interview_repo`
+    를 넣으면 그것을 쓰고, 없으면 Postgres 구현으로 기본값. 프로덕션 호출자는 그대로.
+    """
+    if interview_repo is None:
+        from app.adapter.outbound.pg.interview_pg_repository import (
+            PgInterviewRepository,
+        )
+
+        interview_repo = PgInterviewRepository(db)
+
+    return interview_repo.latest_ai_score_for_application(application_id)
 
 
 def _json_safe(value) -> str:
