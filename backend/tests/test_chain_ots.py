@@ -288,7 +288,7 @@ class TestOtsApi:
             patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
             patch("app.shared.anchoring.ots.is_confirmed", return_value=True),
             patch(
-                "app.api.integrity.ots.explorer_url",
+                "app.shared.api.integrity.ots.explorer_url",
                 return_value="https://mempool.space/block/870123",
             ),
         ):
