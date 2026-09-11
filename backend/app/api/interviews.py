@@ -20,7 +20,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import interview_pacing, lie_analysis, s3
+from app import s3
+from app.interview import lie_analysis, pacing as interview_pacing
 from app.agent import stt
 from app.api.files import _extract_ext, validate_audio_upload
 from app.s3 import EXPIRES_IN
@@ -820,7 +821,7 @@ def submit_answer(
     if late:
         # 끝난 면접이다 — 꼬리질문은 만들지 않는다. 채점은 끝날 때 이 글 없이
         # 돌았으니 다시 매긴다(ADR-0034). 늦은 전사가 여럿이면 그만큼 다시 돈다.
-        from app.interview_scoring import score_interview_bg
+        from app.interview.scoring import score_interview_bg
 
         background.add_task(score_interview_bg, session.id)
     else:
@@ -878,7 +879,7 @@ def finish_interview(
     db.commit()
 
     from app.agent.interview_findings import generate_findings_bg
-    from app.interview_scoring import score_interview_bg
+    from app.interview.scoring import score_interview_bg
 
     background.add_task(generate_findings_bg, session.id)
     background.add_task(score_interview_bg, session.id)
