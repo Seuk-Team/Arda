@@ -9,7 +9,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status as http
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -29,98 +29,22 @@ from app.shared.labels import STAGE_LABEL_KR
 from app.models import Application, User
 from app.application.stages import STAGE_ORDER, StageTransitionError, validate_transition
 
+# Pydantic 스키마 (ADR-0035 Phase 4 · schemas/agent.py 로 이관)
+from app.schemas.agent import (
+    ChatRequest,
+    ChatResponse,
+    ChoiceOut,
+    ConfirmRequest,
+    ConfirmResponse,
+    PendingActionOut,
+    SttResponse,
+    SummaryOut,
+    ToolCallOut,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
-
-
-class SttResponse(BaseModel):
-    raw: str
-    resolved: str
-    duration_ms: int
-    audio_duration_sec: float
-    cost_usd: float
-
-
-class SummaryOut(BaseModel):
-    summary: str
-    model: str | None
-
-
-class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
-    history: list[dict] = Field(default_factory=list)
-    # 담당자가 동명이인 선택지(ChatResponse.choices) 버튼으로 고른 지원자. 있으면
-    # 이름 조회를 건너뛰고 이 id 로 확정한다 (2026-09-08 팀장 요청 — "ID 를 손으로
-    # 치지 않고 직접 고르게").
-    application_id: int | None = None
-    # 대화 스레드 식별자. 프론트가 창을 열 때 발급해 여러 턴에 걸쳐 보낸다.
-    # 없어도 되고, 있으면 agent_traces 에 같은 값으로 묶여 다중 턴 학습에 쓸 수 있다.
-    session_id: str | None = None
-
-
-class ToolCallOut(BaseModel):
-    name: str
-    input: dict
-
-
-class PendingActionOut(BaseModel):
-    tool_name: str
-    arguments: dict
-    description: str
-
-
-class ChoiceOut(BaseModel):
-    """사람이 골라야 하는 갈림길 하나 (동명이인). 프론트가 카드로 그린다.
-
-    pending_action 이 붙어 오면 카드 안 확인 버튼 클릭 = agent.confirm 직접 실행
-    (담당자가 원래 요청 → 이름 목록 → id 재입력 → 확인 카드 → 확인, 네 걸음이던
-    것을 카드 딸깍 한 번으로 줄인다). 없으면 폴백으로 message + application_id
-    를 다시 chat 에 보내 서버가 pending 을 만드는 두 단계 흐름을 탄다.
-    """
-    label: str
-    application_id: int
-    message: str
-    # 카드 안에서 사람이 고를 만한 만큼의 상세를 함께 준다 — label 하나로 이어붙이던
-    # 형식은 프론트가 정렬·강조를 잡을 수 없어 카드에 안 맞는다.
-    email: str | None = None
-    stage_label: str | None = None
-    career_years: int | None = None
-    education: str | None = None
-    # 규칙 라우터가 change_stage 를 잡았고 동명이인이 났을 때 각 후보의 pending 을 미리
-    # 만들어 붙인다. 도구 하나에 후보만 여러이므로 arguments 는 application_id 만 다르다.
-    pending_action: PendingActionOut | None = None
-
-
-class ChatResponse(BaseModel):
-    reply: str
-    tool_calls: list[ToolCallOut]
-    pending_action: PendingActionOut | None = None
-    input_tokens: int
-    output_tokens: int
-    # 캐시로 처리된 몫. cache_read_tokens 가 계속 0이면 캐시가 안 걸린 것이다
-    cache_write_tokens: int
-    cache_read_tokens: int
-    # 모델명이 아니라 `backend:model` 태그다 (예: anthropic:claude-haiku-4-5-20251001,
-    # ollama:qwen3:8b). 토크나이저가 달라 백엔드 간 토큰 수를 비교할 수 없으므로
-    # 어느 백엔드가 낸 숫자인지 함께 남긴다.
-    model: str
-    cost_usd: float
-    # 백엔드 식별자. 로컬은 프롬프트 캐싱 개념 자체가 없어서 cache_* 가 0 인데,
-    # 이 필드가 "캐시 미적중"과 "캐시 개념 없음"을 구분해 준다.
-    backend: str = ""
-    # 동명이인 등 담당자가 골라야 답이 이어지는 경우의 선택지. 비면 버튼 없음.
-    choices: list[ChoiceOut] = Field(default_factory=list)
-
-
-class ConfirmRequest(BaseModel):
-    tool_name: str
-    arguments: dict
-
-
-class ConfirmResponse(BaseModel):
-    ok: bool
-    result: dict
 
 
 @router.post(
@@ -163,16 +87,7 @@ def regenerate_summary(
     return SummaryOut(summary=summary, model=app.ai_summary_model)
 
 
-class ProbeClaim(BaseModel):
-    claim: str
-    type: str
-    questions: list[str]
-    # 이 인용이 자기소개서에서 왔는지 이력서에서 왔는지. 면접관이 원문을 찾으러 간다.
-    source: str = "자기소개서"
-
-
-class ProbesOut(BaseModel):
-    claims: list[ProbeClaim]
+from app.schemas.agent import ProbeClaim, ProbesOut  # noqa: F401,E402
 
 
 @router.post(
@@ -339,265 +254,17 @@ def chat(
 
 from app.application.agent_service import (
     CHOICE_LIMIT as _CHOICE_LIMIT,
+    build_per_choice_pendings as _build_per_choice_pendings,
+    choice_for_app as _choice_for_app,
+    choices_from_tool_results as _choices_from_tool_results,
     format_reply as _format_reply,
+    handle_direct as _handle_direct,
     lookup_applicants_by_name as _lookup_applicants_by_name,
+    router_reply as _router_reply,
+    router_response as _router_response,
     stage_label as _stage_label,
+    stage_rule_reply as _stage_rule_reply,
 )
-
-
-def _choice_for_app(
-    app: Application,
-    original: str,
-    pending: PendingActionOut | None = None,
-) -> ChoiceOut:
-    return ChoiceOut(
-        # label 은 짧게 (이름 + ID). 상세는 카드가 필드별로 그린다.
-        label=f"{app.name} (ID {app.id})",
-        application_id=app.id,
-        message=original,
-        email=app.email,
-        stage_label=_stage_label(app.current_stage),
-        career_years=app.career_years,
-        education=app.education,
-        pending_action=pending,
-    )
-
-
-def _choices_from_tool_results(reply: str, tool_results: list, original: str) -> list[ChoiceOut]:
-    """LLM 경로 — 답변이 동명이인을 알렸고 검색 결과에 실제로 같은 이름이 둘 이상이면
-    그 행들을 선택지로 만든다. 답변 본문을 파싱하지 않고 **도구 결과** 만 믿는다
-    (LLM 이 id 를 지어내도 카드는 실제 행만 가리킨다).
-
-    LLM 경로는 pending_action 을 아직 안 붙인다 — LLM 답변에서 목표 도구·arguments
-    를 안전하게 뽑아내기가 어렵다 (원문에 "면접" 이 있다고 to_stage 를 확정하는 것은
-    취약). 이 경로에서는 지금처럼 카드 클릭 = 원 요청 재전송 → 서버가 pending 카드
-    반환 → 확인 카드 클릭의 두 단계. 규칙 라우터 (`_handle_direct`) 에서는 원샷.
-    """
-    if "동명이인" not in (reply or ""):
-        return []
-    rows: list[dict] = []
-    seen: set[int] = set()
-    for tr in tool_results or []:
-        if not isinstance(tr, dict) or tr.get("name") != "search_applications":
-            continue
-        out = tr.get("output")
-        if not isinstance(out, dict):
-            continue
-        for r in out.get("results") or []:
-            if not isinstance(r, dict) or r.get("id") is None or not r.get("name"):
-                continue
-            try:
-                rid = int(r["id"])
-            except (TypeError, ValueError):
-                continue
-            if rid in seen:
-                continue
-            seen.add(rid)
-            rows.append(r)
-    counts: dict[str, int] = {}
-    for r in rows:
-        counts[r["name"]] = counts.get(r["name"], 0) + 1
-    dups = [r for r in rows if counts[r["name"]] >= 2]
-    return [
-        ChoiceOut(
-            label=f"{r['name']} (ID {int(r['id'])})",
-            application_id=int(r["id"]),
-            message=original,
-            email=r.get("email"),
-            stage_label=_stage_label(r.get("current_stage")),
-            career_years=r.get("career_years"),
-            education=r.get("education"),
-            pending_action=None,
-        )
-        for r in dups[:_CHOICE_LIMIT]
-    ]
-
-
-def _build_per_choice_pendings(
-    intent: DirectAction,
-    apps: list[Application],
-    db: Session,
-) -> dict[int, PendingActionOut]:
-    """규칙 라우터가 change_stage 를 잡았고 동명이인이 났을 때 각 후보의 pending 을 미리
-    만든다. 도구 하나 (change_stage) 에 후보만 여럿이므로 arguments 는 application_id
-    만 다르다. 오늘 UX 개선은 담당자가 가장 자주 쓰는 change_stage 하나로 국한한다 —
-    assign_interviewer·draft_email 은 후보별 arguments 계산이 도구마다 다르고, 원샷
-    UX 로 부작용이 안 되돌아오는 것 (특히 draft_email → send_email) 이 있어 뒤에 나눠서.
-
-    전환 규칙이 어긋나는 후보엔 pending 을 안 붙인다 (프론트가 폴백으로 chat 재요청 →
-    서버가 그때 사람 말로 이유를 답한다). 실행 직전에도 /confirm 에서 다시 검사되므로
-    여기 검사는 "카드에 실행 가능 버튼을 안 보이게" 하는 UX 용 (2026-09-02 실측: 카드
-    에 눌러도 매번 실패하는 버튼이 남으면 담당자가 헛수고).
-    """
-    if not intent.is_write or intent.tool_name != "change_stage":
-        return {}
-    base = dict(intent.args)
-    base.pop("_name_lookup", None)
-    to_stage = base.get("to_stage")
-    if not to_stage:
-        return {}
-    result: dict[int, PendingActionOut] = {}
-    for app in apps:
-        try:
-            validate_transition(app.current_stage, to_stage)
-        except StageTransitionError:
-            continue
-        args = {**base, "application_id": app.id}
-        result[app.id] = PendingActionOut(
-            tool_name=intent.tool_name,
-            arguments=args,
-            description=_describe_action(intent.tool_name, args, db),
-        )
-    return result
-
-
-# ── 규칙 라우터 헬퍼 (Phase 1 레버 ②) ──────────────────────────
-
-def _handle_direct(
-    intent: DirectAction,
-    db: Session,
-    user: User,
-    original: str = "",
-    application_id: int | None = None,
-) -> ChatResponse:
-    """라우터가 매치한 요청 실행. LLM 안 부름.
-
-    - 읽기 도구 (`is_write=False`): 도구 즉시 실행 → 결과를 사람이 읽는 짧은
-      답변으로 렌더 → reply 로 반환
-    - 쓰기 도구 (`is_write=True`): `pending_action` 만 만들고 실제 실행은
-      담당자가 확인 카드를 승인해 `/confirm` 이 부를 때
-    - 이름 → id 조회가 필요한 경우 (`_name_lookup`): DB 에서 검색 후 정확·부분
-      일치 순. 0건이면 되묻기, 동명이인이면 **선택지(choices) 를 붙여** 되묻기,
-      1건이면 id 채움. 담당자가 선택지를 눌러 `application_id` 가 왔으면 조회 생략.
-    """
-    args = dict(intent.args)  # 원본 mutate 방지
-    app: Application | None = None
-
-    if "_name_lookup" in args:
-        name = args.pop("_name_lookup")
-        if application_id is not None:
-            app = db.get(Application, application_id)
-            if app is None:
-                return _router_reply(f"ID {application_id} 지원자를 찾지 못했어요. 다시 검색해 주세요.")
-        else:
-            found = _lookup_applicants_by_name(db, name)
-            if not found:
-                return _router_reply(f"'{name}' 지원자를 찾지 못했어요. 이름을 다시 확인해 주세요.")
-            if len(found) > 1:
-                candidates = found[:_CHOICE_LIMIT]
-                # change_stage 시나리오에서 각 후보의 pending 을 미리 만들어 카드에
-                # 붙인다 (담당자 카드 딸깍 = 확인 = 실행 원샷). 다른 도구는 pending
-                # 없이 폴백 흐름 (카드 클릭 → 서버 재요청 → 확인 카드 → 확인).
-                per_choice_pendings = _build_per_choice_pendings(intent, candidates, db)
-                return _router_response(
-                    reply=f"'{name}' 이름으로 {len(found)}명이 있어요. 아래에서 골라 주세요.",
-                    tool_calls=[],
-                    pending=None,
-                    choices=[
-                        _choice_for_app(a, original, pending=per_choice_pendings.get(a.id))
-                        for a in candidates
-                    ],
-                )
-            app = found[0]
-        args["application_id"] = app.id
-
-    if intent.is_write:
-        if intent.tool_name == "change_stage":
-            # 카드를 만들기 **전에** 전환 규칙을 검사한다. 실행 단계(/confirm)에서 422 로
-            # 튀면 카드가 화면에 남아 누를 때마다 같은 오류가 쌓인다 (2026-09-02 실측:
-            # 한도윤 applied→interview, 빨간 박스 5개). 어긋나면 이유를 말하고, 한 칸
-            # 건너뛴 경우엔 '다음 단계' 카드를 대신 제안한다 — 담당자가 원한 방향은 맞으니.
-            if app is None and args.get("application_id") is not None:
-                app = db.get(Application, int(args["application_id"]))
-            to_stage = args.get("to_stage")
-            if app is not None and to_stage:
-                try:
-                    validate_transition(app.current_stage, to_stage)
-                except StageTransitionError as e:
-                    return _stage_rule_reply(app, to_stage, str(e), db)
-        pending = PendingActionOut(
-            tool_name=intent.tool_name,
-            arguments=args,
-            description=_describe_action(intent.tool_name, args, db),
-        )
-        return _router_response(
-            reply="",
-            tool_calls=[ToolCallOut(name=intent.tool_name, input=args)],
-            pending=pending,
-        )
-
-    # 읽기 도구 — 즉시 실행 + 템플릿 렌더
-    output = execute_tool(intent.tool_name, args, db, user, compact=False)
-    try:
-        result = json.loads(output)
-    except json.JSONDecodeError:
-        result = {}
-    reply = _format_reply(intent.tool_name, result)
-    return _router_response(
-        reply=reply,
-        tool_calls=[ToolCallOut(name=intent.tool_name, input=args)],
-        pending=None,
-    )
-
-
-def _stage_rule_reply(app: Application, to_stage: str, reason: str, db: Session) -> ChatResponse:
-    """전환 규칙에 어긋난 요청에 대한 안내. 가능하면 '다음 단계' 카드를 대신 제안."""
-    cur = app.current_stage
-    cur_kr = STAGE_LABEL_KR.get(cur, cur)
-    to_kr = STAGE_LABEL_KR.get(to_stage, to_stage)
-
-    if cur == to_stage:
-        return _router_reply(f"{app.name} 님은 이미 {to_kr} 단계예요.")
-
-    # 전진 두 칸 이상 → 바로 다음 단계를 대신 제안
-    if cur in STAGE_ORDER and to_stage in STAGE_ORDER:
-        here, there = STAGE_ORDER.index(cur), STAGE_ORDER.index(to_stage)
-        if there - here > 1:
-            nxt = STAGE_ORDER[here + 1]
-            nxt_kr = STAGE_LABEL_KR.get(nxt, nxt)
-            args = {"application_id": app.id, "to_stage": nxt}
-            pending = PendingActionOut(
-                tool_name="change_stage",
-                arguments=args,
-                description=_describe_action("change_stage", args, db),
-            )
-            return _router_response(
-                reply=(
-                    f"{app.name} 님은 지금 {cur_kr} 단계라 {to_kr}(으)로 바로 못 옮겨요 "
-                    f"(한 단계씩만 진행). 먼저 {nxt_kr}(으)로 옮길까요?"
-                ),
-                tool_calls=[ToolCallOut(name="change_stage", input=args)],
-                pending=pending,
-            )
-
-    return _router_reply(f"{app.name} 님: {reason}")
-
-
-def _router_reply(text: str) -> ChatResponse:
-    """짧은 안내만 있는 라우터 응답 (도구 호출 없음, 되묻기 등)."""
-    return _router_response(reply=text, tool_calls=[], pending=None)
-
-
-def _router_response(
-    reply: str,
-    tool_calls: list[ToolCallOut],
-    pending: PendingActionOut | None,
-    choices: list[ChoiceOut] | None = None,
-) -> ChatResponse:
-    """라우터 응답 공통 shape. backend/model 태그로 라우터 힛을 표시."""
-    return ChatResponse(
-        reply=reply,
-        tool_calls=tool_calls,
-        pending_action=pending,
-        choices=choices or [],
-        input_tokens=0,
-        output_tokens=0,
-        cache_write_tokens=0,
-        cache_read_tokens=0,
-        model="router:v1",
-        cost_usd=0.0,
-        backend="router",
-    )
 
 
 
