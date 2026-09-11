@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 # LogRecord 가 스스로 채우는 표준 속성. extra 로 넘어온 것만 남기려면 이걸 빼야 한다.
 _RESERVED = frozenset({
@@ -28,7 +28,11 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_dict = {
-            "ts": datetime.utcnow().isoformat() + "Z",
+            # `utcnow()` 는 폐기 예정이고 tz 없는 값을 준다. 출력 모양("...Z")은
+            # 그대로 두고 tz-aware 로 바꿨다 — 루트 로거까지 설정한 뒤로는 이
+            # 포맷터가 모든 로그를 처리해서, 경고가 레코드마다 한 번씩 났다
+            # (2026-09-12 전체 테스트에서 경고 381건 증가로 드러났다).
+            "ts": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
         }
 
@@ -52,19 +56,48 @@ class JSONFormatter(logging.Formatter):
 
 
 def setup_logging():
-    """로깅 설정 — JSON 한 줄 포맷."""
-    logger = logging.getLogger("uvicorn.access")
-    logger.handlers.clear()
+    """로깅 설정 — JSON 한 줄 포맷.
 
+    **루트 로거까지 덮는 이유** (2026-09-12): `python -m app.shared.worker` 처럼
+    `-m` 으로 띄우면 그 모듈의 `__name__` 이 `"__main__"` 이 된다. 그래서
+    `logging.getLogger(__name__)` 로 만든 로거가 `app` 트리 **밖**에 놓이고,
+    여기서 `app` 만 설정하면 그 로거의 INFO 는 아무 핸들러도 받지 못해 사라진다.
+    WARNING 이상만 logging 의 lastResort 핸들러로 **평문**으로 새어 나온다.
+
+    실제로 프로덕션 메일 워커가 그 상태였다 — `docker logs arda-worker-1` 이
+    0바이트였고 (시작 로그·발송 완료 로그 전부 소실), 크래시 트레이스만 보였다.
+    그래서 워커가 죽어 있어도 "Up" 외에 볼 신호가 없었다.
+    """
     handler = logging.StreamHandler()
     handler.setFormatter(JSONFormatter())
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
 
-    # 비즈니스 로직 로거
+    # 루트 — `-m` 진입점(`__main__`)·서드파티 로거까지 같은 JSON 포맷으로 받는다.
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+
+    # uvicorn 액세스 로그는 **핸들러를 직접 붙인다** (루트 전파에 맡기지 않는다).
+    # uvicorn 이 자기 `dictConfig` 를 우리 설정 뒤에 다시 적용하는 경우가 있어
+    # (실측: `--log-level` 을 주고 띄우면 평문 포맷으로 되돌아간다), 전파에만
+    # 맡기면 JSON 이던 액세스 로그가 조용히 평문으로 바뀐다. 붙여 두고
+    # `propagate=False` 로 두면 포맷이 고정되고 이중 출력도 없다.
+    access = logging.getLogger("uvicorn.access")
+    access.handlers.clear()
+    access.addHandler(handler)
+    access.propagate = False
+    access.setLevel(logging.INFO)
+
+    # 비즈니스 로직 로거 — 루트로 전파시켜 한 번만 찍는다.
     app_logger = logging.getLogger("app")
     app_logger.handlers.clear()
-    app_logger.addHandler(handler)
+    app_logger.propagate = True
     app_logger.setLevel(logging.INFO)
+
+    # 루트를 INFO 로 열면 서드파티 INFO 까지 들어온다. 쓸모보다 양이 많은 것만
+    # 눌러 둔다 — 로그 파일은 20MB × 3 으로 돌려쓰기 때문에(compose logging),
+    # 소음이 많으면 **정작 필요한 줄이 먼저 밀려 나간다**.
+    for noisy in ("botocore", "boto3", "urllib3", "s3transfer", "httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     return app_logger
