@@ -37,6 +37,8 @@ import re
 import time
 
 from app.agent.interview_probe import _fingerprint
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.interview_pg_repository import PgInterviewRepository
 
 logger = logging.getLogger(__name__)
 
@@ -315,8 +317,8 @@ def save_turn_findings(db, turn_id: int) -> int | None:
         # 말이 안 담겼거나 전사를 못 한 칸. 맞춰 볼 말이 없다 — 토큰을 쓰지 않는다
         return 0
 
-    session = db.get(InterviewSession, turn.session_id)
-    app_row = db.get(Application, session.application_id) if session else None
+    session = PgInterviewRepository(db).get_session(turn.session_id)
+    app_row = PgApplicationRepository(db).get(session.application_id) if session else None
     if app_row is None:
         return None
 
@@ -379,10 +381,10 @@ def save_session_findings(db, session_id: int) -> int | None:
 
     from app.models import Application, InterviewFinding, InterviewSession, InterviewTurn
 
-    session = db.get(InterviewSession, session_id)
+    session = PgInterviewRepository(db).get_session(session_id)
     if session is None:
         return None
-    app_row = db.get(Application, session.application_id)
+    app_row = PgApplicationRepository(db).get(session.application_id)
     if app_row is None:
         return None
 

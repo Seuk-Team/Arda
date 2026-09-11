@@ -25,6 +25,8 @@ from app.models import (
 )
 from app.stage_service import apply_stage_change, publish_all, require_reason
 from app.stages import StageTransitionError
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 # 확인 게이트를 타는 도구. **부수효과가 있는 것만 넣는다.**
 # draft_email 은 초안 텍스트만 돌려주고 아무것도 바꾸지 않아서 뺐다 — 초안 하나
@@ -47,7 +49,7 @@ def change_stage(db: Session, user: User, params: dict) -> dict:
     to_stage = params["to_stage"]
     reason = params.get("reason")
 
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
@@ -89,7 +91,7 @@ def assign_interviewer(db: Session, user: User, params: dict) -> dict:
     if isinstance(interviewer_ids, int):
         interviewer_ids = [interviewer_ids]
 
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
     # 역할 검사는 없다 — 누구나 면접관으로 배정될 수 있다 (ADR-0017).
@@ -132,7 +134,7 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     slot_minutes = int(params.get("slot_minutes", 60))
     max_slots = int(params.get("max_slots", 5))
 
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
@@ -242,7 +244,7 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
 
 
 def _posting_title(db: Session, app: Application) -> str:
-    posting = db.get(JobPosting, app.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(app.job_posting_id)
     return posting.title if posting else ""
 
 
@@ -268,7 +270,7 @@ def draft_email(db: Session, user: User, params: dict) -> dict:
     application_id = int(params["application_id"])
     purpose = params.get("purpose", "general")
 
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
 
@@ -315,7 +317,7 @@ def send_email(db: Session, user: User, params: dict) -> dict:
     subject = (params.get("subject") or "").strip()
     body = (params.get("body") or "").strip()
 
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         return {"error": f"지원자 {application_id}를 찾을 수 없습니다"}
     if not subject or not body:

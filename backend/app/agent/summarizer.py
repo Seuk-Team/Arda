@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from app.models import Application, JobPosting
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +93,7 @@ def _build_prompt_vars(db: Session, app: Application) -> dict[str, str]:
     """
     from app.agent.extractor import extract_text
 
-    posting = db.get(JobPosting, app.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(app.job_posting_id)
     posting_title = posting.title if posting else "공고 정보 없음"
     # 요건 = description + requirements(0013). 둘 다 비면 "정보 없음" 을 그대로 보여 준다 —
     # 프롬프트가 빈 문장을 요건으로 오해하지 않게. 우대·인재상도 같은 규칙 (ADR-0034).
@@ -222,7 +224,7 @@ def _parse_json(
 
 def generate_summary(db: Session, application_id: int) -> str | None:
     """3단계 파이프라인으로 AI 요약을 생성하고 DB에 저장한다."""
-    app = db.get(Application, application_id)
+    app = PgApplicationRepository(db).get(application_id)
     if app is None:
         logger.warning("요약 대상 없음: application_id=%d", application_id)
         return None
@@ -422,7 +424,7 @@ def generate_summary_bg(application_id: int) -> None:
             try:
                 from app import screening
 
-                app = db.get(Application, application_id)
+                app = PgApplicationRepository(db).get(application_id)
                 if app is not None:
                     screening.decide_document(db, app)
             except Exception:
