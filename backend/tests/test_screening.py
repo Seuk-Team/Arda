@@ -34,15 +34,40 @@ W = screening.DEFAULT_WEIGHTS
 class TestScoreMath:
     def test_doc_score_weighted(self):
         detail = {"requirements": 80, "preferred": 60, "culture": 70}
-        # (80*50 + 60*20 + 70*30) / 100 = 73
-        assert screening.doc_score_from(detail, W) == 73
+        # 2026-09-11 개정 가중치: req 60, pref 10, cul 30.
+        # req 80 ≥ 70 이지만 cul 70 이 이미 하한(50) 위라 하한 규칙은 영향 없음.
+        # (80*60 + 60*10 + 70*30) / 100 = 75
+        assert screening.doc_score_from(detail, W) == 75
 
     def test_doc_score_missing_part_renormalizes(self):
-        # 우대가 없으면 요건·인재상만으로 (80*50 + 70*30)/80 = 76.25 → 76
-        assert screening.doc_score_from({"requirements": 80, "culture": 70}, W) == 76
+        # 우대 없음: (80*60 + 70*30) / 90 = 76.67 → 77
+        assert screening.doc_score_from({"requirements": 80, "culture": 70}, W) == 77
 
     def test_doc_score_all_missing_is_none(self):
         assert screening.doc_score_from({}, W) is None
+
+    def test_doc_score_culture_floor_when_requirements_high(self):
+        """요건 우수(≥70) + 문화 감점(<50) — 문화가 50으로 하한된다."""
+        # req 75, pref 50, cul 35 (남기훈 케이스)
+        # 하한 규칙 없다면: (75*60 + 50*10 + 35*30) / 100 = 60.5 → 60 (아슬 pass)
+        # 하한 규칙: cul → 50 · (75*60 + 50*10 + 50*30) / 100 = 65
+        assert screening.doc_score_from(
+            {"requirements": 75, "preferred": 50, "culture": 35}, W,
+        ) == 65
+
+    def test_doc_score_culture_floor_not_applied_when_requirements_low(self):
+        """요건이 70 미만이면 하한 규칙이 적용되지 않는다."""
+        # req 65, pref 50, cul 35 → (65*60 + 50*10 + 35*30) / 100 = 54.5 → 54 (bankers rounding)
+        assert screening.doc_score_from(
+            {"requirements": 65, "preferred": 50, "culture": 35}, W,
+        ) == 54
+
+    def test_doc_score_culture_floor_does_not_lower_good_culture(self):
+        """이미 50 이상의 문화 점수는 하한이 건드리지 않는다."""
+        # req 80, pref 50, cul 90 → 하한 규칙 무관 · (80*60 + 50*10 + 90*30) / 100 = 80
+        assert screening.doc_score_from(
+            {"requirements": 80, "preferred": 50, "culture": 90}, W,
+        ) == 80
 
     def test_interview_without_truth_uses_answers_only(self):
         assert screening.interview_score_from(64, None, W) == 64
