@@ -16,10 +16,15 @@ import pytest
 from app.agent.interview_findings import (
     KOREAN,
     MAX_FINDINGS,
+    TURN_MAX_FINDINGS,
     _parse_findings,
     enabled_backend,
     generate_findings,
     generate_findings_bg,
+    generate_turn_findings,
+    generate_turn_findings_bg,
+    save_session_findings,
+    save_turn_findings,
     transcript_of,
 )
 
@@ -220,3 +225,203 @@ class TestNoBackendCall:
 
         monkeypatch.setattr("app.agent.backends.build_backend", boom)
         assert generate_findings(sources, transcript) == []
+
+
+# ── 답변마다 대조 (2026-09-11) ──────────────────────────────────────
+
+KAFKA = "Kafka를 도입해 정산 파이프라인을 재작성했습니다."
+TURN_SAID = "[질문 2] Kafka는 어떻게 쓰셨나요?\n[답변 2] Kafka는 써 본 적 없습니다."
+
+
+class _Fake:
+    """모델 대신 정해진 답을 돌려준다. 받은 프롬프트를 남겨 무엇을 불렀는지 본다."""
+
+    supports_structured_output = False
+
+    def __init__(self, text: str):
+        self.text = text
+        self.prompts: list[str] = []
+
+    def unavailable_reason(self):
+        return None
+
+    def complete(self, prompt, max_tokens, json_schema=None):
+        from app.agent.backends.base import CompletionResult
+
+        self.prompts.append(prompt)
+        return CompletionResult(text=self.text, stop_reason="end_turn")
+
+
+def _use(monkeypatch, fake) -> None:
+    monkeypatch.setenv("AGENT_FINDINGS_BACKEND", "ollama")
+    monkeypatch.setattr("app.agent.interview_findings.enabled_backend", lambda: fake)
+
+
+def _kafka_inconsistent() -> _Fake:
+    return _Fake(
+        _raw(_one(claim_text=KAFKA, answer_text="Kafka는 써 본 적 없습니다.", verdict="inconsistent"))
+    )
+
+
+class TestTurnFindings:
+    """답변 하나로 만드는 대조 — 면접 도중 담당자 화상 방에 뜬다."""
+
+    def test_답변_하나로는_확인필요를_내지_않는다(self, monkeypatch):
+        """다음 답변에서 다룰 수 있는 주장을 '안 다뤄졌다' 고 말하면 거짓이다."""
+        fake = _Fake(
+            _raw(
+                _one(claim_text=KAFKA, answer_text="Kafka는 써 본 적 없습니다.", verdict="inconsistent"),
+                _one(verdict="unverified", answer_text=""),
+            )
+        )
+        _use(monkeypatch, fake)
+        got = generate_turn_findings({"cover_letter": COVER, "resume": RESUME}, TURN_SAID)
+        assert [(f["claim_source"], f["verdict"]) for f in got] == [("resume", "inconsistent")]
+
+    def test_답변용_프롬프트를_쓴다(self, monkeypatch):
+        fake = _Fake(_raw())
+        _use(monkeypatch, fake)
+        generate_turn_findings({"cover_letter": COVER, "resume": RESUME}, TURN_SAID)
+        assert "방금 한 답변" in fake.prompts[0]
+        assert "Kafka는 써 본 적 없습니다." in fake.prompts[0]
+
+    def test_답변_하나에서_세_개까지만(self, monkeypatch):
+        claims = ["응답이 820ms에서 240ms로 줄었습니다.", "좋은 개발자가 되고 싶습니다.", KAFKA, "Python, FastAPI"]
+        fake = _Fake(_raw(*[_one(claim_text=c, answer_text="Kafka는 써 본 적 없습니다.") for c in claims]))
+        _use(monkeypatch, fake)
+        got = generate_turn_findings({"cover_letter": COVER, "resume": RESUME}, TURN_SAID)
+        assert len(got) == TURN_MAX_FINDINGS
+
+    def test_못_읽으면_None(self, monkeypatch):
+        """빈 리스트('닿는 주장이 없었다')와 다르다 — 못 돌린 것이다."""
+        _use(monkeypatch, _Fake("음... 잘 모르겠습니다"))
+        assert generate_turn_findings({"cover_letter": COVER, "resume": RESUME}, TURN_SAID) is None
+
+    def test_꺼져_있으면_DB_도_안_연다(self, monkeypatch):
+        monkeypatch.delenv("AGENT_FINDINGS_BACKEND", raising=False)
+
+        def boom(*a, **kw):
+            raise AssertionError("꺼져 있는데 DB 를 열었다")
+
+        monkeypatch.setattr("app.db.SessionLocal", boom)
+        generate_turn_findings_bg(1, 1)  # 조용히 끝나야 한다
+
+
+class TestSaveTurnFindings:
+    """답변 대조를 그 답변에 붙여 남긴다 — 화상 방이 답변 밑에 띄우는 근거."""
+
+    @pytest.fixture()
+    def turn(self, db, application, admin_user, monkeypatch):
+        import app.agent.interview_findings as mod
+        from app.models import InterviewSession, InterviewTurn
+
+        monkeypatch.setattr(mod, "_sources_cache", {})
+        application.self_intro = f"{COVER} {KAFKA}"
+        s = InterviewSession(
+            application_id=application.id,
+            token="tok-turn-findings",
+            status="in_progress",
+            created_by=admin_user.id,
+        )
+        db.add(s)
+        db.flush()
+        t = InterviewTurn(
+            session_id=s.id,
+            seq=2,
+            question="Kafka는 어떻게 쓰셨나요?",
+            transcript="Kafka는 써 본 적 없습니다.",
+        )
+        db.add(t)
+        db.flush()
+        return t
+
+    def _rows(self, db, turn):
+        from sqlalchemy import select
+
+        from app.models import InterviewFinding
+
+        db.expire_all()
+        return db.scalars(
+            select(InterviewFinding)
+            .where(InterviewFinding.session_id == turn.session_id)
+            .order_by(InterviewFinding.id)
+        ).all()
+
+    def test_그_답변에_붙는다(self, db, turn, monkeypatch):
+        _use(monkeypatch, _kafka_inconsistent())
+        assert save_turn_findings(db, turn.id) == 1
+        (row,) = self._rows(db, turn)
+        assert (row.turn_id, row.turn_seq) == (turn.id, 2)
+        assert (row.claim_source, row.verdict) == ("self_intro", "inconsistent")
+
+    def test_다시_돌려도_두_줄이_되지_않는다(self, db, turn, monkeypatch):
+        """전사가 늦게 다시 와도 같은 주장이 쌓이면 면접관이 최신을 모른다."""
+        _use(monkeypatch, _kafka_inconsistent())
+        save_turn_findings(db, turn.id)
+        save_turn_findings(db, turn.id)
+        assert len(self._rows(db, turn)) == 1
+
+    def test_끝날_때_만든_같은_주장은_답변_쪽으로_바뀐다(self, db, turn, monkeypatch):
+        from app.models import InterviewFinding
+
+        db.add(
+            InterviewFinding(
+                session_id=turn.session_id,
+                claim_source="self_intro",
+                claim_text=KAFKA,
+                answer_text="",
+                verdict="unverified",
+            )
+        )
+        db.flush()
+        _use(monkeypatch, _kafka_inconsistent())
+        save_turn_findings(db, turn.id)
+        assert [(r.turn_id, r.verdict) for r in self._rows(db, turn)] == [
+            (turn.id, "inconsistent")
+        ]
+
+    def test_전사_자리표시자는_맞춰_보지_않는다(self, db, turn, monkeypatch):
+        """워커가 전사를 못 했을 때 넣는 글이다. 지원자가 한 말이 아니다."""
+        turn.transcript = "[전사 지연 · 발화 8.9초]"
+        db.flush()
+
+        def boom():
+            raise AssertionError("자리표시자로 모델을 불렀다")
+
+        monkeypatch.setenv("AGENT_FINDINGS_BACKEND", "ollama")
+        monkeypatch.setattr("app.agent.interview_findings.enabled_backend", boom)
+        assert save_turn_findings(db, turn.id) == 0
+        assert self._rows(db, turn) == []
+
+    def test_서류는_답변마다_다시_읽지_않는다(self, db, turn, monkeypatch):
+        """`sources_of` 는 S3 에서 PDF 를 받는다 — 답변마다 부르면 같은 이력서를 스무 번 받는다."""
+        import app.agent.interview_probe as probe
+
+        calls = []
+        real = probe.sources_of
+        monkeypatch.setattr(
+            probe, "sources_of", lambda app, db=None: calls.append(1) or real(app, db)
+        )
+        _use(monkeypatch, _kafka_inconsistent())
+        save_turn_findings(db, turn.id)
+        save_turn_findings(db, turn.id)
+        assert len(calls) == 1
+
+    def test_끝날_때_전체_대조는_답변_대조를_지우지_않는다(self, db, turn, monkeypatch):
+        """같은 주장이 '답변 2 · 불일치' 와 '전체 · 일치' 두 줄로 뜨면 안 된다.
+        끝날 때는 답변 대조가 다루지 않은 주장(확인필요)만 보탠다."""
+        _use(monkeypatch, _kafka_inconsistent())
+        save_turn_findings(db, turn.id)
+
+        full = _Fake(
+            _raw(
+                _one(claim_text=KAFKA, answer_text="Kafka는 써 본 적 없습니다.", verdict="consistent"),
+                _one(verdict="unverified", answer_text=""),
+            )
+        )
+        _use(monkeypatch, full)
+        assert save_session_findings(db, turn.session_id) == 1
+        assert [(r.turn_seq, r.verdict) for r in self._rows(db, turn)] == [
+            (2, "inconsistent"),
+            (None, "unverified"),
+        ]

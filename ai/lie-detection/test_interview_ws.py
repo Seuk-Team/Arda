@@ -180,6 +180,47 @@ class TestScore:
         assert abs(out["truth_pct"] + out["lie_pct"] - 100.0) < 0.2
         assert any(s["key"] == "눈 깜빡임" for s in out["signals"])
 
+    def test_목소리_지표를_같이_낸다(self):
+        """판정 벡터 100개 중 86개가 목소리다 (2026-09-11). 200Hz 한 음을 그대로 내면
+        음 높이는 200 근처, 억양 폭은 0 에 가깝게 나와야 한다."""
+        t = np.arange(SAMPLE_RATE * 3) / SAMPLE_RATE
+        pcm = (np.sin(2 * np.pi * 200 * t) * 8000).astype(np.int16).tobytes()
+        rows = [
+            [0.25 + i * 0.001, 0.25, 0.05, 10.0, 10.0, 0.01, 0.0] for i in range(30)
+        ]
+        out = score(pcm, rows=rows, seconds=4.0)
+        assert out["ok"] is True
+        v = out["voice"]
+        assert abs(v["pitch_hz"] - 200) < 10
+        assert v["pitch_var_st"] < 0.5
+        assert v["voiced_pct"] > 50
+        assert {"loud_db", "loud_var_db"} <= set(v)
+
+    def test_판정_벡터는_예전_계산과_숫자까지_같다(self):
+        """model.pkl 은 예전 계산으로 배웠다. 지표를 붙이면서 벡터가 바뀌면 판정이
+        조용히 달라진다 — 예전 식을 그대로 옮겨 놓고 비교한다."""
+        import librosa
+
+        from feature_extractor import extract_audio_with_voice
+
+        rng = np.random.default_rng(3)
+        y = rng.normal(0, 0.1, 22050 * 2).astype(np.float32)
+        vec, _ = extract_audio_with_voice(y, 22050)
+
+        mfcc = librosa.feature.mfcc(y=y.astype(np.float32), sr=22050, n_mfcc=40)
+        rms = librosa.feature.rms(y=y)
+        zcr = librosa.feature.zero_crossing_rate(y=y)
+        f0, _, _ = librosa.pyin(y, fmin=50, fmax=500, frame_length=2048, hop_length=512)
+        f0 = np.nan_to_num(f0)
+        old = np.concatenate([
+            mfcc.mean(axis=1), mfcc.std(axis=1),
+            rms.mean(axis=1), rms.std(axis=1),
+            zcr.mean(axis=1), zcr.std(axis=1),
+            [f0.mean(), f0.std()],
+        ])
+        assert vec.shape == (86,)
+        np.testing.assert_array_equal(vec, old)
+
 
 class TestNoiseFloor:
     """2026-09-08 운영 사고 회귀 시험.

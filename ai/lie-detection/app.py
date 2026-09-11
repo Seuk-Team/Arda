@@ -625,6 +625,9 @@ async def _live_verdict(client, session: InterviewSession) -> None:
         }
         if result.get("expressions"):
             payload["expressions"] = result["expressions"]
+        # 목소리 지표 (2026-09-11). 백엔드 `VerdictIn` 이 extra 를 허용해 그대로 넘어간다
+        if result.get("voice"):
+            payload["voice"] = result["voice"]
         await push_verdict(
             client,
             session.token,

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { applications, interviews, postings } from '../api/endpoints'
-import type { InterviewSessionDetail } from '../api/types'
+import type { InterviewFinding, InterviewSessionDetail } from '../api/types'
 import styles from './InterviewRoom.module.css'
-import { useLiveAnalysis } from './useLiveAnalysis'
+import { useLiveAnalysis, type VoiceSignals } from './useLiveAnalysis'
 import { phaseLabel, useInterviewRoom } from './useInterviewRoom'
 
 /** 숫자 한 칸. 값이 없으면 자리만 지킨다 — `InterviewWatch` 와 같은 표기. */
@@ -28,6 +28,127 @@ function _Bar({ label, pct, lead }: { label: string; pct?: number; lead: boolean
         />
       </span>
       <span className={styles.barPct}>{fmt(pct)}</span>
+    </div>
+  )
+}
+
+/* ── 목소리 (2026-09-11) ─────────────────────────────────────────
+   판정 입력 100개 중 86개가 목소리인데 판넬에는 얼굴만 있었다. 음색(MFCC 80개)은
+   사람이 읽을 숫자가 아니라 빼고, 음 높이·크기·말소리 비율만 보여 준다.
+
+   **「평소」 는 이 면접에서 잰 값의 가운데값이다.** 사람마다 목소리가 달라 절대
+   기준(몇 Hz 면 높다)을 두면 목소리가 낮은 사람에게는 늘 "낮음" 이 뜬다. 같은
+   사람의 앞선 값과만 비교한다. 방향 말(높음·낮음)도 색 없이 굵기로만 — 막대와
+   같은 규칙이다. */
+
+/** 평소를 말하려면 이만큼은 모여야 한다. 몇 개로 잡은 가운데값은 우연이다 */
+const BASELINE_MIN = 5
+
+const VOICE_ROWS: {
+  key: keyof VoiceSignals
+  label: string
+  unit: string
+  digits: number
+  /** 평소와의 차이. 음 높이는 반음으로 잰다 — 같은 Hz 차이도 목소리 높낮이에 따라 무게가 다르다 */
+  diff: (now: number, base: number) => number
+  /** 이만큼 벌어지면 방향 말을 붙인다 */
+  gap: number
+  up: string
+  down: string
+}[] = [
+  {
+    key: 'pitch_hz',
+    label: '음 높이',
+    unit: 'Hz',
+    digits: 0,
+    diff: (n, b) => (n > 0 && b > 0 ? 12 * Math.log2(n / b) : 0),
+    gap: 1.5,
+    up: '높음',
+    down: '낮음',
+  },
+  { key: 'pitch_var_st', label: '억양 폭', unit: '반음', digits: 1, diff: (n, b) => n - b, gap: 1, up: '큼', down: '작음' },
+  { key: 'loud_db', label: '목소리 크기', unit: 'dB', digits: 0, diff: (n, b) => n - b, gap: 3, up: '큼', down: '작음' },
+  { key: 'loud_var_db', label: '크기 흔들림', unit: 'dB', digits: 1, diff: (n, b) => n - b, gap: 2, up: '큼', down: '작음' },
+  { key: 'voiced_pct', label: '말소리 비율', unit: '%', digits: 0, diff: (n, b) => n - b, gap: 15, up: '많음', down: '적음' },
+]
+
+function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b)
+  const m = Math.floor(s.length / 2)
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+}
+
+function num(v: number | undefined, digits: number, unit: string): string {
+  return typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(digits)} ${unit}` : '—'
+}
+
+/** 목소리 표 — 지금 / 평소 / 차이. `past` 는 지금 값을 뺀 앞선 값들 */
+function _VoiceTable({ now, past }: { now: VoiceSignals; past: VoiceSignals[] }) {
+  return (
+    <div className={styles.voice}>
+      <p className={styles.groupLabel}>목소리 (판정 입력 100개 중 86개)</p>
+      <table className={styles.voiceTable}>
+        <thead>
+          <tr>
+            <th scope="col">항목</th>
+            <th scope="col">지금</th>
+            <th scope="col">평소</th>
+            <th scope="col">차이</th>
+          </tr>
+        </thead>
+        <tbody>
+          {VOICE_ROWS.map((r) => {
+            const v = now[r.key]
+            const seen = past
+              .map((p) => p[r.key])
+              .filter((x): x is number => typeof x === 'number' && Number.isFinite(x))
+            const base = seen.length >= BASELINE_MIN ? median(seen) : undefined
+            let note = '—'
+            if (typeof v === 'number' && base !== undefined) {
+              const d = r.diff(v, base)
+              note = d >= r.gap ? r.up : d <= -r.gap ? r.down : '비슷'
+            } else if (typeof v === 'number') {
+              note = `모으는 중 ${seen.length}/${BASELINE_MIN}`
+            }
+            const marked = note === r.up || note === r.down
+            return (
+              <tr key={r.key}>
+                <th scope="row">{r.label}</th>
+                <td>{num(v, r.digits, r.unit)}</td>
+                <td>{num(base, r.digits, r.unit)}</td>
+                <td className={marked ? styles.signalMarked : undefined}>{note}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className={styles.voiceNote}>
+        음색(MFCC 80개)은 사람이 읽을 숫자가 아니라 뺐습니다. 「평소」는 이 면접에서 잰
+        값의 가운데값이고, 크기(dB)는 마이크마다 기준이 달라 변화만 봅니다.
+      </p>
+    </div>
+  )
+}
+
+/* ── 서류 대조 (2026-09-11) ──────────────────────────────────────
+   답변이 저장될 때마다 서버가 그 답변 하나를 이력서·자기소개서와 맞춰 본다.
+   **서류 원문을 그대로** 두고 판단은 면접관이 한다 (ADR-0003). 판정 말은
+   `agent/interview_findings.py` 의 `KOREAN` 과 같다. 여기서도 색을 쓰지 않는다. */
+const VERDICT_KO: Record<string, string> = {
+  consistent: '서류와 일치',
+  inconsistent: '서류와 불일치',
+  unverified: '확인필요',
+}
+const SOURCE_KO: Record<string, string> = { resume: '이력서', self_intro: '자기소개서' }
+
+function _Finding({ f }: { f: InterviewFinding }) {
+  return (
+    <div className={styles.finding}>
+      <span className={f.verdict === 'inconsistent' ? styles.findingMarked : styles.findingVerdict}>
+        {VERDICT_KO[f.verdict] ?? f.verdict}
+      </span>
+      <span className={styles.findingSource}>{SOURCE_KO[f.claim_source] ?? f.claim_source}</span>
+      <q className={styles.findingClaim}>{f.claim_text}</q>
     </div>
   )
 }
@@ -121,6 +242,20 @@ export default function InterviewRoom() {
     )
   }
 
+  /* 서류 대조를 답변 번호로 묶는다. 번호가 없는 것은 끝난 뒤 전체로 본 것이다. */
+  const findings = detail?.findings ?? []
+  const findingsBySeq = new Map<number, InterviewFinding[]>()
+  for (const f of findings) {
+    if (typeof f.turn_seq !== 'number') continue
+    findingsBySeq.set(f.turn_seq, [...(findingsBySeq.get(f.turn_seq) ?? []), f])
+  }
+  const unmatched = findings.filter((f) => typeof f.turn_seq !== 'number')
+  const counts = {
+    consistent: findings.filter((f) => f.verdict === 'consistent').length,
+    inconsistent: findings.filter((f) => f.verdict === 'inconsistent').length,
+    unverified: findings.filter((f) => f.verdict === 'unverified').length,
+  }
+
   const waiting = phase !== 'live'
 
   return (
@@ -169,28 +304,9 @@ export default function InterviewRoom() {
           <video ref={localRef} className={styles.local} autoPlay playsInline muted />
         </div>
 
+        {/* **실시간 분석을 먼저 둔다** (2026-09-11). 질문 10개를 위에 두면 판넬이
+            화면 밖으로 밀려나, 실측에서 담당자가 판넬을 찾지 못했다. */}
         <aside className={styles.side}>
-          <section className={styles.panel}>
-            <h2 className={styles.panelTitle}>질문·답변</h2>
-            {detail?.turns?.length ? (
-              <ol className={styles.questions}>
-                {detail.turns.map((t) => (
-                  <li key={t.seq} className={styles.question}>
-                    {t.question}
-                    {/* 서버가 저장한 답변 전사(2026-09-09).
-                        아직 안 온 것은 자리만 남긴다 — "아직 답 없음" 을 안 적으면
-                        지원자가 지금 답하는 중인지 다 넘긴 것인지 화면으로 알 수 없다. */}
-                    <div className={styles.answer}>
-                      {t.transcript ?? <em className={styles.pending}>아직 답이 저장되지 않았습니다.</em>}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className={styles.empty}>준비된 질문이 없습니다.</p>
-            )}
-          </section>
-
           {/* 실시간 분석 (2026-09-09). **지원자에게서 받은 영상을 여기서**
               워커로 넘긴다 — 지원자 기기는 아무것도 더 하지 않고, 판정이
               그쪽으로 갈 길도 없다 (ADR-0029 · `useLiveAnalysis`). */}
@@ -263,6 +379,9 @@ export default function InterviewRoom() {
                 {/* 얼굴에서 실제로 잰 것들 — mediapipe 로 재는 landmarks 기반 값.
                     표정 라벨과 별개로 눈 깜빡임·눈썹 높이·고개 움직임 같은 것. */}
                 {analysis.latest.signals?.length ? (
+                  <p className={styles.groupLabel}>얼굴 (판정 입력 100개 중 14개)</p>
+                ) : null}
+                {analysis.latest.signals?.length ? (
                   <ul className={styles.signals}>
                     {analysis.latest.signals.map((sig) => (
                       <li key={sig.key} className={styles.signalRow}>
@@ -280,6 +399,10 @@ export default function InterviewRoom() {
                     ))}
                   </ul>
                 ) : null}
+
+                {analysis.latest.voice && (
+                  <_VoiceTable now={analysis.latest.voice} past={analysis.voices.slice(1)} />
+                )}
 
                 {/* **이 문단을 지우지 말 것.** 숫자만 두면 합불 근거처럼 읽힌다.
                     `InterviewWatch` 와 같은 말을 쓴다 — 같은 값을 두 화면이
@@ -309,6 +432,49 @@ export default function InterviewRoom() {
                   </p>
                 )}
               </>
+            )}
+          </section>
+
+          <section className={styles.panel}>
+            <h2 className={styles.panelTitle}>질문·답변</h2>
+            {/* 대조가 비어 있을 때 **꺼진 것인지 아직 없는 것인지** 를 가른다 —
+                둘 다 빈 목록이라 적지 않으면 기능이 고장 난 것처럼 보인다. */}
+            {detail && (
+              <p className={styles.findingSummary}>
+                {detail.findings_enabled === false
+                  ? '서류 대조가 꺼져 있습니다 — 서버 설정(AGENT_FINDINGS_BACKEND)이 비어 있습니다.'
+                  : `서류 대조 · 불일치 ${counts.inconsistent} · 일치 ${counts.consistent}` +
+                    (counts.unverified ? ` · 확인필요 ${counts.unverified}` : '')}
+              </p>
+            )}
+            {detail?.turns?.length ? (
+              <ol className={styles.questions}>
+                {detail.turns.map((t) => (
+                  <li key={t.seq} className={styles.question}>
+                    {t.question}
+                    {/* 서버가 저장한 답변 전사(2026-09-09).
+                        아직 안 온 것은 자리만 남긴다 — "아직 답 없음" 을 안 적으면
+                        지원자가 지금 답하는 중인지 다 넘긴 것인지 화면으로 알 수 없다. */}
+                    <div className={styles.answer}>
+                      {t.transcript ?? <em className={styles.pending}>아직 답이 저장되지 않았습니다.</em>}
+                    </div>
+                    {/* 이 답변을 서류와 맞춰 본 것 (2026-09-11). 답변이 저장되고 몇 초 뒤 붙는다 */}
+                    {findingsBySeq.get(t.seq)?.map((f) => (
+                      <_Finding key={`${f.claim_source}:${f.claim_text}`} f={f} />
+                    ))}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className={styles.empty}>준비된 질문이 없습니다.</p>
+            )}
+            {unmatched.length > 0 && (
+              <div className={styles.unmatched}>
+                <p className={styles.groupLabel}>면접 전체로 본 대조 (끝난 뒤)</p>
+                {unmatched.map((f) => (
+                  <_Finding key={`${f.claim_source}:${f.claim_text}`} f={f} />
+                ))}
+              </div>
             )}
           </section>
 

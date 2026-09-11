@@ -385,24 +385,79 @@ def extract_audio(video_path, sr=22050):
         rms.mean(axis=1),  rms.std(axis=1),
         zcr.mean(axis=1),  zcr.std(axis=1),
         [f0.mean(), f0.std()],
-    ])  # 88차원
+    ])  # 86차원 (40+40 · 1+1 · 1+1 · 2)
 
 
 def extract_audio_from_array(y, sr=22050):
     """마이크 녹음 numpy 배열에서 직접 음성 특징 추출."""
+    vec, _ = extract_audio_with_voice(y, sr)
+    return vec
+
+
+def extract_audio_with_voice(y, sr=22050):
+    """음성 특징 벡터(86차원) + 사람이 읽는 목소리 지표. 둘 다 같은 계산에서 나온다.
+
+    **pyin(음 높이 추정)을 두 번 돌리지 않는다.** 실시간 판정 한 번에서 가장 비싼
+    단계라, 화면용 지표를 따로 재면 판정이 그만큼 느려지고 전사와 CPU 를 더 다툰다.
+    벡터는 예전 `extract_audio_from_array` 와 **숫자까지 같다** — model.pkl 이 그걸로 배웠다.
+    """
     if len(y) < sr:
-        return None
+        return None, None
     mfcc = librosa.feature.mfcc(y=y.astype(np.float32), sr=sr, n_mfcc=40)
     rms  = librosa.feature.rms(y=y)
     zcr  = librosa.feature.zero_crossing_rate(y=y)
-    f0, _, _ = librosa.pyin(y, fmin=50, fmax=500, frame_length=2048, hop_length=512)
-    f0 = np.nan_to_num(f0)
-    return np.concatenate([
+    f0_raw, voiced, _ = librosa.pyin(y, fmin=50, fmax=500, frame_length=2048, hop_length=512)
+    f0 = np.nan_to_num(f0_raw)
+    vec = np.concatenate([
         mfcc.mean(axis=1), mfcc.std(axis=1),
         rms.mean(axis=1),  rms.std(axis=1),
         zcr.mean(axis=1),  zcr.std(axis=1),
         [f0.mean(), f0.std()],
-    ])
+    ])  # 86차원
+    return vec, voice_signals(f0_raw, voiced, rms[0])
+
+
+# 음 높이를 말하려면 목소리 난 프레임이 이만큼은 있어야 한다. 몇 프레임으로 잰
+# 음 높이는 잡음이다 (프레임 하나 ≈ 23ms).
+VOICED_MIN_FRAMES = 5
+
+
+def voice_signals(f0_raw, voiced, rms):
+    """음 높이·크기 곡선 → 사람이 읽는 목소리 지표 (2026-09-11).
+
+    판정 벡터 100개 중 86개가 목소리인데 담당자 화면에는 얼굴 지표만 있었다.
+    음색(MFCC 80개)은 사람이 읽을 숫자가 아니라 빼고, 이것들을 낸다:
+
+    - `pitch_hz`: 말하는 동안의 음 높이 가운데값 (Hz)
+    - `pitch_var_st`: 음 높이가 오르내린 폭 (반음, 표준편차) — 억양
+    - `loud_db`: 말하는 동안의 목소리 크기 (dBFS). 마이크마다 기준이 달라 변화를 본다
+    - `loud_var_db`: 크기가 오르내린 폭 (dB, 표준편차)
+    - `voiced_pct`: 창 안에서 목소리(유성음)가 난 비율 (%)
+
+    **"높다·낮다" 를 여기서 붙이지 않는다.** 사람마다 목소리가 달라 절대 기준을
+    두면 목소리가 낮은 사람에게는 늘 "낮음" 이 뜬다. 비교는 화면이 같은 사람의
+    앞선 값과 한다. 말소리가 너무 적으면 음 높이는 빼고 낸다.
+    """
+    f0_raw = np.asarray(f0_raw, dtype=float)
+    total = len(f0_raw)
+    if total == 0:
+        return {}
+    voiced = np.asarray(voiced, dtype=bool)[:total] & np.isfinite(f0_raw)
+    out = {"voiced_pct": round(100.0 * float(voiced.sum()) / total, 1)}
+
+    db = 20.0 * np.log10(np.maximum(np.asarray(rms, dtype=float), 1e-5))
+    n = min(len(db), total)
+    speech = db[:n][voiced[:n]]
+    loud = speech if speech.size >= VOICED_MIN_FRAMES else db
+    out["loud_db"] = round(float(loud.mean()), 1)
+    out["loud_var_db"] = round(float(loud.std()), 1)
+
+    if int(voiced.sum()) >= VOICED_MIN_FRAMES:
+        f = f0_raw[voiced]
+        med = float(np.median(f))
+        out["pitch_hz"] = round(med, 1)
+        out["pitch_var_st"] = round(float(np.std(12.0 * np.log2(f / med))), 2)
+    return out
 
 
 def extract_visual_from_frames(frames):

@@ -562,12 +562,15 @@ def score(pcm: bytes, rows: list, seconds: float, latest_frame=None) -> dict:
     표정(`expressions`)은 판정 벡터에 들어가지 않는다. 판정 모델(`model.pkl`)이
     아직 100차원이라(ADR-0032 §정하지 못한 것 ③) 표정 7개는 지금 담당자 화면의
     라벨로만 흐른다 — 우리가 학습한 ViT 가 뭘 보고 있는지 근거를 남기는 자리다.
+
+    목소리 지표(`voice`, 2026-09-11)는 판정 벡터 100개 중 86개인 목소리 특징을 사람이
+    읽을 수 있게 다시 잰 것이다 — 벡터를 만든 같은 계산에서 나와 비용이 더 들지 않는다.
     """
     import librosa
 
     from feature_extractor import (
         expressions_from_frame,
-        extract_audio_from_array,
+        extract_audio_with_voice,
         face_signals,
     )
 
@@ -580,7 +583,7 @@ def score(pcm: bytes, rows: list, seconds: float, latest_frame=None) -> dict:
         return {"ok": False, "reason": "소리가 아직 짧아요"}
 
     y = librosa.resample(y16, orig_sr=SAMPLE_RATE, target_sr=TRAIN_SR)
-    audio = extract_audio_from_array(y, TRAIN_SR)
+    audio, voice = extract_audio_with_voice(y, TRAIN_SR)
     if audio is None:
         return {"ok": False, "reason": "소리가 아직 짧아요"}
 
@@ -606,6 +609,7 @@ def score(pcm: bytes, rows: list, seconds: float, latest_frame=None) -> dict:
         "truth_pct": round(float(proba[0]) * 100, 1),
         "lie_pct": round(float(proba[1]) * 100, 1),
         "signals": face_signals(arr, seconds),
+        "voice": voice or {},
     }
     if expressions:
         out["expressions"] = expressions

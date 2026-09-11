@@ -352,11 +352,15 @@ export interface InterviewFinding {
   claim_text: string
   answer_text: string
   verdict: string
+  /** 어느 답변에서 나온 대조인가. null 이면 면접이 끝난 뒤 전체로 만든 것 (2026-09-11) */
+  turn_seq?: number | null
 }
 
 export interface InterviewSessionDetail extends InterviewSession {
   turns: InterviewTurn[]
   findings: InterviewFinding[]
+  /** 서류 대조 스위치가 켜져 있는가 — 꺼진 것과 아직 없는 것을 가른다 (2026-09-11) */
+  findings_enabled?: boolean
 }
 
 /* ── 제출물 무결성 (ADR-0028) ─────────────────────────────────────
