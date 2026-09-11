@@ -935,6 +935,65 @@ class TestAnsweredBeforeTranscript:
         assert public.get("/api/v1/public/interview/tok-test").json()["question_seq"] == 2
 
 
+class TestLateTranscript:
+    """[면접 종료] 뒤에 늦게 온 전사도 받는다 (2026-09-11).
+
+    워커 받아쓰기는 CPU 한 대에서 줄을 서 몇 분씩 늦는다. 세션 59 에서 지원자가
+    먼저 끝내자 3초 뒤 온 전사가 409 로 버려졌다(수택님 로그). 새 답이 아니라
+    **이미 한 답의 글이 늦게 온 것**이라 받는다 — 조건을 좁혀서.
+    """
+
+    @pytest.fixture()
+    def ended(self, db: Session, application: Application, admin_user: User):
+        now = datetime.now(UTC)
+        s = _session(
+            db, application, admin_user,
+            status="done", consented_at=now, started_at=now, ended_at=now,
+        )
+        db.add(InterviewTurn(session_id=s.id, seq=1, question="질문1", answered_at=now))
+        db.add(InterviewTurn(session_id=s.id, seq=2, question="질문2"))   # 답 안 한 칸
+        db.commit()
+        return s
+
+    def _turn(self, db: Session, s: InterviewSession, seq: int) -> InterviewTurn:
+        db.expire_all()
+        return db.scalar(
+            select(InterviewTurn).where(InterviewTurn.session_id == s.id, InterviewTurn.seq == seq)
+        )
+
+    def test_답한_칸의_늦은_전사는_받고_다시_채점한다(self, public, db, ended):
+        with patch("app.interview_scoring.score_interview_bg") as rescore, patch(
+            "app.api.interviews._generate_followup_bg"
+        ) as followup:
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"transcript": "늦게 온 글", "seq": 1},
+            )
+        assert res.status_code == 200
+        assert self._turn(db, ended, 1).transcript == "늦게 온 글"
+        rescore.assert_called_once_with(ended.id)
+        followup.assert_not_called()   # 끝난 면접에 꼬리질문을 붙이지 않는다
+
+    def test_답하지_않은_칸은_끝난_뒤에_채우지_못한다(self, public, db, ended):
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "새 답", "seq": 2}
+        )
+        assert res.status_code == 409
+        assert self._turn(db, ended, 2).transcript is None
+
+    def test_번호가_없으면_받지_않는다(self, public, ended):
+        res = public.post("/api/v1/public/interview/tok-test/answer", json={"transcript": "글"})
+        assert res.status_code == 409
+
+    def test_유예가_지나면_받지_않는다(self, public, db, ended):
+        ended.ended_at = datetime.now(UTC) - timedelta(minutes=11)
+        db.commit()
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "늦은 글", "seq": 1}
+        )
+        assert res.status_code == 409
+
+
 class TestTurnFindingsHook:
     """답변을 저장하면 그 답변 하나의 서류 대조가 뒤에서 돈다 (2026-09-11).
 
