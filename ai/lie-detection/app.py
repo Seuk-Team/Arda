@@ -317,6 +317,10 @@ async def interview(ws: WebSocket, token: str):
         # 이어서 들어온 경우 답한 데까지 건너뛴다 — 목록에는 답한 질문도 들어 있다.
         seq_now = state.get("question_seq")
         session.cursor = _cursor_of(session.questions, seq_now)
+        logger.info(
+            "면접 연결: token=%s 질문 %d개 · 지금 %s번",
+            token[:8], len(session.questions), seq_now,
+        )
 
         # 이력서 사진을 한 번 받아 둔다. **대조는 프레임이 들어올 때** 하고,
         # 실패하면 그냥 넘어간다 — 사진이 없다고 면접을 막지 않는다.
@@ -336,6 +340,13 @@ async def interview(ws: WebSocket, token: str):
                 msg = await ws.receive()
 
                 if msg.get("type") == "websocket.disconnect":
+                    # **끊김을 남긴다** (2026-09-11). 세션 59 에서 폰에 "연결이 끊겨 다시
+                    # 잇는 중" 이 반복됐는데 서버 로그에 아무것도 없어 누가 끊었는지 못 갈랐다.
+                    # 1000·1001 은 앱이 닫은 것, 1006 은 망이 끊긴 것, 1011 은 서버가 버거운 것
+                    logger.info(
+                        "면접 연결 끊김: token=%s code=%s 남은 전사 %d개",
+                        token[:8], msg.get("code"), session.pending.qsize(),
+                    )
                     break
 
                 data = msg.get("bytes")
@@ -526,6 +537,11 @@ async def _end_answer(ws, client, session: InterviewSession) -> None:
             len(pcm) / (iw.SAMPLE_RATE * iw.SAMPLE_WIDTH),
             voiced,
         )
+        # **거른 소리를 버리지 않는다** (소연님 지적, 2026-09-11). 작게라도 말했는데
+        # 문턱을 못 넘었다면, 다시 말한 것과 합쳐 한 답이 되게 버퍼 앞에 되돌려 둔다.
+        # 확인하는 사이 새로 들어온 소리가 있으면 그 앞에 붙는다.
+        session.audio[:0] = [pcm]
+        session.frames[:0] = rows
         await ws.send_json(
             {"type": "retry", "message": "말이 들리지 않았어요. 다시 답변해 주세요"}
         )
@@ -544,6 +560,10 @@ async def _end_answer(ws, client, session: InterviewSession) -> None:
     # 그게 끝나야 "답했다" 가 되던 때는 그 사이 재접속·앱의 확인 요청이 지원자를
     # 이미 답한 질문으로 되돌렸다(시연: Q9 → Q1, 다시 한 답은 409 로 버려짐).
     if seq is not None:
+        logger.info(
+            "답함: token=%s seq=%s 소리 %.1f초",
+            session.token[:8], seq, len(pcm) / (iw.SAMPLE_RATE * iw.SAMPLE_WIDTH),
+        )
         try:
             await mark_answered(client, session.token, seq)
         except Exception:
@@ -595,12 +615,21 @@ async def _transcribe_pump(client, session: InterviewSession) -> None:
             # 돌아서 겹치는 시간이 더 길다. 답변이 통째로 날아가는 것보다 그 몇 초
             # 판정을 거르는 편이 낫다 — 판정은 곁들이고 답변은 면접 그 자체다.
             session.transcribing = True
+            started = time.monotonic()
             try:
                 transcript = await transcribe_async(pcm, hint_of(session.questions))
             finally:
                 session.transcribing = False
             # "이상입니다" 는 답변 내용이 아니라 끝 신호다 — 저장 전에 뗀다 (2026-09-11)
             transcript = strip_end_phrase(transcript)
+            # 칸별 결과를 남긴다 — 세션 59 에서 "첫 문장이 빠졌다" 를 로그로 가를 수
+            # 없었다(소리 길이와 글 길이가 같이 있으면 빠진 것인지 안 온 것인지 갈린다)
+            logger.info(
+                "전사 끝: token=%s seq=%s 소리 %.1f초 · %.1f초 걸림 · %d자",
+                session.token[:8], seq,
+                len(pcm) / (iw.SAMPLE_RATE * iw.SAMPLE_WIDTH),
+                time.monotonic() - started, len(transcript or ""),
+            )
             if not transcript:
                 # **이 칸은 빈칸으로 남는다.** 전에는 "다시 답변해 주세요" 를 띄웠는데,
                 # 다음 질문이 이미 나간 뒤라 그럴 수 없다. 담당자가 빈칸을 보고

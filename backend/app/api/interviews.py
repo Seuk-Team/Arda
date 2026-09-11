@@ -723,6 +723,12 @@ def _generate_followup_bg(session_id: int, prev_turn_id: int) -> None:
         db.commit()
 
 
+# 끝난 면접에 늦게 도착한 전사를 받아 주는 시간 (2026-09-11). 워커 받아쓰기는
+# CPU 한 대에서 줄을 서서 몇 분씩 늦는다 — 세션 59 에서 [면접 종료] 3초 뒤 온
+# 전사가 409 로 버려졌다(수택님 로그). 이만큼 지난 뒤 오는 것은 받지 않는다.
+LATE_ANSWER_GRACE = timedelta(minutes=10)
+
+
 @router.post("/public/interview/{token}/answer", response_model=InterviewPublicOut)
 def submit_answer(
     token: str,
@@ -743,7 +749,19 @@ def submit_answer(
 
     if session.status == "expired":
         raise HTTPException(HTTPStatus.GONE, "링크 유효 기간이 지났습니다")
-    if session.status != "in_progress":
+    # **끝난 뒤에 도착한 전사도 받는다** (2026-09-11). 번호를 짚었고, 그 칸이 이미
+    # 답한 칸이며, 끝난 지 LATE_ANSWER_GRACE 안이면 — 새 답을 받는 것이 아니라
+    # 이미 한 답의 글이 늦게 온 것뿐이다. 칸 조건은 아래에서 본다.
+    ended_at = session.ended_at
+    if ended_at is not None and ended_at.tzinfo is None:
+        ended_at = ended_at.replace(tzinfo=timezone.utc)
+    late = (
+        session.status == "done"
+        and body.seq is not None
+        and ended_at is not None
+        and datetime.now(timezone.utc) - ended_at <= LATE_ANSWER_GRACE
+    )
+    if session.status != "in_progress" and not late:
         raise HTTPException(
             HTTPStatus.CONFLICT, "진행 중인 면접이 아닙니다"
         )
@@ -770,6 +788,9 @@ def submit_answer(
         raise HTTPException(
             HTTPStatus.CONFLICT, "답변할 질문이 없습니다 — 면접을 종료해 주세요"
         )
+    if late and turn.answered_at is None:
+        # 끝난 뒤에는 새 답을 받지 않는다 — 답한 칸의 늦은 글만
+        raise HTTPException(HTTPStatus.CONFLICT, "진행 중인 면접이 아닙니다")
 
     # 앞서 답한 것들 — 진행 보조가 "연속으로 짧은지"를 보는 데 쓴다.
     # 저장 전에 읽어야 이번 답변이 안 섞인다.
@@ -796,9 +817,16 @@ def submit_answer(
         turn.answered_at = datetime.now(timezone.utc)
     db.commit()
 
-    # 꼬리질문 하나를 뒤에서 만든다 (2026-09-10, ADR-0034 후속).
-    # 답변이 짧거나 백엔드가 안 되면 함수가 자체적으로 조용히 접는다.
-    background.add_task(_generate_followup_bg, session.id, turn.id)
+    if late:
+        # 끝난 면접이다 — 꼬리질문은 만들지 않는다. 채점은 끝날 때 이 글 없이
+        # 돌았으니 다시 매긴다(ADR-0034). 늦은 전사가 여럿이면 그만큼 다시 돈다.
+        from app.interview_scoring import score_interview_bg
+
+        background.add_task(score_interview_bg, session.id)
+    else:
+        # 꼬리질문 하나를 뒤에서 만든다 (2026-09-10, ADR-0034 후속).
+        # 답변이 짧거나 백엔드가 안 되면 함수가 자체적으로 조용히 접는다.
+        background.add_task(_generate_followup_bg, session.id, turn.id)
 
     # 이 답변 하나를 서류와 맞춰 본다 (2026-09-11) — 담당자 화상 방이 그 답변 밑에
     # 띄운다. 꼬리질문 뒤에 둔다: 그쪽은 지원자가 곧 받을 질문이라 먼저 나와야 한다.

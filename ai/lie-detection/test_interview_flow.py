@@ -111,6 +111,8 @@ class TestVoiceGate:
             assert marked == [], "목소리 없는 소리로 '답함' 을 찍으면 그 질문은 돌아올 길이 없다"
             assert s.current_seq() == 1
             assert s.pending.qsize() == 0
+            # 소연님 지적: 작게라도 한 말을 버리면 다시 답할 때 그 소리가 없다
+            assert s.audio, "거른 소리는 버퍼로 되돌린다 — 다시 말한 것과 합쳐진다"
         asyncio.run(_t())
 
     def test_목소리가_있으면_넘긴다(self, monkeypatch, saved):
