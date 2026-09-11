@@ -278,6 +278,7 @@
 | POST | /internal/email-logs/{id}/result | 발송 결과 기록 | 멱등 — 이미 `sent` 면 no-op |
 | POST | /internal/interview/{token}/verdict | 면접 실시간 판정을 담당자에게 민다 | 본문 `{truth_pct?, lie_pct?, window_sec?, …}`. **204 고정** |
 | GET | /internal/interview/{token}/questions | 면접 질문 전체 `[{seq, question}]` | 워커가 시작할 때 한 번. **전사를 안 기다리고 다음 질문을 보내기 위한 것** |
+| POST | /internal/interview/{token}/turns/{seq}/answered | 이 질문에 **답을 마쳤다**고 남긴다 → `{seq, answered_at}` | 워커가 말이 끝나는 순간 부른다(2026-09-11). 전사는 나중에 `/public/interview/{token}/answer` 에 같은 `seq` 로 채운다. 멱등 — 처음 시각을 지킨다. 진행 중이 아니면 409, 없는 번호면 404. **"지금 질문" 은 `answered_at` 이 빈 가장 앞 칸** |
 | GET | /internal/interview/{token}/portrait | 이력서에 든 증명사진 원본 바이트 | `image/jpeg`. 사진이 없으면 **404**(정상 — 워커가 확인을 건너뛴다) |
 | POST | /internal/interview/{token}/identity | 이력서 사진 대조 결과를 담당자에게 민다 | 본문 `{match: same\|different\|unclear, score}`. 면접당 **한 번**. 204 고정 |
 

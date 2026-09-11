@@ -765,6 +765,26 @@ async def fetch_questions(client, token: str) -> list[dict]:
         return []
 
 
+async def mark_answered(client, token: str, seq: int) -> None:
+    """이 질문에 답을 마쳤다고 백엔드에 **먼저** 남긴다 (2026-09-11).
+
+    전사는 뒤에서 몇 분씩 걸려 끝난다. 그동안 "지금 질문" 이 안 넘어가 있으면
+    재접속·앱의 확인 요청이 지원자를 **이미 답한 질문으로 되돌린다** — 시연에서
+    Q9 에서 Q1 로 돌아가 다시 한 답이 409 로 버려졌다. 말이 끝난 순간 이것부터
+    찍으면 "지금 질문" 이 바로 넘어가고, 전사는 나중에 같은 번호로 채운다.
+
+    서비스 토큰이 없으면 아무것도 안 한다 — 그때는 전사가 저장될 때 답한 것이 된다.
+    """
+    if not SERVICE_TOKEN:
+        return
+    r = await client.post(
+        f"{BACKEND_URL}/api/v1/internal/interview/{token}/turns/{seq}/answered",
+        headers={"X-Service-Token": SERVICE_TOKEN},
+        timeout=10,
+    )
+    r.raise_for_status()
+
+
 async def submit_answer(client, token: str, transcript: str, seq: int | None = None) -> dict:
     """답변을 저장한다. `seq` 를 붙이면 그 질문 칸에만 들어간다.
 

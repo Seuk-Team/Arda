@@ -301,3 +301,76 @@ class TestQuestions:
             headers={"X-Service-Token": "test-token-x"},
         )
         assert r.status_code == 404
+
+
+class TestMarkAnswered:
+    """말이 끝나는 순간 '답했다' 를 남긴다 — 워커가 부른다 (2026-09-11).
+
+    전사는 몇 분씩 늦게 오므로 그걸 기다려 '답했다' 를 정하면, 그 사이 재접속이
+    지원자를 이미 답한 질문으로 되돌린다. 되감김 자체는 test_api_interviews 가 본다.
+    """
+
+    H = {"X-Service-Token": "test-token-x"}
+
+    @pytest.fixture()
+    def running(self, db: Session, admin_user: User) -> InterviewSession:
+        posting = JobPosting(
+            title="공고", description="본문", status="open", created_by=admin_user.id
+        )
+        db.add(posting)
+        db.flush()
+        application = Application(
+            job_posting_id=posting.id,
+            name="지원자박",
+            email="m@test.local",
+            phone="010-0000-0000",
+            privacy_agreed_at=datetime.now(UTC),
+        )
+        db.add(application)
+        db.flush()
+        session = InterviewSession(
+            application_id=application.id,
+            token="tok-a",
+            status="in_progress",
+            created_by=admin_user.id,
+        )
+        db.add(session)
+        db.flush()
+        for seq, q in enumerate(["첫 질문", "둘째 질문"], start=1):
+            db.add(InterviewTurn(session_id=session.id, seq=seq, question=q))
+        db.flush()
+        return session
+
+    def _turn(self, db: Session, session: InterviewSession, seq: int) -> InterviewTurn:
+        return db.query(InterviewTurn).filter_by(session_id=session.id, seq=seq).one()
+
+    def test_답했다고_남긴다(self, client, db, running):
+        r = client.post("/api/v1/internal/interview/tok-a/turns/1/answered", headers=self.H)
+        assert r.status_code == 200
+        assert r.json()["seq"] == 1
+        turn = self._turn(db, running, 1)
+        assert turn.answered_at is not None
+        assert turn.transcript is None          # 전사는 따로 온다
+
+    def test_두_번_불러도_처음_시각을_지킨다(self, client, db, running):
+        """재접속으로 같은 신호가 두 번 와도 '언제 답했나' 가 바뀌면 안 된다."""
+        first = client.post(
+            "/api/v1/internal/interview/tok-a/turns/1/answered", headers=self.H
+        ).json()["answered_at"]
+        second = client.post(
+            "/api/v1/internal/interview/tok-a/turns/1/answered", headers=self.H
+        ).json()["answered_at"]
+        assert first == second
+
+    def test_토큰_없으면_401(self, client, running):
+        assert client.post("/api/v1/internal/interview/tok-a/turns/1/answered").status_code == 401
+
+    def test_진행_중이_아니면_409(self, client, db, running):
+        running.status = "done"
+        db.flush()
+        r = client.post("/api/v1/internal/interview/tok-a/turns/1/answered", headers=self.H)
+        assert r.status_code == 409
+
+    def test_없는_번호면_404(self, client, running):
+        r = client.post("/api/v1/internal/interview/tok-a/turns/9/answered", headers=self.H)
+        assert r.status_code == 404

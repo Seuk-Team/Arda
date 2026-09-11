@@ -177,3 +177,95 @@ def _returns(value):
         return value
 
     return _fn()
+
+
+class TestAnsweredFirst:
+    """말이 끝나는 순간 '답했다' 부터 남긴다 (2026-09-11).
+
+    전사를 기다려 '답했다' 를 정하던 때는 그 사이 재접속이 지원자를 이미 답한
+    질문으로 되돌렸다(시연: Q9 → Q1, 다시 한 답은 409 로 버려짐).
+    """
+
+    def test_다음_질문을_보내기_전에_답했다고_남긴다(self, monkeypatch, saved):
+        async def _t():
+            order = []
+
+            async def fake_mark(client, token, seq):
+                order.append(("mark", seq))
+
+            monkeypatch.setattr(srv, "mark_answered", fake_mark)
+            monkeypatch.setattr(srv, "transcribe_async", _slow_stt(2.0))
+            ws, s = FakeWS(), _session()
+            real_send = ws.send_json
+
+            async def spy(payload):
+                order.append(("send", payload.get("type")))
+                await real_send(payload)
+
+            ws.send_json = spy
+            pump = asyncio.create_task(srv._transcribe_pump(None, s))
+            await _speak(ws, s)
+            assert ("mark", 1) in order
+            assert order.index(("mark", 1)) < order.index(("send", "question"))
+            assert saved == []          # 전사는 아직 — 그래도 답한 것은 이미 남았다
+            await s.pending.join()
+            pump.cancel()
+        asyncio.run(_t())
+
+    def test_답함_표시가_실패해도_면접은_간다(self, monkeypatch, saved):
+        async def _t():
+            async def broken(client, token, seq):
+                raise RuntimeError("백엔드가 잠깐 안 받는다")
+
+            monkeypatch.setattr(srv, "mark_answered", broken)
+            monkeypatch.setattr(srv, "transcribe_async", _slow_stt(0.01))
+            ws, s = FakeWS(), _session()
+            pump = asyncio.create_task(srv._transcribe_pump(None, s))
+            await _speak(ws, s)
+            assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
+            await s.pending.join()
+            assert saved == [(1, "답변입니다")]
+            pump.cancel()
+        asyncio.run(_t())
+
+    def test_번호를_못_찾으면_첫_질문이_아니라_끝으로_간다(self):
+        """예전에는 0(첫 질문)으로 가서 이미 답한 1번을 다시 물었다."""
+        qs = [{"seq": 1, "question": "a"}, {"seq": 2, "question": "b"}]
+        assert srv._cursor_of(qs, 2) == 1
+        assert srv._cursor_of(qs, 7) == 2
+        assert srv._cursor_of(qs, None) == 2
+
+    def test_준비된_질문이_떨어지면_꼬리질문을_받아_이어간다(self, monkeypatch, saved):
+        """꼬리질문은 전사가 저장된 뒤에 백엔드가 붙인다 — 시작 때 받은 목록에는 없다."""
+        async def _t():
+            tail = {"seq": 3, "question": "꼬리 질문"}
+            monkeypatch.setattr(srv, "transcribe_async", _slow_stt(0.01))
+            monkeypatch.setattr(
+                srv, "fetch_questions", lambda c, t: _returns([QUESTIONS[1], tail])
+            )
+            monkeypatch.setattr(
+                srv, "fetch_state",
+                lambda c, t: _returns({"status": "in_progress", "question_seq": 3}),
+            )
+            ws, s = FakeWS(), _session([QUESTIONS[1]])   # 준비된 질문 하나뿐
+            pump = asyncio.create_task(srv._transcribe_pump(None, s))
+            await _speak(ws, s)
+            assert ws.sent[-1] == {"type": "question", "seq": 3, "text": "꼬리 질문"}
+            assert "done" not in ws.types()
+            pump.cancel()
+        asyncio.run(_t())
+
+    def test_남은_질문이_없으면_닫는다(self, monkeypatch, saved):
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _slow_stt(0.01))
+            monkeypatch.setattr(srv, "fetch_questions", lambda c, t: _returns([QUESTIONS[1]]))
+            monkeypatch.setattr(
+                srv, "fetch_state",
+                lambda c, t: _returns({"status": "in_progress", "question_seq": None}),
+            )
+            ws, s = FakeWS(), _session([QUESTIONS[1]])
+            pump = asyncio.create_task(srv._transcribe_pump(None, s))
+            await _speak(ws, s)
+            assert ws.types()[-1] == "done"
+            pump.cancel()
+        asyncio.run(_t())

@@ -450,10 +450,16 @@ def get_interview_public(token: str, db: Session = Depends(get_db)):
         # **아직 답 안 한 가장 앞 질문**이 현재 질문이다.
         # 마지막 질문을 보면 안 된다 — 3개 중 1번만 답했을 때 2번이 아니라
         # 3번을 내주게 된다. 답변 저장(submit_answer)도 같은 규칙을 쓴다.
+        #
+        # **"답 안 한" 은 `answered_at` 도 전사도 없는 칸이다** (0018, 2026-09-11).
+        # 전사만 보던 때는 전사가 몇 분씩 늦게 채워져서, 그 사이 재접속·확인 요청이
+        # 지원자를 이미 답한 질문으로 되돌렸다. 전사도 같이 보는 이유는 `answered_at`
+        # 을 안 찍고 전사만 넣는 경로가 있어도 그 칸을 다시 묻지 않게 하려는 것이다.
         current = db.scalar(
             select(InterviewTurn)
             .where(
                 InterviewTurn.session_id == session.id,
+                InterviewTurn.answered_at.is_(None),
                 InterviewTurn.transcript.is_(None),
             )
             .order_by(InterviewTurn.seq)
@@ -745,8 +751,14 @@ def submit_answer(
     ]
     # 번호를 보냈으면 그 칸에만 넣는다. 전사가 뒤에서 도는 동안 다음 질문이 이미
     # 나가 있을 수 있어서, "가장 앞 빈칸" 규칙이면 답이 한 칸씩 밀린다.
+    #
+    # 워커는 말이 끝나는 순간 `answered_at` 부터 찍고(내부 `.../answered`) 전사는
+    # 나중에 번호를 붙여 여기로 보낸다 — 그래서 번호가 있으면 **답한 칸이어도**
+    # 전사가 비어 있으면 채운다. 번호가 없으면(글로 답하기·예전 경로) 지금 질문에 넣는다.
     if body.seq is not None:
         where.append(InterviewTurn.seq == body.seq)
+    else:
+        where.append(InterviewTurn.answered_at.is_(None))
 
     turn = db.scalar(select(InterviewTurn).where(*where).order_by(InterviewTurn.seq))
     if turn is None:
@@ -776,6 +788,9 @@ def submit_answer(
         transcript = body.transcript
 
     turn.transcript = transcript
+    if turn.answered_at is None:
+        # 워커를 거치지 않은 답(글로 답하기·녹음 업로드)은 여기서 "답했다" 가 된다
+        turn.answered_at = datetime.now(timezone.utc)
     db.commit()
 
     # 꼬리질문 하나를 뒤에서 만든다 (2026-09-10, ADR-0034 후속).
