@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.db import get_db
 from app.models import Application, EmailLog, InterviewTurn
 from app.shared.worker import _actor, _context, _reply_to

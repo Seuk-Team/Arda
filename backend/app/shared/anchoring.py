@@ -24,7 +24,7 @@ from datetime import datetime
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import chain, ots, s3
+from app.shared import chain, ots, s3
 from app.models import Application, ChainPublication, DocumentAnchor, File
 
 logger = logging.getLogger(__name__)

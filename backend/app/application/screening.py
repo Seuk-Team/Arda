@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.company import get_profile
 from app.models import (
     Application,

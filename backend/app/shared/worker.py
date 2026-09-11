@@ -27,7 +27,7 @@ import boto3
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.db import SessionLocal
 from app.logging_conf import setup_logging
 from app.models import (

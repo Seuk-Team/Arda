@@ -18,7 +18,7 @@ import re
 import zipfile
 from html import unescape
 
-from app import s3
+from app.shared import s3
 from app.models import File
 
 logger = logging.getLogger(__name__)

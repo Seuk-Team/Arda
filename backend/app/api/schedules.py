@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.db import get_db
 from app.deps import get_current_user
 from app.labels import STAGE_LABEL_KR

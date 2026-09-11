@@ -18,7 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.agent.aptitude import compute_stats, generate_aptitude_summary_bg
 from app.aptitude_questions import (
     LIKERT_LABELS,

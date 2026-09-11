@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.db import get_db
 from app.models import Application, JobPosting
 from app.schemas.portal import (
