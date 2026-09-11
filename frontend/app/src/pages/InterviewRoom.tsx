@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { applications, interviews, postings } from '../api/endpoints'
 import type { InterviewFinding, InterviewSessionDetail } from '../api/types'
@@ -153,6 +153,91 @@ function _Finding({ f }: { f: InterviewFinding }) {
   )
 }
 
+/* ── 판 뒤의 밝기 (2026-09-11) ─────────────────────────────────────
+   실시간 분석은 지원자 영상 위에 거의 투명한 판으로 뜬다. 뒤에 깔린 영상이
+   밝으면 밝은 글자가, 어두우면 어두운 글자가 사라진다. 판이 덮은 자리의 영상을
+   0.5초마다 작게 떠서 밝기를 재고 글자 색을 고른다.
+
+   **경계에서 깜빡이지 않게** 밝아질 때와 어두워질 때의 기준을 다르게 둔다. */
+type Backdrop = 'dark' | 'light'
+
+const TONE_EVERY_MS = 500
+const TO_LIGHT = 0.6
+const TO_DARK = 0.45
+/** 영상이 안 그려진 여백(`object-fit: contain` 의 띠)은 `--bg-sunken` — 어둡다 */
+const LETTERBOX_LUM = 0.08
+
+function useBackdropTone(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  boxRef: RefObject<HTMLElement | null>,
+  active: boolean,
+): Backdrop {
+  const [tone, setTone] = useState<Backdrop>('dark')
+
+  useEffect(() => {
+    if (!active) return
+    const canvas = document.createElement('canvas')
+    canvas.width = 24
+    canvas.height = 24
+    const g = canvas.getContext('2d', { willReadFrequently: true })
+
+    const timer = window.setInterval(() => {
+      const v = videoRef.current
+      const box = boxRef.current
+      if (!v || !box || !g || !v.videoWidth || !v.videoHeight) return
+      const vr = v.getBoundingClientRect()
+      const br = box.getBoundingClientRect()
+      if (!br.width || !br.height) return
+
+      /* `contain` 이라 요소 안에서 실제로 그림이 그려진 사각형을 먼저 구한다 */
+      const scale = Math.min(vr.width / v.videoWidth, vr.height / v.videoHeight)
+      const dw = v.videoWidth * scale
+      const dh = v.videoHeight * scale
+      const dx = vr.left + (vr.width - dw) / 2
+      const dy = vr.top + (vr.height - dh) / 2
+      const x0 = Math.max(br.left, dx)
+      const y0 = Math.max(br.top, dy)
+      const x1 = Math.min(br.right, dx + dw)
+      const y1 = Math.min(br.bottom, dy + dh)
+
+      let lum = LETTERBOX_LUM
+      if (x1 > x0 && y1 > y0) {
+        try {
+          g.drawImage(
+            v,
+            (x0 - dx) / scale,
+            (y0 - dy) / scale,
+            (x1 - x0) / scale,
+            (y1 - y0) / scale,
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          )
+          const px = g.getImageData(0, 0, canvas.width, canvas.height).data
+          let sum = 0
+          for (let i = 0; i < px.length; i += 4) {
+            sum += 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]
+          }
+          const onVideo = sum / (px.length / 4) / 255
+          /* 판이 여백에 걸쳐 있으면 그만큼 어두운 쪽으로 섞는다 */
+          const cover = ((x1 - x0) * (y1 - y0)) / (br.width * br.height)
+          lum = onVideo * cover + LETTERBOX_LUM * (1 - cover)
+        } catch {
+          return /* 프레임을 못 읽으면 지난 색을 그대로 둔다 */
+        }
+      }
+      setTone((prev) =>
+        prev === 'dark' ? (lum > TO_LIGHT ? 'light' : 'dark') : lum < TO_DARK ? 'dark' : 'light',
+      )
+    }, TONE_EVERY_MS)
+
+    return () => window.clearInterval(timer)
+  }, [active, videoRef, boxRef])
+
+  return tone
+}
+
 /* 채용자용 실시간 면접 화면 (docs/02_tasks/실시간-면접-시그널링.md).
 
    **레이아웃 밖에 둔다.** 사이드바·헤더가 있으면 지원자 얼굴이 그만큼 작아지고,
@@ -171,6 +256,9 @@ export default function InterviewRoom() {
   /* **지원자에게서 받은 영상을 분석에 넘긴다.** 지원자 기기가 아니라 여기서
      보내는 이유는 `useLiveAnalysis` 머리말에 적어 뒀다 (ADR-0029). */
   const analysis = useLiveAnalysis(remoteStream)
+  /* 영상 위 홀로그램 판과, 그 뒤 영상의 밝기 (2026-09-11) */
+  const holoRef = useRef<HTMLDivElement>(null)
+  const backdrop = useBackdropTone(remoteRef, holoRef, phase === 'live')
   const [detail, setDetail] = useState<InterviewSessionDetail | null>(null)
   /* 누구를 면접하는지. 세션 상세에는 이름이 없어 지원자를 한 번 더 읽는다. */
   const [who, setWho] = useState<{ name: string; posting: string } | null>(null)
@@ -302,16 +390,18 @@ export default function InterviewRoom() {
           {/* **좌우를 뒤집는 것은 내 얼굴뿐이다.** 상대는 뒤집지 않는다 —
               거울로 보이는 게 자연스러운 건 자기 모습일 때뿐이다. */}
           <video ref={localRef} className={styles.local} autoPlay playsInline muted />
-        </div>
 
-        {/* **실시간 분석을 먼저 둔다** (2026-09-11). 질문 10개를 위에 두면 판넬이
-            화면 밖으로 밀려나, 실측에서 담당자가 판넬을 찾지 못했다. */}
-        <aside className={styles.side}>
           {/* 실시간 분석 (2026-09-09). **지원자에게서 받은 영상을 여기서**
               워커로 넘긴다 — 지원자 기기는 아무것도 더 하지 않고, 판정이
-              그쪽으로 갈 길도 없다 (ADR-0029 · `useLiveAnalysis`). */}
-          <section className={styles.panel}>
-            <h2 className={styles.panelTitle}>실시간 분석</h2>
+              그쪽으로 갈 길도 없다 (ADR-0029 · `useLiveAnalysis`).
+
+              **영상 위에 띄운다** (2026-09-11). 옆 칸에 두면 담당자 눈이 얼굴과
+              숫자 사이를 오가고, 질문 목록에 밀려 화면 밖으로 나갔다. 글자 색은
+              판 뒤 영상의 밝기를 따라 바뀐다(`useBackdropTone`). 붙기 전에는
+              위 안내가 영상 자리를 덮으므로 띄우지 않는다. */}
+          {!waiting && (
+          <div ref={holoRef} className={styles.holo} data-backdrop={backdrop} aria-live="polite">
+            <h2 className={styles.holoTitle}>실시간 분석</h2>
 
             {/* **값이 있으면 값을 먼저 보여 준다.** 소켓이 끊겼다고 숫자를 감추면
                 그 아래 붙는 100·0 경고까지 같이 사라진다 — 경고 없이 숫자만 본
@@ -433,8 +523,11 @@ export default function InterviewRoom() {
                 )}
               </>
             )}
-          </section>
+          </div>
+          )}
+        </div>
 
+        <aside className={styles.side}>
           <section className={styles.panel}>
             <h2 className={styles.panelTitle}>질문·답변</h2>
             {/* 대조가 비어 있을 때 **꺼진 것인지 아직 없는 것인지** 를 가른다 —
