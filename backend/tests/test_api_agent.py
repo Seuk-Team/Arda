@@ -349,7 +349,7 @@ class TestDirectHandlerStageRule:
 
     def test_skip_forward_offers_next_stage_card(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         # fixture 지원자는 applied. interview 로 두 칸 건너뛰기 요청.
         # 이름은 fixture 에서 가져온다 — 리터럴로 적으면 시드 더미와 겹쳐
         # "여러 명이 있어요" 로 빠진다 (conftest 의 `application` 주석 참고).
@@ -368,7 +368,7 @@ class TestDirectHandlerStageRule:
 
     def test_valid_next_step_makes_normal_card(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         intent = DirectAction(
             "change_stage",
             {"_name_lookup": application.name, "to_stage": "screening"},
@@ -380,7 +380,7 @@ class TestDirectHandlerStageRule:
 
     def test_same_stage_says_already(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         intent = DirectAction(
             "change_stage",
             {"_name_lookup": application.name, "to_stage": "applied"},
@@ -733,7 +733,7 @@ class TestChoices:
 
     def test_router_duplicate_name_returns_choices(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         twin = _twin(db, application)
         intent = DirectAction(
             "change_stage",
@@ -768,7 +768,7 @@ class TestChoices:
 
     def test_router_selected_id_skips_lookup(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         twin = _twin(db, application)
         intent = DirectAction(
             "change_stage",
@@ -785,7 +785,7 @@ class TestChoices:
 
     def test_router_selected_unknown_id(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         intent = DirectAction(
             "change_stage",
             {"_name_lookup": application.name, "to_stage": "screening"},
