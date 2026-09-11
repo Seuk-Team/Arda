@@ -76,7 +76,7 @@ services:
 
   # worker:  # G2 SQS 메일 워커 — 3주차. 코드가 생기면 그때 연다
   #   build: ./backend
-  #   command: uv run python -m app.worker
+  #   command: uv run python -m app.shared.worker
   #   depends_on:
   #     db:
   #       condition: service_healthy

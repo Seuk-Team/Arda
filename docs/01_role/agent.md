@@ -2,7 +2,9 @@
 
 > 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
 
-> **오너**: suvisdev · **폴더**: `backend/app/agent/` + `backend/app/api/agent.py` · **상태**: 확정 v1.1 (2026-08-26, M1~M4 완료 반영)
+> **⚠️ 2026-09-12 구조 이관**: `app/agent/` **안은 그대로다.** 바뀐 것은 밖 세 가지 — 라우터가 `app/application/api/agent.py` 로 이동(1,100줄→325줄), 규칙 라우터 로직은 `app/application/agent_service.py`, Pydantic 스키마는 `app/schemas/agent.py`. 상세는 [11-헥사고날-이관-안내.md §4](../00_overview/11-헥사고날-이관-안내.md) · 결정은 [ADR-0035](../03_decision/0035-헥사고날-부분적용-Bounded-Context.md).
+
+> **오너**: suvisdev · **폴더**: `backend/app/agent/` + `backend/app/application/api/agent.py` · **상태**: 확정 v1.1 (2026-08-26, M1~M4 완료 반영)
 > **발표 소주제 4번 담당은 woojeongalex** (도구 호출 + AI 원가 관측의 발표 내용·근거 수치 — [04-team.md](../00_overview/04-team.md) 발표용 역할표). **이 폴더의 코드 오너십은 위 그대로 suvisdev** 이고 이관이 아니다.
 > 공통 규칙은 [04-team.md](../00_overview/04-team.md). **원칙 문서 필독**: [ADR-0003 AI는 추천까지만](../03_decision/0003-ai-추천만.md) · [ADR-0004 음성은 STT만](../03_decision/0004-음성-stt만.md) · [ADR-0008 정식 트랙 승격](../03_decision/0008-에이전트-앱-정식-트랙-승격.md) · [planning/00_summary_ko.md](../04_planning/00_summary_ko.md) 11~12장.
 

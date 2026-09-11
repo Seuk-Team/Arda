@@ -1,4 +1,4 @@
-"""메일 발송 워커 (G2·G3) — `python -m app.worker` 로 뜬다.
+"""메일 발송 워커 (G2·G3) — `python -m app.shared.worker` 로 뜬다.
 
 SQS 를 long polling 으로 읽어 `email_logs` 한 행을 SES 로 보낸다.
 API 프로세스와 분리된 이유는 mail.py 머리말에 있다.
@@ -31,12 +31,9 @@ from app.shared import mail
 from app.db import SessionLocal
 from app.logging_conf import setup_logging
 from app.models import (
-    Application,
     EmailLog,
-    JobPosting,
     ScheduleProposal,
     ScheduleSlot,
-    User,
 )
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository

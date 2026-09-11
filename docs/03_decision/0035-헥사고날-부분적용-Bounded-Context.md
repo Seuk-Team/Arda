@@ -1,7 +1,6 @@
 # ADR-0035. 헥사고날 부분 적용 · Bounded Context 로 다중 스타 · Full DDD 는 안 한다
 
 > **상태: 확정 · 2026-09-12** · 작성 인프라·총괄(suvisdev). 개정 경로: 오너가 개정 ADR 을 쓰면 바뀐다 ([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
-> **참고**: mova 프로젝트(사용자 별도 저장소, `~/projects/suvisdev/suvisdev/apps/mova/`) 의 헥사고날 클린 DDD 구현체를 조사·비교한 결과 반영.
 > **개정 대상 없음**. 새 규약. 기존 ADR-0024·0031·0032 (sLLM 로컬 모델) 는 그대로.
 > **연계**: [01-erd.md](../00_overview/01-erd.md) 는 스키마 단일 계약 · 이 ADR 은 코드 조직 계약. 두 계약을 동시에 만족해야 한다.
 
@@ -35,10 +34,10 @@
 ### 2. 거부 (Reject)
 
 - **Full DDD 파편**: Aggregate Root 명시 / Domain Events / Event Sourcing / Value Object 전면 도입 — Arda 의 CRUD + 워크플로 성격에 오버. Score 같은 몇 개 VO 는 필요 시 도입하되 전면 도입 금지.
-- **DTO ↔ Pydantic Schema 이중 레이어**: Mova 는 `Dto.to_schema()` 를 쓰지만 Arda 는 Pydantic 하나로 충분. 22개 라우터 × 20개 스키마를 이중화하지 않는다.
+- **DTO ↔ Pydantic Schema 이중 레이어**: Arda 는 Pydantic 하나로 충분하다. 22개 라우터 × 20개 스키마를 이중화하면 스키마를 고칠 때마다 두 곳을 고쳐야 하고, 어긋나면 런타임에만 드러난다.
 - **grpc · websocket · scheduler 폴더 미리 생성 금지**: 현재 Arda 는 REST + (별도 서비스로 분리된) WS + worker.py 뿐. `adapter/inbound/api/` 만 만든다. WS·worker 어댑터는 실제 흡수할 때 그때 만든다.
-- **단일 중심 스타 토폴로지**: `movies` 하나가 자연 허브인 Mova 와 다르다. Arda 의 4개 자연 허브를 하나로 몰지 않는다.
-- **`domain/entities/` 순수 dataclass 를 ORM 과 별도 보관**: Mova 는 `Entity.from_orm(orm)` 팩토리로 분리하나, Arda 는 SQLAlchemy 2.0 mapped_column 을 그대로 도메인으로 쓴다. 파일 접두사 (`hiring_*`, `application_*` 등) 로 컨텍스트만 표기한다.
+- **단일 중심 스타 토폴로지**: Arda 에는 자연 허브가 4개다 (지원자·면접·공고·사용자). 하나로 몰지 않는다.
+- **`domain/entities/` 순수 dataclass 를 ORM 과 별도 보관**: `Entity.from_orm(orm)` 식 팩토리로 분리하면 매핑 코드가 배로 늘고 얻는 것은 순수성뿐이다. Arda 는 SQLAlchemy 2.0 `mapped_column` 모델을 그대로 도메인으로 쓰고, 컨텍스트는 파일·폴더 이름으로만 표기한다.
 
 ### 3. 파일·폴더 규약
 
@@ -83,7 +82,7 @@ backend/app/
 - **Phase 1 · Application 컨텍스트 Repository** (반나절-하루) — `application_repository.py` (ABC) + `application_pg_repository.py` (구현). `screening.py` · `stage_service.py` 가 `models.Application` 직접 접근하는 부분을 Repository 로 감싼다. models.py 는 유지.
 - **Phase 2 · 대형 라우터 3개 UseCase 분리** (선택 · 1-2일) — `interviews.py` · `agent.py` · `schedules.py` 를 라우터 (얇게) + UseCase (두껍게) 로 나눈다. 라우터는 파싱·검증·반환만.
 - **Phase 3 · 나머지 컨텍스트** (미정) — Hiring · Talent · Interview Repository. 각 도메인 오너가 자기 시점에 진행.
-- **Phase 4+ · Ubiquitous Language 정착** (팀 워크샵 후) — 용어 사전 · Bounded Context 간 참조 규약 (Mova §D 처럼 `UserId` VO 만으로 context 넘김) 등.
+- **Phase 4+ · Ubiquitous Language 정착** (팀 워크샵 후) — 용어 사전 · Bounded Context 간 참조 규약 (예: 컨텍스트를 넘길 때 엔티티 대신 `UserId` 같은 식별자만 넘긴다) 등.
 
 ### 5. 오너 · 게이트 · 개정
 
@@ -93,9 +92,9 @@ backend/app/
 
 ## 대안과 버린 이유
 
-- **Full DDD 전면 도입** (Aggregate Root · Domain Events · Entity/ORM 분리 · DTO 이중화) — Mova 도 실제로는 안 씀. Arda 팀 4명 규모·발표 임박·auto-CD 리스크 대비 비용이 이득을 초과.
+- **Full DDD 전면 도입** (Aggregate Root · Domain Events · Entity/ORM 분리 · DTO 이중화) — 팀 4명 규모·발표 임박·auto-CD 리스크 대비 비용이 이득을 초과. 지금 아프지 않은 곳에 넣은 장치는 그대로 유지비가 된다.
 - **Clean Architecture 4층 엄격 (Entity → UseCase → Adapter → Framework)** — AI 운용 관점 이득은 Ports & Adapters (§1 채택 항목) 에서 이미 취함. 4층 분리는 순수성만 챙기고 AI 관점 추가 이득 없음.
-- **단일 스타 온톨로지 (하나의 aggregate root 로 모든 것 방사)** — Mova 는 `movies` 하나가 자연 허브라 쉬웠지만 Arda 는 4개. 하나로 몰면 나머지 3개가 위성으로 왜곡.
+- **단일 스타 온톨로지 (하나의 aggregate root 로 모든 것 방사)** — 자연 허브가 하나인 도메인이면 쉽지만 Arda 는 4개다. 하나로 몰면 나머지 3개가 위성으로 왜곡된다.
 - **일괄 대규모 리팩터 (전 라우터·엔티티 한 PR)** — main auto-CD (2분 후 프로덕션) 환경에서 폭발 반경 위험. Phase 단위로 CI 초록·머지 가능하게 자른다.
 
 ## 검증
@@ -106,6 +105,5 @@ backend/app/
 
 ## 참고
 
-- **[Mova 프로젝트](file:///~/projects/suvisdev/suvisdev/apps/mova)** — 헥사고날 클린 DDD 참조 구현 (사용자 별도 저장소).
 - `agent/backends/base.py` — 이미 존재하는 Protocol 기반 Port 패턴. Phase 0 의 출발점.
 - ADR-0032 (추론 모델 3종 확정) — LLM Port 승격의 사용처 (Anthropic ↔ Qwen Ollama 스위치).

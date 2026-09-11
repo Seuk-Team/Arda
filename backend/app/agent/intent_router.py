@@ -23,7 +23,6 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from app.shared.labels import STAGE_LABEL_KR
 
 logger = logging.getLogger(__name__)
 

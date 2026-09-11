@@ -1,6 +1,5 @@
 """엔티티 해석 레이어 테스트."""
 
-import pytest
 
 from app.agent.entity_resolver import (
     edit_distance,

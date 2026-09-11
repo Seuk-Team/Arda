@@ -12,7 +12,7 @@
 - 서류 합격 뒤 자동으로 붙는 것: 인적성 세션+메일, 면접관 1명 자동 배정, 일정 제안.
 - 불합격 메일 일괄 발송 `send_pending_rejections`: 마감 뒤 담당자가 한 번 누른다.
 
-규칙(전이)은 `app/stages.py`, 부수효과(이력·메일)는 `app/stage_service.py` 가 그대로
+규칙(전이)은 `app/application/stages.py`, 부수효과(이력·메일)는 `app/application/stage_service.py` 가 그대로
 맡는다 — 여기서는 그 둘을 **순서대로 부를 뿐** 새 규칙을 만들지 않는다.
 """
 

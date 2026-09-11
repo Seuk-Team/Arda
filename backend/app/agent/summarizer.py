@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from app.models import Application, JobPosting
+from app.models import Application
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 

@@ -5,10 +5,9 @@
 """
 from __future__ import annotations
 
-import pytest
 
 from app.hiring.company import get_profile, name_for, prompt_context
-from app.shared.mail import build_signature, get_template, render, sender_name
+from app.shared.mail import build_signature, render, sender_name
 
 
 def _reset_profile(db):

@@ -13,7 +13,7 @@
   사슬 전체를 다시 계산하면 앞뒤가 맞는 위조본이 되기 때문이다.
   그 구멍을 메우는 것이 2단계(공개 타임스탬프)다 — ADR-0028 "남은 것" 절.
 
-파일 본문은 평소 이 서버를 지나가지 않는다(`app/s3.py`). 지문을 뜰 때만
+파일 본문은 평소 이 서버를 지나가지 않는다(`app/shared/s3.py`). 지문을 뜰 때만
 S3 에서 한 번 읽는다. 그래서 제출 응답을 붙잡지 않도록 **백그라운드로 돈다**.
 """
 
@@ -25,7 +25,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.shared import chain, ots, s3
-from app.models import Application, ChainPublication, DocumentAnchor, File
+from app.models import ChainPublication, DocumentAnchor, File
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 logger = logging.getLogger(__name__)

@@ -5,7 +5,6 @@
 """
 
 #파이썬 기본 도구
-import logging
 import os
 import threading
 import time
@@ -29,7 +28,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.shared import mail
 from app import models  # noqa: F401 — 테이블을 메타데이터에 등록하려면 import 가 필요하다
 from app.db import Base, engine, pgvector_ready
-from app.errors import ErrorCode, ErrorResponse
+from app.errors import ErrorCode
 from app.logging_conf import setup_logging
 from app.security import APP_ENV
 
@@ -62,7 +61,7 @@ async def lifespan(app: FastAPI):
 
     # 실시간 면접 시그널링은 방 목록을 **이 프로세스 메모리에** 둔다. 워커가
     # 2개 이상이면 지원자와 채용자가 서로 다른 프로세스에 붙어 영영 못 만난다.
-    # 늘리는 사람이 로그만 보고도 알 수 있게 남긴다 (app/api/interview_rtc.py).
+    # 늘리는 사람이 로그만 보고도 알 수 있게 남긴다 (app/interview/api/interview_rtc.py).
     logger.info(
         "startup: 실시간 면접 시그널링은 단일 프로세스 전제 — uvicorn --workers 를 "
         "2 이상으로 올리려면 interview_rtc 의 방 저장소를 먼저 Redis 로 바꿔야 한다"

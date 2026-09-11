@@ -21,6 +21,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 2026-09-12 추가 (ADR-0035 전체 점검). **왜 린트가 필요했나**: 헥사고날 이동 뒤
+  # 두 건의 NameError 가 프로덕션까지 갔다 — `schedules.py` 의 `timedelta` 미import,
+  # `assignments.py` 의 함수 밖 `PgTalentRepository`. 둘 다 그 코드 줄을 타는 테스트가
+  # 없어서 pytest 초록, 배포 뒤 500. `ruff --select F` (F821 미정의 이름 · F401 미사용
+  # import) 는 이 부류를 1초에 잡는다.
+  #
+  # **`--select F` 만 켠다.** 스타일 규칙(E·I 등) 까지 켜면 기존 파일 수백 줄이 빨개져
+  # 아무도 안 보는 빨간 CI 가 된다. 잡는 것은 "실제로 터지는 것" 뿐이다.
+  #
+  # ruff 는 `uvx` 로 격리 실행한다 — `pyproject.toml` 의 dev 묶음에 넣으면
+  # `uv.lock` 이 바뀌어 전원이 `uv sync` 를 다시 돌려야 한다. 버전은 로컬 실측과
+  # 맞춰 못 박는다 (떠 있으면 새 규칙이 생겨 CI 가 남의 커밋에서 터진다).
+  lint:
+    name: 백엔드 린트 (ruff F)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: ruff check (미정의 이름·미사용 import)
+        working-directory: backend
+        run: uvx ruff@0.16.7 check --select F app tests
+
   backend:
     name: 백엔드 테스트 (pytest)
     runs-on: ubuntu-latest

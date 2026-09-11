@@ -2,6 +2,8 @@
 
 > 이 문서는 작성 시점의 설계·계획이다. 확장·개정은 도메인 오너가 한다([03-conventions](../00_overview/03-conventions.md) "결정 문서 개정").
 
+> **⚠️ 2026-09-12 구조 이관**: `backend/app/` 이 Bounded Context 폴더로 재편됐다 (#184~#204). **작업 시작 전 [11-헥사고날-이관-안내.md](../00_overview/11-헥사고날-이관-안내.md) 를 읽어라** — 옛 → 새 경로 표 · Repository 사용법 · 테스트 `patch()` 경로 규칙. 결정은 [ADR-0035](../03_decision/0035-헥사고날-부분적용-Bounded-Context.md).
+
 > **오너**: woojeongalex · **폴더**: `backend/` (단 `backend/app/agent/`는 에이전트 도메인) · **상태**: 확정 v1.0 (2026-08-24, #16·#18 머지)
 > 공통 규칙(오너제·리뷰·큐 사용법)은 [04-team.md](../00_overview/04-team.md), 브랜치·PR 규칙은 [03-conventions.md](../00_overview/03-conventions.md).
 

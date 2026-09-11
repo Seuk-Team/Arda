@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.application import screening
 from app.hiring.company import get_profile
-from app.models import Application, InterviewSession, JobPosting
+from app.models import InterviewSession
 from app.ports.output.interview_repository import InterviewRepository
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository

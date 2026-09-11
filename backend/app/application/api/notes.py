@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import Application, ApplicationNote, User
+from app.models import ApplicationNote, User
 from app.schemas.note import NoteCreate, NoteOut, NoteUpdate
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 

@@ -51,7 +51,10 @@ services:
   worker:
     build: ../backend
     env_file: ../backend/.env
-    command: /app/.venv/bin/python -m app.worker
+    # ADR-0035 Phase 2 에서 `app/worker.py` → `app/shared/worker.py` 로 옮겼다.
+    # 옛 경로로 두면 컨테이너가 `No module named app.worker` 로 재시작을 반복한다
+    # (2026-09-12 실제로 그렇게 죽어 있었다 — 메일 큐가 그동안 비워지지 않았다).
+    command: /app/.venv/bin/python -m app.shared.worker
     restart: unless-stopped
     logging: *default-logging
     depends_on:

@@ -9,7 +9,6 @@ Whisper 전사 결과의 노이즈를 정규화한 뒤 에이전트에 전달한
 from __future__ import annotations
 
 import re
-import unicodedata
 
 # ── 한글 수사 → 숫자 ──────────────────────────────────────
 

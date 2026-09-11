@@ -1,6 +1,6 @@
 """이력서 파일 presigned URL (F1·F2).
 
-파일 본문은 이 서버를 지나가지 않는다 — `app/s3.py` 의 설명 참고.
+파일 본문은 이 서버를 지나가지 않는다 — `app/shared/s3.py` 의 설명 참고.
 """
 
 import re

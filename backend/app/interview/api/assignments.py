@@ -5,16 +5,17 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 from app.db import get_db
 from app.deps import get_current_user, require_roles
-from app.models import Application, InterviewerAssignment, User
+from app.models import InterviewerAssignment, User
 from app.schemas.assignment import (
     AssignRequest,
     AssignmentListOut,
     AssignmentOut,
     AssignResponse,
 )
-from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 router = APIRouter(prefix="/api/v1", tags=["assignments"])
 
@@ -39,8 +40,6 @@ def assign_interviewers(
     # 대상 사용자 존재 확인. 역할 검사는 없다 — 누구나 면접관으로 배정될 수
     # 있다 (ADR-0017). "면접관"은 역할이 아니라 그 건에서 맡은 자리다.
     # TalentRepository 로 위임 (ADR-0035 Phase 3c).
-    from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
-
     users = PgTalentRepository(db).find_users_by_ids(body.interviewer_ids)
     if len(users) != len(set(body.interviewer_ids)):
         raise HTTPException(HTTPStatus.NOT_FOUND, "없는 사용자가 있습니다")

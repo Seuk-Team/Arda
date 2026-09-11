@@ -45,6 +45,17 @@ _TEST_SAFE_SWITCHES = (
 for _key in _TEST_SAFE_SWITCHES:
     os.environ[_key] = ""
 
+# `COMPANY_NAME` 은 **빈 값이 아니라 CI 의 실효값** 으로 선점한다. CI 에는 변수가
+# 없어서 코드 기본값("Arda", app/hiring/company.py DEFAULT_COMPANY_NAME) 이 쓰인다.
+# 빈 값으로 두면 회사명이 ""가 되어 또 갈린다.
+#
+# **왜 여기서 선점하나**: 지우는 것만으로는 안 된다 — `app/main.py` 가 자기 import
+# 때 `load_dotenv()` 를 다시 불러 `.env` 의 값을 되살린다. `override=False` 라
+# **미리 값이 있으면** 못 덮으므로 여기서 못 박는 것이 유일하게 확실한 방법이다.
+# 로컬 `.env` 에 `COMPANY_NAME=Seuk` 를 둔 사람만 test_company 4건이 빨갛던 것을
+# 2026-09-12 전체 점검에서 이렇게 막았다.
+os.environ["COMPANY_NAME"] = "Arda"
+
 # `.env` 는 **여기서** 읽는다 — `app.db` 를 import 하기 전에.
 #
 # `app/db.py` 는 import 되는 순간 `os.getenv("DATABASE_URL", "…5432/arda")` 로 URL 을
@@ -69,7 +80,7 @@ from uuid import uuid4  # noqa: E402
 
 import pytest  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 from app.db import DATABASE_URL, Base, pgvector_ready  # noqa: E402
 from app.models import Application, JobPosting, User  # noqa: E402

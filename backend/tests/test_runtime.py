@@ -9,17 +9,14 @@
 
 from __future__ import annotations
 
-import importlib
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from app.agent.runtime import (
     MAX_HISTORY_MESSAGES,
     MAX_ROUNDS,
-    AgentResult,
     _trim_history,
     run_agent,
 )

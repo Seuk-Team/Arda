@@ -84,7 +84,6 @@ def sources_of(app, db=None) -> dict[str, str]:
 
     requirements = ""
     if db is not None and app.job_posting_id:
-        from app.models import JobPosting
 
         posting = PgHiringRepository(db).get_posting(app.job_posting_id)
         if posting:

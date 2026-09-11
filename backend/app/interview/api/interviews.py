@@ -89,8 +89,6 @@ def _to_out(session: InterviewSession) -> SessionOut:
 # 테스트가 `app.interview.api.interviews._generate_followup_bg` 를 patch 하는 것이
 # 있어서 지금 지우면 깨진다. 새 테스트는 `session_service` 쪽으로.
 from app.interview.session_service import (
-    DEFAULT_QUESTIONS as _DEFAULT_QUESTIONS,
-    AUDIO_KEY_RE as _AUDIO_KEY,
     LATE_ANSWER_GRACE,
     generate_followup_bg as _generate_followup_bg,
     seed_questions_bg as _seed_questions_bg,
@@ -659,7 +657,7 @@ def finish_interview(
     **대조(`findings`)는 뒤에서 만든다** (설계 §5-6). 여기서 sLLM 을 기다리면
     끝내기 요청이 몇십 초 멈춘다 — 지원자는 이미 다 답했는데 화면만 붙잡힌다.
     담당자 화면은 잠시 뒤 새로고침하면 채워져 있다.
-    끝나면 아르가 백그라운드로 **면접 점수**도 매긴다 (ADR-0034, app/interview_scoring.py) —
+    끝나면 아르가 백그라운드로 **면접 점수**도 매긴다 (ADR-0034, app/interview/scoring.py) —
     findings 와 독립. 둘 다 실패해도 세션은 이미 done 이라 지원자는 완료 화면을 본다.
     """
     session = _get_by_token(db, token)

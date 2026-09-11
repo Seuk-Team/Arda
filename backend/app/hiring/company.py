@@ -21,7 +21,18 @@ from app.models import CompanyProfile
 
 # `mail.py` 의 상수를 여기서 참조하지 않는다 — 순환 import 를 만든다.
 # 두 곳이 같은 환경변수를 읽으므로 결과는 같다.
-_ENV_FALLBACK_NAME = os.getenv("COMPANY_NAME", "Arda")
+DEFAULT_COMPANY_NAME = "Arda"
+
+
+def _env_fallback_name() -> str:
+    """환경변수 폴백을 **부를 때마다** 읽는다.
+
+    import 시점에 상수로 붙잡아 두면 값이 "누가 먼저 import 됐나" 에 달린다 —
+    `app/main.py` 가 자기 import 때 `load_dotenv()` 를 부르기 때문이다. 그래서
+    로컬(.env 에 COMPANY_NAME 있음)과 CI(없음)가 갈렸고, test_company 4건이
+    로컬에서만 빨갛게 나왔다 (2026-09-12 전체 점검에서 원인 확정).
+    """
+    return os.getenv("COMPANY_NAME", DEFAULT_COMPANY_NAME)
 
 
 def get_profile(db: Session) -> CompanyProfile:
@@ -48,9 +59,9 @@ def name_for(db: Session | None) -> str:
     if db is None:
         # 메일 워커의 단발 렌더 경로 등, DB 세션이 아직 없을 때. 이 시점엔 프로파일
         # 조회가 불가능하므로 환경변수 폴백만 쓴다.
-        return _ENV_FALLBACK_NAME
+        return _env_fallback_name()
     profile = get_profile(db)
-    return profile.name.strip() or _ENV_FALLBACK_NAME
+    return profile.name.strip() or _env_fallback_name()
 
 
 def prompt_context(db: Session) -> str:
@@ -62,7 +73,7 @@ def prompt_context(db: Session) -> str:
     p = get_profile(db)
     lines: list[str] = ["", "---", "", "## 회사 정보"]
 
-    name = p.name.strip() or _ENV_FALLBACK_NAME
+    name = p.name.strip() or _env_fallback_name()
     lines.append(f"- 회사명: {name}")
     if p.tagline:
         lines.append(f"- 한 줄 소개: {p.tagline}")

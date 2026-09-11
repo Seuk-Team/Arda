@@ -18,7 +18,6 @@ from app.models import (
     EmailLog,
     InterviewerAssignment,
     InterviewerAvailability,
-    JobPosting,
     PostingInterviewer,
     ScheduleProposal,
     StageHistory,

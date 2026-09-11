@@ -4,7 +4,7 @@
     PUT /settings/scoring   가중치·인재상을 바꾼다. 보낸 키만 반영
 
 가중치는 company_profile.scoring_weights JSON 한 곳에 산다. 키·기본값·합산 규칙은
-app/screening.py 가 원본이다 — 여기서는 저장과 조회만 한다.
+app/application/screening.py 가 원본이다 — 여기서는 저장과 조회만 한다.
 """
 
 from __future__ import annotations

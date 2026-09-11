@@ -28,7 +28,6 @@ from app.models import (
     Application,
     EmailLog,
     EmailTemplate,
-    JobPosting,
     User,
 )
 from app.schemas.email import (
