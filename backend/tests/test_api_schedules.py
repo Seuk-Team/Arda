@@ -41,7 +41,7 @@ def no_sqs(monkeypatch):
     발행 실패는 코드가 이미 삼키지만(제안·확정이 메일 때문에 무너지면 안 된다),
     막지 않으면 boto3 가 매번 클라이언트를 만들고 재시도하느라 느려진다.
     """
-    monkeypatch.setattr("app.mail.publish", lambda _id: None)
+    monkeypatch.setattr("app.shared.mail.publish", lambda _id: None)
 
 
 @pytest.fixture()
