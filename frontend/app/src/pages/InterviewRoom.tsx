@@ -402,6 +402,13 @@ export default function InterviewRoom() {
           {!waiting && (
           <div ref={holoRef} className={styles.holo} data-backdrop={backdrop} aria-live="polite">
             <h2 className={styles.holoTitle}>실시간 분석</h2>
+            {/* 브라우저가 소리 장치를 멈춰 둔 채면 분석이 소리를 한 조각도 못 받는다
+                — 누르는 순간 `useLiveAnalysis` 가 깨운다 (2026-09-11) */}
+            {analysis.audioBlocked && (
+              <p className={styles.stale}>
+                <strong>소리 분석이 멈춰 있습니다 — 이 화면을 한 번 클릭하세요.</strong>
+              </p>
+            )}
 
             {/* **값이 있으면 값을 먼저 보여 준다.** 소켓이 끊겼다고 숫자를 감추면
                 그 아래 붙는 100·0 경고까지 같이 사라진다 — 경고 없이 숫자만 본

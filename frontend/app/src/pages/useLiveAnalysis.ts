@@ -91,6 +91,8 @@ export type LiveAnalysis = {
   voices: VoiceSignals[]
   /** 분석만 실패한 것. **면접 자체는 계속된다** */
   error: string | null
+  /** 브라우저가 소리 장치를 멈춰 둔 채다 — 화면을 한 번 누르면 풀린다 */
+  audioBlocked: boolean
 }
 
 const EMPTY: LiveAnalysis = {
@@ -100,6 +102,7 @@ const EMPTY: LiveAnalysis = {
   history: [],
   voices: [],
   error: null,
+  audioBlocked: false,
 }
 
 /** 흐름에 남기는 개수. 면접 내내 쌓으면 화면이 길어지기만 한다 */
@@ -143,9 +146,12 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
     let retryTimer: number | null = null
     let retries = 0
     let closing = false
+    let stopWaking: (() => void) | null = null
 
     const cleanup = () => {
       closing = true
+      stopWaking?.()
+      stopWaking = null
       if (timer !== null) window.clearInterval(timer)
       timer = null
       if (retryTimer !== null) window.clearTimeout(retryTimer)
@@ -256,6 +262,28 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
         URL.revokeObjectURL(blobUrl)
       }
       if (!aliveRef.current) return
+
+      /* **크롬은 페이지를 한 번도 누르지 않았으면 소리 장치를 멈춘 채로 만든다**
+         (자동재생 정책). 면접방 주소를 새 탭에 붙여 열면 그렇다 — 그러면 지원자
+         소리가 분석으로 한 조각도 안 가서 판정이 영영 안 뜬다(2026-09-11 실측:
+         "말하기 시작하면…" 에서 멈춤). 바로 깨워 보고, 안 깨면 첫 클릭·키에 깨운다.
+         멈춰 있는 동안은 화면이 "한 번 누르세요" 를 띄운다(`audioBlocked`). */
+      const wake = () => {
+        if (audio.state === 'suspended') void audio.resume().catch(() => {})
+      }
+      audio.onstatechange = () => {
+        if (!aliveRef.current) return
+        setState((s) => ({ ...s, audioBlocked: audio.state === 'suspended' }))
+      }
+      window.addEventListener('pointerdown', wake)
+      window.addEventListener('keydown', wake)
+      stopWaking = () => {
+        window.removeEventListener('pointerdown', wake)
+        window.removeEventListener('keydown', wake)
+        audio.onstatechange = null
+      }
+      wake()
+      setState((s) => ({ ...s, audioBlocked: audio.state === 'suspended' }))
 
       const node = new AudioWorkletNode(audio, 'pcm')
       node.port.onmessage = (e) => {
