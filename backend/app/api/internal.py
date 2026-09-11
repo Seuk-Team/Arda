@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from app import mail
 from app.db import get_db
 from app.models import Application, EmailLog, InterviewTurn
-from app.worker import _actor, _context, _reply_to
+from app.shared.worker import _actor, _context, _reply_to
 
 logger = logging.getLogger(__name__)
 
