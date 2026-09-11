@@ -23,7 +23,10 @@ from .read import (
     search_users,
 )
 from .write import (
-    WRITE_TOOL_NAMES,
+    # 중복 별칭(`X as X`) 은 "패키지 API 로 다시 내보낸다" 는 표시다 — 라우터가
+    # `from app.agent.tools import WRITE_TOOL_NAMES` 로 쓴다. 이 형태가 아니면
+    # 린터가 미사용 import 로 보고 지우라고 한다 (2026-09-12 린트 게이트 도입).
+    WRITE_TOOL_NAMES as WRITE_TOOL_NAMES,
     assign_interviewer,
     change_stage,
     create_schedule_proposal,

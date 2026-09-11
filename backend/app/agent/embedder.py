@@ -174,7 +174,6 @@ def _upsert(db: Session, application_id: int, vec: list[float]) -> None:
 
 def embed_application(db: Session, application_id: int) -> None:
     """지원서 1건의 임베딩을 생성하고 DB에 저장한다."""
-    from app.models import Application
 
     try:
         _embedding_table()

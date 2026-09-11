@@ -307,7 +307,7 @@ def save_turn_findings(db, turn_id: int) -> int | None:
     """
     from sqlalchemy import delete, select
 
-    from app.models import Application, InterviewFinding, InterviewSession, InterviewTurn
+    from app.models import InterviewFinding, InterviewTurn
 
     turn = db.get(InterviewTurn, turn_id)
     if turn is None:
@@ -379,7 +379,7 @@ def save_session_findings(db, session_id: int) -> int | None:
     """
     from sqlalchemy import select
 
-    from app.models import Application, InterviewFinding, InterviewSession, InterviewTurn
+    from app.models import InterviewFinding, InterviewTurn
 
     session = PgInterviewRepository(db).get_session(session_id)
     if session is None:

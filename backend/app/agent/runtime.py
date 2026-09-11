@@ -61,7 +61,6 @@ def _applicant_label(db: Session, application_id: int | None) -> str:
     """지원자 ID → '김도현(서울대 컴공)' 형태. 못 찾으면 '#ID'."""
     if application_id is None:
         return "지원자"
-    from app.models import Application
     app = PgApplicationRepository(db).get(int(application_id))
     if app is None:
         return f"지원자 #{application_id}"

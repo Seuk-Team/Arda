@@ -4,15 +4,12 @@ ADR-0035 Phase 2 · models.py 분할."""
 
 from __future__ import annotations
 
-from datetime import date, datetime
-from decimal import Decimal
+from datetime import datetime
 
 from sqlalchemy import (
     DDL,
     BigInteger,
-    Boolean,
     CheckConstraint,
-    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -27,26 +24,12 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.models.constants import (
-    APPLICATION_SOURCES,
-    DECISION_SOURCES,
-    DOC_DECISIONS,
     DOC_TYPES,
-    EMAIL_ACTOR_KINDS,
-    EMAIL_LOG_STAGES,
-    EMAIL_STATUSES,
-    FILE_KINDS,
-    POSTING_STATUSES,
-    PROPOSAL_STATUSES,
     PUBLICATION_STATUSES,
-    ROLES,
-    SCREENING_MODES,
-    STAGES,
-    TEMPLATE_STAGES,
     _in,
 )
 

@@ -25,13 +25,13 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.shared import mail
 from app.db import get_db
-from app.models import Application, EmailLog, InterviewTurn
+from app.models import EmailLog, InterviewTurn
 from app.shared.worker import _actor, _context, _reply_to
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
@@ -112,7 +112,9 @@ def render_email_log(log_id: int, db: Session = Depends(get_db)) -> RenderOut:
         )
 
     actor_name, actor_email = _actor(db, log)
-    from_name = mail.sender_name(log.stage, log.actor_kind, actor_name)
+    # 표시 이름(`mail.sender_name(log.stage, log.actor_kind, actor_name)`) 은 계산하지
+    # 않는다 — 아래에서 From 에 주소만 넘기기 때문이다. 표시 이름을 붙이기로 정하면
+    # 그때 그 함수를 부른다 (계산해 놓고 버리던 줄을 2026-09-12 점검에서 지웠다).
     if log.body is not None:
         # 확정 본문이 있는 행(수동·에이전트 발송)은 다시 렌더하지 않는다 — 워커와 같은 규칙.
         subject, body = log.subject or "", log.body

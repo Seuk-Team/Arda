@@ -5,47 +5,28 @@ ADR-0035 Phase 2 · models.py 분할."""
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal
 
 from sqlalchemy import (
-    DDL,
     BigInteger,
-    Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
-    Index,
     Integer,
     JSON,
-    Numeric,
     SmallInteger,
     String,
     Text,
     UniqueConstraint,
-    event,
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.constants import (
-    APPLICATION_SOURCES,
-    DECISION_SOURCES,
-    DOC_DECISIONS,
-    DOC_TYPES,
-    EMAIL_ACTOR_KINDS,
-    EMAIL_LOG_STAGES,
-    EMAIL_STATUSES,
-    FILE_KINDS,
     POSTING_STATUSES,
-    PROPOSAL_STATUSES,
-    PUBLICATION_STATUSES,
-    ROLES,
     SCREENING_MODES,
-    STAGES,
     TEMPLATE_STAGES,
     _in,
 )
@@ -154,8 +135,16 @@ class CompanyProfile(Base):
     description: Mapped[str | None] = mapped_column(Text)
     # 회사 전체 이야기 — 아르 프롬프트 뒤에 그대로 붙는 마크다운.
     narrative: Mapped[str | None] = mapped_column(Text)
-    # 자동 심사 가중치 (0016, ADR-0034). 키·기본값은 app/screening.py DEFAULT_WEIGHTS.
-    scoring_weights: Mapped[dict | None] = mapped_column(JSON)
+    # 자동 심사 가중치 (0016, ADR-0034). 키·기본값의 진실은
+    # `app.application.screening.DEFAULT_WEIGHTS` 다 — 여기 값이 빈 객체라도
+    # `screening.weights()` 가 기본값 위에 덮어쓰는 구조라 동작이 같다.
+    #
+    # **NOT NULL 이다** (0016 이 그렇게 만들었다). 2026-09-12 `alembic check` 에서
+    # 모델만 nullable 로 적혀 있던 것을 발견해 실제 스키마에 맞췄다 — 이 칸이
+    # 어긋나 있으면 테스트(create_all)는 NULL 을 받고 프로덕션(alembic)은 거부한다.
+    scoring_weights: Mapped[dict] = mapped_column(
+        JSON, nullable=False, server_default=text("'{}'::json")
+    )
     # 인재상 원문 — 서류·면접 채점의 "문화 적합" 재료. 회사 소개 §8 을 옮긴 것.
     talent_profile: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.agent.summarizer import generate_summary_bg
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import Application, JobPosting, StageHistory, User
+from app.models import Application, StageHistory, User
 from app.schemas.application_detail import (
     ApplicationDetail,
     ApplicationListItem,

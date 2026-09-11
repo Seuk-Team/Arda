@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -15,11 +14,9 @@ from app.agent.tools.write import (
     send_email,
 )
 from app.models import (
-    Application,
     EmailLog,
     EmailTemplate,
     StageHistory,
-    User,
 )
 
 

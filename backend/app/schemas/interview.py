@@ -102,7 +102,7 @@ class PacingHintOut(BaseModel):
 
     **판정이 아니라 제안이다.** 점수·확률·등급에 해당하는 값이 없고, DB 에도
     남지 않는다 — 답변을 저장한 그 응답에만 실려 나간다. 규칙은
-    `app/interview_pacing.py` 에 모여 있다.
+    `app/interview/pacing.py` 에 모여 있다.
     """
 
     action: str  # follow_up | offer_break | rephrase

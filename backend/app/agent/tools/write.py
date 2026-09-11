@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status as http
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -18,7 +18,6 @@ from app.models import (
     Application,
     InterviewerAssignment,
     InterviewerAvailability,
-    JobPosting,
     ScheduleProposal,
     ScheduleSlot,
     User,
@@ -40,7 +39,7 @@ WRITE_TOOL_NAMES = frozenset({
 def change_stage(db: Session, user: User, params: dict) -> dict:
     """단계 변경 + 이력 기록 + 메일 큐 발행.
 
-    **부수효과는 REST 와 같은 함수를 쓴다** (`app/stage_service.py`, #148). 전에는
+    **부수효과는 REST 와 같은 함수를 쓴다** (`app/application/stage_service.py`, #148). 전에는
     여기서 `email_logs` 행을 직접 만들고 SQS 발행을 하지 않아, 에이전트로 단계를
     바꾸면 메일이 영영 나가지 않는데 응답은 `mail_queued: true` 였다. 불합격
     사유(D8)도 남지 않았다. 규칙만 공유하고 순서를 따로 쓰면 이렇게 갈린다.

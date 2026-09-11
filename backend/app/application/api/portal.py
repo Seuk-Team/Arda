@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.shared import mail
 from app.db import get_db
-from app.models import Application, JobPosting
+from app.models import Application
 from app.schemas.portal import (
     PortalLookupRequest,
     PortalLookupResponse,

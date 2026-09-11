@@ -8,35 +8,41 @@ M4: 쓰기 도구 (예정)
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status as http
-from pydantic import BaseModel
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status as http
 from sqlalchemy.orm import Session
 
 from app.agent.backends import get_summary_backend
 from app.agent.entity_resolver import resolve_entities
-from app.agent.intent_router import DirectAction, classify
+from app.agent.intent_router import classify
 from app.hiring.company import prompt_context as company_prompt_context
 from app.models import AgentTrace
 from app.agent.interview_probe import generate_probes, sources_of
 from app.agent.prompts import render
-from app.agent.runtime import _describe_action, run_agent
+from app.agent.runtime import run_agent
 from app.agent.summarizer import generate_summary
 from app.agent.tools import WRITE_TOOL_NAMES, execute_tool
 from app.db import get_db
 from app.deps import get_current_user
-from app.shared.labels import STAGE_LABEL_KR
 from app.models import Application, User
-from app.application.stages import STAGE_ORDER, StageTransitionError, validate_transition
+
+# 규칙 라우터(레버 ②) 로직 본체는 `app/application/agent_service.py` 에 있다
+# (ADR-0035 Phase 4). `_` 별칭을 남기는 이유는 테스트가 **이 모듈 경로로** 패치하기
+# 때문이다 (`patch("app.application.api.agent._handle_direct")`, test_api_agent.py) —
+# 이름을 그대로 가져오면 그 패치가 라우터가 실제로 부르는 참조를 못 바꾼다.
+from app.application.agent_service import (
+    choices_from_tool_results as _choices_from_tool_results,
+    handle_direct as _handle_direct,
+)
 
 # Pydantic 스키마 (ADR-0035 Phase 4 · schemas/agent.py 로 이관)
 from app.schemas.agent import (
     ChatRequest,
     ChatResponse,
-    ChoiceOut,
     ConfirmRequest,
     ConfirmResponse,
     PendingActionOut,
+    ProbeClaim,
+    ProbesOut,
     SttResponse,
     SummaryOut,
     ToolCallOut,
@@ -85,9 +91,6 @@ def regenerate_summary(
         )
 
     return SummaryOut(summary=summary, model=app.ai_summary_model)
-
-
-from app.schemas.agent import ProbeClaim, ProbesOut  # noqa: F401,E402
 
 
 @router.post(
@@ -248,27 +251,6 @@ def chat(
     )
 
 
-# ── 동명이인 선택지 ──────────────────────────────────────────
-
-
-
-from app.application.agent_service import (
-    CHOICE_LIMIT as _CHOICE_LIMIT,
-    build_per_choice_pendings as _build_per_choice_pendings,
-    choice_for_app as _choice_for_app,
-    choices_from_tool_results as _choices_from_tool_results,
-    format_reply as _format_reply,
-    handle_direct as _handle_direct,
-    lookup_applicants_by_name as _lookup_applicants_by_name,
-    router_reply as _router_reply,
-    router_response as _router_response,
-    stage_label as _stage_label,
-    stage_rule_reply as _stage_rule_reply,
-)
-
-
-
-
 @router.post("/confirm", response_model=ConfirmResponse)
 def confirm_action(
     body: ConfirmRequest,
@@ -279,7 +261,6 @@ def confirm_action(
     if body.tool_name not in WRITE_TOOL_NAMES:
         raise HTTPException(http.HTTP_400_BAD_REQUEST, f"확인 대상이 아닌 도구입니다: {body.tool_name}")
 
-    import json
     raw = execute_tool(body.tool_name, body.arguments, db, user)
     result = json.loads(raw)
 

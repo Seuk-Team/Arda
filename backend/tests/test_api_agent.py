@@ -7,7 +7,6 @@ FastAPI TestClient 로 HTTP 레벨에서 검증한다.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pytest

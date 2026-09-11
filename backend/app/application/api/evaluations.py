@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import assert_can_evaluate, get_current_user
-from app.models import Application, Evaluation, User
+from app.models import Evaluation, User
 from app.schemas.application_detail import EvaluationOut
 from app.schemas.evaluation import (
     EvaluationCreate,

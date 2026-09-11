@@ -24,7 +24,6 @@ from app.models import AgentTrace, User
 
 @pytest.fixture()
 def member(db: Session) -> User:
-    from datetime import UTC, datetime
     from uuid import uuid4
     u = User(
         email=f"trace-{uuid4().hex[:6]}@arda.local",

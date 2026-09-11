@@ -182,7 +182,7 @@ class TestPublicView:
         self, public, db: Session, application: Application, admin_user: User
     ):
         """지원자에게 필요한 건 자기 면접 상태뿐이다."""
-        s = _session(db, application, admin_user)
+        _session(db, application, admin_user)
         db.commit()
 
         body = public.get("/api/v1/public/interview/tok-test").json()
@@ -503,7 +503,7 @@ class TestFinish:
         self, public, db: Session, application: Application, admin_user: User
     ):
         """새로고침으로 500 을 만들지 않는다."""
-        s = _session(
+        _session(
             db,
             application,
             admin_user,

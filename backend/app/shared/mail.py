@@ -3,7 +3,7 @@
 **여기서 SES 를 호출하지 않는다.** 단계 변경 API 안에서 메일을 직접 보내면
 SES 가 느릴 때 담당자 화면이 같이 멈추고, SES 가 죽으면 단계 변경까지 실패한다.
 이 모듈은 `email_logs` 행을 `queued` 로 만들고 그 id 만 SQS 에 실어 보낸다.
-실제 발송은 `app.worker` 가 한다.
+실제 발송은 `app.shared.worker` 가 한다.
 
 문구는 docs/00_overview/email-templates.md (G1 산출물) 를 그대로 옮긴 것이다.
 **문서와 이 파일의 `_TEMPLATES` 는 이제 "기본값"이다** (G4). 운영 문구는 설정
@@ -13,23 +13,18 @@ SES 가 느릴 때 담당자 화면이 같이 멈추고, SES 가 죽으면 단�
  컨테이너 안에 docs/ 가 없다.)
 """
 
-import json
 import logging
 import os
 import re
-from functools import lru_cache
 
-import boto3
 
 from app.models import EmailLog, EmailTemplate
 
 logger = logging.getLogger(__name__)
 
-REGION = os.getenv("AWS_REGION", "ap-northeast-2")
-
 # 회사명 폴백. **정식 값은 `company_profile.name` 이다** (마이그레이션 0013).
 # 이 상수는 프로파일 행이 아직 안 채워졌을 때만 쓰인다. render()·build_signature()
-# 는 이제 db 를 받아 `app.company.name_for(db)` 를 우선 쓴다 — DB 값이 있으면
+# 는 이제 db 를 받아 `app.hiring.company.name_for(db)` 를 우선 쓴다 — DB 값이 있으면
 # 그것, 없으면 이 환경변수(기본 "Arda").
 COMPANY_NAME = os.getenv("COMPANY_NAME", "Arda")
 
@@ -45,43 +40,21 @@ TEMPLATE_VARS = ("{지원자명}", "{공고명}", "{회사명}", "{면접일시}
 INTERVIEW_AT_UNKNOWN = "별도 안내"
 
 
-@lru_cache(maxsize=1)
-def _sqs():
-    """클라이언트를 임포트 시점이 아니라 첫 사용 시점에 만든다.
-
-    모듈 최상단에서 만들면 AWS 설정이 없는 환경(테스트·CI)에서 임포트만 해도 터진다.
-    s3.py 와 같은 방식이다.
-    """
-    return boto3.client("sqs", region_name=REGION)
-
-
 def warm_up() -> None:
-    """boto3 클라이언트를 미리 만들어 둔다.
+    """boto3 SQS 클라이언트를 부팅 때 미리 만든다 (main.py lifespan 에서 호출).
 
     클라이언트 생성이 2 초쯤 걸린다(botocore 가 서비스 모델 JSON 을 읽는다).
-    지연 생성만 해 두면 **재기동 후 첫 단계 변경 요청 하나가 그 2 초를 뒤집어쓴다** —
-    이 기능이 애초에 없애려던 지연이 자리만 옮겨 되살아난다. 부팅 때 미리 만든다.
-
-    실패해도 무시한다. 어차피 첫 호출 때 다시 만들고, 여기서 죽으면 AWS 가 없는
-    환경에서 앱이 아예 안 뜬다.
+    지연 생성만 해 두면 **재기동 후 첫 단계 변경 요청 하나가 그 2 초를 뒤집어쓴다**.
+    실체는 SQS 어댑터에 있다 — 클라이언트 캐시를 두 곳에 두지 않는다.
     """
-    try:
-        _sqs()
-    except Exception:
-        logger.warning("SQS 클라이언트 예열 실패 — 첫 호출 때 다시 만든다", exc_info=True)
+    from app.adapter.outbound.mail.sqs_dispatcher import warm_up as _warm_up_sqs
 
-
-def _queue_url() -> str:
-    """큐 URL 을 호출 시점에 읽는다.
-
-    모듈 상수로 굳히면 테스트에서 환경변수를 바꿔도 안 먹는다.
-    """
-    return os.getenv("SQS_QUEUE_URL", "")
+    _warm_up_sqs()
 
 
 # ── 문구 (docs/00_overview/email-templates.md 사본) ────────────────────
 #
-# 단계 ↔ 템플릿 대응. NOTIFY_STAGES(app/stages.py) 와 C4 의 applied 를 합친 것이다.
+# 단계 ↔ 템플릿 대응. NOTIFY_STAGES(app/application/stages.py) 와 C4 의 applied 를 합친 것이다.
 #   applied   → 접수 확인          (C4)
 #   interview → ① 서류 합격·면접 안내
 #   accepted  → ③ 최종 합격
@@ -354,8 +327,8 @@ def create_custom_log(
 def _get_dispatcher():
     """MAIL_DISPATCH env 로 어떤 `MailDispatcher` 를 쓸지 정한다 (ADR-0035 Phase 3g).
 
-    구현 이관 · `_sqs`·`_publish_to_n8n` 함수는 유지 (테스트 호환) 하되 실제 로직은
-    Port 의 어댑터로 옮겨졌다. 이 함수만 mock 하면 publish 흐름을 격리 검증할 수 있다.
+    SQS·n8n 발행 로직은 각 어댑터(`adapter/outbound/mail/`)에 있다. 이 함수만 mock
+    하면 publish 흐름을 격리 검증할 수 있다.
     """
     from app.adapter.outbound.mail import N8nMailDispatcher, SqsMailDispatcher
 
@@ -381,34 +354,6 @@ def publish(email_log_id: int, *, dispatcher=None) -> None:
         dispatcher = _get_dispatcher()
     dispatcher.publish(email_log_id)
 
-
-# n8n 웹훅 URL. compose 안 통신이라 https 가 아니라 http 로, 인증 없이 부른다.
-# Basic Auth 는 밖에서 편집 화면 접근용, 안쪽 웹훅 경로는 열려 있다(의도한 것 —
-# infra/n8n/README "웹훅은 docker 네트워크 안에서 부른다" 참고).
-# **경로에 /n8n 접두어 없음** — n8n 은 웹훅을 항상 루트에 등록한다(N8N_PATH 와 무관).
-# 2026-09-08 실측: /n8n/webhook/... 는 404, /webhook/... 만 동작.
-_N8N_WEBHOOK_URL_DEFAULT = "http://n8n:5678/webhook/stage-changed"
-
-
-def _publish_to_n8n(email_log_id: int) -> None:
-    """n8n 웹훅 하나로 POST — body 는 { "email_log_id": <id> } 만 실어 보낸다.
-
-    나머지 값(제목·본문·수신자·결과 기록)은 워크플로가 우리 내부 API 를 부른다.
-    실패해도 예외를 던져 호출부의 정책(=stage_service.publish_all 이 예외를 로그만
-    남기고 삼킴)에 따라 처리 — 단계 변경 자체는 이미 성공이다.
-    """
-    # requests 는 표준 라이브러리가 아니라 프로젝트 의존이다. 실패 시 timeout 이 도는
-    # 시간 이상은 붙잡지 않는다 — 담당자 화면이 그만큼 늦어지지 않도록.
-    import httpx  # 지연 임포트 — worker 흐름이면 이 import 자체를 안 탄다
-
-    url = os.getenv("N8N_WEBHOOK_URL", _N8N_WEBHOOK_URL_DEFAULT).strip() or _N8N_WEBHOOK_URL_DEFAULT
-    resp = httpx.post(
-        url,
-        json={"email_log_id": email_log_id},
-        timeout=5.0,
-    )
-    resp.raise_for_status()
-    logger.info("메일 웹훅 발행 email_log_id=%s (n8n → %s)", email_log_id, url)
 
 
 def enqueue(db, application_id: int, to_email: str, stage: str) -> EmailLog:
