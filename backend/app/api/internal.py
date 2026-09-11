@@ -235,7 +235,7 @@ async def push_verdict(token: str, body: VerdictIn, db: Session = Depends(get_db
     세션에 **집계값**(표본 수·truth_pct 합)만 더한다. 이 부분이 실패해도 담당자
     화면으로 미는 것은 이미 끝났으므로 로그만 남긴다.
     """
-    from app.api.interview_rtc import push_to_recruiter
+    from app.interview.api.interview_rtc import push_to_recruiter
 
     await push_to_recruiter(token, {"type": "verdict", **body.model_dump()})
 
@@ -370,14 +370,14 @@ async def push_identity(token: str, body: IdentityIn):
     이건 신원 확인이라 성격이 다르다 — 섞어 보내면 화면에서 "거짓말 지표"처럼
     읽히고, 그건 이 값이 하려는 말이 아니다.
     """
-    from app.api.interview_rtc import push_to_recruiter
+    from app.interview.api.interview_rtc import push_to_recruiter
 
     await push_to_recruiter(token, {"type": "identity", **body.model_dump()})
 
 
 def _find_session_or_404(db: Session, token: str):
     """토큰으로 면접 세션을 찾는다. 없으면 404 — 워커용 경로 셋이 같이 쓴다."""
-    from app.api.interview_rtc import _find_session
+    from app.interview.api.interview_rtc import _find_session
 
     session = _find_session(db, token)
     if session is None:

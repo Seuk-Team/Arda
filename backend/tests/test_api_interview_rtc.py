@@ -20,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api import interview_rtc
+from app.interview.api import interview_rtc
 from app.db import get_db
 from app.deps import get_current_user
 from app.main import app

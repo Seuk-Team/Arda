@@ -126,7 +126,7 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     import secrets
 
     from app.shared import mail
-    from app.api.schedules import _build_candidates
+    from app.interview.api.schedules import _build_candidates
 
     logger = logging.getLogger(__name__)
 

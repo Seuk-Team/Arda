@@ -963,7 +963,7 @@ class TestLateTranscript:
 
     def test_답한_칸의_늦은_전사는_받고_다시_채점한다(self, public, db, ended):
         with patch("app.interview.scoring.score_interview_bg") as rescore, patch(
-            "app.api.interviews._generate_followup_bg"
+            "app.interview.api.interviews._generate_followup_bg"
         ) as followup:
             res = public.post(
                 "/api/v1/public/interview/tok-test/answer",
