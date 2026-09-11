@@ -43,15 +43,26 @@ logger = logging.getLogger(__name__)
 # 가중치 기본값. company_profile.scoring_weights 가 이 키를 덮어쓴다.
 # doc_* 세 개 = 서류 100점의 구성, itv_* 두 개 = 면접 100점의 구성,
 # doc·interview = 최종 합계의 구성. 각 묶음의 합이 100이 아니어도 된다 — 합으로 나눈다.
+#
+# 2026-09-11 개정: 필수 요건 강조 (50→60), 우대 축소 (20→10). fit-check 24명 실측 분석:
+#   요건 우수 지원자가 우대 부족만으로 탈락하는 케이스(임재원 등)가 있어
+#   우대 가중치를 낮추고 요건 비중을 올렸다. 문화(30)는 그대로 두되 문화 하한 규칙을
+#   `doc_score_from` 에 추가 — 요건 70 이상이면 문화 점수가 50 미만으로 내려가지 않는다.
 DEFAULT_WEIGHTS: dict[str, int] = {
     "doc": 50,
     "interview": 50,
-    "doc_requirements": 50,
-    "doc_preferred": 20,
+    "doc_requirements": 60,
+    "doc_preferred": 10,
     "doc_culture": 30,
     "itv_answers": 70,
     "itv_truth": 30,
 }
+
+# 요건 우수(≥70) 지원자를 문화 감점 하나로 떨어뜨리지 않기 위한 하한.
+# 남기훈(요건 75, 문화 35) 같은 케이스에서 회의 기반 의사결정 언급 하나로
+# 문화 35 가 총점을 결정한다 — 요건이 확실하면 그 하나로 판정을 흔들지 않게 한다.
+CULTURE_FLOOR_WHEN_REQUIREMENTS_HIGH = 50
+REQUIREMENTS_HIGH_THRESHOLD = 70
 
 # 등급 경계 (final_score 기준). 아래 것부터 맞는 첫 등급.
 GRADE_BOUNDS: tuple[tuple[int, str], ...] = ((85, "S"), (70, "A"), (55, "B"))
@@ -95,13 +106,25 @@ def _weighted(parts: dict[str, int | float | None], keys: tuple[tuple[str, str],
 
 
 def doc_score_from(detail: dict, w: dict) -> int | None:
-    """서류 100점 = 요건·우대·인재상 세 갈래의 가중 평균."""
+    """서류 100점 = 요건·우대·인재상 세 갈래의 가중 평균.
+
+    2026-09-11: 요건 하한 규칙 — requirements ≥ 70 이면 culture 를 50 아래로 안 본다.
+    요건을 확실히 갖춘 지원자를 문화 하나(예: "회의 기반 의사결정" 문구) 로 떨어뜨리지
+    않기 위해서다. 문화의 상한은 손대지 않으므로 좋은 문화는 그대로 반영된다.
+    """
+    requirements = detail.get("requirements")
+    preferred = detail.get("preferred")
+    culture = detail.get("culture")
+
+    if (
+        isinstance(requirements, (int, float))
+        and requirements >= REQUIREMENTS_HIGH_THRESHOLD
+        and isinstance(culture, (int, float))
+    ):
+        culture = max(culture, CULTURE_FLOOR_WHEN_REQUIREMENTS_HIGH)
+
     return _weighted(
-        {
-            "requirements": detail.get("requirements"),
-            "preferred": detail.get("preferred"),
-            "culture": detail.get("culture"),
-        },
+        {"requirements": requirements, "preferred": preferred, "culture": culture},
         (("requirements", "doc_requirements"), ("preferred", "doc_preferred"), ("culture", "doc_culture")),
         w,
     )
