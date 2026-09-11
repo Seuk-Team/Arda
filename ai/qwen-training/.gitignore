@@ -1,0 +1,12 @@
+.venv/
+output/
+raw_traces.json
+synth_cases.jsonl
+.synth_cache.jsonl
+dataset.*.jsonl
+*.gguf
+*.safetensors
+__pycache__/
+*.pyc
+results/
+db-snapshot/

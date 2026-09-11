@@ -1,0 +1,135 @@
+# 인터뷰 처리 chain 학습용 시드
+#
+# 아르는 도구 호출만 하는 게 아니라 STT 로 나온 면접 답변을 처리한다 —
+# 4개 chain 이 각기 다른 시스템 프롬프트로 돌아간다:
+#   1. interview_probe.v3.md         — 면접 전 자기소개서·이력서에서 질문 뽑기
+#   2. interview_findings.v1.md      — 면접 후 서류 주장 ↔ 전사 대조 (최대 8건)
+#   3. interview_findings_turn.v1.md — 답변 하나마다 즉시 대조 (최대 3건, #175 신설)
+#   4. interview_score.v1.md         — 답변 점수 (answers_score 0~100)
+#
+# 각 시드는 `system_prompt_file` 로 시스템 프롬프트 파일명을 지정한다 (agent 시드와 구분).
+# `assistant_json` 은 JSON 문자열 · build_dataset.py 가 assistant content 로 그대로 붙임.
+#
+# 지금은 chain 마다 2~3 개 손 시드 · 나중에 Haiku 로 확장 (input 이 길어 비용 주의).
+
+version: 1
+seeds:
+  # ══════════ interview_probe (면접 전 질문 생성) ══════════
+  - id: seed_probe_1
+    category: interview_probe
+    system_prompt_file: interview_probe.v3.md
+    # 시스템 프롬프트의 자리표시자를 채운 다음 user 메시지에 담는 방식
+    template_vars:
+      requirements_text: "필수: Python 3년 이상, FastAPI 경험. 우대: AWS, RAG."
+      cover_letter_text: "저는 사용자 5만 규모 서비스에서 검색 응답 820ms를 240ms로 낮춘 경험이 있습니다. 병목이 어디인지 프로파일링부터 시작했고, DB 인덱스 개편과 캐시 도입을 6주에 걸쳐 적용했습니다."
+      resume_text: "2023-2025 KakaoStyle 백엔드. FastAPI 재작성 · Redis 캐시 · Postgres 파티셔닝 (설계 담당). 커버리지 85%."
+    assistant_json: |
+      {"claims":[
+        {"claim":"검색 응답 820ms를 240ms로 낮춘 경험이 있습니다","type":"수치","questions":["820ms 중 어디가 오래 걸리는지 어떻게 좁혀 가셨어요?","240ms로 낮추기까지 가장 오래 걸린 시도는 무엇이었나요?"]},
+        {"claim":"DB 인덱스 개편과 캐시 도입을 6주에 걸쳐 적용했습니다","type":"규모","questions":["6주 안에 인덱스와 캐시 둘 다 넣어야 했던 이유는 뭐였어요?","6주 중 실제로 검증에 쓴 시간은 얼마 정도였나요?"]},
+        {"claim":"Postgres 파티셔닝 (설계 담당)","type":"역할","questions":["파티셔닝 키를 어떻게 정하셨어요?","설계할 때 가장 고민된 조회 패턴은 무엇이었나요?"]}
+      ]}
+
+  - id: seed_probe_2
+    category: interview_probe
+    system_prompt_file: interview_probe.v3.md
+    template_vars:
+      requirements_text: "필수: React, TypeScript. 우대: 대용량 트래픽."
+      cover_letter_text: "책임감이 강하고 새로운 기술에 관심이 많습니다. 성장하고 싶습니다."
+      resume_text: "2024 졸업, 프로젝트 3건. React 개인 사이트."
+    # 확인할 만한 주장이 없으면 빈 배열
+    assistant_json: |
+      {"claims":[]}
+
+  - id: seed_probe_3
+    category: interview_probe
+    system_prompt_file: interview_probe.v3.md
+    template_vars:
+      requirements_text: "필수: 데이터 엔지니어 3년. 우대: Airflow, dbt."
+      cover_letter_text: "매일 4억 건의 이벤트를 처리하는 파이프라인을 2년간 운영했습니다. 재처리 오케스트레이션을 Airflow 로 옮기며 실패 재시도 로직을 다시 설계했습니다."
+      resume_text: "Coupang 데이터플랫폼팀 · Airflow 100+ DAG · dbt 모델 200개 · 이벤트 4억/일. 팀 4명 리드."
+    assistant_json: |
+      {"claims":[
+        {"claim":"매일 4억 건의 이벤트를 처리하는 파이프라인을 2년간 운영했습니다","type":"수치","questions":["4억 건 중 실패가 유의미했던 부류가 있었나요?","2년간 파이프라인이 가장 크게 바뀐 계기는 무엇이었어요?"]},
+        {"claim":"재처리 오케스트레이션을 Airflow 로 옮기며 실패 재시도 로직을 다시 설계했습니다","type":"기술","questions":["Airflow 로 옮기면서 무엇을 얻고 무엇을 포기하셨어요?","재시도 로직에서 무엇을 회복 가능한 실패로 볼지 어떻게 정하셨나요?"]},
+        {"claim":"팀 4명 리드","type":"역할","questions":["네 명이라 오히려 안 해도 됐던 절차가 있었나요?","리드로서 가장 자주 갈랐던 결정은 무엇이었어요?"]}
+      ]}
+
+  # ══════════ interview_findings_turn (답변 하나마다 대조 · #175) ══════════
+  - id: seed_findings_turn_1_consistent
+    category: interview_findings_turn
+    system_prompt_file: interview_findings_turn.v1.md
+    template_vars:
+      cover_letter_text: "검색 응답 820ms를 240ms로 낮춘 경험이 있습니다."
+      resume_text: "Redis 캐시 도입 · Postgres 인덱스 개편."
+      transcript_text: "네, 처음엔 820ms에서 시작했고 캐시 적중률을 60%까지 올린 다음 조회 인덱스 두 개를 나눠 240ms까지 낮췄습니다."
+    assistant_json: |
+      {"findings":[
+        {"claim_source":"self_intro","claim_text":"검색 응답 820ms를 240ms로 낮춘 경험이 있습니다","answer_text":"820ms에서 시작했고 캐시 적중률을 60%까지 올린 다음 조회 인덱스 두 개를 나눠 240ms까지 낮췄습니다","verdict":"consistent"}
+      ]}
+
+  - id: seed_findings_turn_2_inconsistent
+    category: interview_findings_turn
+    system_prompt_file: interview_findings_turn.v1.md
+    template_vars:
+      cover_letter_text: "Kafka 를 도입해 이벤트 파이프라인을 재설계했습니다."
+      resume_text: "2024 Kafka 도입 · 이벤트 스트리밍."
+      transcript_text: "Kafka 는 저희 팀 시니어가 도입했고 저는 Consumer 만 만들었어요. Kafka 자체는 잘 몰라요."
+    assistant_json: |
+      {"findings":[
+        {"claim_source":"self_intro","claim_text":"Kafka 를 도입해 이벤트 파이프라인을 재설계했습니다","answer_text":"Kafka 는 저희 팀 시니어가 도입했고 저는 Consumer 만 만들었어요","verdict":"inconsistent"}
+      ]}
+
+  - id: seed_findings_turn_3_no_match
+    category: interview_findings_turn
+    system_prompt_file: interview_findings_turn.v1.md
+    template_vars:
+      cover_letter_text: "React 로 대시보드를 만든 경험이 있습니다."
+      resume_text: "2024 프론트엔드 개인 프로젝트."
+      transcript_text: "네 저는 원래 야구를 좋아해서요, 팀에서 회식할 때 야구장 갔던 게 기억납니다."
+    # 답변이 어떤 주장과도 닿지 않음 · 빈 배열
+    assistant_json: |
+      {"findings":[]}
+
+  # ══════════ interview_findings (면접 끝 · 전체 대조) ══════════
+  - id: seed_findings_full_1
+    category: interview_findings
+    system_prompt_file: interview_findings.v1.md
+    template_vars:
+      cover_letter_text: "검색 응답 820ms를 240ms로 낮춘 경험이 있습니다. 커버리지 85%를 유지했습니다."
+      resume_text: "Redis 캐시 · Postgres 인덱스 · 8명 팀."
+      transcript_text: "[답변1] 처음엔 820에서 시작해서 캐시를 쓰고 240까지 내렸어요. [답변2] 커버리지는 저희 팀에서 관리했는데 정확한 숫자는 기억이 안 나요. [답변3] 팀은 저희 8명이었고 저는 API 담당이었어요."
+    assistant_json: |
+      {"findings":[
+        {"claim_source":"self_intro","claim_text":"검색 응답 820ms를 240ms로 낮춘 경험이 있습니다","answer_text":"처음엔 820에서 시작해서 캐시를 쓰고 240까지 내렸어요","verdict":"consistent"},
+        {"claim_source":"self_intro","claim_text":"커버리지 85%를 유지했습니다","answer_text":"","verdict":"unverified"},
+        {"claim_source":"resume","claim_text":"8명 팀","answer_text":"저희 8명이었고 저는 API 담당이었어요","verdict":"consistent"}
+      ]}
+
+  # ══════════ interview_score (답변 점수 · JSON) ══════════
+  - id: seed_score_1
+    category: interview_score
+    system_prompt_file: interview_score.v1.md
+    template_vars:
+      posting_title: "백엔드 엔지니어 (Python)"
+      posting_requirements: "- Python 3년 이상\n- FastAPI 경험\n- 대용량 트래픽"
+      posting_preferred: "- AWS\n- RAG 도입"
+      talent_profile: "구체적 근거로 말하는 사람"
+      profile_summary: "Python 3년 · FastAPI 재작성 · Redis 캐시"
+      transcript: "Q1: 병목을 어떻게 찾으셨나요?\nA1: 프로파일러를 붙여서 하위 5% 쿼리부터 봤어요.\nQ2: 캐시 적중률은 어떻게 관리하셨어요?\nA2: 하루 두 번 리포트를 봤고 60% 밑이면 알림이 오게 했어요."
+    assistant_json: |
+      {"answers_score":72,"per_question":[{"seq":1,"score":75,"note":"프로파일러 도구·하위 5% 쿼리로 구체"},{"seq":2,"score":70,"note":"적중률 60% 임계값이 구체"}],"strengths":["구체적 도구·수치 사용","임계값을 정해 자동화"],"concerns":["대용량 트래픽 규모 언급 없음"]}
+
+  - id: seed_score_2
+    category: interview_score
+    system_prompt_file: interview_score.v1.md
+    template_vars:
+      posting_title: "프론트엔드 (React)"
+      posting_requirements: "- React\n- TypeScript"
+      posting_preferred: "- 대용량 트래픽 UX"
+      talent_profile: "구체적 근거로 말하는 사람"
+      profile_summary: "React 개인 프로젝트 3건"
+      transcript: "Q1: 컴포넌트 재사용 경험을 얘기해 주세요.\nA1: 음... 여러 곳에서 썼습니다.\nQ2: TypeScript 로 잡은 버그가 있나요?\nA2: 잘 기억이 안 나요."
+    # 답변이 짧고 근거가 없음 → 낮은 점수
+    assistant_json: |
+      {"answers_score":25,"per_question":[{"seq":1,"score":30,"note":"구체적 컴포넌트·사용 사례 없음"},{"seq":2,"score":20,"note":"버그 사례 기억 못 함"}],"strengths":[],"concerns":["구체적 경험 근거 부족","TypeScript 활용 확인 안 됨"]}

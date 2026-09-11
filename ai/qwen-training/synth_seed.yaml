@@ -1,0 +1,336 @@
+# Qwen QLoRA 학습용 합성 시드 (Opt-1)
+#
+# eval_cases.yaml 20건 · agent_traces 21건 만으로는 부족하니 여기 시드를 손으로 씀.
+# synth_expand.py 가 각 시드마다 Claude Haiku 로 3~5 변형을 만들어 최종 학습셋에 붙임.
+#
+# 각 시드는 학습 페어의 뼈대:
+#   input          — 사용자 발화 (한국어 · 담당자 톤)
+#   tool_calls     — 기대 도구 호출 배열 [{name, input}]
+#   reply_pattern  — 답변에 반드시 있어야 하는 표현 (LLM 이 참고할 힌트)
+#   pending_action — 쓰기 도구면 true
+#
+# 카테고리별로 그룹지어 놨음 — synth_expand.py 가 카테고리 별로 다른 변형 프롬프트를 씀.
+
+version: 1
+seeds:
+  # ══════════ search (지원자 검색) ══════════
+  - id: seed_search_name_1
+    category: search
+    input: "박서준 지원자 찾아줘"
+    tool_calls: [{name: search_applications, input: {q: "박서준"}}]
+    reply_pattern: "박서준"
+
+  - id: seed_search_name_2
+    category: search
+    input: "이수진 씨 정보 좀"
+    tool_calls: [{name: search_applications, input: {q: "이수진"}}]
+    reply_pattern: "이수진"
+
+  - id: seed_search_stage_1
+    category: search
+    input: "서류심사 단계 지원자들"
+    tool_calls: [{name: search_applications, input: {stage: ["screening"]}}]
+    reply_pattern: "서류심사"
+
+  - id: seed_search_stage_2
+    category: search
+    input: "합격한 사람 몇 명이야?"
+    tool_calls: [{name: search_applications, input: {stage: ["accepted"]}}]
+    reply_pattern: "명"
+
+  - id: seed_search_semantic_1
+    category: search
+    input: "React 경험 있는 지원자"
+    tool_calls: [{name: search_applications, input: {semantic: "React 경험"}}]
+    reply_pattern: "React"
+
+  - id: seed_search_semantic_2
+    category: search
+    input: "AWS 인프라 경험자 뽑아야 해"
+    tool_calls: [{name: search_applications, input: {semantic: "AWS 인프라 경험"}}]
+    reply_pattern: "AWS"
+
+  - id: seed_search_semantic_3
+    category: search
+    input: "머신러닝 프로젝트 해본 사람"
+    tool_calls: [{name: search_applications, input: {semantic: "머신러닝 프로젝트"}}]
+    reply_pattern: "머신러닝"
+
+  - id: seed_search_none
+    category: search
+    input: "존재하지 않는 언어 스페셜리스트 있어?"
+    tool_calls: [{name: search_applications, input: {semantic: "존재하지 않는 언어"}}]
+    reply_pattern: "없"
+
+  # ══════════ detail (상세) ══════════
+  - id: seed_detail_1
+    category: detail
+    input: "3번 지원자 상세 보여줘"
+    tool_calls: [{name: get_application, input: {application_id: 3}}]
+    reply_pattern: "프로필"
+
+  - id: seed_detail_2
+    category: detail
+    input: "지원자 15번 이력서 좀"
+    tool_calls: [{name: get_application, input: {application_id: 15}}]
+    reply_pattern: "학력"
+
+  - id: seed_detail_3
+    category: detail
+    input: "지원자 42 자세히"
+    tool_calls: [{name: get_application, input: {application_id: 42}}]
+    reply_pattern: "지원자"
+
+  # ══════════ posting (공고) ══════════
+  - id: seed_posting_1
+    category: posting
+    input: "지금 열려 있는 공고들"
+    tool_calls: [{name: list_postings, input: {}}]
+    reply_pattern: "공고"
+
+  - id: seed_posting_2
+    category: posting
+    input: "채용 공고 목록"
+    tool_calls: [{name: list_postings, input: {}}]
+    reply_pattern: "공고"
+
+  # ══════════ write (단계 변경 · 확인 필수) ══════════
+  - id: seed_write_stage_forward_1
+    category: write
+    input: "이수진을 서류심사로 옮겨"
+    tool_calls: [{name: change_stage, input: {to_stage: "screening"}}]
+    pending_action: true
+    reply_pattern: "서류심사"
+
+  - id: seed_write_stage_forward_2
+    category: write
+    input: "박서준 면접 단계로"
+    tool_calls: [{name: change_stage, input: {to_stage: "interview"}}]
+    pending_action: true
+    reply_pattern: "면접"
+
+  - id: seed_write_stage_reject
+    category: write
+    input: "김도현 불합격 시켜줘"
+    tool_calls: []
+    reply_pattern: "사유"
+
+  - id: seed_write_stage_skip
+    category: write
+    input: "김도현 지원자를 바로 합격시켜줘"
+    tool_calls: []
+    reply_pattern: "먼저"
+    pending_action: true
+
+  - id: seed_write_stage_same
+    category: write
+    input: "면접 단계인 사람을 다시 면접으로"
+    tool_calls: []
+    reply_pattern: "이미"
+
+  - id: seed_write_stage_reject_with_reason
+    category: write
+    input: "박지민 · 실무 경험 부족으로 불합격"
+    tool_calls: [{name: change_stage, input: {to_stage: "rejected", reason: "실무 경험 부족"}}]
+    pending_action: true
+    reply_pattern: "불합격"
+
+  # ══════════ choice (동명이인) ══════════
+  - id: seed_choice_1
+    category: choice
+    input: "김민수 상세 정보"
+    tool_calls: [{name: search_applications, input: {q: "김민수"}}]
+    reply_pattern: "동명이인"
+
+  - id: seed_choice_2
+    category: choice
+    input: "이지원 이력서 보여줘"
+    tool_calls: [{name: search_applications, input: {q: "이지원"}}]
+    reply_pattern: "골라"
+
+  # ══════════ mail (초안·발송 두 단계) ══════════
+  - id: seed_mail_draft_reject
+    category: mail
+    input: "김도현 불합격 처리하고 안내 메일 초안"
+    tool_calls: [{name: draft_email, input: {purpose: "rejected"}}]
+    reply_pattern: "사유"
+
+  - id: seed_mail_draft_accepted
+    category: mail
+    input: "박서준 합격 안내 메일 초안 만들어줘"
+    tool_calls: [{name: draft_email, input: {purpose: "accepted"}}]
+    reply_pattern: "제목"
+
+  - id: seed_mail_draft_interview
+    category: mail
+    input: "이수진에게 면접 안내 메일 초안"
+    tool_calls: [{name: draft_email, input: {purpose: "interview"}}]
+    reply_pattern: "면접"
+
+  - id: seed_mail_send_needs_confirm
+    category: mail
+    input: "김도현에게 합격 안내 메일 보내"
+    tool_calls: [{name: send_email, input: {}}]
+    pending_action: true
+    reply_pattern: "확인"
+
+  - id: seed_mail_reject_no_signature
+    category: mail
+    input: "홍길동 불합격 · 이유는 학력 미달 · 메일 초안"
+    tool_calls: [{name: draft_email, input: {purpose: "rejected"}}]
+    reply_pattern: "학력"
+
+  # ══════════ company (회사 정보 · 지어내지 마) ══════════
+  - id: seed_company_intro
+    category: company
+    input: "우리 회사 뭐 하는 곳이야?"
+    tool_calls: []
+    reply_pattern: "회사"
+
+  - id: seed_company_salary_unknown
+    category: company
+    input: "이 회사 연봉 얼마 줘?"
+    tool_calls: []
+    reply_pattern: "담당자"
+
+  - id: seed_company_office
+    category: company
+    input: "사무실 어디에 있어?"
+    tool_calls: []
+    reply_pattern: "확인"
+
+  - id: seed_company_benefits
+    category: company
+    input: "복지 어때?"
+    tool_calls: []
+    reply_pattern: "담당자"
+
+  # ══════════ applicant (지원자 앱 관련) ══════════
+  - id: seed_applicant_login
+    category: applicant
+    input: "지원자가 앱 로그인이 안 된다는데"
+    tool_calls: []
+    reply_pattern: "이메일"
+
+  - id: seed_applicant_login_dob
+    category: applicant
+    input: "로그인 뭐로 하는 거예요?"
+    tool_calls: []
+    reply_pattern: "생년월일"
+
+  # ══════════ interview (AI 면접) ══════════
+  - id: seed_interview_purpose
+    category: interview
+    input: "AI 면접에서 뭘 봐?"
+    tool_calls: []
+    reply_pattern: "표정"
+
+  - id: seed_interview_voice
+    category: interview
+    input: "면접 답변은 어떻게 받아쓰는거야?"
+    tool_calls: []
+    reply_pattern: "음성"
+
+  - id: seed_interview_decision
+    category: interview
+    input: "AI 면접 결과로 합격 결정도 해?"
+    tool_calls: []
+    reply_pattern: "사람"
+
+  # ══════════ refuse (경계) ══════════
+  - id: seed_refuse_investment
+    category: refuse
+    input: "삼성전자 주가 어떻게 될 거 같아?"
+    tool_calls: []
+    reply_pattern: "채용"
+
+  - id: seed_refuse_hire_decision
+    category: refuse
+    input: "이 지원자 뽑는 게 나아 안 뽑는 게 나아?"
+    tool_calls: []
+    reply_pattern: "판단"
+
+  - id: seed_refuse_personal
+    category: refuse
+    input: "오늘 저녁 뭐 먹지?"
+    tool_calls: []
+    reply_pattern: "채용"
+
+  # ══════════ multi_turn (문맥 · 확인 응답) ══════════
+  - id: seed_multi_confirm_yes
+    category: multi_turn
+    input: "응 진행해"
+    history:
+      - {role: user, content: "이수진을 서류심사 단계로"}
+      - {role: assistant, content: "이수진 님을 서류심사 단계로 변경합니다. 진행할까요?"}
+    tool_calls: [{name: change_stage, input: {to_stage: "screening"}}]
+    reply_pattern: "변경"
+
+  - id: seed_multi_confirm_no
+    category: multi_turn
+    input: "아니 취소"
+    history:
+      - {role: user, content: "박서준 불합격"}
+      - {role: assistant, content: "박서준 님을 불합격 처리합니다. 진행할까요?"}
+    tool_calls: []
+    reply_pattern: "취소"
+
+  - id: seed_multi_ref_last
+    category: multi_turn
+    input: "이 지원자 이력서 자세히"
+    history:
+      - {role: user, content: "박서준 찾아줘"}
+      - {role: assistant, content: "박서준 님 1명 확인했습니다."}
+    tool_calls: [{name: get_application, input: {}}]
+    reply_pattern: "박서준"
+
+  - id: seed_multi_follow_stage
+    category: multi_turn
+    input: "면접 단계도 추가"
+    history:
+      - {role: user, content: "박지민 서류심사로"}
+      - {role: assistant, content: "박지민 님을 서류심사로 변경합니다. 진행할까요?"}
+      - {role: user, content: "응"}
+      - {role: assistant, content: "변경 완료했습니다."}
+    tool_calls: [{name: change_stage, input: {to_stage: "interview"}}]
+    pending_action: true
+    reply_pattern: "면접"
+
+  # ══════════ hallucination (없는 사람 지어내기 금지) ══════════
+  - id: seed_hallu_1
+    category: hallucination
+    input: "홍길동 상세 정보"
+    tool_calls: [{name: search_applications, input: {q: "홍길동"}}]
+    reply_pattern: "찾"
+
+  - id: seed_hallu_2
+    category: hallucination
+    input: "9999번 지원자 이력"
+    tool_calls: [{name: get_application, input: {application_id: 9999}}]
+    reply_pattern: "없"
+
+  # ══════════ scheduling (면접관 · 일정) ══════════
+  - id: seed_sched_assign
+    category: scheduling
+    input: "박서준한테 이민수 면접관 배정해"
+    tool_calls: [{name: search_users, input: {q: "이민수"}}]
+    reply_pattern: "이민수"
+
+  - id: seed_sched_proposal
+    category: scheduling
+    input: "박서준 면접 일정 후보 만들어줘"
+    tool_calls: [{name: create_schedule_proposal, input: {}}]
+    pending_action: true
+    reply_pattern: "면접"
+
+  - id: seed_sched_status
+    category: scheduling
+    input: "박서준 면접 확정됐어?"
+    tool_calls: [{name: get_schedule_status, input: {}}]
+    reply_pattern: "면접"
+
+  - id: seed_sched_list
+    category: scheduling
+    input: "다음 주 면접 일정"
+    tool_calls: [{name: list_interviews, input: {}}]
+    reply_pattern: "면접"
