@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app import interview_scoring
+from app.interview import scoring as interview_scoring
 from app.ports.output.interview_repository import InterviewRepository
 
 
