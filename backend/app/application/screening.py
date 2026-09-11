@@ -262,7 +262,7 @@ def _after_pass(
         )
         db.flush()
         try:
-            from app.api.schedules import NoCandidateSlots, build_proposal
+            from app.interview.api.schedules import NoCandidateSlots, build_proposal
 
             _, _, log = build_proposal(
                 db, application, [interviewer_id],
