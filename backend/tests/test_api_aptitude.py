@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.shared import mail
-from app.aptitude_questions import QUESTION_KEYS, QUESTIONS
+from app.application.aptitude_questions import QUESTION_KEYS, QUESTIONS
 from app.db import get_db
 from app.deps import get_current_user
 from app.main import app

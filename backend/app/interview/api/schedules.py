@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.shared import mail
 from app.db import get_db
 from app.deps import get_current_user
-from app.labels import STAGE_LABEL_KR
+from app.shared.labels import STAGE_LABEL_KR
 from app.interview.schedule_service import NoCandidateSlots, build_proposal
 from app.models import (
     Application,

@@ -241,7 +241,7 @@ async def push_verdict(token: str, body: VerdictIn, db: Session = Depends(get_db
 
     if body.truth_pct is not None:
         try:
-            from app.interview_scoring import record_truth_sample
+            from app.interview.scoring import record_truth_sample
             from app.models import InterviewSession
 
             session = db.scalar(select(InterviewSession).where(InterviewSession.token == token))

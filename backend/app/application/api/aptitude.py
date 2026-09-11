@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.shared import mail
 from app.agent.aptitude import compute_stats, generate_aptitude_summary_bg
-from app.aptitude_questions import (
+from app.application.aptitude_questions import (
     LIKERT_LABELS,
     QUESTION_KEYS,
     QUESTIONS,

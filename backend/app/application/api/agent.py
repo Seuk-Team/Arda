@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.agent.backends import get_summary_backend
 from app.agent.entity_resolver import resolve_entities
 from app.agent.intent_router import DirectAction, classify
-from app.company import prompt_context as company_prompt_context
+from app.hiring.company import prompt_context as company_prompt_context
 from app.models import AgentTrace
 from app.agent.interview_probe import generate_probes, sources_of
 from app.agent.prompts import render
@@ -25,9 +25,9 @@ from app.agent.summarizer import generate_summary
 from app.agent.tools import WRITE_TOOL_NAMES, execute_tool
 from app.db import get_db
 from app.deps import get_current_user
-from app.labels import STAGE_LABEL_KR
+from app.shared.labels import STAGE_LABEL_KR
 from app.models import Application, User
-from app.stages import STAGE_ORDER, StageTransitionError, validate_transition
+from app.application.stages import STAGE_ORDER, StageTransitionError, validate_transition
 
 logger = logging.getLogger(__name__)
 

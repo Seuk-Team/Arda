@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.stages import StageTransitionError, validate_transition
+from app.application.stages import StageTransitionError, validate_transition
 
 
 class TestForwardTransition:

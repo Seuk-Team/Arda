@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.aptitude_questions import LIKERT_MAX, LIKERT_MIN
+from app.application.aptitude_questions import LIKERT_MAX, LIKERT_MIN
 
 
 class SessionOut(BaseModel):

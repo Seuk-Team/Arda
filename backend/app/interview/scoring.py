@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app import screening
-from app.company import get_profile
+from app.application import screening
+from app.hiring.company import get_profile
 from app.models import Application, InterviewSession, JobPosting
 from app.ports.output.interview_repository import InterviewRepository
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository

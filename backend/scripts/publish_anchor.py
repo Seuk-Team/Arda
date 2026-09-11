@@ -46,7 +46,7 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app import chain  # noqa: E402  — sys.path 를 먼저 세워야 한다
+from app.shared import chain  # noqa: E402  — sys.path 를 먼저 세워야 한다
 
 TIMEOUT = 30
 

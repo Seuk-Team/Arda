@@ -23,8 +23,8 @@ from app.models import (
     ScheduleSlot,
     User,
 )
-from app.stage_service import apply_stage_change, publish_all, require_reason
-from app.stages import StageTransitionError
+from app.application.stage_service import apply_stage_change, publish_all, require_reason
+from app.application.stages import StageTransitionError
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
