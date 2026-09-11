@@ -963,8 +963,22 @@ class InterviewTurn(Base):
     question: Mapped[str] = mapped_column(Text, nullable=False)
     audio_s3_key: Mapped[str | None] = mapped_column(Text)
     transcript: Mapped[str | None] = mapped_column(Text)
+    # 지원자가 이 질문에 **답을 마친 시각** (0018, 2026-09-11).
+    #
+    # `transcript` 와 따로 둔다. 전사는 워커가 뒤에서 한 번에 하나씩 돌려 몇 분씩
+    # 늦게 채워지는데, "지금 질문" 을 `transcript IS NULL` 로 정하던 때는 그 사이
+    # 재접속·앱의 확인 요청이 오면 지원자가 **이미 답한 질문으로 되돌아갔고**, 다시
+    # 한 답은 원래 답과 부딪혀 409 로 버려졌다(2026-09-11 시연 실측). 이제 "답했다"는
+    # 말이 끝나는 순간 여기에 남고, "지금 질문" 은 이게 NULL 인 가장 앞 칸이다.
+    # 전사가 비어도(말이 안 담김) 답한 것은 답한 것이라 되돌아가지 않는다.
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     audio_duration_sec: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     stt_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 6))
+    # 아르가 어느 답변을 재료로 이 질문을 만들었나. 값이 있으면 "AI 자동 생성" 이고
+    # 담당자 화면이 배지로 표시한다. 없으면 담당자가 미리 넣어 둔 사전 질문 (0017).
+    generated_from_turn_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("interview_turns.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -998,11 +1012,23 @@ class InterviewFinding(Base):
     answer_text: Mapped[str] = mapped_column(Text, nullable=False)  # 원문 인용
     # consistent | inconsistent | unverified
     verdict: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 어느 답변에서 나온 대조인가 (0019, 2026-09-11). 답변이 저장될 때마다 그 답변
+    # 하나를 서류와 맞춰 여기에 붙인다 — 담당자 화상 방이 **그 답변 밑에** 띄운다.
+    # NULL 이면 면접이 끝난 뒤 전체 전사로 만든 것이다(주로 확인필요).
+    turn_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("interview_turns.id", ondelete="CASCADE")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     session: Mapped["InterviewSession"] = relationship(back_populates="findings")
+    turn: Mapped["InterviewTurn | None"] = relationship()
+
+    @property
+    def turn_seq(self) -> int | None:
+        """화면은 회차를 번호(`seq`)로 안다 — `TurnOut` 에 id 가 없다."""
+        return self.turn.seq if self.turn is not None else None
 
 # ── 인적성(사전 성향) 설문 — ADR-0027 ────────────────────────────────
 

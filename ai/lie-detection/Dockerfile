@@ -24,6 +24,13 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# ViT 표정 (ADR-0032). torch·transformers 가 이미지에 ~2.5GB 더한다. 스위치는
+# `VIT_MODEL` env — 비어 있으면 feature_extractor.py 가 load 를 건너뛰므로,
+# 라이브러리만 있어 문제 없음. 실제로 켜지려면 compose 에서 env 를 준다.
+# whisper_cache 볼륨(/root/.cache/huggingface)이 ViT 캐시도 같이 받는다.
+COPY requirements-vit.txt .
+RUN pip install --no-cache-dir -r requirements-vit.txt
+
 COPY . .
 
 EXPOSE 5000

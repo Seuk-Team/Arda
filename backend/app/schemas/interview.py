@@ -60,6 +60,9 @@ class TurnOut(BaseModel):
     question: str
     transcript: str | None
     audio_duration_sec: float | None
+    # 아르가 어느 답변에서 이 질문을 만들었나. 값이 있으면 자동생성이고 화면이
+    # 배지를 그린다 (2026-09-10, 0017 마이그레이션).
+    generated_from_turn_id: int | None = None
 
 
 class FindingOut(BaseModel):
@@ -75,6 +78,9 @@ class FindingOut(BaseModel):
     claim_text: str
     answer_text: str
     verdict: str
+    # 어느 답변에서 나온 대조인가 (2026-09-11). 화상 방이 그 답변 밑에 붙인다.
+    # None 이면 면접이 끝난 뒤 전체 전사로 만든 것이다.
+    turn_seq: int | None = None
 
 
 class SessionDetailOut(SessionOut):
@@ -82,6 +88,10 @@ class SessionDetailOut(SessionOut):
 
     turns: list[TurnOut] = []
     findings: list[FindingOut] = []
+    # 서류 대조 스위치(`AGENT_FINDINGS_BACKEND`)가 켜져 있는가. **꺼진 것과 아직
+    # 없는 것을 화면이 가를 수 있게** 내려준다 — 둘 다 `findings` 가 비어 보인다
+    # (2026-09-11: 운영에서 꺼져 있는 줄 모르고 기능이 안 되는 줄 알 뻔했다).
+    findings_enabled: bool = False
     ai_score: int | None = None
     ai_score_detail: dict | None = None
     scored_at: datetime | None = None

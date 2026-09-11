@@ -40,11 +40,39 @@ export type FaceSignal = {
   flag?: string
 }
 
+/** 표정 판정 하나. 우리가 학습한 ViT (`cloverky/arda-expression-vit`) 결과다.
+    라벨은 영어 · `label_ko` 는 담당자용 한국어. `prob` 는 0~1 (2026-09-10). */
+export type Expression = {
+  label: string
+  label_ko: string
+  prob: number
+}
+
+/** 목소리에서 잰 것들 (2026-09-11, `feature_extractor.voice_signals`). 판정 입력
+    100개 중 86개가 목소리인데 화면에 하나도 없었다. **높다·낮다는 서버가 붙이지
+    않는다** — 사람마다 목소리가 달라 같은 사람의 앞선 값과 비교한다. */
+export type VoiceSignals = {
+  /** 말하는 동안 음 높이 가운데값 (Hz). 말소리가 적으면 없다 */
+  pitch_hz?: number
+  /** 음 높이가 오르내린 폭 (반음) — 억양 */
+  pitch_var_st?: number
+  /** 목소리 크기 (dBFS). 마이크마다 기준이 달라 변화만 본다 */
+  loud_db?: number
+  /** 크기가 오르내린 폭 (dB) */
+  loud_var_db?: number
+  /** 창 안에서 목소리가 난 비율 (%) */
+  voiced_pct?: number
+}
+
 export type LiveVerdict = {
   truth_pct?: number
   lie_pct?: number
   /** 얼굴에서 관찰된 것들. 프레임이 적으면 비어 있다 */
   signals?: FaceSignal[]
+  /** 목소리에서 잰 것들 */
+  voice?: VoiceSignals
+  /** ViT 로 읽은 표정 top-3. VIT_MODEL 꺼져 있으면 undefined */
+  expressions?: Expression[]
   /** 못 낸 이유. 얼굴이 안 보이거나 소리가 짧을 때 서버가 준다 */
   reason?: string
   at: number
@@ -59,6 +87,8 @@ export type LiveAnalysis = {
   latest: LiveVerdict | null
   /** 지나간 것들. 최근 것이 앞이다 */
   history: LiveVerdict[]
+  /** 목소리 값만 더 길게 들고 있는다 — 「평소」 를 말하는 데 쓴다. 최근 것이 앞이다 */
+  voices: VoiceSignals[]
   /** 분석만 실패한 것. **면접 자체는 계속된다** */
   error: string | null
 }
@@ -68,11 +98,16 @@ const EMPTY: LiveAnalysis = {
   speaking: false,
   latest: null,
   history: [],
+  voices: [],
   error: null,
 }
 
 /** 흐름에 남기는 개수. 면접 내내 쌓으면 화면이 길어지기만 한다 */
 const HISTORY_MAX = 30
+
+/** 목소리 「평소」 에 쓰는 개수. 판정이 말하는 동안 초당 한 번이라 약 5분치다.
+    흐름(30개)으로 평소를 잡으면 30초 전과만 비교하게 된다 */
+const VOICE_MAX = 300
 
 /** 끊겼을 때 다시 붙어 보는 횟수. 이 뒤로는 오류로 적는다 */
 const RETRY_MAX = 5
@@ -168,6 +203,8 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
           lie_pct?: number
           reason?: string
           signals?: FaceSignal[]
+          expressions?: Expression[]
+          voice?: VoiceSignals
         }
         try {
           m = JSON.parse(e.data)
@@ -184,6 +221,8 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
           truth_pct: typeof m.truth_pct === 'number' ? m.truth_pct : undefined,
           lie_pct: typeof m.lie_pct === 'number' ? m.lie_pct : undefined,
           signals: Array.isArray(m.signals) ? m.signals : undefined,
+          expressions: Array.isArray(m.expressions) ? m.expressions : undefined,
+          voice: m.voice && typeof m.voice === 'object' ? m.voice : undefined,
           reason: m.ok === false ? m.reason : undefined,
           at: Date.now(),
         }
@@ -193,6 +232,8 @@ export function useLiveAnalysis(stream: MediaStream | null): LiveAnalysis {
           /* 못 낸 것(`reason`)은 흐름에 안 쌓는다 — "얼굴이 잘 안 보여요" 가
              줄줄이 쌓이면 진짜 값이 묻힌다 */
           history: v.reason ? s.history : [v, ...s.history].slice(0, HISTORY_MAX),
+          voices:
+            v.voice && !v.reason ? [v.voice, ...s.voices].slice(0, VOICE_MAX) : s.voices,
         }))
       }
     }

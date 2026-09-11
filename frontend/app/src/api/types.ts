@@ -133,6 +133,19 @@ export interface Evaluation {
   created_at: string
 }
 
+/** 자동 심사(ADR-0034) 가 낸 세부 근거. 담당자가 판정 이유를 되짚는 자리다.
+    `concerns` 가 곧 불합격의 실질 사유이고, `fit` 은 합격 근거다. */
+export interface DocScoreDetail {
+  requirements?: number
+  preferred?: number
+  culture?: number
+  fit?: string[]
+  concerns?: string[]
+  evidence?: string[]
+  weights?: Record<string, number>
+  threshold?: number
+}
+
 export interface ApplicationDetail {
   id: number
   job_posting_id: number
@@ -151,6 +164,11 @@ export interface ApplicationDetail {
   evaluations?: Evaluation[]
   files?: FileOut[]
   stage_history?: StageHistoryItem[]
+  /** 자동 심사 (ADR-0034). doc_score 는 100점 기준, decision_source='agent' 면 아르 자동. */
+  doc_score?: number | null
+  doc_score_detail?: DocScoreDetail | null
+  doc_decision?: 'pass' | 'reject' | 'hold' | null
+  decision_source?: 'agent' | 'human' | null
 }
 
 export interface Note {
@@ -325,6 +343,8 @@ export interface InterviewTurn {
   question: string
   transcript: string | null
   audio_duration_sec: number | null
+  /** 아르가 어느 답변에서 이 질문을 만들었나. 값이 있으면 자동생성 */
+  generated_from_turn_id: number | null
 }
 
 export interface InterviewFinding {
@@ -332,11 +352,15 @@ export interface InterviewFinding {
   claim_text: string
   answer_text: string
   verdict: string
+  /** 어느 답변에서 나온 대조인가. null 이면 면접이 끝난 뒤 전체로 만든 것 (2026-09-11) */
+  turn_seq?: number | null
 }
 
 export interface InterviewSessionDetail extends InterviewSession {
   turns: InterviewTurn[]
   findings: InterviewFinding[]
+  /** 서류 대조 스위치가 켜져 있는가 — 꺼진 것과 아직 없는 것을 가른다 (2026-09-11) */
+  findings_enabled?: boolean
 }
 
 /* ── 제출물 무결성 (ADR-0028) ─────────────────────────────────────

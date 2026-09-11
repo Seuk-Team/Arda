@@ -354,21 +354,34 @@ def face_row_search(jpeg: bytes, known: int | None) -> tuple[list | None, int | 
     네 배로 들고, 그 CPU 는 전사가 써야 하는 것이다. 눈을 감았거나 흔들려서
     한 장이 실패하는 것은 흔한 일이라 그때마다 다시 뒤지지 않는다.
     """
+    row, rot, _ = face_row_search_full(jpeg, known)
+    return row, rot
+
+
+def face_row_search_full(
+    jpeg: bytes, known: int | None
+) -> tuple[list | None, int | None, "np.ndarray | None"]:
+    """`face_row_search` + 얼굴이 찾힌 회전 완료 BGR. 표정 판정용 (2026-09-10).
+
+    성공 시 세 번째 값은 회전된 BGR 이미지 — feature_extractor 의 `_detect`·
+    `expressions_from_frame` 이 그대로 받아서 쓸 수 있다. 실패 시 None.
+    """
     import cv2
 
     buf = np.frombuffer(jpeg, dtype=np.uint8)
     img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
     if img is None:
-        return None, known
+        return None, known, None
     FRAME_STATS["decoded"] += 1
     from feature_extractor import face_row
 
     for rot in (known,) if known is not None else _ROTATIONS:
-        row = face_row(_rotated(img, rot))
+        rotated = _rotated(img, rot)
+        row = face_row(rotated)
         if row is not None:
             FRAME_STATS["face"] += 1
-            return row, rot
-    return None, known
+            return row, rot, rotated
+    return None, known, None
 
 
 class InterviewSession:
@@ -428,7 +441,7 @@ class InterviewSession:
         self._frame_count += 1
         if self._frame_count % FRAME_STRIDE:
             return None
-        row, rot = face_row_search(jpeg, self.frame_rotation)
+        row, rot, rotated_bgr = face_row_search_full(jpeg, self.frame_rotation)
         if row is not None:
             if self.frame_rotation is None:
                 # 이 면접에서 처음 얼굴을 찾았다. 각도를 굳히고 밖에도 남긴다 —
@@ -437,7 +450,12 @@ class InterviewSession:
                 LAST_ROTATION = rot
                 logger.info("프레임 방향 %s° 로 확정: token=%s", rot, self.token[:8])
             self.frames.append(row)
-            self.scorer.add_face(row, time.monotonic())
+            now = time.monotonic()
+            self.scorer.add_face(row, now)
+            # 표정 판정용 BGR 도 남긴다 (2026-09-10, ADR-0032). VIT_MODEL 이 꺼져
+            # 있으면 score() 가 무시하므로 남겨 두는 자체는 무해.
+            if rotated_bgr is not None:
+                self.scorer.add_frame(rotated_bgr)
         return self.check_identity(jpeg)
 
     def check_identity(self, jpeg: bytes) -> dict | None:
@@ -544,17 +562,28 @@ def model():
     return _model
 
 
-def score(pcm: bytes, rows: list, seconds: float) -> dict:
-    """음성 조각 + 얼굴 행들 → 판정.
+def score(pcm: bytes, rows: list, seconds: float, latest_frame=None) -> dict:
+    """음성 조각 + 얼굴 행들 → 판정. 프레임이 있으면 표정 top-3 도 붙인다.
 
     **모자란 재료를 0 으로 채우지 않는다.** 파일 경로는 음성이 없으면 `zeros(86)`
     을 넣는데, 그건 "분석 못 했다"를 "특징이 전부 0 인 사람"으로 바꿔 놓는 짓이다.
     실시간에서는 판정을 미루는 편이 틀린 숫자를 내는 것보다 낫다 — 그래서
     안 되는 이유를 그대로 돌려준다.
+
+    표정(`expressions`)은 판정 벡터에 들어가지 않는다. 판정 모델(`model.pkl`)이
+    아직 100차원이라(ADR-0032 §정하지 못한 것 ③) 표정 7개는 지금 담당자 화면의
+    라벨로만 흐른다 — 우리가 학습한 ViT 가 뭘 보고 있는지 근거를 남기는 자리다.
+
+    목소리 지표(`voice`, 2026-09-11)는 판정 벡터 100개 중 86개인 목소리 특징을 사람이
+    읽을 수 있게 다시 잰 것이다 — 벡터를 만든 같은 계산에서 나와 비용이 더 들지 않는다.
     """
     import librosa
 
-    from feature_extractor import extract_audio_from_array, face_signals
+    from feature_extractor import (
+        expressions_from_frame,
+        extract_audio_with_voice,
+        face_signals,
+    )
 
     if len(rows) < 5:
         return {"ok": False, "reason": "얼굴이 잘 안 보여요"}
@@ -565,7 +594,7 @@ def score(pcm: bytes, rows: list, seconds: float) -> dict:
         return {"ok": False, "reason": "소리가 아직 짧아요"}
 
     y = librosa.resample(y16, orig_sr=SAMPLE_RATE, target_sr=TRAIN_SR)
-    audio = extract_audio_from_array(y, TRAIN_SR)
+    audio, voice = extract_audio_with_voice(y, TRAIN_SR)
     if audio is None:
         return {"ok": False, "reason": "소리가 아직 짧아요"}
 
@@ -575,13 +604,27 @@ def score(pcm: bytes, rows: list, seconds: float) -> dict:
 
     m = model()
     proba = m.predict_proba(feat)[0]
-    return {
+
+    # 표정: 프레임이 있고 VIT_MODEL 이 켜져 있을 때만. 실패해도 판정은 그대로 낸다.
+    expressions: list | None = None
+    if latest_frame is not None:
+        try:
+            expressions = expressions_from_frame(latest_frame, top_k=3)
+        except Exception:
+            logger.exception("표정 판정 실패 — 판정은 그대로 낸다")
+            expressions = None
+
+    out = {
         "ok": True,
         "pred": int(m.predict(feat)[0]),
         "truth_pct": round(float(proba[0]) * 100, 1),
         "lie_pct": round(float(proba[1]) * 100, 1),
         "signals": face_signals(arr, seconds),
+        "voice": voice or {},
     }
+    if expressions:
+        out["expressions"] = expressions
+    return out
 
 
 class LiveScorer:
@@ -597,6 +640,9 @@ class LiveScorer:
         self._pcm = bytearray()
         self._rows: list[tuple[float, list]] = []
         self._last_scored = 0.0
+        # ViT 표정용 최근 프레임 하나 (2026-09-10). 하나만 든다 — 쌓으면 그게 곧
+        # 저장이고 ADR-0029 취지에 어긋난다. 매 판정마다 갱신되므로 오래 남지도 않는다.
+        self._latest_frame: "np.ndarray | None" = None
 
     def add_audio(self, pcm: bytes) -> None:
         self._pcm += pcm
@@ -608,14 +654,19 @@ class LiveScorer:
         cutoff = now - self.window_sec
         self._rows = [r for r in self._rows if r[0] >= cutoff]
 
+    def add_frame(self, bgr) -> None:
+        """표정 판정용. 얼굴이 들어 있던 회전 완료 프레임만 넣는다."""
+        self._latest_frame = bgr
+
     def due(self, now: float) -> bool:
         if now - self._last_scored < LIVE_EVERY_SEC:
             return False
         self._last_scored = now
         return True
 
-    def snapshot(self) -> tuple[bytes, list]:
-        return bytes(self._pcm), [row for _, row in self._rows]
+    def snapshot(self):
+        """(pcm, rows, latest_frame). 세 번째는 표정 판정에 쓰이고 없으면 None."""
+        return bytes(self._pcm), [row for _, row in self._rows], self._latest_frame
 
 
 async def fetch_state(client, token: str) -> dict:
@@ -729,6 +780,26 @@ async def fetch_questions(client, token: str) -> list[dict]:
         return []
 
 
+async def mark_answered(client, token: str, seq: int) -> None:
+    """이 질문에 답을 마쳤다고 백엔드에 **먼저** 남긴다 (2026-09-11).
+
+    전사는 뒤에서 몇 분씩 걸려 끝난다. 그동안 "지금 질문" 이 안 넘어가 있으면
+    재접속·앱의 확인 요청이 지원자를 **이미 답한 질문으로 되돌린다** — 시연에서
+    Q9 에서 Q1 로 돌아가 다시 한 답이 409 로 버려졌다. 말이 끝난 순간 이것부터
+    찍으면 "지금 질문" 이 바로 넘어가고, 전사는 나중에 같은 번호로 채운다.
+
+    서비스 토큰이 없으면 아무것도 안 한다 — 그때는 전사가 저장될 때 답한 것이 된다.
+    """
+    if not SERVICE_TOKEN:
+        return
+    r = await client.post(
+        f"{BACKEND_URL}/api/v1/internal/interview/{token}/turns/{seq}/answered",
+        headers={"X-Service-Token": SERVICE_TOKEN},
+        timeout=10,
+    )
+    r.raise_for_status()
+
+
 async def submit_answer(client, token: str, transcript: str, seq: int | None = None) -> dict:
     """답변을 저장한다. `seq` 를 붙이면 그 질문 칸에만 들어간다.
 
@@ -796,8 +867,16 @@ def _stt_model():
 # **여기서 안 끊으면 면접이 거기서 멈춘다.** 답변이 저장되지 않아 다음 질문이
 # 안 나오고, 그 사이 uvicorn 이 핑 응답을 못 받아 WebSocket 을 먼저 닫아 버린다
 # (2026-09-09 실측: `processing` 뒤 40초 무응답 → `closed 1011`).
-# 45초는 상한 발화(180초)를 int8 실측 속도(0.25배)로 돌린 값에 여유를 더한 것이다.
-STT_TIMEOUT_SEC = float(os.getenv("STT_TIMEOUT_SEC", "45"))
+#
+# **면접 답변은 3분까지 갈 수 있다** (2026-09-10 실측, Daniel Kim: 98초·63.8초
+# 답변이 45초 상한을 넘겨 자리표시자 저장). CPU int8 실측 속도(약 1.8배속) 로
+# 3분 발화가 100초 안에 처리되고, 여기에 여유 80초를 더한 180초로 상향한다.
+# 이 시간에 다음 질문은 이미 나가 있으므로 지원자를 대기시키지 않는다 (전사가
+# 뒤에서 도는 동안 다음 답변이 진행됨 — interview_ws submit_answer 흐름).
+#
+# GPU 로 옮기면 30~50배속이라 3분 답변도 ~5초에 끝난다. 그때는 상한을 다시
+# 45초로 되돌려도 된다 — 짧게 두면 STT 스레드가 CPU 자원을 오래 잡지 않는다.
+STT_TIMEOUT_SEC = float(os.getenv("STT_TIMEOUT_SEC", "180"))
 
 
 def warm_stt() -> None:
@@ -896,3 +975,40 @@ def _run_transcribe(model, audio, hint: str = "") -> str:
         condition_on_previous_text=False,
     )
     return " ".join(s.text.strip() for s in segments).strip()
+
+
+# ── 답변인가 (2026-09-11) ─────────────────────────────────────
+# 발화 끝을 가르는 감지기(`_SpeechDetector`)는 **소리 크기**만 본다. 폰 스피커로
+# 나오는 담당자 쪽 방 소리·잡음도 0.7초만 넘으면 "답변 끝" 이 되는데, 그 순간 질문을
+# 답한 것으로 찍으면(`mark_answered`) 전사가 비어도 질문이 넘어간다 — 2026-09-11
+# 세션 57 에서 58초 만에 질문 10개가 전사 0자로 소진됐다(세션 56 의 6~10번도 같다).
+# 그래서 넘기기 전에 **전사와 같은 VAD**(faster-whisper 의 silero)로 사람 목소리가
+# 있는지 잰다. 이 VAD 가 아무것도 못 찾으면 전사도 빈 문자열이다 — 답변이 아니다.
+MIN_VOICE_SEC = float(os.getenv("MIN_VOICE_SEC", "0.3"))
+
+# 밖에서 갈라 볼 계기판 (`/health`) — 넘긴 것 · 거른 것 · 못 잰 것(→ 막지 않고 넘김).
+# 질문이 안 넘어간다는 말이 나오면 `rejected` 가 느는지부터 본다.
+ANSWER_STATS = {"voiced": 0, "rejected": 0, "unmeasured": 0}
+
+
+def voice_seconds(pcm: bytes) -> float | None:
+    """발화 안에 사람 목소리가 몇 초 있나. 못 재면 None — **그때는 막지 않는다.**
+
+    VAD 가 고장 났다고 면접이 멈추면 안 된다. 못 재면 예전처럼 넘긴다.
+    전사가 쓰는 것과 같은 판정 기준(`VadOptions` 기본값)이고, 앞뒤 여백
+    (`speech_pad_ms`)만 빼서 목소리 길이 자체를 잰다. 수십 ms 걸린다.
+    """
+    usable = len(pcm) - (len(pcm) % SAMPLE_WIDTH)
+    if usable == 0:
+        return 0.0
+    try:
+        from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+        audio = np.frombuffer(pcm[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+        spans = get_speech_timestamps(
+            audio, VadOptions(speech_pad_ms=0), sampling_rate=SAMPLE_RATE
+        )
+    except Exception:
+        logger.exception("목소리 재기 실패 — 막지 않고 넘긴다")
+        return None
+    return sum(s["end"] - s["start"] for s in spans) / SAMPLE_RATE

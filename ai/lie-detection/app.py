@@ -40,17 +40,37 @@ from interview_ws import (
     fetch_state,
     finish_interview,
     hint_of,
+    mark_answered,
     push_identity,
     push_verdict,
     model,
     score,
     submit_answer,
     transcribe_async,
+    voice_seconds,
     warm_stt,
 )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _face_and_bgr(jpeg: bytes):
+    """JPEG 한 장 → (얼굴 특징 7개, BGR 이미지). 얼굴이 없으면 (None, bgr).
+
+    /ws/live 데모 소켓용 (2026-09-10). 표정 판정을 붙이려면 얼굴 있는 BGR 을
+    scorer 에 남겨야 하는데, face_row_of_jpeg 는 row 만 돌려주고 BGR 을 버린다.
+    같은 이미지를 두 번 디코드하지 않도록 한 곳에서 처리한다.
+    """
+    import cv2
+
+    from feature_extractor import face_row
+
+    buf = np.frombuffer(jpeg, dtype=np.uint8)
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    if img is None:
+        return None, None
+    return face_row(img), img
 
 _HERE = Path(__file__).parent
 DEMO_HTML = (_HERE / "demo.html").read_text(encoding="utf-8")
@@ -106,6 +126,9 @@ def health():
         "frame_rotation": iw.LAST_ROTATION,
         # 프레임이 어디까지 갔는가. 셋을 나눠 봐야 "안 보낸다"와 "못 찾는다"가 갈린다.
         "frames": dict(iw.FRAME_STATS),
+        # "답변 끝" 이 몇 번 답변으로 인정됐나 (2026-09-11). `rejected` 는 목소리가
+        # 없어 질문을 넘기지 않은 횟수 — 질문이 안 넘어간다는 말이 나오면 여기부터.
+        "answers": dict(iw.ANSWER_STATS),
     }
 
 
@@ -188,9 +211,14 @@ async def live(ws: WebSocket):
             # **이벤트 루프에서 부르지 않는다** (2026-09-09 실측). 워커가 하나라 이게
             # 루프를 잡으면 같은 프로세스의 면접 소켓 전사가 GIL 을 못 얻어 8초 발화에
             # 36초 걸리고, uvicorn 은 ping 응답을 못 넘겨 40초에 소켓을 닫았다.
-            row = await asyncio.to_thread(face_row_of_jpeg, jpeg)
+            #
+            # 얼굴이 있는 프레임의 BGR 도 함께 잡아 표정 판정에 넘긴다 (2026-09-10,
+            # ADR-0032 §6 시연 자리). VIT_MODEL 이 꺼져 있으면 저장만 되고 미사용.
+            row, bgr = await asyncio.to_thread(_face_and_bgr, jpeg)
             if row is not None:
                 scorer.add_face(row, at)
+                if bgr is not None:
+                    scorer.add_frame(bgr)
         except Exception:
             logger.exception("얼굴 추출 실패")
         finally:
@@ -199,10 +227,13 @@ async def live(ws: WebSocket):
     async def run_score() -> None:
         nonlocal busy
         try:
-            pcm, rows = scorer.snapshot()
+            pcm, rows, frame = scorer.snapshot()
             # 판정은 CPU 로 약 185ms 걸린다. 여기서 그냥 부르면 그 동안 이 워커의
             # **모든 연결**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-            result = await asyncio.to_thread(score, pcm, rows, scorer.window_sec)
+            # frame 이 있고 VIT_MODEL 이 켜져 있으면 표정 top-3 도 붙는다.
+            result = await asyncio.to_thread(
+                score, pcm, rows, scorer.window_sec, frame
+            )
             await ws.send_json({"type": "live", **result})
         except Exception:
             logger.exception("실시간 판정 실패")
@@ -283,10 +314,7 @@ async def interview(ws: WebSocket, token: str):
         session.questions = await fetch_questions(client, token)
         # 이어서 들어온 경우 답한 데까지 건너뛴다 — 목록에는 답한 질문도 들어 있다.
         seq_now = state.get("question_seq")
-        if seq_now is not None:
-            session.cursor = next(
-                (i for i, q in enumerate(session.questions) if q["seq"] == seq_now), 0
-            )
+        session.cursor = _cursor_of(session.questions, seq_now)
 
         # 이력서 사진을 한 번 받아 둔다. **대조는 프레임이 들어올 때** 하고,
         # 실패하면 그냥 넘어간다 — 사진이 없다고 면접을 막지 않는다.
@@ -392,6 +420,37 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
 
 
 
+def _cursor_of(questions: list[dict], seq: int | None) -> int:
+    """`seq` 번 질문의 자리. 번호가 없거나 목록에 없으면 **끝**으로 둔다.
+
+    예전에는 못 찾으면 0(첫 질문)으로 갔다. 그러면 지원자가 이미 답한 1번을 다시
+    보고, 다시 한 답은 원래 답과 부딪혀 버려졌다(2026-09-11). 끝에 두면 번호 없이
+    저장돼 백엔드가 "지금 질문" 에 넣고, 다음 차례에 목록을 다시 받아 맞춘다.
+    """
+    if seq is None:
+        return len(questions)
+    return next((i for i, q in enumerate(questions) if q["seq"] == seq), len(questions))
+
+
+async def _refresh_questions(client, session: InterviewSession) -> dict | None:
+    """질문 목록과 "지금 질문" 을 다시 받아 맞춘다. 남은 질문이 없으면 None."""
+    try:
+        questions = await fetch_questions(client, session.token)
+        if not questions:
+            return None
+        state = await fetch_state(client, session.token)
+    except Exception:
+        logger.exception("질문 목록 다시 받기 실패: token=%s", session.token[:8])
+        return None
+    if state.get("status") != "in_progress":
+        return None
+    session.questions = questions
+    session.cursor = _cursor_of(questions, state.get("question_seq"))
+    if session.cursor < len(questions):
+        return questions[session.cursor]
+    return None
+
+
 async def _finish_answer(ws, client, session: InterviewSession) -> None:
     """말이 끝났다. **전사를 기다리지 않고 다음 질문을 보낸다.**
 
@@ -404,6 +463,27 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
     """
     pcm, rows = session.take_answer()
 
+    # **목소리가 없으면 답변이 아니다** (2026-09-11, `iw.voice_seconds` 주석). 넘기기
+    # 전에 거른다 — 넘긴 뒤에는 "답함" 이 찍혀 그 질문으로 돌아올 길이 없다.
+    # 세션 57 에서 폰 스피커 소리·잡음이 58초 만에 질문 10개를 전사 0자로 소진시켰다.
+    voiced = await asyncio.to_thread(voice_seconds, pcm)
+    if voiced is None:
+        iw.ANSWER_STATS["unmeasured"] += 1
+    elif voiced < iw.MIN_VOICE_SEC:
+        iw.ANSWER_STATS["rejected"] += 1
+        logger.info(
+            "목소리가 없어 답변으로 세지 않는다: token=%s 소리 %.1f초 · 목소리 %.2f초",
+            session.token[:8],
+            len(pcm) / (iw.SAMPLE_RATE * iw.SAMPLE_WIDTH),
+            voiced,
+        )
+        await ws.send_json(
+            {"type": "retry", "message": "말이 들리지 않았어요. 다시 답변해 주세요"}
+        )
+        return
+    else:
+        iw.ANSWER_STATS["voiced"] += 1
+
     if not session.questions:
         # 질문 목록을 못 받은 경우(서비스 토큰 없음·조회 실패)는 예전 방식으로 돈다
         await ws.send_json({"type": "processing"})
@@ -411,6 +491,15 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
         return
 
     seq = session.current_seq()
+    # **답했다는 사실부터 남긴다** (2026-09-11). 전사는 뒤에서 몇 분씩 걸리는데,
+    # 그게 끝나야 "답했다" 가 되던 때는 그 사이 재접속·앱의 확인 요청이 지원자를
+    # 이미 답한 질문으로 되돌렸다(시연: Q9 → Q1, 다시 한 답은 409 로 버려짐).
+    if seq is not None:
+        try:
+            await mark_answered(client, session.token, seq)
+        except Exception:
+            # 못 남겨도 면접은 간다 — 전사가 저장되면 그때 답한 것이 된다(예전 동작)
+            logger.exception("답함 표시 실패: token=%s seq=%s", session.token[:8], seq)
     await session.pending.put((pcm, rows, seq))
 
     nxt = session.advance()
@@ -420,10 +509,18 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
         )
         return
 
-    # 질문이 떨어졌다. **남은 전사를 끝내고 닫는다** — 먼저 닫으면 마지막 답변이
-    # 저장되기 전에 세션이 done 이 되어 담당자가 빈칸을 본다.
+    # 준비된 질문이 떨어졌다. **남은 전사를 끝낸 뒤 목록을 다시 본다** — 꼬리질문은
+    # 전사가 저장된 뒤에야 백엔드가 만들어 붙이므로(`_generate_followup_bg`) 면접
+    # 시작 때 받아 둔 목록에는 없다. 남은 질문이 있으면 이어 가고, 없으면 닫는다.
+    # 먼저 닫으면 마지막 답변이 저장되기 전에 세션이 done 이 되어 담당자가 빈칸을 본다.
     await ws.send_json({"type": "processing"})
     await session.pending.join()
+    nxt = await _refresh_questions(client, session)
+    if nxt:
+        await ws.send_json(
+            {"type": "question", "seq": nxt["seq"], "text": nxt["question"]}
+        )
+        return
     try:
         await finish_interview(client, session.token)
     except Exception:
@@ -523,10 +620,13 @@ async def _live_verdict(client, session: InterviewSession) -> None:
     """최근 4초를 판정해 백엔드로 민다. 실패해도 면접에는 영향이 없다."""
     try:
         _live_stats["scored"] += 1
-        pcm, rows = session.scorer.snapshot()
+        pcm, rows, frame = session.scorer.snapshot()
         # 판정은 CPU 로 약 185ms 걸린다. 이벤트 루프에서 부르면 그 동안 이 워커의
         # **모든 면접**이 멈춘다 — 워커가 하나뿐이라 더 그렇다.
-        result = await asyncio.to_thread(score, pcm, rows, session.scorer.window_sec)
+        # frame 이 있고 VIT_MODEL 이 켜져 있으면 표정 top-3 도 붙는다.
+        result = await asyncio.to_thread(
+            score, pcm, rows, session.scorer.window_sec, frame
+        )
         if not result.get("ok"):
             # 얼굴이 모자라거나 소리가 짧다. **조용히 넘어가되 세어는 둔다** —
             # 담당자 화면이 비어 있을 때 여기가 원인인지 알아야 한다
@@ -543,15 +643,21 @@ async def _live_verdict(client, session: InterviewSession) -> None:
             logger.info("판정 못 냄: token=%s %s", session.token[:8], reason)
             return
         _live_stats["ok"] += 1
+        payload = {
+            "truth_pct": result["truth_pct"],
+            "lie_pct": result["lie_pct"],
+            "window_sec": session.scorer.window_sec,
+            "signals": result.get("signals", []),
+        }
+        if result.get("expressions"):
+            payload["expressions"] = result["expressions"]
+        # 목소리 지표 (2026-09-11). 백엔드 `VerdictIn` 이 extra 를 허용해 그대로 넘어간다
+        if result.get("voice"):
+            payload["voice"] = result["voice"]
         await push_verdict(
             client,
             session.token,
-            {
-                "truth_pct": result["truth_pct"],
-                "lie_pct": result["lie_pct"],
-                "window_sec": session.scorer.window_sec,
-                "signals": result.get("signals", []),
-            },
+            payload,
         )
         _live_stats["pushed"] += 1
     except Exception:

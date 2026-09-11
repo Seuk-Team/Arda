@@ -124,12 +124,24 @@ const FALLBACK_STATUS: ScheduleStatus = {
 
 function searchApps(query: Query): SearchResult {
   let items = APPS
-  if (typeof query.stage === 'string') items = items.filter((a) => a.current_stage === query.stage)
+  /* stage 는 여러 개가 올 수 있다 — "종료" 칩이 합격·불합격을 한 번에 보낸다.
+     문자열만 보던 옛 조건은 배열이 오면 통과해 버려서 필터가 없는 것처럼 됐다 */
+  const stages = query.stage === undefined ? [] : [query.stage].flat().map(String)
+  if (stages.length > 0) items = items.filter((a) => stages.includes(a.current_stage))
   if (query.posting_id !== undefined) items = items.filter((a) => a.job_posting_id === Number(query.posting_id))
   if (typeof query.q === 'string' && query.q !== '') {
     const q = String(query.q)
     items = items.filter((a) => a.name.includes(q) || a.email.includes(q))
   }
+  /* 서버는 sort·order 를 받는다(SORTS = created_at, score). 목도 흉내만 낸다 —
+     안 그러면 정렬을 바꿔도 화면이 그대로라 동작을 확인할 수 없다 */
+  if (query.sort === 'score') {
+    const dir = query.order === 'asc' ? 1 : -1
+    items = [...items].sort((a, b) => ((a.avg_score ?? -1) - (b.avg_score ?? -1)) * dir)
+  } else if (query.order === 'asc') {
+    items = [...items].reverse()
+  }
+
   const total = items.length
   const offset = query.offset === undefined ? 0 : Number(query.offset)
   const limit = query.limit === undefined ? 20 : Number(query.limit)
@@ -187,7 +199,7 @@ const AGENT_REPLY: AgentChatResponse = {
   input_tokens: 0, output_tokens: 0, model: 'mock', cost_usd: 0,
 }
 
-type Query = Record<string, string | number | boolean | undefined>
+type Query = Record<string, string | number | boolean | readonly (string | number)[] | undefined>
 
 let announced = false
 
@@ -227,6 +239,26 @@ export function mockResponse(method: string, path: string, query: Query = {}): u
 
   const proposal = /^\/applications\/(\d+)\/schedule-proposals$/.exec(path)
   if (proposal) return serve(SCHEDULE_STATUS[Number(proposal[1])] ?? FALLBACK_STATUS)
+
+  /* 인적성 검사 (ADR-0027). 진짜 서버는 세션이 없어도 404 가 아니라
+     status='none' 을 준다 — 목이 이 경로를 안 받으면 401 로 떨어져
+     담당자 화면에서 행 자체가 사라진다. 홀수 id 는 응답 완료로 둔다. */
+  const apt = /^\/applications\/(\d+)\/aptitude$/.exec(path)
+  if (apt) {
+    const done = Number(apt[1]) % 2 === 1
+    return serve(done
+      ? {
+        status: 'done', url: null, expires_at: null,
+        submitted_at: '2026-09-08T11:32:00+09:00',
+        answers: [], stats: [],
+        ai_summary: '(로컬 목 데이터) 응답 사실의 재서술입니다 — 유형 판정·점수는 없습니다.',
+        ai_summary_model: null,
+      }
+      : {
+        status: 'none', url: null, expires_at: null, submitted_at: null,
+        answers: [], stats: [], ai_summary: null, ai_summary_model: null,
+      })
+  }
 
   const noteList = /^\/applications\/(\d+)\/notes$/.exec(path)
   if (noteList) return serve([] satisfies Note[])

@@ -83,6 +83,108 @@ def _to_out(session: InterviewSession) -> SessionOut:
 # ── 담당자용 ──────────────────────────────────────────────────────
 
 
+# 자동 생성이 뽑을 게 없거나 실패했을 때 넣는 폴백. 어느 지원자에게든 물을 수
+# 있는 안전한 첫 세 개다 (2026-09-10). 담당자가 원하면 편집기로 덮어쓸 수 있다.
+_DEFAULT_QUESTIONS = (
+    "성함과 지원하신 직무를 말씀해 주세요.",
+    "가장 자신 있는 기술 하나만 말씀해 주세요.",
+    "입사하면 가장 먼저 하고 싶은 일은 무엇인가요?",
+)
+
+
+def _seed_questions_bg(session_id: int) -> None:
+    """세션 만든 직후 자동으로 꼬리질문을 뽑아 넣는다 (2026-09-10, 팀장 결정).
+
+    담당자가 매번 수동으로 질문을 넣던 번거로움을 없앤다. 뽑을 게 없으면 폴백
+    3개가 들어가므로 지원자는 어느 경우에도 "준비된 질문이 없습니다" 를 안 본다.
+    담당자는 이후에도 언제든 편집기로 덮어쓸 수 있다 (`set_questions`).
+
+    실패해도 무해하다 — 로그만 남기고 세션은 그대로 (담당자가 수동으로 넣으면 됨).
+    """
+    import logging
+
+    from app.agent.interview_probe import generate_probes, sources_of
+    from app.db import SessionLocal
+
+    logger = logging.getLogger(__name__)
+
+    with SessionLocal() as db:
+        session = db.get(InterviewSession, session_id)
+        if session is None:
+            return
+
+        # 이미 질문이 있으면 덮어쓰지 않는다 — 담당자가 수동으로 먼저 넣은 경우
+        existing = db.scalar(
+            select(InterviewTurn).where(InterviewTurn.session_id == session_id)
+        )
+        if existing is not None:
+            return
+
+        application = db.get(Application, session.application_id)
+        if application is None:
+            return
+
+        try:
+            sources = sources_of(application, db)
+        except Exception:
+            logger.exception("면접 질문 자동 생성 실패 (sources_of): session=%s", session_id)
+            sources = None
+
+        questions: list[str] = []
+        if sources and (sources["cover_letter"].strip() or sources["resume"].strip()):
+            try:
+                claims = generate_probes(sources)
+            except Exception:
+                logger.exception(
+                    "면접 질문 자동 생성 실패 (generate_probes): session=%s", session_id
+                )
+                claims = None
+            if claims:
+                # 주장별로 첫 질문을 먼저 뽑고 (다양한 주장 커버) 그 뒤에 두 번째,
+                # 이런 순서로 최대 10개. 같은 주장의 두 질문이 붙어 나가면 흐름이
+                # 지루해진다.
+                for i in range(2):
+                    for c in claims:
+                        qs = c.get("questions") or []
+                        if i < len(qs):
+                            questions.append(qs[i].strip())
+                questions = [q for q in questions if q][:10]
+
+        if not questions:
+            questions = list(_DEFAULT_QUESTIONS)
+
+        # LLM 이 도는 사이 담당자가 세션을 지웠을 수 있다 (2026-09-10 실측:
+        # session 48 이 6초만에 삭제됐고, 그 뒤 이 훅이 INSERT 하다 FK 위반).
+        # 재확인해 세션이 사라졌으면 조용히 종료 — 담당자가 만든 것을 지운 것이니
+        # 그 위에 질문을 남기지 않는 편이 맞다.
+        if db.get(InterviewSession, session_id) is None:
+            logger.info(
+                "면접 질문 자동 생성 취소: session=%s (LLM 사이 세션이 삭제됨)",
+                session_id,
+            )
+            return
+
+        for seq, q in enumerate(questions, start=1):
+            db.add(
+                InterviewTurn(session_id=session_id, seq=seq, question=q)
+            )
+        try:
+            db.commit()
+        except Exception:
+            # 위 재확인이 지나간 뒤에도 삭제될 수 있다 (그 사이 두 요청이 동시에
+            # 왔을 때). 이 자리에서는 FK 위반이 나오므로 롤백 후 조용히 종료.
+            logger.info(
+                "면접 질문 자동 생성 커밋 실패: session=%s (경합 · 롤백)",
+                session_id,
+            )
+            db.rollback()
+            return
+        logger.info(
+            "면접 질문 자동 생성 완료: session=%s 개수=%s (폴백=%s)",
+            session_id, len(questions), questions == list(_DEFAULT_QUESTIONS),
+        )
+
+
 @router.post(
     "/applications/{application_id}/interview-sessions",
     response_model=SessionOut,
@@ -91,6 +193,7 @@ def _to_out(session: InterviewSession) -> SessionOut:
 def create_session(
     application_id: int,
     body: SessionCreate,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -99,6 +202,9 @@ def create_session(
     **재생성하지 않고 매번 새 행을 만든다.** 옛 세션은 그대로 남는다 —
     이력이 사라지지 않는 편이 낫다(stage_history·schedule_proposals 와 같은 철학).
     그래서 링크를 다시 뽑아도 **이전 링크가 죽지 않는다** — 공고 public-link 와 다른 점이다.
+
+    **질문은 뒤에서 자동으로 뽑는다** (2026-09-10, 팀장 결정). 자기소개서·이력서에서
+    꼬리 질문 최대 10개, 뽑을 게 없으면 폴백 3개. 담당자는 여전히 편집기로 덮어쓸 수 있다.
     """
     application = db.get(Application, application_id)
     if application is None:
@@ -116,6 +222,10 @@ def create_session(
     db.add(session)
     db.commit()
     db.refresh(session)
+
+    # 자동 질문 생성 — 백그라운드로. 담당자를 응답 앞에 세워 두지 않는다.
+    background.add_task(_seed_questions_bg, session.id)
+
     return _to_out(session)
 
 
@@ -135,6 +245,45 @@ def list_sessions(
         .order_by(InterviewSession.created_at.desc())
     ).all()
     return [_to_out(s) for s in rows]
+
+
+@router.delete(
+    "/interview-sessions/{session_id}", status_code=HTTPStatus.NO_CONTENT
+)
+def delete_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """세션 하나를 지운다. **끝난 것도 지울 수 있다.**
+
+    담당자가 옛 세션 (잘못 만든 것 · 시연 리허설용 · 만들어 두고 안 쓴 것) 을 지울
+    자리 (2026-09-10, 팀장 요청). 자식 표 (interview_turns · interview_findings) 는
+    수동 CASCADE — FK 에 ondelete 를 안 걸어 뒀기 때문이다.
+
+    **`in_progress` 는 허용한다.** 오늘 사고 났던 세션(23 스타일) 도 지울 수 있어야
+    담당자 UI 로 정리할 수 있다. 지원자가 그 순간에 접속 중이었어도 방을 닫힐
+    뿐이라 되돌릴 수 없는 손해는 없다.
+    """
+    from app.models import InterviewFinding
+
+    session = db.get(InterviewSession, session_id)
+    if session is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
+
+    # 자식 먼저 — FK ondelete 가 없어 순서를 지켜야 한다
+    db.execute(
+        InterviewFinding.__table__.delete().where(
+            InterviewFinding.session_id == session_id
+        )
+    )
+    db.execute(
+        InterviewTurn.__table__.delete().where(
+            InterviewTurn.session_id == session_id
+        )
+    )
+    db.delete(session)
+    db.commit()
 
 
 @router.post("/interview-turns/{turn_id}/analyze")
@@ -246,6 +395,8 @@ def get_session(
     user: User = Depends(get_current_user),
 ):
     """전사와 대조 결과까지 포함한 상세."""
+    from app.agent.interview_findings import findings_on
+
     session = db.get(InterviewSession, session_id)
     if session is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
@@ -254,7 +405,8 @@ def get_session(
     return SessionDetailOut(
         **base.model_dump(),
         turns=sorted(session.turns, key=lambda t: t.seq),
-        findings=list(session.findings),
+        findings=sorted(session.findings, key=lambda f: f.id),
+        findings_enabled=findings_on(),
     )
 
 
@@ -301,10 +453,16 @@ def get_interview_public(token: str, db: Session = Depends(get_db)):
         # **아직 답 안 한 가장 앞 질문**이 현재 질문이다.
         # 마지막 질문을 보면 안 된다 — 3개 중 1번만 답했을 때 2번이 아니라
         # 3번을 내주게 된다. 답변 저장(submit_answer)도 같은 규칙을 쓴다.
+        #
+        # **"답 안 한" 은 `answered_at` 도 전사도 없는 칸이다** (0018, 2026-09-11).
+        # 전사만 보던 때는 전사가 몇 분씩 늦게 채워져서, 그 사이 재접속·확인 요청이
+        # 지원자를 이미 답한 질문으로 되돌렸다. 전사도 같이 보는 이유는 `answered_at`
+        # 을 안 찍고 전사만 넣는 경로가 있어도 그 칸을 다시 묻지 않게 하려는 것이다.
         current = db.scalar(
             select(InterviewTurn)
             .where(
                 InterviewTurn.session_id == session.id,
+                InterviewTurn.answered_at.is_(None),
                 InterviewTurn.transcript.is_(None),
             )
             .order_by(InterviewTurn.seq)
@@ -511,14 +669,75 @@ def _transcribe_answer(turn: InterviewTurn, key: str) -> str:
     return text
 
 
+def _generate_followup_bg(session_id: int, prev_turn_id: int) -> None:
+    """직전 답변을 재료로 꼬리질문 하나를 만들어 다음 자리에 삽입한다.
+
+    지원자를 기다리게 하지 않는 자리다 — 답변 저장 뒤 백그라운드로 돈다.
+    다음 질문이 이미 나가 있어도 상관없다: 이 새 턴은 그 뒤로 들어가고,
+    지원자가 다음다음 질문 필요할 때 자연스럽게 나간다 (2026-09-10, 팀장 결정).
+
+    실패는 무해하다 — 로그만 남기고 사전 질문 흐름이 그대로 굴러간다.
+    """
+    from app.agent.interview_probe import probe_from_answer
+    from app.db import SessionLocal
+
+    with SessionLocal() as db:
+        prev = db.get(InterviewTurn, prev_turn_id)
+        if prev is None or prev.transcript is None:
+            return  # 사라졌거나 아직 전사 안 됨
+
+        # 지원자 요약이 있으면 문맥에 넣는다. 없어도 답변만으로 굴러간다.
+        summary = ""
+        session = db.get(InterviewSession, session_id)
+        if session is not None:
+            app = db.get(Application, session.application_id)
+            if app is not None and app.ai_summary:
+                summary = app.ai_summary
+
+        question = probe_from_answer(
+            prev_question=prev.question,
+            prev_answer=prev.transcript,
+            applicant_summary=summary,
+        )
+        if question is None:
+            return
+
+        # 마지막 번호 다음에 붙인다. 다른 세션은 안 건드리므로 락 없이 안전 —
+        # 이 세션 안에서 두 답변이 거의 동시에 도착해도 각각의 배경 태스크가
+        # 서로 다른 seq 를 딴다 (uniqueness 는 DB 가 지킨다).
+        max_seq = (
+            db.query(InterviewTurn.seq)
+            .filter(InterviewTurn.session_id == session_id)
+            .order_by(InterviewTurn.seq.desc())
+            .limit(1)
+            .scalar()
+            or 0
+        )
+        new_turn = InterviewTurn(
+            session_id=session_id,
+            seq=max_seq + 1,
+            question=question,
+            generated_from_turn_id=prev_turn_id,
+        )
+        db.add(new_turn)
+        db.commit()
+
+
 @router.post("/public/interview/{token}/answer", response_model=InterviewPublicOut)
-def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)):
+def submit_answer(
+    token: str,
+    body: AnswerRequest,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     """현재 질문에 답한다. 공개.
 
     **아직 답 안 한 가장 앞 질문**에 붙인다 — 지원자가 순번을 보내지 않는다.
     보내게 하면 어긋난 번호로 남의 칸에 답이 들어갈 수 있다.
 
-    지금은 텍스트만 받는다. 음성 업로드 → STT 는 설계 §5 의 4번이다.
+    저장이 끝나면 백그라운드로 **꼬리질문 하나**를 만들어 다음 자리에 넣는다 —
+    지원자는 이 사이에 이미 미리 준비된 다음 질문을 답하고 있고, 꼬리는 그
+    다음이나 그 뒤에 자연스럽게 나간다. 실패해도 흐름은 그대로.
     """
     session = _get_by_token(db, token)
 
@@ -535,8 +754,14 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
     ]
     # 번호를 보냈으면 그 칸에만 넣는다. 전사가 뒤에서 도는 동안 다음 질문이 이미
     # 나가 있을 수 있어서, "가장 앞 빈칸" 규칙이면 답이 한 칸씩 밀린다.
+    #
+    # 워커는 말이 끝나는 순간 `answered_at` 부터 찍고(내부 `.../answered`) 전사는
+    # 나중에 번호를 붙여 여기로 보낸다 — 그래서 번호가 있으면 **답한 칸이어도**
+    # 전사가 비어 있으면 채운다. 번호가 없으면(글로 답하기·예전 경로) 지금 질문에 넣는다.
     if body.seq is not None:
         where.append(InterviewTurn.seq == body.seq)
+    else:
+        where.append(InterviewTurn.answered_at.is_(None))
 
     turn = db.scalar(select(InterviewTurn).where(*where).order_by(InterviewTurn.seq))
     if turn is None:
@@ -566,7 +791,21 @@ def submit_answer(token: str, body: AnswerRequest, db: Session = Depends(get_db)
         transcript = body.transcript
 
     turn.transcript = transcript
+    if turn.answered_at is None:
+        # 워커를 거치지 않은 답(글로 답하기·녹음 업로드)은 여기서 "답했다" 가 된다
+        turn.answered_at = datetime.now(timezone.utc)
     db.commit()
+
+    # 꼬리질문 하나를 뒤에서 만든다 (2026-09-10, ADR-0034 후속).
+    # 답변이 짧거나 백엔드가 안 되면 함수가 자체적으로 조용히 접는다.
+    background.add_task(_generate_followup_bg, session.id, turn.id)
+
+    # 이 답변 하나를 서류와 맞춰 본다 (2026-09-11) — 담당자 화상 방이 그 답변 밑에
+    # 띄운다. 꼬리질문 뒤에 둔다: 그쪽은 지원자가 곧 받을 질문이라 먼저 나와야 한다.
+    # 스위치(`AGENT_FINDINGS_BACKEND`)가 꺼져 있으면 DB 도 안 열고 끝난다.
+    from app.agent.interview_findings import generate_turn_findings_bg
+
+    background.add_task(generate_turn_findings_bg, session.id, turn.id)
 
     out = get_interview_public(token, db)
 

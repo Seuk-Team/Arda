@@ -119,6 +119,18 @@ export function useInterviewRoom(opts: RoomOptions) {
     streamRef.current?.getTracks().forEach((t) => {
       if (streamRef.current) pc.addTrack(t, streamRef.current)
     })
+    /* **담당자 PC 에 카메라·마이크가 없어도 받기는 한다** (2026-09-11). 제안(offer)은
+       담당자가 만드는데, 보낼 트랙이 없으면 제안에 영상·소리 자리가 아예 안 생겨
+       지원자 영상도 못 받는다. 받기 전용 자리를 따로 연다. 판정은 **받은** 영상으로
+       하므로(`useLiveAnalysis`) 담당자 카메라는 필요 없다. */
+    if (role === 'recruiter') {
+      if (!streamRef.current?.getVideoTracks().length) {
+        pc.addTransceiver('video', { direction: 'recvonly' })
+      }
+      if (!streamRef.current?.getAudioTracks().length) {
+        pc.addTransceiver('audio', { direction: 'recvonly' })
+      }
+    }
 
     pc.onicecandidate = (e) => {
       if (e.candidate) send({ type: 'ice', candidate: e.candidate.toJSON() })
@@ -137,7 +149,7 @@ export function useInterviewRoom(opts: RoomOptions) {
       }
     }
     return pc
-  }, [send, teardownPeer])
+  }, [role, send, teardownPeer])
 
   const makeOffer = useCallback(async () => {
     setPhase('connecting')
@@ -174,26 +186,38 @@ export function useInterviewRoom(opts: RoomOptions) {
         }
       }
 
+      /* 지원자는 카메라·마이크가 있어야 한다(영상을 보내는 쪽). **담당자는 없어도
+         된다** — 판정은 지원자에게서 받은 영상으로 하므로 담당자 카메라는 보여 주기일
+         뿐이다(2026-09-11). 카메라가 안 되면 소리만, 그것도 안 되면 받기만 한다. */
+      let stream: MediaStream | null = null
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
         })
-        if (!aliveRef.current) {
-          stream.getTracks().forEach((t) => t.stop())
-          return
-        }
-        streamRef.current = stream
-        if (localRef.current) {
-          localRef.current.srcObject = stream
-          localRef.current.muted = true
-          void localRef.current.play().catch(() => {})
-        }
       } catch {
-        if (!aliveRef.current) return
+        if (role === 'recruiter') {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          } catch {
+            stream = null
+          }
+        }
+      }
+      if (!aliveRef.current) {
+        stream?.getTracks().forEach((t) => t.stop())
+        return
+      }
+      if (stream === null && role !== 'recruiter') {
         setError('카메라·마이크를 사용할 수 없습니다. 권한을 허용해 주세요')
         setPhase('error')
         return
+      }
+      streamRef.current = stream
+      if (stream && localRef.current) {
+        localRef.current.srcObject = stream
+        localRef.current.muted = true
+        void localRef.current.play().catch(() => {})
       }
 
       const ws = new WebSocket(`${wsUrl(`/ws/interview/${wsToken}/rtc`)}${query}`)

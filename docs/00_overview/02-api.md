@@ -115,7 +115,7 @@
 | POST | /applications/{id}/interview-sessions | 면접 세션 생성 + 공개 링크 발급 | 본문 `{expires_in_days?}` (1~30, 기본 7). **재발급이 아니라 새 행**이라 이전 링크가 죽지 않는다 — 공고 public-link 와 다르다 |
 | GET | /applications/{id}/interview-sessions | 이 지원자의 세션 목록 | 최신순 |
 | GET | /interview-sessions/active | **지금 진행 중인 면접들** | 2026-09-09 신설. `in_progress` 만 낸다 — 안 시작한 것은 볼 게 없고 끝난 것은 방이 안 열린다. 지원자 이름·공고 제목을 같이 내려 **대시보드가 한 번에 들어간다** (없으면 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야 실시간 분석 화면에 닿는다). **경로 순서 주의** — `{id}` 위에 둔다. 아래 두면 `active` 가 id 로 읽혀 422 |
-| GET | /interview-sessions/{id} | 세션 상세 | 전사(`turns`)와 서류↔발언 대조(`findings`) 포함 |
+| GET | /interview-sessions/{id} | 세션 상세 | 전사(`turns`)와 서류↔발언 대조(`findings`) 포함. 대조마다 **`turn_seq`**(어느 답변에서 나왔나 — 끝날 때 전체로 만든 것은 `null`), 그리고 **`findings_enabled`**(대조 스위치가 켜져 있는가 — 꺼진 것과 아직 없는 것을 화면이 가르게) (2026-09-11) |
 | GET | /public/interview/{token} | 지원자용 조회 | **공개**. 만료는 조회 시점 판정(B4 방식). **담당자 이름·평가·다른 지원자를 내려주지 않는다** |
 | POST | /public/interview/{token}/consent | 녹음·전사 동의 | **공개**. 본문 `{agreed}`. **지원 폼의 개인정보 동의와 별개다** — 거절하면 422, 기록도 안 남는다 |
 | POST | /public/interview/{token}/start | 면접 시작 | **공개**. 동의 없으면 422 · 만료면 410 · 준비된 질문이 없으면 422 |
@@ -278,6 +278,7 @@
 | POST | /internal/email-logs/{id}/result | 발송 결과 기록 | 멱등 — 이미 `sent` 면 no-op |
 | POST | /internal/interview/{token}/verdict | 면접 실시간 판정을 담당자에게 민다 | 본문 `{truth_pct?, lie_pct?, window_sec?, …}`. **204 고정** |
 | GET | /internal/interview/{token}/questions | 면접 질문 전체 `[{seq, question}]` | 워커가 시작할 때 한 번. **전사를 안 기다리고 다음 질문을 보내기 위한 것** |
+| POST | /internal/interview/{token}/turns/{seq}/answered | 이 질문에 **답을 마쳤다**고 남긴다 → `{seq, answered_at}` | 워커가 말이 끝나는 순간 부른다(2026-09-11). 전사는 나중에 `/public/interview/{token}/answer` 에 같은 `seq` 로 채운다. 멱등 — 처음 시각을 지킨다. 진행 중이 아니면 409, 없는 번호면 404. **"지금 질문" 은 `answered_at` 이 빈 가장 앞 칸** |
 | GET | /internal/interview/{token}/portrait | 이력서에 든 증명사진 원본 바이트 | `image/jpeg`. 사진이 없으면 **404**(정상 — 워커가 확인을 건너뛴다) |
 | POST | /internal/interview/{token}/identity | 이력서 사진 대조 결과를 담당자에게 민다 | 본문 `{match: same\|different\|unclear, score}`. 면접당 **한 번**. 204 고정 |
 
@@ -316,9 +317,14 @@
   `VIT_MODEL` 과 같은 방식이다. 꺼져 있으면 `findings` 가 빈 채로 남는다
 - **전역 `AGENT_SUMMARY_BACKEND` 를 따라가지 않는다.** 요약은 이미 켜져 있어서,
   그걸 따르면 **요약을 켜 둔 것만으로 대조까지 같이 켜진다**
-- **`finish` 가 뒤에서 만든다.** 여기서 sLLM 을 기다리면 끝내기 요청이 몇십 초
-  멈춘다 — 지원자는 이미 다 답했는데 화면만 붙잡힌다. 담당자 화면은 잠시 뒤
-  새로고침하면 채워져 있다
+- **답변마다 만든다** (2026-09-11). `answer` 가 전사를 저장하면 뒤에서 **그 답변
+  하나**를 서류와 맞춰 `turn_seq` 를 붙여 남긴다 — 담당자 화상 방(`/interview-room`)이
+  3초마다 다시 읽어 **그 답변 밑에** 띄운다. 답변 하나로는 "안 다뤄졌다" 를 말할 수
+  없어서 **일치·불일치만** 낸다(`interview_findings_turn` 프롬프트). 전사 자리표시자
+  (`[전사 지연 …]`)는 맞춰 보지 않는다. LLM 을 답변마다 한 번 부른다
+- **`finish` 가 뒤에서 한 번 더 만든다.** 전체 전사로 보고, 답변 대조가 이미 다룬
+  주장은 다시 내지 않으며 면접에서 다루지 않은 주장(확인필요)을 보탠다. 여기서
+  sLLM 을 기다리면 끝내기 요청이 몇십 초 멈추므로 뒤에서 돈다
 - **점수가 없다.** 갈래는 셋뿐이고 판단은 면접관이 한다 (ADR-0003). 합불에
   곱해지는 수치를 만들지 않는다
 

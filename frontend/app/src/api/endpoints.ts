@@ -91,8 +91,13 @@ export const postings = {
 
 interface SearchQuery {
   q?: string
-  stage?: Stage
+  /* 여러 개를 주면 OR 다 — "종료" 칩이 합격·불합격을 한 번에 보낸다 */
+  stage?: Stage | Stage[]
   posting_id?: number
+  /* 서버가 받는 값은 둘뿐이다 (backend/app/api/search.py SORTS).
+     경력 순은 없다 — 필요하면 백엔드에 먼저 요청해야 한다 */
+  sort?: 'created_at' | 'score'
+  order?: 'desc' | 'asc'
   limit?: number
   offset?: number
   with_total?: boolean
@@ -197,6 +202,11 @@ export const interviews = {
 
   detail: (sessionId: number, signal?: AbortSignal) =>
     api.get<InterviewSessionDetail>(`/interview-sessions/${sessionId}`, { signal }),
+
+  /* 세션 삭제 (2026-09-10). 자식 표(turns·findings) 도 함께 지운다.
+     끝난 세션도 지울 수 있다 — 담당자가 옛것 정리하는 자리다. */
+  remove: (sessionId: number) =>
+    api.delete<void>(`/interview-sessions/${sessionId}`),
 
   /* 지금 진행 중인 면접들. 대시보드가 실시간 분석으로 바로 들어가는 데 쓴다 */
   active: (signal?: AbortSignal) =>

@@ -21,6 +21,7 @@ MAIL_DISPATCH=worker 인 동안엔 이 경로가 안 불린다 — 그때는 워
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
@@ -278,6 +279,43 @@ def get_questions(token: str, db: Session = Depends(get_db)):
         .order_by(InterviewTurn.seq)
     ).all()
     return [QuestionOut(seq=t.seq, question=t.question) for t in turns]
+
+
+class AnsweredOut(BaseModel):
+    seq: int
+    answered_at: datetime
+
+
+@router.post(
+    "/interview/{token}/turns/{seq}/answered",
+    response_model=AnsweredOut,
+    dependencies=[Depends(_require_service_token)],
+)
+def mark_answered(token: str, seq: int, db: Session = Depends(get_db)):
+    """이 질문에 **답을 마쳤다**고 남긴다. 워커가 지원자의 말이 끝나는 순간 부른다.
+
+    **왜 전사와 따로 오는가**: 전사는 워커가 뒤에서 한 번에 하나씩 돌려 몇 분씩
+    늦게 끝난다. 전사가 저장돼야 "답했다" 가 되던 때는 그 사이 재접속이나 앱의
+    확인 요청이 지원자를 **이미 답한 질문으로 되돌렸다** (2026-09-11 시연 실측).
+    이걸 먼저 찍으면 "지금 질문" 이 바로 넘어가고, 전사는 나중에 같은 번호로
+    `/public/interview/{token}/answer` 에 채워진다.
+
+    **몇 번 불러도 같다** — 재접속으로 같은 신호가 두 번 와도 처음 시각을 지킨다.
+    """
+    session = _find_session_or_404(db, token)
+    if session.status != "in_progress":
+        raise HTTPException(status.HTTP_409_CONFLICT, "진행 중인 면접이 아닙니다")
+    turn = db.scalar(
+        select(InterviewTurn).where(
+            InterviewTurn.session_id == session.id, InterviewTurn.seq == seq
+        )
+    )
+    if turn is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "그런 질문이 없습니다")
+    if turn.answered_at is None:
+        turn.answered_at = datetime.now(timezone.utc)
+        db.commit()
+    return AnsweredOut(seq=turn.seq, answered_at=turn.answered_at)
 
 
 # --- 이력서 사진: 워커가 대리응시를 확인할 때 쓴다 (회의 2026-09-09 3번) ---

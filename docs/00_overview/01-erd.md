@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v2.2 · 2026-09-10** — v2.2: **자동 심사**([ADR-0034](../03_decision/0034-에이전트-자동심사.md)). `job_postings.pass_threshold`·`screening_mode`, 신규 `posting_interviewers`(공고별 기본 면접관 풀), `applications.doc_score`·`doc_score_detail`·`doc_decision`·`doc_decided_at`·`decision_source`, `interview_sessions.ai_score`·`ai_score_detail`·`truth_samples`·`scored_at`, `company_profile.scoring_weights`·`talent_profile`. 전부 NULL 허용 또는 기본값이라 기존 행 영향 없음. **alembic `0016`**. 0013·0014 가 만든 `company_profile`·공고 상세 컬럼도 이 판에서 문서에 반영했다(코드가 먼저였다).
+> **상태: 확정 v2.3 · 2026-09-11** — v2.3: `interview_findings.turn_id` 추가 — 서류 대조를 **답변마다** 만들어 그 답변에 붙인다(담당자 화상 방이 답변 밑에 띄운다). NULL 허용이라 기존 행 영향 없음. **alembic `0019`**. 같은 날 `interview_turns.answered_at`(**alembic `0018`**)도 들어갔다 — 표에만 반영돼 있던 것을 여기 함께 적는다.
+> v2.2 · 2026-09-10 — v2.2: **자동 심사**([ADR-0034](../03_decision/0034-에이전트-자동심사.md)). `job_postings.pass_threshold`·`screening_mode`, 신규 `posting_interviewers`(공고별 기본 면접관 풀), `applications.doc_score`·`doc_score_detail`·`doc_decision`·`doc_decided_at`·`decision_source`, `interview_sessions.ai_score`·`ai_score_detail`·`truth_samples`·`scored_at`, `company_profile.scoring_weights`·`talent_profile`. 전부 NULL 허용 또는 기본값이라 기존 행 영향 없음. **alembic `0016`**. 0013·0014 가 만든 `company_profile`·공고 상세 컬럼도 이 판에서 문서에 반영했다(코드가 먼저였다).
 > v2.1 · 2026-09-04 — v2.1: `chain_publications.proof` 추가(OpenTimestamps 증명 보관 — EVM 체인(운영 Sepolia)은 `tx_hash` 만 있으면 되지만 OTS 는 증명 파일이 근거다) + `(network, chain_hash)` 부분 유일 인덱스로 **같은 머리를 같은 네트워크에 두 번 올리는 것**만 막는다. **alembic `0009`**.
 > v2.0 · 2026-09-04 — v2.0: 사슬 머리를 공개 체인에 못 박은 기록 `chain_publications` 추가, `document_anchors` 의 `ots_status`·`ots_proof` **제거**(아무도 쓴 적 없는 칸이고, 열려 있으면 그게 원장의 유일한 구멍이 된다). 이제 `document_anchors` 는 **UPDATE 가 아예 안 되는 표**다. **alembic `0008`** ([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) 2단계).
 > v1.9 · 2026-09-04 — v1.9: `document_anchors` 를 **DB 트리거로 추가 전용 잠금**(UPDATE·DELETE·TRUNCATE 거부, `ots_*` 만 예외). 컬럼 변화 없음. **alembic `0006`**. 이어서 **alembic `0007`** 이 앱 롤의 권한을 SELECT·INSERT 로 좁힌다 — **`ARDA_APP_DB_ROLE` 환경변수가 없으면 아무것도 하지 않는다**(절차는 [ADR-0028](../03_decision/0028-제출물-무결성-앵커.md) "권한 분리 절차").
@@ -418,6 +419,7 @@ UNIQUE(job_posting_id, user_id).
 | question | text | NOT NULL | 아르가 낸 질문 |
 | audio_s3_key | text | NULL 허용 | 답변 녹음. F1 presigned 로 브라우저가 직접 올린다 |
 | transcript | text | NULL 허용 | STT 결과 |
+| answered_at | timestamptz | NULL 허용 | 지원자가 답을 마친 시각 (0018 · 2026-09-11). **"지금 질문" 은 이게 NULL 인 가장 앞 칸**이다 — 전사는 뒤에서 몇 분씩 늦게 채워지므로 `transcript` 로 정하면 이미 답한 질문으로 되돌아간다 |
 | audio_duration_sec | numeric(10,2) | NULL 허용 | 원가 관측 — `SttResponse` 와 같은 필드명 |
 | stt_cost_usd | numeric(10,6) | NULL 허용 | 〃 |
 | created_at | timestamptz | NOT NULL | |
@@ -434,8 +436,10 @@ UNIQUE(job_posting_id, user_id).
 | claim_text | text | NOT NULL | **서류 원문 인용** |
 | answer_text | text | NOT NULL | **면접 발언 원문 인용** |
 | verdict | varchar(20) | NOT NULL | `consistent` / `inconsistent` / `unverified` |
+| turn_id | bigint | FK → interview_turns.id ON DELETE CASCADE, NULL 허용 | 어느 답변에서 나온 대조인가 (0019 · 2026-09-11). **NULL 이면 면접이 끝난 뒤 전체 전사로 만든 것**(주로 확인필요) |
 | created_at | timestamptz | NOT NULL | |
 
+- **두 번 만든다** (2026-09-11). 답변이 저장될 때마다 그 답변 하나로(`turn_id` 있음 — 일치·불일치만), 면접이 끝날 때 전체로(`turn_id` 없음). 끝날 때는 답변 대조가 이미 다룬 주장을 다시 내지 않는다 — 같은 주장이 두 줄로 뜨면 면접관이 어느 쪽을 믿을지 모른다
 - **점수 컬럼이 없다. 일부러다.** 합불에 곱해지는 수치를 만들면 [ADR-0003](../03_decision/0003-ai-추천만.md)("AI 는 추천까지만")이 무너진다. 갈래는 셋뿐이고 판단은 사람이 한다
 - **양쪽 원문을 그대로 담는 이유**: 지원자가 반박할 수 있어야 한다. 목소리에서 심리 상태를 추론하지 않는 대신 근거를 인용해 보여 주는 것이 이 기능의 값이다(ADR-0026)
 ## aptitude_sessions — 인적성(사전 성향) 설문 세션 (v1.7)

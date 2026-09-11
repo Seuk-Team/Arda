@@ -1,9 +1,17 @@
-# ViT 표정 (ADR-0032). **기본 이미지에 넣지 않는다** — torch 를 얹으면 이미지가
-# ~2.5GB 커지는데, 지금 운영 서버(t3.medium 4GB)에서는 어차피 못 켠다.
-# GPU 서버에서만 이것까지 설치하고 VIT_MODEL 을 준다.
-#   pip install -r requirements-vit.txt
-#   export VIT_MODEL=cloverky/arda-expression-vit   # 우리가 학습한 것 (ai/expression-vit)
-torch>=2.0
-torchvision>=0.15
+# ViT 표정 (ADR-0032). CPU 서버(t3.large) 에서 도는 자리라 **CPU-only torch** 로 설치한다.
+# 기본 (`pip install torch`) 은 CUDA 패키지(nvidia-cudnn·nvidia-cublas 등)를 통째로
+# 끌고 와 이미지 · 디스크가 ~5GB 넘게 부풀고, 우리 서버 (29G 중 8G 남음) 에서
+# `No space left on device` 로 배포가 계속 실패했다 (2026-09-10 실측).
+#
+# 아래 `--index-url` 는 CPU 전용 whl 저장소. torch 자체는 ~200MB.
+# **버전을 pin 하지 않는다** — CPU 인덱스에 있는 최신을 자동으로 잡는다. 옛 특정
+# `+cpu` 태그 (예: torchvision==0.20.1+cpu) 는 게시가 취소된 것들이 있어서 pin 하면
+# 오히려 다시 터진다. 지금은 `>=` 만 걸고 pip 에게 결정을 맡긴다.
+#
+# GPU 서버로 옮길 때는 이 `--extra-index-url` 줄만 지우고 다시 빌드한다.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch>=2.5
+torchvision>=0.20
 transformers>=4.40
 pillow>=10.0
