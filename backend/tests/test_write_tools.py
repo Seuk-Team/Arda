@@ -349,3 +349,85 @@ class TestStageChangeSideEffects:
             .first()
         )
         assert row.reason == "요구 기술 경험 부족"
+
+
+class TestCreateScheduleProposal:
+    """아르의 "면접 일정 제안" 도구.
+
+    **이 클래스가 없어서 버그가 살아남았다.** #198 에서 후보 슬롯 계산이
+    `interview/api/schedules.py:_build_candidates` → `interview/schedule_service.py:
+    build_candidates` 로 옮겨졌는데, 이 도구는 옛 이름을 함수 안에서 import 하고
+    있었다. 모듈 레벨이 아니라 **함수 안** 이라 import 만으로는 안 터지고, 이 경로를
+    타는 테스트가 없어 pytest·ruff 둘 다 초록이었다 — 아르에게 일정 제안을 시키면
+    ImportError 로 죽는 상태가 그대로 배포돼 있었다 (2026-09-12 감사에서 발견).
+    """
+
+    def _availability(self, db: Session, interviewer, *, days_ahead: int = 1, hours: int = 3):
+        from datetime import UTC, datetime, timedelta
+
+        from app.models import InterviewerAvailability
+
+        start = (datetime.now(UTC) + timedelta(days=days_ahead)).replace(
+            minute=0, second=0, microsecond=0
+        )
+        row = InterviewerAvailability(
+            interviewer_id=interviewer.id,
+            start_at=start,
+            end_at=start + timedelta(hours=hours),
+        )
+        db.add(row)
+        db.flush()
+        return row
+
+    def _assign(self, db: Session, application, interviewer, actor):
+        from app.models import InterviewerAssignment
+
+        db.add(InterviewerAssignment(
+            application_id=application.id,
+            interviewer_id=interviewer.id,
+            assigned_by=actor.id,
+        ))
+        db.flush()
+
+    def test_후보_슬롯을_만들어_제안을_저장한다(
+        self, db: Session, admin_user, interviewer_user, application, monkeypatch
+    ):
+        from app.agent.tools.write import create_schedule_proposal
+        from app.models import ScheduleProposal, ScheduleSlot
+
+        monkeypatch.setattr("app.shared.mail.publish", lambda _id: None)
+        self._assign(db, application, interviewer_user, admin_user)
+        self._availability(db, interviewer_user)
+
+        result = create_schedule_proposal(db, admin_user, {
+            "application_id": application.id,
+            "slot_minutes": 60,
+            "max_slots": 3,
+        })
+
+        assert result.get("ok") is True, result
+        proposal = (
+            db.query(ScheduleProposal)
+            .filter(ScheduleProposal.application_id == application.id)
+            .order_by(ScheduleProposal.id.desc())
+            .first()
+        )
+        assert proposal is not None and proposal.status == "proposed"
+        slots = db.query(ScheduleSlot).filter(ScheduleSlot.proposal_id == proposal.id).all()
+        assert 1 <= len(slots) <= 3
+
+    def test_면접관_배정이_없으면_안내한다(self, db: Session, admin_user, application):
+        from app.agent.tools.write import create_schedule_proposal
+
+        result = create_schedule_proposal(db, admin_user, {"application_id": application.id})
+        assert "error" in result
+        assert "면접관" in result["error"]
+
+    def test_가용_시간이_없으면_안내한다(
+        self, db: Session, admin_user, interviewer_user, application
+    ):
+        from app.agent.tools.write import create_schedule_proposal
+
+        self._assign(db, application, interviewer_user, admin_user)
+        result = create_schedule_proposal(db, admin_user, {"application_id": application.id})
+        assert "error" in result

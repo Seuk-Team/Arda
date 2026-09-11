@@ -125,7 +125,12 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     import secrets
 
     from app.shared import mail
-    from app.interview.api.schedules import _build_candidates
+
+    # `build_candidates` 는 서비스(`app/interview/schedule_service.py`) 에 있다.
+    # 여기서는 #198 이전 이름(`schedules._build_candidates`) 을 그대로 부르고 있어서
+    # **이 도구를 쓰면 ImportError 로 터졌다** — 아르의 "일정 제안 만들기" 경로를
+    # 타는 테스트가 없어 CI 가 잡지 못했다 (2026-09-12 감사에서 발견).
+    from app.interview.schedule_service import build_candidates
 
     logger = logging.getLogger(__name__)
 
@@ -168,7 +173,7 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     for iid, s, e in rows:
         confirmed.setdefault(iid, []).append((s, e))
 
-    candidates = _build_candidates(windows, confirmed, slot_minutes, max_slots, now)
+    candidates = build_candidates(windows, confirmed, slot_minutes, max_slots, now)
     if not candidates:
         return {"error": "생성 가능한 후보 슬롯이 없습니다 — 면접관 가용 시간을 확인하세요"}
 
