@@ -17,8 +17,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import anchoring, ots
-from app.chain import ChainConfig, SentTx
+from app.shared import anchoring, ots
+from app.shared.chain import ChainConfig, SentTx
 from app.db import get_db
 from app.deps import get_current_user
 from app.main import app
