@@ -262,7 +262,10 @@ def _after_pass(
         )
         db.flush()
         try:
-            from app.interview.api.schedules import NoCandidateSlots, build_proposal
+            # 라우터(`interview/api/schedules.py`) 가 아니라 **서비스**에서 가져온다.
+            # 라우터 경유로 두면 도메인이 FastAPI 라우터 모듈을 끌고 들어온다
+            # (#198 에서 로직을 서비스로 옮긴 뒤 남은 잔재 · 2026-09-12 감사).
+            from app.interview.schedule_service import NoCandidateSlots, build_proposal
 
             _, _, log = build_proposal(
                 db, application, [interviewer_id],

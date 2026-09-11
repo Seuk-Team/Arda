@@ -33,6 +33,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.shared import mail
+from app.shared.labels import STAGE_LABEL_APPLICANT_KR
 from app.db import get_db
 from app.models import Application
 from app.schemas.portal import (
@@ -51,19 +52,10 @@ PUBLIC_APP_BASE_URL = os.getenv("PUBLIC_APP_BASE_URL", "").rstrip("/")
 # 흔해서 너무 짧으면 "링크가 죽었다"는 문의만 늘어난다.
 TOKEN_DAYS = 7
 
-# 지원자에게 보이는 단계 이름.
-#
-# **`rejected` 를 그대로 "불합격"이라고 쓰지 않는다.** 담당자가 통보 메일을 보내기
-# 전에 이 링크로 먼저 알게 되면, 사람이 전할 말을 화면이 앞질러 전하게 된다.
-# 여기서는 "전형이 끝났다"까지만 말하고, 사유는 어디에도 싣지 않는다 —
-# 불합격 사유는 담당자 화면의 기록이지 지원자에게 자동으로 나가는 값이 아니다.
-STAGE_LABEL = {
-    "applied": "접수 완료",
-    "screening": "서류 검토 중",
-    "interview": "면접 전형 진행 중",
-    "accepted": "최종 합격",
-    "rejected": "전형 종료",
-}
+# 지원자에게 보이는 단계 이름 — 표기와 그 근거는 `app/shared/labels.py` 에 있다.
+# 지원자 포털(이 파일)과 지원자 로그인 화면(talent/api/applicant_auth.py) 이 같은
+# 문구를 써야 해서 공용으로 옮겼다. 이 별칭은 기존 호출부·테스트 호환용이다.
+STAGE_LABEL = STAGE_LABEL_APPLICANT_KR
 
 
 def _portal_url(token: str) -> str:

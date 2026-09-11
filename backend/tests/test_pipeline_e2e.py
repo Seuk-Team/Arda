@@ -230,6 +230,47 @@ class TestAppBoots:
                 failed.append(f"{mod.name}: {exc}")
         assert not failed, failed
 
+    def test_every_lazy_import_resolves(self):
+        """**함수 안 import** 를 전부 실제로 해석한다.
+
+        지연 import 는 그 함수를 부르는 테스트가 없으면 영원히 검증되지 않는다.
+        `ruff F821` 도 못 잡는다 — 이름이 import 문에 있으니 정의된 것으로 본다.
+        2026-09-12 에 실제로 `agent/tools/write.py` 가 `schedules._build_candidates`
+        (#198 에서 `schedule_service.build_candidates` 로 옮겨 없어진 이름) 를 불러
+        아르의 "면접 일정 제안" 도구가 ImportError 로 죽어 있었다.
+        """
+        import ast
+        import importlib
+        import pathlib
+
+        problems: list[str] = []
+        for path in sorted(pathlib.Path("app").rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            toplevel = {id(n) for n in tree.body}
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom) or id(node) in toplevel:
+                    continue  # 모듈 레벨 import 는 import 자체로 검증된다
+                if node.level or not node.module or not node.module.startswith("app"):
+                    continue
+                try:
+                    mod = importlib.import_module(node.module)
+                except Exception as exc:  # noqa: BLE001
+                    problems.append(f"{path}:{node.lineno} {node.module} import 실패: {exc}")
+                    continue
+                for alias in node.names:
+                    if hasattr(mod, alias.name):
+                        continue
+                    # `from 패키지 import 서브모듈` 은 hasattr 로 안 보인다
+                    try:
+                        importlib.import_module(f"{node.module}.{alias.name}")
+                    except Exception:  # noqa: BLE001
+                        problems.append(
+                            f"{path}:{node.lineno} {node.module} 에 '{alias.name}' 없음"
+                        )
+        assert not problems, problems
+
     def test_health_open_and_api_guarded(self):
         with TestClient(fastapi_app, raise_server_exceptions=False) as client:
             assert client.get("/health").status_code == 200
