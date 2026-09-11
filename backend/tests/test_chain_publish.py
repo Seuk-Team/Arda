@@ -249,7 +249,7 @@ class TestPublishApi:
 
     def test_설정이_없으면_503(self, admin_client: TestClient, anchored):
         """왜 안 되는지 상태 코드로 갈린다 — 409(올릴 것 없음)와 다른 사유다."""
-        with patch("app.api.integrity.chain.unavailable_reason", return_value="CHAIN_RPC_URL 미설정"):
+        with patch("app.shared.api.integrity.chain.unavailable_reason", return_value="CHAIN_RPC_URL 미설정"):
             resp = admin_client.post("/api/v1/integrity/publish")
 
         assert resp.status_code == 503
@@ -257,7 +257,7 @@ class TestPublishApi:
 
     def test_올릴_것이_없으면_409(self, admin_client: TestClient, db: Session):
         with (
-            patch("app.api.integrity.chain.unavailable_reason", return_value=None),
+            patch("app.shared.api.integrity.chain.unavailable_reason", return_value=None),
             patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
         ):
             resp = admin_client.post("/api/v1/integrity/publish")
@@ -267,7 +267,7 @@ class TestPublishApi:
     def test_성공하면_탐색기_링크가_같이_온다(self, admin_client: TestClient, anchored):
         """발표에서 이 링크를 그대로 연다."""
         with (
-            patch("app.api.integrity.chain.unavailable_reason", return_value=None),
+            patch("app.shared.api.integrity.chain.unavailable_reason", return_value=None),
             patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
@@ -285,7 +285,7 @@ class TestPublishApi:
         assert before["unpublished_count"] == 1
 
         with (
-            patch("app.api.integrity.chain.unavailable_reason", return_value=None),
+            patch("app.shared.api.integrity.chain.unavailable_reason", return_value=None),
             patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
@@ -297,7 +297,7 @@ class TestPublishApi:
 
     def test_목록_조회(self, admin_client: TestClient, anchored):
         with (
-            patch("app.api.integrity.chain.unavailable_reason", return_value=None),
+            patch("app.shared.api.integrity.chain.unavailable_reason", return_value=None),
             patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
