@@ -694,7 +694,7 @@ class TestAnalyze:
         return t
 
     def test_설정이_없으면_503(self, as_user, admin_user: User, turn):
-        with patch("app.lie_analysis.SERVICE_URL", ""):
+        with patch("app.interview.lie_analysis.SERVICE_URL", ""):
             res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
         assert res.status_code == 503
 
@@ -706,12 +706,12 @@ class TestAnalyze:
         db.add(t)
         db.commit()
 
-        with patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"):
+        with patch("app.interview.lie_analysis.SERVICE_URL", "http://lie.invalid"):
             res = as_user(admin_user).post(f"/api/v1/interview-turns/{t.id}/analyze")
         assert res.status_code == 409
 
     def test_없는_회차는_404(self, as_user, admin_user: User):
-        with patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"):
+        with patch("app.interview.lie_analysis.SERVICE_URL", "http://lie.invalid"):
             res = as_user(admin_user).post("/api/v1/interview-turns/99999999/analyze")
         assert res.status_code == 404
 
@@ -721,9 +721,9 @@ class TestAnalyze:
         """담을 표를 아직 안 정했다 — 값이 먼저 쌓이면 근거처럼 쓰이기 시작한다."""
         result = {"pred": 0, "truth_pct": 100.0, "lie_pct": 0.0, "observations": []}
         with (
-            patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"),
+            patch("app.interview.lie_analysis.SERVICE_URL", "http://lie.invalid"),
             patch("app.s3.read_object", return_value=b"fake-video"),
-            patch("app.lie_analysis.analyze", return_value=result) as mock_analyze,
+            patch("app.interview.lie_analysis.analyze", return_value=result) as mock_analyze,
         ):
             res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
 
@@ -737,9 +737,9 @@ class TestAnalyze:
 
     def test_분석이_죽으면_502(self, as_user, admin_user: User, turn):
         with (
-            patch("app.lie_analysis.SERVICE_URL", "http://lie.invalid"),
+            patch("app.interview.lie_analysis.SERVICE_URL", "http://lie.invalid"),
             patch("app.s3.read_object", return_value=b"fake-video"),
-            patch("app.lie_analysis.analyze", side_effect=RuntimeError("서비스 죽음")),
+            patch("app.interview.lie_analysis.analyze", side_effect=RuntimeError("서비스 죽음")),
         ):
             res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
         assert res.status_code == 502
@@ -962,7 +962,7 @@ class TestLateTranscript:
         )
 
     def test_답한_칸의_늦은_전사는_받고_다시_채점한다(self, public, db, ended):
-        with patch("app.interview_scoring.score_interview_bg") as rescore, patch(
+        with patch("app.interview.scoring.score_interview_bg") as rescore, patch(
             "app.api.interviews._generate_followup_bg"
         ) as followup:
             res = public.post(

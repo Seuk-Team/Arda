@@ -228,7 +228,7 @@ class TestSendEmail:
     def _no_queue(self, monkeypatch):
         self.published: list[int] = []
         monkeypatch.setattr(
-            "app.stage_service.mail.publish", lambda i: self.published.append(i)
+            "app.application.stage_service.mail.publish", lambda i: self.published.append(i)
         )
 
     def test_행이_남고_큐까지_발행한다(self, db: Session, member_user, application):
