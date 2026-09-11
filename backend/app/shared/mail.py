@@ -351,7 +351,21 @@ def create_custom_log(
     return log
 
 
-def publish(email_log_id: int) -> None:
+def _get_dispatcher():
+    """MAIL_DISPATCH env 로 어떤 `MailDispatcher` 를 쓸지 정한다 (ADR-0035 Phase 3g).
+
+    구현 이관 · `_sqs`·`_publish_to_n8n` 함수는 유지 (테스트 호환) 하되 실제 로직은
+    Port 의 어댑터로 옮겨졌다. 이 함수만 mock 하면 publish 흐름을 격리 검증할 수 있다.
+    """
+    from app.adapter.outbound.mail import N8nMailDispatcher, SqsMailDispatcher
+
+    dispatch = os.getenv("MAIL_DISPATCH", "worker").strip().lower()
+    if dispatch == "n8n":
+        return N8nMailDispatcher()
+    return SqsMailDispatcher()
+
+
+def publish(email_log_id: int, *, dispatcher=None) -> None:
     """이미 커밋된 `email_logs` 행의 id 를 발송 경로에 실어 보낸다.
 
     `MAIL_DISPATCH` (ADR-0031 · 2026-09-08) 로 두 갈래:
@@ -360,18 +374,12 @@ def publish(email_log_id: int) -> None:
                       곧바로 우리 API `/internal/email-logs/{id}/render` 를 부르고
                       SMTP 노드로 발송한 뒤 `/result` 로 상태를 되돌려 준다.
 
-    두 경로가 같은 `email_logs` 행을 두 번 보내지 않도록 여기 한 곳에서만 갈린다 —
-    바깥에서는 아무 것도 바뀐 게 없다.
+    ADR-0035 Phase 3g · MailDispatcher Port 사용 · `dispatcher` 인자로 mock 주입 가능
+    (프로덕션 호출자는 그대로 · 기본 팩토리가 env 로 어댑터 선택).
     """
-    dispatch = os.getenv("MAIL_DISPATCH", "worker").strip().lower()
-    if dispatch == "n8n":
-        _publish_to_n8n(email_log_id)
-        return
-    _sqs().send_message(
-        QueueUrl=_queue_url(),
-        MessageBody=json.dumps({"email_log_id": email_log_id}),
-    )
-    logger.info("메일 큐 발행 email_log_id=%s (worker → SQS)", email_log_id)
+    if dispatcher is None:
+        dispatcher = _get_dispatcher()
+    dispatcher.publish(email_log_id)
 
 
 # n8n 웹훅 URL. compose 안 통신이라 https 가 아니라 http 로, 인증 없이 부른다.
