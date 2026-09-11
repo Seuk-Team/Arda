@@ -48,7 +48,6 @@ from app.models import (
     Application,
     AptitudeSession,
     InterviewSession,
-    JobPosting,
     ScheduleProposal,
 )
 from app.schemas.applicant_auth import (
@@ -167,11 +166,12 @@ def applicant_me(
     aptitudes: dict[int, list[AptitudeSession]] = {}
     schedules: dict[int, list[ScheduleProposal]] = {}
     if rows:
+        # HiringRepository 로 위임 (ADR-0035 Phase 3b). 같은 쿼리를 여기저기서
+        # 반복하지 않기 위해 저장소 한 곳으로 모은다.
+        from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
+
         ids = {r.job_posting_id for r in rows}
-        titles = {
-            p.id: p.title
-            for p in db.scalars(select(JobPosting).where(JobPosting.id.in_(ids))).all()
-        }
+        titles = {p.id: p.title for p in PgHiringRepository(db).find_postings_by_ids(ids)}
         # **끝난 것도 싣는다** (2026-09-09 개정). 09-08 까지는 `done` 을 뺐는데,
         # 그러면 면접을 마친 지원자의 화면에서 면접이 **통째로 사라진다** —
         # "완료"와 "아직 안 잡힘"이 같은 화면이 되어, 방금 30분 면접을 본 사람이
