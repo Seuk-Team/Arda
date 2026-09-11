@@ -933,3 +933,60 @@ class TestAnsweredBeforeTranscript:
         질문' 이라 지원자가 거기로 계속 돌아갔다. 답한 것은 답한 것이다."""
         self._mark(public, 1)            # 말은 했는데 전사는 끝내 안 온다
         assert public.get("/api/v1/public/interview/tok-test").json()["question_seq"] == 2
+
+
+class TestTurnFindingsHook:
+    """답변을 저장하면 그 답변 하나의 서류 대조가 뒤에서 돈다 (2026-09-11).
+
+    담당자 화상 방이 대조를 **그 답변 밑에** 띄우는 근거다. 끝날 때만 돌면 면접
+    도중에는 아무것도 볼 수 없다.
+    """
+
+    @pytest.fixture()
+    def running(self, db: Session, application: Application, admin_user: User):
+        s = _session(
+            db, application, admin_user, status="in_progress", consented_at=datetime.now(UTC)
+        )
+        _question(db, s, seq=1)
+        db.commit()
+        return s
+
+    def test_답을_저장하면_그_답변의_대조를_건다(self, public, db, running):
+        with patch("app.agent.interview_findings.generate_turn_findings_bg") as bg:
+            res = public.post(
+                "/api/v1/public/interview/tok-test/answer",
+                json={"transcript": "네 했습니다", "seq": 1},
+            )
+        assert res.status_code == 200
+        turn = db.scalar(select(InterviewTurn).where(InterviewTurn.session_id == running.id))
+        bg.assert_called_once_with(running.id, turn.id)
+
+    def test_상세에_스위치_상태와_답변_번호가_실린다(
+        self, as_user, admin_user, db, running, monkeypatch
+    ):
+        """스위치가 꺼져 있으면 대조가 비어 보인다 — 꺼진 것과 아직 없는 것을 화면이
+        가를 수 있어야 한다(2026-09-11: 운영에서 꺼져 있었다)."""
+        from app.models import InterviewFinding
+
+        turn = db.scalar(select(InterviewTurn).where(InterviewTurn.session_id == running.id))
+        db.add(
+            InterviewFinding(
+                session_id=running.id,
+                turn_id=turn.id,
+                claim_source="resume",
+                claim_text="주장",
+                answer_text="답",
+                verdict="consistent",
+            )
+        )
+        db.commit()
+        client = as_user(admin_user)
+
+        monkeypatch.delenv("AGENT_FINDINGS_BACKEND", raising=False)
+        body = client.get(f"/api/v1/interview-sessions/{running.id}").json()
+        assert body["findings_enabled"] is False
+        assert body["findings"][0]["turn_seq"] == 1
+
+        monkeypatch.setenv("AGENT_FINDINGS_BACKEND", "ollama")
+        body = client.get(f"/api/v1/interview-sessions/{running.id}").json()
+        assert body["findings_enabled"] is True

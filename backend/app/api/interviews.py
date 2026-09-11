@@ -395,6 +395,8 @@ def get_session(
     user: User = Depends(get_current_user),
 ):
     """전사와 대조 결과까지 포함한 상세."""
+    from app.agent.interview_findings import findings_on
+
     session = db.get(InterviewSession, session_id)
     if session is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
@@ -403,7 +405,8 @@ def get_session(
     return SessionDetailOut(
         **base.model_dump(),
         turns=sorted(session.turns, key=lambda t: t.seq),
-        findings=list(session.findings),
+        findings=sorted(session.findings, key=lambda f: f.id),
+        findings_enabled=findings_on(),
     )
 
 
@@ -796,6 +799,13 @@ def submit_answer(
     # 꼬리질문 하나를 뒤에서 만든다 (2026-09-10, ADR-0034 후속).
     # 답변이 짧거나 백엔드가 안 되면 함수가 자체적으로 조용히 접는다.
     background.add_task(_generate_followup_bg, session.id, turn.id)
+
+    # 이 답변 하나를 서류와 맞춰 본다 (2026-09-11) — 담당자 화상 방이 그 답변 밑에
+    # 띄운다. 꼬리질문 뒤에 둔다: 그쪽은 지원자가 곧 받을 질문이라 먼저 나와야 한다.
+    # 스위치(`AGENT_FINDINGS_BACKEND`)가 꺼져 있으면 DB 도 안 열고 끝난다.
+    from app.agent.interview_findings import generate_turn_findings_bg
+
+    background.add_task(generate_turn_findings_bg, session.id, turn.id)
 
     out = get_interview_public(token, db)
 

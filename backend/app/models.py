@@ -1012,11 +1012,23 @@ class InterviewFinding(Base):
     answer_text: Mapped[str] = mapped_column(Text, nullable=False)  # 원문 인용
     # consistent | inconsistent | unverified
     verdict: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 어느 답변에서 나온 대조인가 (0019, 2026-09-11). 답변이 저장될 때마다 그 답변
+    # 하나를 서류와 맞춰 여기에 붙인다 — 담당자 화상 방이 **그 답변 밑에** 띄운다.
+    # NULL 이면 면접이 끝난 뒤 전체 전사로 만든 것이다(주로 확인필요).
+    turn_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("interview_turns.id", ondelete="CASCADE")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     session: Mapped["InterviewSession"] = relationship(back_populates="findings")
+    turn: Mapped["InterviewTurn | None"] = relationship()
+
+    @property
+    def turn_seq(self) -> int | None:
+        """화면은 회차를 번호(`seq`)로 안다 — `TurnOut` 에 id 가 없다."""
+        return self.turn.seq if self.turn is not None else None
 
 # ── 인적성(사전 성향) 설문 — ADR-0027 ────────────────────────────────
 

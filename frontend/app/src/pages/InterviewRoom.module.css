@@ -471,3 +471,100 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+/* ── 얼굴 · 목소리 묶음 이름 (2026-09-11) ─────────────────────────
+   판정 입력이 무엇으로 이뤄졌는지(얼굴 14 · 목소리 86)를 적는 자리. */
+.groupLabel {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  letter-spacing: 0.02em;
+}
+
+.groupLabel + .signals {
+  margin-top: 0;
+}
+
+.voice {
+  margin: 0;
+}
+
+/* 목소리 표. **색으로 좋고 나쁨을 말하지 않는다** — 평소와 달라진 칸만 진하게
+   (`signalMarked`, 얼굴 지표와 같은 규칙). */
+.voiceTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-sub);
+}
+
+.voiceTable th,
+.voiceTable td {
+  padding: 3px 0;
+  font-weight: 400;
+  text-align: right;
+}
+
+.voiceTable thead th {
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.voiceTable th:first-child {
+  text-align: left;
+}
+
+.voiceNote {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* ── 서류 대조 (2026-09-11) ────────────────────────────────────────
+   답변 밑에 붙는다. **색을 쓰지 않는다** — 불일치는 굵기로만 구분한다.
+   빨갛게 칠하면 "면접관이 판단한다" 는 말을 색이 뒤집는다. */
+.finding {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--border);
+  background: var(--bg-sunken);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+  font-size: var(--font-caption);
+  line-height: 1.55;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  word-break: keep-all;
+}
+
+.findingVerdict {
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+.findingMarked {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.findingSource {
+  color: var(--text-sub);
+}
+
+.findingClaim {
+  flex-basis: 100%;
+  color: var(--text);
+}
+
+.findingSummary {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.unmatched {
+  margin-top: var(--sp-3);
+}
