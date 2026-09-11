@@ -856,3 +856,80 @@ class TestActiveSessions:
 
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+
+class TestAnsweredBeforeTranscript:
+    """'답했다' 와 '받아썼다' 를 나눈다 (0018, 2026-09-11).
+
+    **시연에서 겪은 것**: Q1~Q8 을 답했는데 Q9 에서 Q1 로 돌아갔고, 그 뒤 어떤 답도
+    저장되지 않았다. 전사는 워커가 뒤에서 한 번에 하나씩(최대 180초) 돌리는데,
+    "지금 질문" 을 `transcript IS NULL` 로 정하면 그 사이 재접속이 **아직 전사가 안
+    끝난 가장 앞 질문** 으로 되돌렸고, 다시 한 답은 원래 답과 부딪혀 409 로 버려졌다.
+    """
+
+    SVC = {"X-Service-Token": "svc-test"}
+
+    @pytest.fixture()
+    def running(self, db: Session, application: Application, admin_user: User, monkeypatch):
+        monkeypatch.setenv("ARDA_SERVICE_TOKEN", "svc-test")
+        s = _session(
+            db,
+            application,
+            admin_user,
+            status="in_progress",
+            consented_at=datetime.now(UTC),
+        )
+        for i, q in enumerate(["질문1", "질문2", "질문3"], start=1):
+            db.add(InterviewTurn(session_id=s.id, seq=i, question=q))
+        db.commit()
+        return s
+
+    def _mark(self, public, seq: int):
+        r = public.post(
+            f"/api/v1/internal/interview/tok-test/turns/{seq}/answered", headers=self.SVC
+        )
+        assert r.status_code == 200
+
+    def _turn(self, db: Session, s: InterviewSession, seq: int) -> InterviewTurn:
+        db.expire_all()
+        return db.scalar(
+            select(InterviewTurn).where(InterviewTurn.session_id == s.id, InterviewTurn.seq == seq)
+        )
+
+    def test_전사가_밀려도_이미_답한_질문으로_되돌아가지_않는다(self, public, running):
+        """이 시험이 이 변경의 전부다. 1·2번을 답했는데 전사는 아직 하나도 안 왔다 —
+        재접속한 워커·앱이 보는 '지금 질문' 은 1번이 아니라 3번이어야 한다."""
+        self._mark(public, 1)
+        self._mark(public, 2)
+        state = public.get("/api/v1/public/interview/tok-test").json()
+        assert state["question_seq"] == 3
+        assert state["current_question"] == "질문3"
+
+    def test_늦게_온_전사는_답한_칸에_들어간다(self, public, db, running):
+        """답한 칸이라고 409 로 막으면 전사가 영영 안 들어간다."""
+        self._mark(public, 1)
+        res = public.post(
+            "/api/v1/public/interview/tok-test/answer", json={"transcript": "늦은 전사", "seq": 1}
+        )
+        assert res.status_code == 200
+        assert self._turn(db, running, 1).transcript == "늦은 전사"
+
+    def test_번호_없는_답은_답한_칸을_건너뛴다(self, public, db, running):
+        """글로 답하기처럼 번호 없이 오는 답은 '지금 질문' 에 들어가야 한다 —
+        전사를 기다리는 1번 칸을 가로채면 안 된다."""
+        self._mark(public, 1)
+        res = public.post("/api/v1/public/interview/tok-test/answer", json={"transcript": "글 답"})
+        assert res.status_code == 200
+        assert self._turn(db, running, 1).transcript is None
+        assert self._turn(db, running, 2).transcript == "글 답"
+
+    def test_워커를_안_거친_답도_답한_것이_된다(self, public, db, running):
+        public.post("/api/v1/public/interview/tok-test/answer", json={"transcript": "네"})
+        assert self._turn(db, running, 1).answered_at is not None
+        assert public.get("/api/v1/public/interview/tok-test").json()["question_seq"] == 2
+
+    def test_전사가_비어도_되돌아가지_않는다(self, public, running):
+        """전사가 빈 결과면 워커는 저장을 안 한다 — 예전에는 그 칸이 영원히 '지금
+        질문' 이라 지원자가 거기로 계속 돌아갔다. 답한 것은 답한 것이다."""
+        self._mark(public, 1)            # 말은 했는데 전사는 끝내 안 온다
+        assert public.get("/api/v1/public/interview/tok-test").json()["question_seq"] == 2

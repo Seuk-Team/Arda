@@ -39,6 +39,7 @@ from interview_ws import (
     fetch_reference,
     fetch_state,
     finish_interview,
+    mark_answered,
     push_identity,
     push_verdict,
     model,
@@ -308,10 +309,7 @@ async def interview(ws: WebSocket, token: str):
         session.questions = await fetch_questions(client, token)
         # 이어서 들어온 경우 답한 데까지 건너뛴다 — 목록에는 답한 질문도 들어 있다.
         seq_now = state.get("question_seq")
-        if seq_now is not None:
-            session.cursor = next(
-                (i for i, q in enumerate(session.questions) if q["seq"] == seq_now), 0
-            )
+        session.cursor = _cursor_of(session.questions, seq_now)
 
         # 이력서 사진을 한 번 받아 둔다. **대조는 프레임이 들어올 때** 하고,
         # 실패하면 그냥 넘어간다 — 사진이 없다고 면접을 막지 않는다.
@@ -417,6 +415,37 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
 
 
 
+def _cursor_of(questions: list[dict], seq: int | None) -> int:
+    """`seq` 번 질문의 자리. 번호가 없거나 목록에 없으면 **끝**으로 둔다.
+
+    예전에는 못 찾으면 0(첫 질문)으로 갔다. 그러면 지원자가 이미 답한 1번을 다시
+    보고, 다시 한 답은 원래 답과 부딪혀 버려졌다(2026-09-11). 끝에 두면 번호 없이
+    저장돼 백엔드가 "지금 질문" 에 넣고, 다음 차례에 목록을 다시 받아 맞춘다.
+    """
+    if seq is None:
+        return len(questions)
+    return next((i for i, q in enumerate(questions) if q["seq"] == seq), len(questions))
+
+
+async def _refresh_questions(client, session: InterviewSession) -> dict | None:
+    """질문 목록과 "지금 질문" 을 다시 받아 맞춘다. 남은 질문이 없으면 None."""
+    try:
+        questions = await fetch_questions(client, session.token)
+        if not questions:
+            return None
+        state = await fetch_state(client, session.token)
+    except Exception:
+        logger.exception("질문 목록 다시 받기 실패: token=%s", session.token[:8])
+        return None
+    if state.get("status") != "in_progress":
+        return None
+    session.questions = questions
+    session.cursor = _cursor_of(questions, state.get("question_seq"))
+    if session.cursor < len(questions):
+        return questions[session.cursor]
+    return None
+
+
 async def _finish_answer(ws, client, session: InterviewSession) -> None:
     """말이 끝났다. **전사를 기다리지 않고 다음 질문을 보낸다.**
 
@@ -436,6 +465,15 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
         return
 
     seq = session.current_seq()
+    # **답했다는 사실부터 남긴다** (2026-09-11). 전사는 뒤에서 몇 분씩 걸리는데,
+    # 그게 끝나야 "답했다" 가 되던 때는 그 사이 재접속·앱의 확인 요청이 지원자를
+    # 이미 답한 질문으로 되돌렸다(시연: Q9 → Q1, 다시 한 답은 409 로 버려짐).
+    if seq is not None:
+        try:
+            await mark_answered(client, session.token, seq)
+        except Exception:
+            # 못 남겨도 면접은 간다 — 전사가 저장되면 그때 답한 것이 된다(예전 동작)
+            logger.exception("답함 표시 실패: token=%s seq=%s", session.token[:8], seq)
     await session.pending.put((pcm, rows, seq))
 
     nxt = session.advance()
@@ -445,10 +483,18 @@ async def _finish_answer(ws, client, session: InterviewSession) -> None:
         )
         return
 
-    # 질문이 떨어졌다. **남은 전사를 끝내고 닫는다** — 먼저 닫으면 마지막 답변이
-    # 저장되기 전에 세션이 done 이 되어 담당자가 빈칸을 본다.
+    # 준비된 질문이 떨어졌다. **남은 전사를 끝낸 뒤 목록을 다시 본다** — 꼬리질문은
+    # 전사가 저장된 뒤에야 백엔드가 만들어 붙이므로(`_generate_followup_bg`) 면접
+    # 시작 때 받아 둔 목록에는 없다. 남은 질문이 있으면 이어 가고, 없으면 닫는다.
+    # 먼저 닫으면 마지막 답변이 저장되기 전에 세션이 done 이 되어 담당자가 빈칸을 본다.
     await ws.send_json({"type": "processing"})
     await session.pending.join()
+    nxt = await _refresh_questions(client, session)
+    if nxt:
+        await ws.send_json(
+            {"type": "question", "seq": nxt["seq"], "text": nxt["question"]}
+        )
+        return
     try:
         await finish_interview(client, session.token)
     except Exception:

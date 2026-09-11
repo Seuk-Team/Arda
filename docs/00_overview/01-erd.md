@@ -418,6 +418,7 @@ UNIQUE(job_posting_id, user_id).
 | question | text | NOT NULL | 아르가 낸 질문 |
 | audio_s3_key | text | NULL 허용 | 답변 녹음. F1 presigned 로 브라우저가 직접 올린다 |
 | transcript | text | NULL 허용 | STT 결과 |
+| answered_at | timestamptz | NULL 허용 | 지원자가 답을 마친 시각 (0018 · 2026-09-11). **"지금 질문" 은 이게 NULL 인 가장 앞 칸**이다 — 전사는 뒤에서 몇 분씩 늦게 채워지므로 `transcript` 로 정하면 이미 답한 질문으로 되돌아간다 |
 | audio_duration_sec | numeric(10,2) | NULL 허용 | 원가 관측 — `SttResponse` 와 같은 필드명 |
 | stt_cost_usd | numeric(10,6) | NULL 허용 | 〃 |
 | created_at | timestamptz | NOT NULL | |
