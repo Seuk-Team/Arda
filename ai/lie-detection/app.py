@@ -39,6 +39,7 @@ from interview_ws import (
     fetch_reference,
     fetch_state,
     finish_interview,
+    hint_of,
     mark_answered,
     push_identity,
     push_verdict,
@@ -546,7 +547,7 @@ async def _transcribe_pump(client, session: InterviewSession) -> None:
             # 판정을 거르는 편이 낫다 — 판정은 곁들이고 답변은 면접 그 자체다.
             session.transcribing = True
             try:
-                transcript = await transcribe_async(pcm)
+                transcript = await transcribe_async(pcm, hint_of(session.questions))
             finally:
                 session.transcribing = False
             if not transcript:
@@ -578,7 +579,7 @@ async def _answer_and_advance(ws, client, session, pcm, rows) -> None:
     # 대기줄 경로와 같은 이유로 여기서도 판정을 쉰다 (`_transcribe_pump` 주석)
     session.transcribing = True
     try:
-        transcript = await transcribe_async(pcm)
+        transcript = await transcribe_async(pcm, hint_of(session.questions))
     finally:
         session.transcribing = False
     if not transcript:

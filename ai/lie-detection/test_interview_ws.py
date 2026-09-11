@@ -465,7 +465,7 @@ class TestTranscribeTimeout:
     """
 
     def test_시간을_넘기면_자리표시자를_남기고_넘어간다(self, monkeypatch):
-        def slow(_pcm):
+        def slow(_pcm, hint=""):
             time.sleep(5)
             return "늦게 온 답"
 
@@ -480,7 +480,7 @@ class TestTranscribeTimeout:
         assert out != ""
 
     def test_제때_끝나면_그_결과를_그대로_준다(self, monkeypatch):
-        monkeypatch.setattr(iw, "transcribe", lambda _pcm: "제때 온 답")
+        monkeypatch.setattr(iw, "transcribe", lambda _pcm, hint="": "제때 온 답")
         monkeypatch.setattr(iw, "STT_TIMEOUT_SEC", 5)
 
         assert asyncio.run(iw.transcribe_async(LOUD * 40)) == "제때 온 답"
@@ -507,3 +507,45 @@ class TestWarmStt:
         monkeypatch.setattr(iw, "_stt_model", boom)
 
         iw.warm_stt()  # 여기서 예외가 새면 워커가 뜨다가 죽는다
+
+
+class TestHint:
+    """면접 질문을 whisper 힌트로 준다 (2026-09-10).
+
+    **용어 목록을 코드에 박지 않는다** — 그러면 IT 면접에만 맞는다. 질문은
+    직군마다 다르게 들어오므로 거기서 얻으면 저절로 맞춰진다.
+
+    실측: "데이터베이스 퀄리" → "데이터베이스 쿼리". 질문에만 있고 답변에 없는
+    낱말(테라폼·코틀린·러스트)은 전사에 새지 않았다.
+    """
+
+    def test_질문을_이어_붙인다(self):
+        assert iw.hint_of(
+            [{"question": "쿼리 튜닝은?"}, {"question": "카프카는?"}]
+        ) == "쿼리 튜닝은? 카프카는?"
+
+    def test_질문이_없으면_빈_문자열(self):
+        """힌트 없이 돈다 — whisper 가 빈 값을 무시한다."""
+        assert iw.hint_of([]) == ""
+
+    def test_길면_자른다(self):
+        """`initial_prompt` 는 whisper 문맥의 절반까지만 쓰인다."""
+        long = [{"question": "가" * 500}]
+        assert len(iw.hint_of(long)) == iw.STT_HINT_CHARS
+
+    def test_빈_질문이_섞여도_깨지지_않는다(self):
+        assert iw.hint_of([{"question": None}, {"question": "쿼리는?"}]) == "쿼리는?"
+
+    def test_전사에_힌트가_전달된다(self, monkeypatch):
+        """중간에서 끊기면 조용히 힌트 없이 돈다 — 그건 눈에 안 띈다."""
+        seen = {}
+
+        def fake(model, audio, hint=""):
+            seen["hint"] = hint
+            return "답변"
+
+        monkeypatch.setattr(iw, "STT_MODEL", "large-v3-turbo")
+        monkeypatch.setattr(iw, "_stt_model", lambda: object())
+        monkeypatch.setattr(iw, "_run_transcribe", fake)
+        assert iw.transcribe(_pcm(3000) * 20, "쿼리 튜닝은?") == "답변"
+        assert seen["hint"] == "쿼리 튜닝은?"
