@@ -222,6 +222,34 @@ class TestScore:
         np.testing.assert_array_equal(vec, old)
 
 
+class TestVoiceSeconds:
+    """'답변 끝' 을 넘기기 전에 사람 목소리가 있는지 잰다 (2026-09-11).
+
+    크기만 보는 감지기는 폰 스피커 소리·잡음도 답변으로 잡았다(세션 57).
+    """
+
+    def test_무음은_목소리가_없다(self):
+        assert iw.voice_seconds(DEAD * 40) == 0.0
+
+    def test_잡음은_목소리로_보지_않는다(self):
+        v = iw.voice_seconds(LOUD * 60)  # 3초 가우스 잡음
+        assert v is not None and v < iw.MIN_VOICE_SEC
+
+    def test_못_재면_None(self, monkeypatch):
+        """None 이면 막지 않고 넘긴다 — VAD 가 없다고 면접이 멈추면 안 된다."""
+        import builtins
+
+        real = builtins.__import__
+
+        def fake(name, *a, **kw):
+            if name.startswith("faster_whisper"):
+                raise ImportError("없음")
+            return real(name, *a, **kw)
+
+        monkeypatch.setattr(builtins, "__import__", fake)
+        assert iw.voice_seconds(LOUD * 20) is None
+
+
 class TestNoiseFloor:
     """2026-09-08 운영 사고 회귀 시험.
 

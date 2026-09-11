@@ -64,8 +64,61 @@ def saved(monkeypatch):
     return out
 
 
+@pytest.fixture(autouse=True)
+def _voiced(monkeypatch):
+    """이 파일의 소리(`LOUD`)는 가우스 잡음이라 VAD 가 목소리로 보지 않는다. 진행
+    흐름을 보는 시험들이라 목소리가 있다고 둔다 — 거르는 동작은 `TestVoiceGate` 가 본다."""
+    monkeypatch.setattr(srv, "voice_seconds", lambda pcm: 5.0)
+
+
 async def _noop(*a, **kw):
     return None
+
+
+class TestVoiceGate:
+    """목소리가 없는 소리로 질문이 넘어가지 않는다 (2026-09-11).
+
+    세션 57: 폰 스피커 소리·잡음이 '답변 끝' 으로 잡힐 때마다 질문이 "답함" 으로
+    찍혀, 58초 만에 질문 10개가 전사 0자로 소진되고 면접이 닫혔다.
+    """
+
+    def test_목소리가_없으면_질문을_넘기지_않는다(self, monkeypatch, saved):
+        async def _t():
+            marked = []
+
+            async def fake_mark(client, token, seq):
+                marked.append(seq)
+
+            monkeypatch.setattr(srv, "mark_answered", fake_mark)
+            monkeypatch.setattr(srv, "voice_seconds", lambda pcm: 0.0)
+            ws, s = FakeWS(), _session()
+            await _speak(ws, s)
+            assert ws.sent[-1]["type"] == "retry"
+            assert marked == [], "목소리 없는 소리로 '답함' 을 찍으면 그 질문은 돌아올 길이 없다"
+            assert s.current_seq() == 1
+            assert s.pending.qsize() == 0
+        asyncio.run(_t())
+
+    def test_목소리가_있으면_넘긴다(self, monkeypatch, saved):
+        async def _t():
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(srv, "voice_seconds", lambda pcm: 2.0)
+            ws, s = FakeWS(), _session()
+            await _speak(ws, s)
+            assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
+        asyncio.run(_t())
+
+    def test_목소리를_못_재면_막지_않는다(self, monkeypatch, saved):
+        """VAD 가 고장 났다고 면접이 멈추면 안 된다 — 예전처럼 넘긴다."""
+        async def _t():
+            monkeypatch.setattr(srv, "mark_answered", _noop)
+            monkeypatch.setattr(srv, "voice_seconds", lambda pcm: None)
+            before = iw.ANSWER_STATS["unmeasured"]
+            ws, s = FakeWS(), _session()
+            await _speak(ws, s)
+            assert ws.sent[-1]["seq"] == 2
+            assert iw.ANSWER_STATS["unmeasured"] == before + 1
+        asyncio.run(_t())
 
 
 def _slow_stt(delay, text="답변입니다"):
