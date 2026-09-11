@@ -26,7 +26,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 #프로젝트 내부모듈
-from app import mail
+from app.shared import mail
 from app import models  # noqa: F401 — 테이블을 메타데이터에 등록하려면 import 가 필요하다
 from app.db import Base, engine, pgvector_ready
 from app.errors import ErrorCode, ErrorResponse

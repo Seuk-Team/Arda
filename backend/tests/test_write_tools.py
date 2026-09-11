@@ -290,7 +290,7 @@ class TestStageChangeSideEffects:
 
     def test_큐로_발행까지_한다(self, db: Session, member_user, application, monkeypatch):
         published: list[int] = []
-        monkeypatch.setattr("app.mail.publish", published.append)
+        monkeypatch.setattr("app.shared.mail.publish", published.append)
 
         result = change_stage(db, member_user, {
             "application_id": application.id,
@@ -311,7 +311,7 @@ class TestStageChangeSideEffects:
         def boom(_id):
             raise RuntimeError("SQS down")
 
-        monkeypatch.setattr("app.mail.publish", boom)
+        monkeypatch.setattr("app.shared.mail.publish", boom)
         change_stage(db, member_user, {
             "application_id": application.id,
             "to_stage": "screening",
@@ -326,7 +326,7 @@ class TestStageChangeSideEffects:
 
     def test_불합격은_사유가_필요하다(self, db: Session, member_user, application, monkeypatch):
         # D8. REST 에는 있던 규칙이 에이전트 경로에는 없었다.
-        monkeypatch.setattr("app.mail.publish", lambda _id: None)
+        monkeypatch.setattr("app.shared.mail.publish", lambda _id: None)
         result = change_stage(db, member_user, {
             "application_id": application.id,
             "to_stage": "rejected",
@@ -337,7 +337,7 @@ class TestStageChangeSideEffects:
     def test_불합격_사유가_이력에_남는다(
         self, db: Session, member_user, application, monkeypatch
     ):
-        monkeypatch.setattr("app.mail.publish", lambda _id: None)
+        monkeypatch.setattr("app.shared.mail.publish", lambda _id: None)
         result = change_stage(db, member_user, {
             "application_id": application.id,
             "to_stage": "rejected",

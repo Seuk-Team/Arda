@@ -20,7 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import s3
+from app.shared import s3
 from app.interview import lie_analysis, pacing as interview_pacing
 from app.agent import stt
 from app.api.files import _extract_ext, validate_audio_upload

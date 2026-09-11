@@ -48,7 +48,7 @@ def images_of(file) -> list[bytes]:
     **어떤 실패도 면접을 막지 않는다.** 사진을 못 꺼내면 확인을 건너뛸 뿐이다 —
     서류에 사진이 없다고 지원자가 불리해지면 안 된다.
     """
-    from app import s3
+    from app.shared import s3
 
     ext = file.s3_key.rsplit(".", 1)[-1].lower()
     try:

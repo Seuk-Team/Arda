@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status as http
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import anchoring, chain, ots
+from app.shared import anchoring, chain, ots
 from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import Application, ChainPublication, DocumentAnchor, File, User

@@ -36,7 +36,7 @@ def submitted(db: Session, application: Application) -> Application:
 
 class TestLookup:
     def test_링크를_보내면_토큰이_생긴다(self, public, db: Session, submitted):
-        with patch("app.mail.publish") as pub:
+        with patch("app.shared.mail.publish") as pub:
             res = public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )
@@ -49,7 +49,7 @@ class TestLookup:
 
     def test_없는_주소도_같은_응답이다(self, public, db: Session, submitted):
         """다르게 답하면 그것만으로 '이 사람이 여기 지원했는가' 확인 도구가 된다."""
-        with patch("app.mail.publish") as pub:
+        with patch("app.shared.mail.publish") as pub:
             found = public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )
@@ -63,7 +63,7 @@ class TestLookup:
         assert pub.call_count == 1  # 없는 주소로는 메일이 안 나간다
 
     def test_대소문자가_달라도_찾는다(self, public, db: Session, submitted):
-        with patch("app.mail.publish"):
+        with patch("app.shared.mail.publish"):
             public.post(
                 "/api/v1/public/applications/lookup",
                 json={"email": submitted.email.upper()},
@@ -72,14 +72,14 @@ class TestLookup:
         assert submitted.portal_token
 
     def test_다시_요청하면_지난_링크는_죽는다(self, public, db: Session, submitted):
-        with patch("app.mail.publish"):
+        with patch("app.shared.mail.publish"):
             public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )
         db.refresh(submitted)
         first = submitted.portal_token
 
-        with patch("app.mail.publish"):
+        with patch("app.shared.mail.publish"):
             public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )
@@ -89,7 +89,7 @@ class TestLookup:
 
     def test_큐가_죽어도_토큰은_남는다(self, public, db: Session, submitted):
         """메일은 못 보내도 링크는 이미 만들어져 있다 — 다시 요청하면 된다."""
-        with patch("app.mail.publish", side_effect=RuntimeError("SQS 죽음")):
+        with patch("app.shared.mail.publish", side_effect=RuntimeError("SQS 죽음")):
             res = public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )
@@ -98,7 +98,7 @@ class TestLookup:
         assert submitted.portal_token
 
     def test_메일_본문에_링크가_들어간다(self, public, db: Session, submitted):
-        with patch("app.mail.publish"):
+        with patch("app.shared.mail.publish"):
             public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )
@@ -114,7 +114,7 @@ class TestLookup:
 class TestStatus:
     @pytest.fixture()
     def linked(self, public, db: Session, submitted) -> Application:
-        with patch("app.mail.publish"):
+        with patch("app.shared.mail.publish"):
             public.post(
                 "/api/v1/public/applications/lookup", json={"email": submitted.email}
             )

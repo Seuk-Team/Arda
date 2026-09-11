@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.agent.summarizer import generate_summary_bg
 from app.anchoring import anchor_application_bg
 from app.api.files import _extract_ext, _validate_upload

@@ -1,0 +1,101 @@
+"""S3 presigned URL 발급 (F1·F2).
+
+**파일 본문은 이 서버를 지나가지 않는다.** 브라우저가 S3 로 직접 올리고 내린다.
+서버가 하는 일은 "이 키에 올려도 된다 / 내려도 된다"는 서명을 만드는 것뿐이다.
+`UploadFile` 을 받는 엔드포인트를 만들면 이 설계가 무의미해진다.
+
+자격증명은 표준 AWS 체인(환경변수·프로필·IAM 역할)으로만 읽는다. 코드에 키를 쓰지 않는다.
+"""
+
+import os
+from functools import lru_cache
+
+import boto3
+from botocore.config import Config
+
+BUCKET = os.getenv("S3_BUCKET", "")
+REGION = os.getenv("AWS_REGION", "ap-northeast-2")
+
+# 로컬 개발용 S3 호환 스토리지(MinIO) 주소. 비어 있으면 실제 AWS 로 간다.
+# AWS 자격 없이도 업로드 흐름(F1·F2)을 브라우저에서 끝까지 돌려보기 위한 것 —
+# docker-compose.yml 의 minio 서비스와 짝이다. 운영(.env)에서는 설정하지 않는다.
+ENDPOINT = os.getenv("S3_ENDPOINT_URL") or None
+
+# presigned URL 의 수명. 짧을수록 새어 나갔을 때 위험이 줄고, 길수록 느린 회선에서
+# 업로드가 끊긴다. 이력서 몇 MB 기준으로 5분이면 충분하다.
+EXPIRES_IN = 300
+
+
+@lru_cache(maxsize=1)
+def _client():
+    """클라이언트를 임포트 시점이 아니라 첫 사용 시점에 만든다.
+
+    모듈 최상단에서 만들면 AWS 설정이 없는 환경(테스트·CI)에서 임포트만 해도
+    터진다. 서명 발급은 네트워크를 타지 않으므로 재사용해도 안전하다.
+    """
+    if ENDPOINT:
+        # path-style 강제: 기본(virtual-host)이면 버킷이 호스트명에 붙어
+        # `arda-local.localhost:9000` 같은 주소가 나와 브라우저에서 안 풀린다.
+        return boto3.client(
+            "s3",
+            region_name=REGION,
+            endpoint_url=ENDPOINT,
+            config=Config(s3={"addressing_style": "path"}),
+        )
+    # region_name 만 주면 botocore 가 presigned URL 을 글로벌 호스트
+    # (bucket.s3.amazonaws.com)로 서명한다. 갓 만든 버킷은 그 호스트가 몇 시간
+    # 동안 307 을 돌려주고, 리다이렉트를 따라가도 서명 리전이 달라
+    # SignatureDoesNotMatch 가 난다(2026-09-04 새 버킷 이전 직후 실측 — 브라우저
+    # 업로드 전면 실패). 리전 엔드포인트를 명시해 처음부터 리전 호스트로 서명한다.
+    return boto3.client(
+        "s3",
+        region_name=REGION,
+        endpoint_url=f"https://s3.{REGION}.amazonaws.com",
+        config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+    )
+
+
+def presign_put(
+    key: str, content_type: str, size_bytes: int, expires: int = EXPIRES_IN
+) -> str:
+    """업로드용 서명.
+
+    content_type 과 size_bytes 를 서명에 넣는다. 서명에 들어간 값과 다르게 올리면
+    S3 가 거부한다 — 서버가 받은 `size_bytes` 는 클라이언트가 보낸 숫자일 뿐이라
+    그것만 믿으면 100MB 를 10MB 라고 신고하고 올릴 수 있다. S3 단에서 한 번 더 막는다.
+    """
+    return _client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": BUCKET,
+            "Key": key,
+            "ContentType": content_type,
+            "ContentLength": size_bytes,
+        },
+        ExpiresIn=expires,
+    )
+
+
+def presign_get(key: str, expires: int = EXPIRES_IN) -> str:
+    """다운로드용 서명."""
+    return _client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": BUCKET, "Key": key},
+        ExpiresIn=expires,
+    )
+
+
+def read_object(key: str) -> bytes:
+    """객체 본문을 서버로 읽어 온다 (ADR-0028 무결성 앵커 전용).
+
+    **이 모듈의 원칙("파일 본문은 서버를 지나가지 않는다")의 유일한 예외다.**
+    지문을 뜨려면 바이트를 봐야 하고, 그건 브라우저에 시킬 수 없다 — 지원자가
+    낸 지문을 그대로 믿으면 지문 자체를 위조하면 그만이라 아무것도 증명하지
+    못한다. 서버가 직접 읽어야 하는 이유가 그것이다.
+
+    업로드 상한이 10MB(`files.MAX_BYTES`)라 통째로 메모리에 올린다. 상한이
+    커지면 여기부터 스트리밍으로 바꿔야 한다.
+
+    사용자 요청 경로에서 부르지 않는다 — 백그라운드 앵커·검증에서만 쓴다.
+    """
+    return _client().get_object(Bucket=BUCKET, Key=key)["Body"].read()

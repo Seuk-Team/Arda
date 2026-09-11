@@ -72,13 +72,13 @@ class TestPortraitOf:
 class TestImagesOf:
     def test_S3가_실패해도_예외를_안_던진다(self, monkeypatch):
         """이력서를 못 내려받는 것은 사고지만, 면접을 멈출 사고는 아니다."""
-        import app.s3 as s3
+        import app.shared.s3 as s3
 
         monkeypatch.setattr(s3, "_client", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
         assert photo.images_of(FakeFile("resume")) == []
 
     def test_docx_는_word_media_에서_꺼낸다(self, monkeypatch):
-        import app.s3 as s3
+        import app.shared.s3 as s3
 
         shot = png(600, 767)
         buf = io.BytesIO()

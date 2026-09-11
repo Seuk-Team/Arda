@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.models import (
     Application,
     InterviewerAssignment,
@@ -123,7 +123,7 @@ def create_schedule_proposal(db: Session, user: User, params: dict) -> dict:
     import logging
     import secrets
 
-    from app import mail
+    from app.shared import mail
     from app.api.schedules import _build_candidates
 
     logger = logging.getLogger(__name__)

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.db import get_db
 from app.deps import get_current_user
 from app.main import app

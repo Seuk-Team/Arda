@@ -20,7 +20,7 @@ from http import HTTPStatus
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app import mail
+from app.shared import mail
 from app.models import Application, StageHistory
 from app.stages import NOTIFY_STAGES, REJECTED, validate_transition
 

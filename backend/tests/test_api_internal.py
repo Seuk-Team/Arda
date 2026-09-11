@@ -215,7 +215,7 @@ class TestPublishDispatch:
     """mail.publish 가 MAIL_DISPATCH 값에 따라 갈리는지."""
 
     def test_worker_default_uses_sqs(self, monkeypatch):
-        from app import mail
+        from app.shared import mail
 
         monkeypatch.delenv("MAIL_DISPATCH", raising=False)
 
@@ -233,7 +233,7 @@ class TestPublishDispatch:
         assert calls == {"sqs": 1, "n8n": 0}
 
     def test_n8n_dispatch_calls_webhook(self, monkeypatch):
-        from app import mail
+        from app.shared import mail
 
         monkeypatch.setenv("MAIL_DISPATCH", "n8n")
 
