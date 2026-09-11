@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import fields
 
-from app import interview_pacing as pacing
+from app.interview import pacing
 
 긴_답 = "제가 맡은 부분은 결제 정산 API 였고 응답 시간을 절반으로 줄였습니다"
 짧은_답 = "네"

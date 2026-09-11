@@ -16,7 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from app import anchoring
+from app.shared import anchoring
 from app.db import get_db
 from app.deps import get_current_user
 from app.main import app

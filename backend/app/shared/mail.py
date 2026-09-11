@@ -259,7 +259,7 @@ def render(
     """
     subject, body, _ = get_template(db, stage)
 
-    from app.company import name_for  # 순환 import 방지
+    from app.hiring.company import name_for  # 순환 import 방지
 
     company_name = name_for(db)
     values = {

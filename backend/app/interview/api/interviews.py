@@ -24,7 +24,7 @@ from app.shared import s3
 from app.interview import lie_analysis, pacing as interview_pacing
 from app.agent import stt
 from app.shared.api.files import _extract_ext, validate_audio_upload
-from app.s3 import EXPIRES_IN
+from app.shared.s3 import EXPIRES_IN
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import (

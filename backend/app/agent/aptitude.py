@@ -12,7 +12,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.aptitude_questions import CATEGORY_LABELS, LIKERT_LABELS, QUESTIONS_BY_KEY
+from app.application.aptitude_questions import CATEGORY_LABELS, LIKERT_LABELS, QUESTIONS_BY_KEY
 from app.models import AptitudeAnswer, AptitudeSession
 
 logger = logging.getLogger(__name__)

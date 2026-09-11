@@ -18,8 +18,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import anchoring
-from app.chain import ChainConfig, SentTx
+from app.shared import anchoring
+from app.shared.chain import ChainConfig, SentTx
 from app.db import get_db
 from app.deps import get_current_user
 from app.main import app
@@ -314,7 +314,7 @@ class TestPublishApi:
 class TestConfig:
     def test_환경변수가_없으면_꺼진_상태다(self, monkeypatch):
         """꺼진 것이 정상 상태다 — 설정이 없다고 접수가 막히면 안 된다."""
-        from app import chain
+        from app.shared import chain
 
         monkeypatch.delenv("CHAIN_RPC_URL", raising=False)
         monkeypatch.delenv("CHAIN_PRIVATE_KEY", raising=False)
@@ -323,7 +323,7 @@ class TestConfig:
         assert chain.unavailable_reason() == "CHAIN_RPC_URL 미설정"
 
     def test_키가_이상하면_사유를_말한다(self, monkeypatch):
-        from app import chain
+        from app.shared import chain
 
         monkeypatch.setenv("CHAIN_RPC_URL", "https://x.invalid")
         monkeypatch.setenv("CHAIN_PRIVATE_KEY", "이건키가아니다")
@@ -333,7 +333,7 @@ class TestConfig:
 
     def test_메인넷만_메인넷으로_본다(self):
         """보수적으로 판단한다 — 확실할 때만 메인넷이라고 한다."""
-        from app import chain
+        from app.shared import chain
 
         amoy = ChainConfig("u", "k", "polygon-amoy")
         main = ChainConfig("u", "k", "polygon-mainnet")
@@ -343,7 +343,7 @@ class TestConfig:
 
     def test_explorer_url_covers_sepolia(self):
         """운영이 Sepolia 로 옮겨도(2026-09-07) 발표에서 열 링크가 나와야 한다."""
-        from app import chain
+        from app.shared import chain
 
         assert chain.explorer_url("ethereum-sepolia", "0xab") == "https://sepolia.etherscan.io/tx/0xab"
         assert chain.explorer_url("base-sepolia", "0xab") == "https://sepolia.basescan.org/tx/0xab"
@@ -358,13 +358,13 @@ class TestNetworkLabelMatchesChain:
     """
 
     def test_같으면_통과한다(self):
-        from app import chain
+        from app.shared import chain
 
         chain.check_network("ethereum-sepolia", 11155111)  # 예외가 안 나면 통과
 
     def test_어긋나면_보내기_전에_멈춘다(self):
         """운영이 Sepolia 인데 CHAIN_NETWORK secret 이 비어 기본값으로 떨어진 경우."""
-        from app import chain
+        from app.shared import chain
 
         with pytest.raises(chain.NetworkMismatch) as exc:
             chain.check_network("polygon-amoy", 11155111)
@@ -376,6 +376,6 @@ class TestNetworkLabelMatchesChain:
 
     def test_모르는_이름은_막지_않는다(self):
         """새 체인을 붙일 때 이 표를 먼저 고치라고 강요하지 않는다."""
-        from app import chain
+        from app.shared import chain
 
         chain.check_network("some-new-chain", 999999)

@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.shared import mail
 from app.models import Application, StageHistory
-from app.stages import NOTIFY_STAGES, REJECTED, validate_transition
+from app.application.stages import NOTIFY_STAGES, REJECTED, validate_transition
 
 logger = logging.getLogger(__name__)
 

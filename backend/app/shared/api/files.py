@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import File, User
-from app.s3 import EXPIRES_IN, presign_get, presign_put
+from app.shared.s3 import EXPIRES_IN, presign_get, presign_put
 from app.schemas.file import (
     PresignDownloadResponse,
     PresignUploadRequest,

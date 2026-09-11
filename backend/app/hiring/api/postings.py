@@ -164,7 +164,7 @@ def send_rejections(
     자동 판정은 메일을 바로 보내지 않는다 — 마감 전엔 번복 여지를 두기로 했다.
     이미 메일이 나간 사람·사람이 직접 불합격시킨 사람은 건너뛴다. 두 번 눌러도 안전.
     """
-    from app import screening
+    from app.application import screening
 
     _get_or_404(db, posting_id)
     return {"queued": screening.send_pending_rejections(db, posting_id)}

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.shared import mail
 from app.agent.summarizer import generate_summary_bg
-from app.anchoring import anchor_application_bg
+from app.shared.anchoring import anchor_application_bg
 from app.shared.api.files import _extract_ext, _validate_upload
 from app.hiring.api.postings import auto_close
 from app.db import get_db

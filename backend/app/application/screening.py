@@ -25,7 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.shared import mail
-from app.company import get_profile
+from app.hiring.company import get_profile
 from app.models import (
     Application,
     InterviewerAssignment,
@@ -35,8 +35,8 @@ from app.models import (
     User,
 )
 from app.ports.output.application_repository import ApplicationRepository
-from app.stage_service import apply_stage_change, publish_all
-from app.stages import StageTransitionError
+from app.application.stage_service import apply_stage_change, publish_all
+from app.application.stages import StageTransitionError
 from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)

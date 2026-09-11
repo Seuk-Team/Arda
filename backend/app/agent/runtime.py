@@ -19,7 +19,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.labels import EMAIL_PURPOSE_KR, STAGE_LABEL_KR
+from app.shared.labels import EMAIL_PURPOSE_KR, STAGE_LABEL_KR
 from app.models import User
 
 from .backends import get_chat_backend

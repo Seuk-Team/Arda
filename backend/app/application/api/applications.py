@@ -20,8 +20,8 @@ from app.schemas.stage import (
     StageChangeOut,
     StageChangeRequest,
 )
-from app.stage_service import apply_stage_change, publish_all, require_reason
-from app.stages import StageTransitionError
+from app.application.stage_service import apply_stage_change, publish_all, require_reason
+from app.application.stages import StageTransitionError
 from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
@@ -85,8 +85,8 @@ def get_application(
     scores = [e.score for e in row.evaluations]
 
     # 자동 심사 합계 (ADR-0034) — 서류 점수는 행에, 면접 점수는 가장 최근 끝난 세션에 있다.
-    from app import screening
-    from app.interview_scoring import latest_interview_score
+    from app.application import screening
+    from app.interview.scoring import latest_interview_score
 
     interview_ai = latest_interview_score(db, row.id)
     weights = screening.weights(db)

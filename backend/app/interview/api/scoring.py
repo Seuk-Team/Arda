@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app import screening
-from app.company import get_profile
+from app.application import screening
+from app.hiring.company import get_profile
 from app.db import get_db
 from app.deps import require_roles
 from app.models import User
