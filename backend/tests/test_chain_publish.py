@@ -99,8 +99,8 @@ class TestPublishHead:
             anchoring.DocumentAnchor.seq.desc()
         ))
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
-            patch("app.anchoring.chain.publish_hash", return_value=_sent()) as sent,
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()) as sent,
         ):
             row = anchoring.publish_head(db)
 
@@ -113,15 +113,15 @@ class TestPublishHead:
     def test_같은_머리를_두_번_올리지_않는다(self, db: Session, anchored: Application):
         """가스만 쓰고 증명력은 하나도 안 는다."""
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
-            patch("app.anchoring.chain.publish_hash", return_value=_sent()),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
             anchoring.publish_head(db)
             with pytest.raises(anchoring.NothingToPublish, match="이미 올렸습니다"):
                 anchoring.publish_head(db)
 
     def test_빈_원장은_올릴_것이_없다(self, db: Session):
-        with patch("app.anchoring.chain.load_config", return_value=CONFIG):
+        with patch("app.shared.anchoring.chain.load_config", return_value=CONFIG):
             with pytest.raises(anchoring.NothingToPublish, match="비어 있습니다"):
                 anchoring.publish_head(db)
 
@@ -130,9 +130,9 @@ class TestPublishHead:
     ):
         # 거래마다 해시가 다르다 — 실제 체인도 그렇다 (tx_hash 는 UNIQUE).
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.publish_hash",
+                "app.shared.anchoring.chain.publish_hash",
                 side_effect=[_sent(), _sent(tx="0x" + "ef" * 32)],
             ),
         ):
@@ -159,9 +159,9 @@ class TestPublishHead:
     def test_보내다_실패하면_사유가_남는다(self, db: Session, anchored: Application):
         """다음 시도의 유일한 단서다. 조용히 사라지면 안 된다."""
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.publish_hash",
+                "app.shared.anchoring.chain.publish_hash",
                 side_effect=ConnectionError("RPC 접속 실패"),
             ),
         ):
@@ -176,9 +176,9 @@ class TestPublishHead:
     def test_확정을_못_봤어도_실패가_아니다(self, db: Session, anchored: Application):
         """보낸 것은 보낸 것이다. 실패로 적으면 같은 값을 두 번 보내게 된다."""
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.publish_hash",
+                "app.shared.anchoring.chain.publish_hash",
                 return_value=_sent(confirmed=False, block=None),
             ),
         ):
@@ -188,7 +188,7 @@ class TestPublishHead:
         assert row.tx_hash == TX  # 거래 해시는 남아 있다 — 나중에 다시 확인한다
 
     def test_설정이_없으면_거래를_만들지_않는다(self, db: Session, anchored: Application):
-        with patch("app.anchoring.chain.load_config", return_value=None):
+        with patch("app.shared.anchoring.chain.load_config", return_value=None):
             with pytest.raises(RuntimeError):
                 anchoring.publish_head(db)
 
@@ -198,9 +198,9 @@ class TestPublishHead:
 class TestRefresh:
     def test_뒤늦게_확정되면_바뀐다(self, db: Session, anchored: Application):
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.publish_hash",
+                "app.shared.anchoring.chain.publish_hash",
                 return_value=_sent(confirmed=False, block=None),
             ),
         ):
@@ -208,8 +208,8 @@ class TestRefresh:
         assert row.status == "pending"
 
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
-            patch("app.anchoring.chain.fetch_status", return_value=_sent()),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.fetch_status", return_value=_sent()),
         ):
             changed = anchoring.refresh_pending(db)
 
@@ -218,18 +218,18 @@ class TestRefresh:
 
     def test_체인이_되돌린_거래는_failed(self, db: Session, anchored: Application):
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.publish_hash",
+                "app.shared.anchoring.chain.publish_hash",
                 return_value=_sent(confirmed=False, block=None),
             ),
         ):
             anchoring.publish_head(db)
 
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.fetch_status",
+                "app.shared.anchoring.chain.fetch_status",
                 return_value=_sent(confirmed=False, block=999),
             ),
         ):
@@ -258,7 +258,7 @@ class TestPublishApi:
     def test_올릴_것이_없으면_409(self, admin_client: TestClient, db: Session):
         with (
             patch("app.api.integrity.chain.unavailable_reason", return_value=None),
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
         ):
             resp = admin_client.post("/api/v1/integrity/publish")
 
@@ -268,8 +268,8 @@ class TestPublishApi:
         """발표에서 이 링크를 그대로 연다."""
         with (
             patch("app.api.integrity.chain.unavailable_reason", return_value=None),
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
-            patch("app.anchoring.chain.publish_hash", return_value=_sent()),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
             resp = admin_client.post("/api/v1/integrity/publish")
 
@@ -286,8 +286,8 @@ class TestPublishApi:
 
         with (
             patch("app.api.integrity.chain.unavailable_reason", return_value=None),
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
-            patch("app.anchoring.chain.publish_hash", return_value=_sent()),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
             admin_client.post("/api/v1/integrity/publish")
 
@@ -298,8 +298,8 @@ class TestPublishApi:
     def test_목록_조회(self, admin_client: TestClient, anchored):
         with (
             patch("app.api.integrity.chain.unavailable_reason", return_value=None),
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
-            patch("app.anchoring.chain.publish_hash", return_value=_sent()),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.publish_hash", return_value=_sent()),
         ):
             admin_client.post("/api/v1/integrity/publish")
 

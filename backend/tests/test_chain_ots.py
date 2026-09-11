@@ -80,8 +80,8 @@ class TestPublishOts:
     def test_도장을_찍고_증명을_보관한다(self, db: Session, anchored: Application):
         """폴리곤은 tx_hash 만 있으면 되지만 **OTS 는 증명 파일이 근거**다."""
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             row = anchoring.publish_ots(db)
 
@@ -93,8 +93,8 @@ class TestPublishOts:
         """비트코인 블록에 아직 안 실렸다. 여기서 확정으로 적으면 **우리가 가진
         것보다 강한 주장**이 된다."""
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             row = anchoring.publish_ots(db)
 
@@ -103,7 +103,7 @@ class TestPublishOts:
 
     def test_캘린더가_전부_죽으면_사유가_남는다(self, db: Session, anchored: Application):
         with patch(
-            "app.anchoring.ots.stamp", side_effect=RuntimeError("모든 OTS 캘린더가 실패")
+            "app.shared.anchoring.ots.stamp", side_effect=RuntimeError("모든 OTS 캘린더가 실패")
         ):
             with pytest.raises(RuntimeError):
                 anchoring.publish_ots(db)
@@ -114,8 +114,8 @@ class TestPublishOts:
 
     def test_같은_머리를_두_번_도장하지_않는다(self, db: Session, anchored: Application):
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             anchoring.publish_ots(db)
             with pytest.raises(anchoring.NothingToPublish, match="이미 올렸습니다"):
@@ -128,13 +128,13 @@ class TestPublishOts:
         영영 안 생긴다.**
         """
         with (
-            patch("app.anchoring.chain.load_config", return_value=CONFIG),
+            patch("app.shared.anchoring.chain.load_config", return_value=CONFIG),
             patch(
-                "app.anchoring.chain.publish_hash",
+                "app.shared.anchoring.chain.publish_hash",
                 return_value=SentTx(TX, "0x" + "cd" * 20, 1, True),
             ),
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             poly = anchoring.publish_head(db)
             stamped = anchoring.publish_ots(db)
@@ -146,14 +146,14 @@ class TestPublishOts:
 class TestRefreshOts:
     def test_비트코인에_실리면_confirmed(self, db: Session, anchored: Application):
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             anchoring.publish_ots(db)
 
         with (
-            patch("app.anchoring.ots.upgrade", return_value=("완전한증명", True)),
-            patch("app.anchoring.ots.bitcoin_height", return_value=870123),
+            patch("app.shared.anchoring.ots.upgrade", return_value=("완전한증명", True)),
+            patch("app.shared.anchoring.ots.bitcoin_height", return_value=870123),
         ):
             changed = anchoring.refresh_pending(db)
 
@@ -164,12 +164,12 @@ class TestRefreshOts:
     def test_아직이면_건드리지_않는다(self, db: Session, anchored: Application):
         """몇 시간이 정상이다. 실패로 적으면 다시 도장을 찍게 된다."""
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             anchoring.publish_ots(db)
 
-        with patch("app.anchoring.ots.upgrade", return_value=(PROOF, False)):
+        with patch("app.shared.anchoring.ots.upgrade", return_value=(PROOF, False)):
             changed = anchoring.refresh_pending(db)
 
         assert changed == []
@@ -271,8 +271,8 @@ class TestOtsApi:
 
     def test_도장_성공(self, admin_client: TestClient, anchored):
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=False),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=False),
         ):
             resp = admin_client.post("/api/v1/integrity/publish/ots")
 
@@ -285,8 +285,8 @@ class TestOtsApi:
 
     def test_확정되면_비트코인_블록을_가리킨다(self, admin_client: TestClient, anchored):
         with (
-            patch("app.anchoring.ots.stamp", return_value=PROOF),
-            patch("app.anchoring.ots.is_confirmed", return_value=True),
+            patch("app.shared.anchoring.ots.stamp", return_value=PROOF),
+            patch("app.shared.anchoring.ots.is_confirmed", return_value=True),
             patch(
                 "app.api.integrity.ots.explorer_url",
                 return_value="https://mempool.space/block/870123",
@@ -297,7 +297,7 @@ class TestOtsApi:
         assert resp.json()["explorer_url"] == "https://mempool.space/block/870123"
 
     def test_캘린더_실패는_502(self, admin_client: TestClient, anchored):
-        with patch("app.anchoring.ots.stamp", side_effect=RuntimeError("전부 실패")):
+        with patch("app.shared.anchoring.ots.stamp", side_effect=RuntimeError("전부 실패")):
             resp = admin_client.post("/api/v1/integrity/publish/ots")
         assert resp.status_code == 502
 

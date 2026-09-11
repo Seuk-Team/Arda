@@ -100,7 +100,7 @@ class TestAnchor:
         self, db: Session, application: Application, resume: File
     ):
         """`size_bytes` 같은 신고값이 아니라 실제 바이트에서 떠야 한다."""
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             made = anchoring.anchor_application(db, application.id)
 
         assert [m.doc_type for m in made] == ["resume"]
@@ -111,7 +111,7 @@ class TestAnchor:
         self, db: Session, with_intro: Application, resume: File
     ):
         """재시도·백필이 같은 문서를 두 번 쌓으면 원장이 못 쓰게 된다."""
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             first = anchoring.anchor_application(db, with_intro.id)
             second = anchoring.anchor_application(db, with_intro.id)
 
@@ -123,7 +123,7 @@ class TestAnchor:
         self, db: Session, with_intro: Application, resume: File
     ):
         """파일 하나가 실패했다고 나머지 지문까지 포기하지 않는다."""
-        with patch("app.anchoring.s3.read_object", side_effect=OSError("S3 다운")):
+        with patch("app.shared.anchoring.s3.read_object", side_effect=OSError("S3 다운")):
             made = anchoring.anchor_application(db, with_intro.id)
 
         assert [m.doc_type for m in made] == ["self_intro"]
@@ -132,7 +132,7 @@ class TestAnchor:
         self, db: Session, with_intro: Application, resume: File
     ):
         """사슬의 핵심 — 이게 아니면 그냥 해시 목록이다."""
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             made = anchoring.anchor_application(db, with_intro.id)
 
         assert made[0].prev_chain_hash is None  # 첫 고리
@@ -162,22 +162,22 @@ class TestVerify:
     def test_첨부를_바꿔치기하면_mismatch(
         self, db: Session, application: Application, resume: File
     ):
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             anchoring.anchor_application(db, application.id)
         anchor = db.scalar(select(DocumentAnchor))
 
-        with patch("app.anchoring.s3.read_object", return_value=TAMPERED_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=TAMPERED_BYTES):
             assert anchoring.verify_anchor(db, anchor)["status"] == "mismatch"
 
     def test_못_읽는_것과_바뀐_것을_가른다(
         self, db: Session, application: Application, resume: File
     ):
         """담당자가 할 일이 다르다 — 없어졌으면 다시 받고, 바뀌었으면 따진다."""
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             anchoring.anchor_application(db, application.id)
         anchor = db.scalar(select(DocumentAnchor))
 
-        with patch("app.anchoring.s3.read_object", side_effect=OSError("없음")):
+        with patch("app.shared.anchoring.s3.read_object", side_effect=OSError("없음")):
             assert anchoring.verify_anchor(db, anchor)["status"] == "unreadable"
 
 
@@ -185,7 +185,7 @@ class TestChain:
     def test_손대지_않았으면_이어진다(
         self, db: Session, with_intro: Application, resume: File
     ):
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             anchoring.anchor_application(db, with_intro.id)
 
         result = anchoring.verify_chain(db)
@@ -292,7 +292,7 @@ class TestAppendOnly:
 
     def test_새_행은_계속_쌓인다(self, db: Session, anchor: DocumentAnchor, resume: File):
         """잠금이 append 까지 막으면 기능 자체가 죽는다."""
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             made = anchoring.anchor_application(db, anchor.application_id)
 
         assert [m.doc_type for m in made] == ["resume"]
@@ -340,7 +340,7 @@ class TestIntegrityApi:
         self, client: TestClient, application: Application, resume: File
     ):
         """담당자가 어느 파일이 어긋났는지 알아야 조치할 수 있다."""
-        with patch("app.anchoring.s3.read_object", return_value=RESUME_BYTES):
+        with patch("app.shared.anchoring.s3.read_object", return_value=RESUME_BYTES):
             resp = client.post(f"/api/v1/applications/{application.id}/integrity/anchor")
 
         assert resp.json()["items"][0]["filename"] == "이력서.pdf"

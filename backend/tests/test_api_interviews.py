@@ -555,7 +555,7 @@ class TestAnswerAudio:
         self, public, db: Session, running
     ):
         with (
-            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.shared.s3.read_object", return_value=b"fake-audio"),
             patch("app.agent.stt.transcribe", return_value=_stt_result()) as mock_stt,
         ):
             res = public.post(
@@ -578,7 +578,7 @@ class TestAnswerAudio:
     def test_다듬은_문장이_아니라_원문을_저장한다(self, public, db: Session, running):
         """대조에서 **원문으로 인용**되는 자리다 (ADR-0026 결정 3)."""
         with (
-            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.shared.s3.read_object", return_value=b"fake-audio"),
             patch("app.agent.stt.transcribe", return_value=_stt_result()),
         ):
             public.post(
@@ -598,7 +598,7 @@ class TestAnswerAudio:
         slow["audio_duration_sec"] = 40.0  # 같은 문장을 40초에 = 아주 느리다
 
         with (
-            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.shared.s3.read_object", return_value=b"fake-audio"),
             patch("app.agent.stt.transcribe", return_value=slow),
         ):
             res = public.post(
@@ -611,7 +611,7 @@ class TestAnswerAudio:
     def test_보통_속도면_진행_보조가_없다(self, public, running):
         """24자를 12.5초 = 1.9자/초. 중간에 한두 번 생각하며 말한 평범한 답변이다."""
         with (
-            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.shared.s3.read_object", return_value=b"fake-audio"),
             patch("app.agent.stt.transcribe", return_value=_stt_result()),
         ):
             res = public.post(
@@ -622,7 +622,7 @@ class TestAnswerAudio:
 
     def test_남의_이력서_키는_거절한다(self, public, db: Session, running):
         """서버가 S3 를 대신 읽어 주는 경로다 — 키를 믿으면 그대로 유출이다."""
-        with patch("app.s3.read_object") as mock_read:
+        with patch("app.shared.s3.read_object") as mock_read:
             res = public.post(
                 "/api/v1/public/interview/tok-test/answer",
                 json={
@@ -638,7 +638,7 @@ class TestAnswerAudio:
     ):
         """반쯤 저장하면 답을 못 한 채로 다음 질문으로 넘어간다."""
         with (
-            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.shared.s3.read_object", return_value=b"fake-audio"),
             patch("app.agent.stt.transcribe", side_effect=RuntimeError("STT 죽음")),
         ):
             res = public.post(
@@ -659,7 +659,7 @@ class TestAnswerAudio:
     def test_말이_안_담긴_녹음은_422(self, public, db: Session, running):
         """빈 문자열을 넣으면 '답한 질문'이 되어 다음으로 넘어간다."""
         with (
-            patch("app.s3.read_object", return_value=b"fake-audio"),
+            patch("app.shared.s3.read_object", return_value=b"fake-audio"),
             patch("app.agent.stt.transcribe", return_value=_stt_result("   ")),
         ):
             res = public.post(
@@ -722,7 +722,7 @@ class TestAnalyze:
         result = {"pred": 0, "truth_pct": 100.0, "lie_pct": 0.0, "observations": []}
         with (
             patch("app.interview.lie_analysis.SERVICE_URL", "http://lie.invalid"),
-            patch("app.s3.read_object", return_value=b"fake-video"),
+            patch("app.shared.s3.read_object", return_value=b"fake-video"),
             patch("app.interview.lie_analysis.analyze", return_value=result) as mock_analyze,
         ):
             res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
@@ -738,7 +738,7 @@ class TestAnalyze:
     def test_분석이_죽으면_502(self, as_user, admin_user: User, turn):
         with (
             patch("app.interview.lie_analysis.SERVICE_URL", "http://lie.invalid"),
-            patch("app.s3.read_object", return_value=b"fake-video"),
+            patch("app.shared.s3.read_object", return_value=b"fake-video"),
             patch("app.interview.lie_analysis.analyze", side_effect=RuntimeError("서비스 죽음")),
         ):
             res = as_user(admin_user).post(f"/api/v1/interview-turns/{turn.id}/analyze")
@@ -761,7 +761,7 @@ class TestAudioUploadUrl:
         return s
 
     def test_음성_형식이면_발급된다(self, public, running):
-        with patch("app.s3.presign_put", return_value="https://s3.example/put"):
+        with patch("app.shared.s3.presign_put", return_value="https://s3.example/put"):
             res = public.post(
                 "/api/v1/public/interview/tok-test/audio-upload-url",
                 json={
