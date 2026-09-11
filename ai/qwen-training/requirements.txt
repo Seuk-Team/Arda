@@ -1,0 +1,16 @@
+# Qwen3-8B QLoRA 학습 (Windows · CUDA 12.1+ · RTX 4060 8GB)
+# torch 는 CUDA 빌드가 필요 — 별도 인덱스에서 받는다:
+#   pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+
+transformers>=4.44.0,<5.0
+peft>=0.13.0
+bitsandbytes>=0.43.3
+accelerate>=1.0.0
+trl>=0.11.0
+datasets>=3.0.0
+sentencepiece
+protobuf
+
+# 데이터셋 파이프라인
+pyyaml
+anthropic>=0.39.0

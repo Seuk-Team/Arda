@@ -1,0 +1,28 @@
+# Ollama Modelfile · 아르(Arda 에이전트) 로컬 배포용
+# 사용: `ollama create arda-qwen3 -f Modelfile.arda-qwen3`
+#
+# Qwen3-8B + 우리 LoRA 어댑터 병합·Q4_K_M 양자화된 GGUF 를 가리킴.
+# 백엔드는 OLLAMA_CHAT_MODEL=arda-qwen3 로 부름.
+
+FROM ./arda-qwen3.gguf
+
+# Qwen3 chat template · Ollama 가 대부분 자동으로 잡지만 명시.
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ range .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+"""
+
+# 도구 호출 XML 형식 (학습 데이터가 이 태그로 생성됨).
+# 백엔드 어댑터가 <tool_call>{"name":..,"arguments":..}</tool_call> 을 파싱한다.
+
+# 학습 데이터가 같은 시스템 프롬프트로 만들어졌으므로 여기서 다시 넣지 않는다.
+# 시스템 프롬프트는 백엔드 (app/agent/prompts/agent.v1.md) 가 매 요청마다 넣는다.
+
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER num_ctx 8192
+PARAMETER num_predict 1024
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"
