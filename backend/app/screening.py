@@ -28,13 +28,13 @@ from app import mail
 from app.company import get_profile
 from app.models import (
     Application,
-    EmailLog,
     InterviewerAssignment,
     InterviewerAvailability,
     JobPosting,
     PostingInterviewer,
     User,
 )
+from app.ports.output.application_repository import ApplicationRepository
 from app.stage_service import apply_stage_change, publish_all
 from app.stages import StageTransitionError
 
@@ -349,21 +349,29 @@ def decide_document(db: Session, application: Application, now: datetime | None 
     return application.doc_decision
 
 
-def send_pending_rejections(db: Session, posting_id: int) -> int:
+def send_pending_rejections(
+    db: Session,
+    posting_id: int,
+    *,
+    application_repo: "ApplicationRepository | None" = None,
+) -> int:
     """아르가 불합격으로 옮겼지만 아직 메일이 안 나간 지원자에게 불합격 메일을 만든다.
 
     사람이 직접 불합격시킨 건은 그때 메일이 이미 갔으므로 대상이 아니다. 이미 rejected
     메일 행이 있는 사람은 건너뛴다 — 두 번 눌러도 두 번 안 간다.
+
+    조회는 `ApplicationRepository` 로 위임한다 (ADR-0035 Phase 1). `application_repo`
+    를 넣으면 그것을 쓰고, 없으면 Postgres 구현으로 기본값. 이 인자는 **유닛 테스트가
+    DB 없이 이 경로를 격리 검증**하기 위한 자리다 — 프로덕션 호출자는 넣지 않는다.
     """
-    already = select(EmailLog.application_id).where(EmailLog.stage == "rejected")
-    rows = db.scalars(
-        select(Application)
-        .where(Application.job_posting_id == posting_id)
-        .where(Application.current_stage == "rejected")
-        .where(Application.decision_source == "agent")
-        .where(Application.id.not_in(already))
-        .order_by(Application.id)
-    ).all()
+    if application_repo is None:
+        from app.adapter.outbound.pg.application_pg_repository import (
+            PgApplicationRepository,
+        )
+
+        application_repo = PgApplicationRepository(db)
+
+    rows = application_repo.find_agent_rejected_pending_mail(posting_id)
     log_ids = [
         mail.create_log(
             db, application_id=a.id, to_email=a.email, stage="rejected",
