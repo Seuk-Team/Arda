@@ -38,6 +38,18 @@ from app.models.application import Application, StageHistory, Evaluation, Applic
 from app.models.interview import InterviewerAssignment, InterviewerAvailability, ScheduleProposal, ScheduleSlot, InterviewSession, InterviewTurn, InterviewFinding
 from app.models.shared import AgentTrace, DocumentAnchor, ChainPublication
 
+# ApplicationEmbedding 은 pgvector 확장이 있을 때만 정의된다 (application.py 안의
+# `if Vector is not None:` 블록). 확장이 없는 환경에선 이 이름을 노출하지 않는다 —
+# `embedder._embedding_table()` 이 `from app.models import ApplicationEmbedding` 을
+# try/except 로 감싸 그때 `EmbeddingUnavailable` 로 변환한다. 여기서 None 으로
+# 채워 두면 그 감지가 뚫려 downstream 에서 이상한 에러가 뜬다.
+# EMBEDDING_DIM 은 항상 안전하게 노출 (application.py 안에서 모듈 상수).
+from app.models.application import EMBEDDING_DIM
+try:
+    from app.models.application import ApplicationEmbedding  # type: ignore[attr-defined]
+except ImportError:
+    pass
+
 __all__ = [
     # 상수
     "APPLICATION_SOURCES",
@@ -80,4 +92,7 @@ __all__ = [
     "AgentTrace",
     "DocumentAnchor",
     "ChainPublication",
+    # 조건부 (pgvector 확장 있을 때만)
+    "ApplicationEmbedding",
+    "EMBEDDING_DIM",
 ]
