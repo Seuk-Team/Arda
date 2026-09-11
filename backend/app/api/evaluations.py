@@ -15,6 +15,7 @@ from app.schemas.evaluation import (
     EvaluationSummary,
     EvaluationUpdate,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 router = APIRouter(prefix="/api/v1", tags=["evaluations"])
 
@@ -46,7 +47,7 @@ def create_evaluation(
     member 는 자기에게 배정된 건만 쓸 수 있다 (ADR-0017).
     """
     # 지원자 존재 확인
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     assert_can_evaluate(db, user, application_id)
@@ -72,7 +73,7 @@ def list_evaluations(
 ):
     """평가 목록 + 평균 (E2). 조회는 로그인한 사람이면 누구나 (ADR-0017)."""
     # 지원자 존재 확인
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     # 최신순으로 평가 조회

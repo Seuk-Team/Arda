@@ -19,6 +19,7 @@ from app.schemas.application import (
     PostingPublicOut,
     SubmittedFile,
 )
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def get_posting_by_token(token: str, db: Session = Depends(get_db)):
 
 @router.get("/postings/{posting_id}", response_model=PostingPublicOut)
 def get_posting(posting_id: int, db: Session = Depends(get_db)):
-    return _openable(db, db.get(JobPosting, posting_id))
+    return _openable(db, PgHiringRepository(db).get_posting(posting_id))
 
 
 @router.post(
@@ -112,7 +113,7 @@ def get_posting(posting_id: int, db: Session = Depends(get_db)):
 )
 def submit(posting_id: int, body: ApplicationCreate, bg: BackgroundTasks, db: Session = Depends(get_db)):
     # B4 — 마감된 공고에 제출하면 410. 조회와 같은 판정을 쓴다.
-    _openable(db, db.get(JobPosting, posting_id))
+    _openable(db, PgHiringRepository(db).get_posting(posting_id))
     _validate_files(body.files)  # 쓰기 전에 본다
 
     row = Application(

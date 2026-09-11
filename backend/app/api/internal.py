@@ -33,6 +33,7 @@ from app.shared import mail
 from app.db import get_db
 from app.models import Application, EmailLog, InterviewTurn
 from app.shared.worker import _actor, _context, _reply_to
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +340,7 @@ def get_portrait(token: str, db: Session = Depends(get_db)):
     from app.agent.photo import portrait_of
 
     session = _find_session_or_404(db, token)
-    app_row = db.get(Application, session.application_id)
+    app_row = PgApplicationRepository(db).get(session.application_id)
     photo = portrait_of(app_row) if app_row else None
     if photo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사진 없음")

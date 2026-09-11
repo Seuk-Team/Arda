@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import InterviewSession, User
+from app.adapter.outbound.pg.interview_pg_repository import PgInterviewRepository
 
 log = logging.getLogger(__name__)
 
@@ -207,7 +208,7 @@ def create_rtc_ticket(
     따로 두는 이유는 **토큰을 아는 사람 아무나 면접관 자리에 앉으면 안 되기**
     때문이다. 링크가 한 번 전달되면 그 사람도 지원자의 영상을 보게 된다.
     """
-    session = db.get(InterviewSession, session_id)
+    session = PgInterviewRepository(db).get_session(session_id)
     if session is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
 

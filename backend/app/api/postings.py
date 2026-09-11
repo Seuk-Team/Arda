@@ -10,6 +10,7 @@ from app.db import get_db
 from app.deps import get_current_user
 from app.models import Application, JobPosting, PostingInterviewer, User
 from app.schemas.posting import PostingCreate, PostingOut, PostingUpdate, PublicLinkOut
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 router = APIRouter(prefix="/api/v1/postings", tags=["postings"])
 
@@ -18,7 +19,7 @@ PUBLIC_APP_BASE_URL = os.getenv("PUBLIC_APP_BASE_URL", "").rstrip("/")
 
 
 def _get_or_404(db: Session, posting_id: int) -> JobPosting:
-    posting = db.get(JobPosting, posting_id)
+    posting = PgHiringRepository(db).get_posting(posting_id)
     if posting is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "공고를 찾을 수 없습니다")
     return posting

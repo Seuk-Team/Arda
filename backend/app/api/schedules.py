@@ -42,6 +42,8 @@ from app.schemas.schedule import (
     SchedulePublicOut,
     SlotOut,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +196,7 @@ def create_proposal(
     재제안하면 기존 proposed 제안은 canceled 로 남는다(이력 보존, 라이브 제안은
     항상 최대 1건). 메일은 커밋 뒤에 발행한다 (mail.create_log 주석 참고).
     """
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
@@ -272,7 +274,7 @@ def get_latest_proposal(
     조회는 로그인한 사람 전체에게 열려 있다 (ADR-0017).
     제안이 하나도 없으면 404 — 화면은 "일정 없음"으로 그린다.
     """
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     proposal = db.scalar(
@@ -400,8 +402,8 @@ def get_schedule_public(token: str, db: Session = Depends(get_db)):
     링크가 계속 살아 있다 — "24시간 언제든 확인"이 이 기능의 요지다.
     """
     proposal = _get_proposal_by_token(db, token)
-    application = db.get(Application, proposal.application_id)
-    posting = db.get(JobPosting, application.job_posting_id)
+    application = PgApplicationRepository(db).get(proposal.application_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
 
     confirmed_slot = None
     if proposal.status == "confirmed" and proposal.confirmed_slot_id is not None:
@@ -468,7 +470,7 @@ def confirm_schedule(token: str, body: ConfirmRequest, db: Session = Depends(get
     proposal.confirmed_slot_id = slot.id
     proposal.updated_at = now
 
-    application = db.get(Application, proposal.application_id)
+    application = PgApplicationRepository(db).get(proposal.application_id)
     # 확정 통보 — 워커가 confirmed 를 보고 {면접일시}에 확정 시각(KST)을 싣는다.
     # 주체는 system 이다(기본값): 이 발송을 일으킨 것은 지원자 본인의 선택이고,
     # 담당자도 아르도 개입하지 않았다. 담당자 이름으로 서명하면 거짓이다 (G4).
@@ -485,7 +487,7 @@ def confirm_schedule(token: str, body: ConfirmRequest, db: Session = Depends(get
         # 확정은 이미 저장됐다 — 메일이 늦는 것이 확정을 무르는 것보다 낫다
         logger.exception("확정 통보 메일 큐 발행 실패 email_log_id=%s", log.id)
 
-    posting = db.get(JobPosting, application.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
     return SchedulePublicOut(
         status="confirmed",
         applicant_name=application.name,
@@ -516,8 +518,8 @@ def public_faq(token: str, body: FaqRequest, db: Session = Depends(get_db)):
     from app.agent.faq import answer_question
 
     proposal = _get_proposal_by_token(db, token)
-    application = db.get(Application, proposal.application_id)
-    posting = db.get(JobPosting, application.job_posting_id) if application else None
+    application = PgApplicationRepository(db).get(proposal.application_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id) if application else None
     if posting is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "공고를 찾을 수 없습니다")
 

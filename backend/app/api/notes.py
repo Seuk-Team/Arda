@@ -12,6 +12,7 @@ from app.db import get_db
 from app.deps import get_current_user
 from app.models import Application, ApplicationNote, User
 from app.schemas.note import NoteCreate, NoteOut, NoteUpdate
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 router = APIRouter(prefix="/api/v1", tags=["notes"])
 
@@ -54,7 +55,7 @@ def list_notes(
     user: User = Depends(get_current_user),
 ):
     """메모 목록 (최신순). 로그인한 사람이면 누구나 (ADR-0017)."""
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     # 작성자 이름을 함께 준다 — 목록에서 id 만 보면 누가 썼는지 알 수 없다.
@@ -80,7 +81,7 @@ def create_note(
     user: User = Depends(get_current_user),
 ):
     """메모 작성. 작성자는 토큰의 사용자다."""
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     note = ApplicationNote(

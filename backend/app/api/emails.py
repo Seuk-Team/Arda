@@ -40,6 +40,9 @@ from app.schemas.email import (
     TemplateOut,
     TemplateSave,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
+from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,7 @@ def _template_out(db: Session, stage: str) -> TemplateOut:
         if source == "custom"
         else None
     )
-    editor = db.get(User, row.updated_by) if row is not None else None
+    editor = PgTalentRepository(db).get_user(row.updated_by) if row is not None else None
     return TemplateOut(
         stage=stage,
         subject=subject,
@@ -148,14 +151,14 @@ def reset_template(
 
 
 def _application(db: Session, application_id: int) -> Application:
-    row = db.get(Application, application_id)
+    row = PgApplicationRepository(db).get(application_id)
     if row is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
     return row
 
 
 def _values(db: Session, application: Application, actor: User, stage: str) -> dict:
-    posting = db.get(JobPosting, application.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
     return {
         "지원자명": application.name,
         "공고명": posting.title if posting else "",

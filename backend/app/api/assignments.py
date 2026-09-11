@@ -14,6 +14,7 @@ from app.schemas.assignment import (
     AssignmentOut,
     AssignResponse,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 router = APIRouter(prefix="/api/v1", tags=["assignments"])
 
@@ -32,7 +33,7 @@ def assign_interviewers(
 ):
     """면접관 배정 (E3). 어드민만 (ADR-0013)."""
     # 지원자 존재 확인
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     # 대상 사용자 존재 확인. 역할 검사는 없다 — 누구나 면접관으로 배정될 수
@@ -79,7 +80,7 @@ def list_interviewers(
 ):
     """배정된 면접관 목록 (E3). 로그인한 사람이면 누구나 (ADR-0017)."""
     # 지원자 존재 확인
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     # 배정된 면접관 조회
@@ -107,7 +108,7 @@ def unassign_interviewer(
 ):
     """면접관 배정 해제 (E3). 어드민만 — 교체 결정은 어드민 몫이다 (ADR-0013)."""
     # 지원자 존재 확인
-    if db.get(Application, application_id) is None:
+    if PgApplicationRepository(db).get(application_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
     # 배정 관계 삭제
@@ -135,7 +136,7 @@ def get_assigned_applications(
     "누가 무엇을 맡았는지"만 가려 봐야 배정 조율에 방해만 된다.
     """
     # 사용자 존재 확인
-    if db.get(User, user_id) is None:
+    if PgTalentRepository(db).get_user(user_id) is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "사용자를 찾을 수 없습니다")
 
     # 배정받은 지원자 조회

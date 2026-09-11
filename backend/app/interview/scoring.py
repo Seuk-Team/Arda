@@ -20,6 +20,9 @@ from app import screening
 from app.company import get_profile
 from app.models import Application, InterviewSession, JobPosting
 from app.ports.output.interview_repository import InterviewRepository
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
+from app.adapter.outbound.pg.interview_pg_repository import PgInterviewRepository
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +46,11 @@ def _transcript_text(session: InterviewSession) -> str:
 
 def score_interview(db: Session, session_id: int) -> int | None:
     """세션 하나를 채점해 저장한다. 커밋한다. 점수를 못 내면 None(재시도 대상)."""
-    session = db.get(InterviewSession, session_id)
+    session = PgInterviewRepository(db).get_session(session_id)
     if session is None or session.status != "done":
         return None
-    application = db.get(Application, session.application_id)
-    posting = db.get(JobPosting, application.job_posting_id) if application else None
+    application = PgApplicationRepository(db).get(session.application_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id) if application else None
     if application is None or posting is None:
         return None
 

@@ -20,12 +20,13 @@ from app.schemas.integrity import (
     PublicationOut,
     PublicationResultIn,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
 
 router = APIRouter(prefix="/api/v1", tags=["integrity"])
 
 
 def _get_or_404(db: Session, application_id: int) -> Application:
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "지원자를 찾을 수 없습니다")
     return application

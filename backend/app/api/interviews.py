@@ -47,6 +47,9 @@ from app.schemas.interview import (
     SessionDetailOut,
     SessionOut,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
+from app.adapter.outbound.pg.interview_pg_repository import PgInterviewRepository
 
 router = APIRouter(prefix="/api/v1", tags=["interviews"])
 
@@ -110,7 +113,7 @@ def _seed_questions_bg(session_id: int) -> None:
     logger = logging.getLogger(__name__)
 
     with SessionLocal() as db:
-        session = db.get(InterviewSession, session_id)
+        session = PgInterviewRepository(db).get_session(session_id)
         if session is None:
             return
 
@@ -121,7 +124,7 @@ def _seed_questions_bg(session_id: int) -> None:
         if existing is not None:
             return
 
-        application = db.get(Application, session.application_id)
+        application = PgApplicationRepository(db).get(session.application_id)
         if application is None:
             return
 
@@ -158,7 +161,7 @@ def _seed_questions_bg(session_id: int) -> None:
         # session 48 이 6초만에 삭제됐고, 그 뒤 이 훅이 INSERT 하다 FK 위반).
         # 재확인해 세션이 사라졌으면 조용히 종료 — 담당자가 만든 것을 지운 것이니
         # 그 위에 질문을 남기지 않는 편이 맞다.
-        if db.get(InterviewSession, session_id) is None:
+        if PgInterviewRepository(db).get_session(session_id) is None:
             logger.info(
                 "면접 질문 자동 생성 취소: session=%s (LLM 사이 세션이 삭제됨)",
                 session_id,
@@ -207,7 +210,7 @@ def create_session(
     **질문은 뒤에서 자동으로 뽑는다** (2026-09-10, 팀장 결정). 자기소개서·이력서에서
     꼬리 질문 최대 10개, 뽑을 게 없으면 폴백 3개. 담당자는 여전히 편집기로 덮어쓸 수 있다.
     """
-    application = db.get(Application, application_id)
+    application = PgApplicationRepository(db).get(application_id)
     if application is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "지원자를 찾을 수 없습니다")
 
@@ -268,7 +271,7 @@ def delete_session(
     """
     from app.models import InterviewFinding
 
-    session = db.get(InterviewSession, session_id)
+    session = PgInterviewRepository(db).get_session(session_id)
     if session is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
 
@@ -398,7 +401,7 @@ def get_session(
     """전사와 대조 결과까지 포함한 상세."""
     from app.agent.interview_findings import findings_on
 
-    session = db.get(InterviewSession, session_id)
+    session = PgInterviewRepository(db).get_session(session_id)
     if session is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
 
@@ -446,8 +449,8 @@ def get_interview_public(token: str, db: Session = Depends(get_db)):
     자기가 어느 면접에 와 있는지와 지금 뭘 하면 되는지뿐이다.
     """
     session = _get_by_token(db, token)
-    application = db.get(Application, session.application_id)
-    posting = db.get(JobPosting, application.job_posting_id) if application else None
+    application = PgApplicationRepository(db).get(session.application_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id) if application else None
 
     current = None
     if session.status == "in_progress":
@@ -557,7 +560,7 @@ def set_questions(
     설계 §5 의 5번(요약에서 자동 생성)이 붙어도 이 경로는 남는다 — 담당자가
     고쳐 넣을 수 있어야 한다.
     """
-    session = db.get(InterviewSession, session_id)
+    session = PgInterviewRepository(db).get_session(session_id)
     if session is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "면접 세션을 찾을 수 없습니다")
     if session.status != "pending":
@@ -689,9 +692,9 @@ def _generate_followup_bg(session_id: int, prev_turn_id: int) -> None:
 
         # 지원자 요약이 있으면 문맥에 넣는다. 없어도 답변만으로 굴러간다.
         summary = ""
-        session = db.get(InterviewSession, session_id)
+        session = PgInterviewRepository(db).get_session(session_id)
         if session is not None:
-            app = db.get(Application, session.application_id)
+            app = PgApplicationRepository(db).get(session.application_id)
             if app is not None and app.ai_summary:
                 summary = app.ai_summary
 

@@ -37,6 +37,7 @@ from app.models import (
 from app.ports.output.application_repository import ApplicationRepository
 from app.stage_service import apply_stage_change, publish_all
 from app.stages import StageTransitionError
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +295,7 @@ def decide_document(db: Session, application: Application, now: datetime | None 
     사람이 이미 옮김, applied 가 아님.
     """
     now = now or datetime.now(timezone.utc)
-    posting = db.get(JobPosting, application.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
     score = application.doc_score
 
     if (

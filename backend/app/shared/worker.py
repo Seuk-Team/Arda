@@ -38,6 +38,9 @@ from app.models import (
     ScheduleSlot,
     User,
 )
+from app.adapter.outbound.pg.application_pg_repository import PgApplicationRepository
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
+from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 logger = logging.getLogger(__name__)
 
@@ -195,11 +198,11 @@ def _interview_at(db: Session, application_id: int) -> str | None:
 
 def _context(db: Session, log: EmailLog) -> tuple[str, str, str | None]:
     """문구에 채울 지원자명·공고명·면접일시를 읽는다."""
-    application = db.get(Application, log.application_id)
+    application = PgApplicationRepository(db).get(log.application_id)
     if application is None:
         raise LookupError(f"지원서를 찾을 수 없습니다: id={log.application_id}")
 
-    posting = db.get(JobPosting, application.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
 
     # 면접일시는 interview 문구에만 자리가 있다 — 다른 단계는 조회를 건너뛴다
     interview_at = (
@@ -216,7 +219,7 @@ def _actor(db: Session, log: EmailLog) -> tuple[str | None, str | None]:
     """
     if log.actor_id is None:
         return None, None
-    actor = db.get(User, log.actor_id)
+    actor = PgTalentRepository(db).get_user(log.actor_id)
     if actor is None:
         return None, None
     return actor.name, actor.email

@@ -40,6 +40,7 @@ from app.schemas.portal import (
     PortalLookupResponse,
     PortalStatusOut,
 )
+from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["portal"])
@@ -92,7 +93,7 @@ def request_lookup(body: PortalLookupRequest, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc)
     queued_log_ids: list[int] = []
     for application in rows:
-        posting = db.get(JobPosting, application.job_posting_id)
+        posting = PgHiringRepository(db).get_posting(application.job_posting_id)
         # 부를 때마다 새로 발급한다 — 지난 링크는 그 자리에서 죽는다.
         application.portal_token = secrets.token_urlsafe(32)
         application.portal_token_expires_at = now + timedelta(days=TOKEN_DAYS)
@@ -153,7 +154,7 @@ def get_status(token: str, db: Session = Depends(get_db)):
         # 자기가 낸 적 없다고 오해한다. 일정·면접 공개 경로와 같은 판단이다.
         raise HTTPException(HTTPStatus.GONE, "링크 유효 기간이 지났습니다")
 
-    posting = db.get(JobPosting, application.job_posting_id)
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
     return PortalStatusOut(
         applicant_name=application.name,
         posting_title=posting.title if posting else "",
