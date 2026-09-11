@@ -112,6 +112,78 @@
   box-shadow: var(--sh-card);
 }
 
+/* ── 실시간 분석 — 지원자 영상 위 홀로그램 (2026-09-11) ─────────────
+   담당자 눈이 지원자 얼굴과 숫자 사이를 오가지 않게 **영상 위에 띄운다.**
+   판은 거의 투명하게 두고 글자가 빛나게 한다 — 판을 칠하면 얼굴을 가린다.
+
+   **글자 색은 뒤에 깔린 영상 밝기로 정한다** (`useBackdropTone`). 뒤가 어두우면
+   밝은 글자 + 시안 발광, 밝으면 어두운 글자 + 흰 발광. 안쪽 요소들은 `--text` ·
+   `--text-sub` · `--border` · `--bg-sunken` 을 쓰므로 **토큰을 이 판 안에서만
+   다시 정의해** 한꺼번에 따라오게 한다. 새 색은 만들지 않는다(05-design) —
+   전부 `--accent` · `--accent-text` · `--accent-fill` · `--on-accent` 를 섞은 것이다. */
+.holo {
+  --holo-ink: var(--accent-fill);
+  --holo-sub: var(--accent-text);
+  --holo-glow: var(--accent);
+  --text: var(--holo-ink);
+  --text-sub: var(--holo-sub);
+  --border: color-mix(in srgb, var(--holo-glow) 45%, transparent);
+  --bg-sunken: color-mix(in srgb, var(--holo-ink) 8%, transparent);
+
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  z-index: 1;
+  width: min(320px, 44%);
+  max-height: calc(100% - 2 * var(--sp-3));
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--border-w) solid color-mix(in srgb, var(--holo-glow) 70%, transparent);
+  border-radius: var(--r-card);
+  /* 가로 주사선 + 아주 옅은 판. 홀로그램이 "떠 있는 빛" 으로 읽히게 */
+  background:
+    repeating-linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--holo-glow) 7%, transparent) 0 1px,
+      transparent 1px 3px
+    ),
+    color-mix(in srgb, var(--holo-glow) 6%, transparent);
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--holo-glow) 35%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--holo-glow) 20%, transparent);
+  color: var(--text);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--holo-glow) 80%, transparent);
+  transition:
+    color 0.4s ease,
+    text-shadow 0.4s ease,
+    background 0.4s ease,
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+
+/* 뒤가 밝다 — 흰 글자가 사라진다. 어두운 글자로 바꾸고 발광은 흰색으로 둬서
+   글자를 영상에서 떼어 낸다. */
+.holo[data-backdrop='light'] {
+  --holo-ink: var(--on-accent);
+  --holo-sub: var(--on-accent);
+  --holo-glow: var(--accent-fill);
+}
+
+.holoTitle {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holo {
+    transition: none;
+  }
+}
+
 /* 아직 안 붙었을 때 덮는 안내. 영상 자리를 비워 두면 "고장났나" 싶다. */
 .overlay {
   position: absolute;
