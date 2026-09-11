@@ -53,7 +53,13 @@ services:
     env_file: ../backend/.env
     # ADR-0035 Phase 2 에서 `app/worker.py` → `app/shared/worker.py` 로 옮겼다.
     # 옛 경로로 두면 컨테이너가 `No module named app.worker` 로 재시작을 반복한다
-    # (2026-09-12 실제로 그렇게 죽어 있었다 — 메일 큐가 그동안 비워지지 않았다).
+    # (2026-09-12 실제로 그렇게 죽어 있었다.)
+    #
+    # **발송은 안 막혔다.** 현재 프로덕션은 `MAIL_DISPATCH=n8n` 이라 발송 경로가
+    # API → n8n → SMTP (ADR-0031) 이고, 이 워커는 SQS 소비자라 그 경로에 없다.
+    # 점검 시점 `email_logs` 에 `queued` 행 0건 (sent 105 · failed 28) 로 확인했다.
+    # 그래서 **아무도 못 봤다** — 살아 있는 경로가 아닌 컨테이너가 몇 시간 죽어
+    # 있어도 알림이 없다. SQS 로 되돌릴 때(또는 n8n 이 멈출 때) 이 워커가 필요하다.
     command: /app/.venv/bin/python -m app.shared.worker
     restart: unless-stopped
     logging: *default-logging

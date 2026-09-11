@@ -6,7 +6,8 @@
 
 - 2026-09-12: 프로덕션 워커가 `python -m app.worker` 로 떠 있어 컨테이너가
   재시작을 반복했다 (모듈은 `app.shared.worker` 로 옮겼다). 단위 테스트는 전부
-  초록이었다. 종단 점검이 없어서 아무도 못 봤다.
+  초록이었다. 발송 자체는 `MAIL_DISPATCH=n8n` 경로라 막히지 않았지만, 바로 그래서
+  **아무 신호도 없었다** — 살아 있는 경로 밖의 고장은 누가 들여다보지 않으면 안 보인다.
 - 같은 날: `app/interview/api/schedules.py` 의 `timedelta` 미import,
   `assignments.py` 의 `PgTalentRepository` 범위 밖 참조 — 둘 다 라우터를 한 번이라도
   태우면 잡혔을 NameError 였다.
