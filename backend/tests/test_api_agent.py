@@ -101,8 +101,8 @@ class TestSummarize:
 
     def test_success(self, client: TestClient, application: Application):
         with (
-            patch("app.api.agent.get_summary_backend", return_value=self._available_backend()),
-            patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'),
+            patch("app.application.api.agent.get_summary_backend", return_value=self._available_backend()),
+            patch("app.application.api.agent.generate_summary", return_value='{"gist":"요약"}'),
         ):
             resp = client.post(f"/api/v1/agent/applications/{application.id}/summarize")
         assert resp.status_code == 200
@@ -110,15 +110,15 @@ class TestSummarize:
         assert "summary" in data
 
     def test_not_found(self, client: TestClient):
-        with patch("app.api.agent.generate_summary"):
+        with patch("app.application.api.agent.generate_summary"):
             resp = client.post("/api/v1/agent/applications/999999/summarize")
         assert resp.status_code == 404
 
     def test_summary_generation_fails(self, client: TestClient, application: Application):
         """백엔드는 살아 있지만 생성 자체가 실패 → 422 (LLM 응답 파싱 실패 등)."""
         with (
-            patch("app.api.agent.get_summary_backend", return_value=self._available_backend()),
-            patch("app.api.agent.generate_summary", return_value=None),
+            patch("app.application.api.agent.get_summary_backend", return_value=self._available_backend()),
+            patch("app.application.api.agent.generate_summary", return_value=None),
         ):
             resp = client.post(f"/api/v1/agent/applications/{application.id}/summarize")
         assert resp.status_code == 422
@@ -129,7 +129,7 @@ class TestSummarize:
         """키 미설정 등 백엔드 사유 → 503 + 원문 사유."""
         backend = MagicMock()
         backend.unavailable_reason.return_value = "ANTHROPIC_API_KEY 미설정"
-        with patch("app.api.agent.get_summary_backend", return_value=backend):
+        with patch("app.application.api.agent.get_summary_backend", return_value=backend):
             resp = client.post(f"/api/v1/agent/applications/{application.id}/summarize")
         assert resp.status_code == 503
         assert "ANTHROPIC_API_KEY" in resp.json()["message"]
@@ -161,10 +161,10 @@ class TestInterviewProbes:
     def _post(self, client, application, *, claims=_CLAIMS, backend=None):
         with (
             patch(
-                "app.api.agent.get_summary_backend",
+                "app.application.api.agent.get_summary_backend",
                 return_value=backend or self._available_backend(),
             ),
-            patch("app.api.agent.generate_probes", return_value=claims),
+            patch("app.application.api.agent.generate_probes", return_value=claims),
         ):
             return client.post(
                 f"/api/v1/agent/applications/{application.id}/interview-probes"
@@ -228,7 +228,7 @@ class TestInterviewProbes:
         assert resp.status_code == 422
 
     def test_없는_지원자는_404(self, client: TestClient):
-        with patch("app.api.agent.generate_probes"):
+        with patch("app.application.api.agent.generate_probes"):
             resp = client.post("/api/v1/agent/applications/999999/interview-probes")
         assert resp.status_code == 404
 
@@ -276,7 +276,7 @@ class TestChat:
         # "김도현 찾아줘" 같은 뻔한 이름 검색은 라우터가 LLM 을 우회하므로 이
         # test 의 run_agent mock 이 안 걸린다. 라우터 자체 검증은
         # tests/test_intent_router.py 참고.
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "김도현에 대해 어떻게 생각해?",
                 "history": [],
@@ -312,7 +312,7 @@ class TestChat:
                 description="지원자 #1의 단계를 변경합니다",
             ),
         )
-        with patch("app.api.agent.run_agent", return_value=result):
+        with patch("app.application.api.agent.run_agent", return_value=result):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "면접 단계로 옮겨줘",
                 "history": [],
@@ -331,7 +331,7 @@ class TestChat:
 
     def test_entity_resolver_applied(self, client: TestClient):
         """resolve_entities 가 메시지에 적용되는지 확인."""
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()) as mock_run:
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()) as mock_run:
             client.post("/api/v1/agent/chat", json={
                 "message": "파이썬 이년 경력",
                 "history": [],
@@ -349,7 +349,7 @@ class TestDirectHandlerStageRule:
 
     def test_skip_forward_offers_next_stage_card(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         # fixture 지원자는 applied. interview 로 두 칸 건너뛰기 요청.
         # 이름은 fixture 에서 가져온다 — 리터럴로 적으면 시드 더미와 겹쳐
         # "여러 명이 있어요" 로 빠진다 (conftest 의 `application` 주석 참고).
@@ -368,7 +368,7 @@ class TestDirectHandlerStageRule:
 
     def test_valid_next_step_makes_normal_card(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         intent = DirectAction(
             "change_stage",
             {"_name_lookup": application.name, "to_stage": "screening"},
@@ -380,7 +380,7 @@ class TestDirectHandlerStageRule:
 
     def test_same_stage_says_already(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         intent = DirectAction(
             "change_stage",
             {"_name_lookup": application.name, "to_stage": "applied"},
@@ -397,7 +397,7 @@ class TestConfirm:
     """POST /api/v1/agent/confirm"""
 
     def test_success(self, client: TestClient):
-        with patch("app.api.agent.execute_tool", return_value='{"ok": true}'):
+        with patch("app.application.api.agent.execute_tool", return_value='{"ok": true}'):
             resp = client.post("/api/v1/agent/confirm", json={
                 "tool_name": "change_stage",
                 "arguments": {"application_id": 1, "to_stage": "interview_scheduled"},
@@ -414,7 +414,7 @@ class TestConfirm:
         assert resp.status_code == 400
 
     def test_tool_error_returns_422(self, client: TestClient):
-        with patch("app.api.agent.execute_tool", return_value='{"error": "단계 전환 불가"}'):
+        with patch("app.application.api.agent.execute_tool", return_value='{"error": "단계 전환 불가"}'):
             resp = client.post("/api/v1/agent/confirm", json={
                 "tool_name": "change_stage",
                 "arguments": {"application_id": 1, "to_stage": "applied"},
@@ -523,7 +523,7 @@ class TestChatEdgeCases:
 
     def test_max_length_message(self, client: TestClient):
         """정확히 2000자 메시지는 통과해야 한다."""
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "가" * 2000,
                 "history": [],
@@ -532,7 +532,7 @@ class TestChatEdgeCases:
 
     def test_special_characters_in_message(self, client: TestClient):
         """SQL injection 패턴이 에러 없이 처리되는지."""
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "'; DROP TABLE applications; --",
                 "history": [],
@@ -541,7 +541,7 @@ class TestChatEdgeCases:
 
     def test_html_script_in_message(self, client: TestClient):
         """XSS 패턴이 에러 없이 처리되는지."""
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "<script>alert('xss')</script>",
                 "history": [],
@@ -554,7 +554,7 @@ class TestChatEdgeCases:
             {"role": "user", "content": "김도현 찾아줘"},
             {"role": "assistant", "content": "김도현 2명을 찾았습니다."},
         ]
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "첫 번째 사람 상세 보여줘",
                 "history": history,
@@ -576,7 +576,7 @@ class TestChatEdgeCases:
 
     def test_다른_멤버도_채팅할_수_있다(self, other_member_client: TestClient):
         """에이전트 채팅은 로그인만 보면 된다 (ADR-0017)."""
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = other_member_client.post("/api/v1/agent/chat", json={
                 "message": "검색해줘",
                 "history": [],
@@ -585,7 +585,7 @@ class TestChatEdgeCases:
 
     def test_cost_usd_is_numeric(self, client: TestClient):
         """cost_usd 가 숫자이고 음수가 아닌지."""
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "테스트",
                 "history": [],
@@ -599,7 +599,7 @@ class TestChatEdgeCases:
         result = FakeAgentResult(
             tool_calls=[{"name": "search_applications", "input": {"q": "김"}}],
         )
-        with patch("app.api.agent.run_agent", return_value=result):
+        with patch("app.application.api.agent.run_agent", return_value=result):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "김씨 찾아줘",
                 "history": [],
@@ -618,7 +618,7 @@ class TestConfirmEdgeCases:
     def test_all_write_tools_accepted(self, client: TestClient):
         """모든 쓰기 도구가 400 없이 통과하는지."""
         for tool in ("change_stage", "assign_interviewer", "send_email", "create_schedule_proposal"):
-            with patch("app.api.agent.execute_tool", return_value='{"ok": true}'):
+            with patch("app.application.api.agent.execute_tool", return_value='{"ok": true}'):
                 resp = client.post("/api/v1/agent/confirm", json={
                     "tool_name": tool,
                     "arguments": {},
@@ -655,7 +655,7 @@ class TestConfirmEdgeCases:
 
     def test_다른_멤버도_confirm_할_수_있다(self, other_member_client: TestClient):
         """confirm 은 로그인만 필요하다. 도구 안쪽에서 다시 권한을 본다."""
-        with patch("app.api.agent.execute_tool", return_value='{"ok": true}'):
+        with patch("app.application.api.agent.execute_tool", return_value='{"ok": true}'):
             resp = other_member_client.post("/api/v1/agent/confirm", json={
                 "tool_name": "change_stage",
                 "arguments": {"application_id": 1, "to_stage": "interview_scheduled"},
@@ -670,12 +670,12 @@ class TestSummarizeEdgeCases:
     """요약 재생성 경계값."""
 
     def test_negative_id(self, client: TestClient):
-        with patch("app.api.agent.generate_summary"):
+        with patch("app.application.api.agent.generate_summary"):
             resp = client.post("/api/v1/agent/applications/-1/summarize")
         assert resp.status_code == 404
 
     def test_zero_id(self, client: TestClient):
-        with patch("app.api.agent.generate_summary"):
+        with patch("app.application.api.agent.generate_summary"):
             resp = client.post("/api/v1/agent/applications/0/summarize")
         assert resp.status_code == 404
 
@@ -694,8 +694,8 @@ class TestSummarizeEdgeCases:
         backend = MagicMock()
         backend.unavailable_reason.return_value = None
         with (
-            patch("app.api.agent.get_summary_backend", return_value=backend),
-            patch("app.api.agent.generate_summary", return_value='{"gist":"요약"}'),
+            patch("app.application.api.agent.get_summary_backend", return_value=backend),
+            patch("app.application.api.agent.generate_summary", return_value='{"gist":"요약"}'),
         ):
             resp = other_member_client.post(
                 f"/api/v1/agent/applications/{application.id}/summarize"
@@ -733,7 +733,7 @@ class TestChoices:
 
     def test_router_duplicate_name_returns_choices(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         twin = _twin(db, application)
         intent = DirectAction(
             "change_stage",
@@ -768,7 +768,7 @@ class TestChoices:
 
     def test_router_selected_id_skips_lookup(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         twin = _twin(db, application)
         intent = DirectAction(
             "change_stage",
@@ -785,7 +785,7 @@ class TestChoices:
 
     def test_router_selected_unknown_id(self, db, admin_user, application):
         from app.agent.intent_router import DirectAction
-        from app.api.agent import _handle_direct
+        from app.application.api.agent import _handle_direct
         intent = DirectAction(
             "change_stage",
             {"_name_lookup": application.name, "to_stage": "screening"},
@@ -807,7 +807,7 @@ class TestChoices:
             tool_results=[{"name": "search_applications", "input": {"q": "백지안"},
                            "output": {"results": rows, "count": 3}}],
         )
-        with patch("app.api.agent.run_agent", return_value=fake):
+        with patch("app.application.api.agent.run_agent", return_value=fake):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "백지안 이력서 좀 보여줄래?",
                 "history": [],
@@ -830,14 +830,14 @@ class TestChoices:
             tool_results=[{"name": "search_applications", "input": {},
                            "output": {"results": rows, "count": 2}}],
         )
-        with patch("app.api.agent.run_agent", return_value=fake):
+        with patch("app.application.api.agent.run_agent", return_value=fake):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "백지안 이력서 좀 보여줄래?", "history": [],
             })
         assert resp.json()["choices"] == []
 
     def test_llm_path_selected_id_is_passed_to_model(self, client: TestClient):
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()) as mock_run:
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()) as mock_run:
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "백지안 이력서 좀 보여줄래?", "history": [], "application_id": 28,
             })
@@ -846,7 +846,7 @@ class TestChoices:
         assert sent.startswith("백지안 이력서 좀 보여줄래?") and "ID: 28" in sent
 
     def test_response_has_empty_choices_by_default(self, client: TestClient):
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "김도현에 대해 어떻게 생각해?", "history": [],
             })

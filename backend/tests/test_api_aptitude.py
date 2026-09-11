@@ -202,7 +202,7 @@ class TestSubmit:
         self, public, admin_user, application, db: Session
     ):
         session = _session(db, application, admin_user)
-        with patch("app.api.aptitude.generate_aptitude_summary_bg") as bg:
+        with patch("app.application.api.aptitude.generate_aptitude_summary_bg") as bg:
             resp = public.post(
                 "/api/v1/public/aptitude/apt-tok-test/submit",
                 json={"answers": _full_answers()},
@@ -263,7 +263,7 @@ class TestSubmit:
     ):
         """재제출 불가 — 다시 받으려면 재발송이다."""
         _session(db, application, admin_user)
-        with patch("app.api.aptitude.generate_aptitude_summary_bg"):
+        with patch("app.application.api.aptitude.generate_aptitude_summary_bg"):
             first = public.post(
                 "/api/v1/public/aptitude/apt-tok-test/submit",
                 json={"answers": _full_answers()},
@@ -306,7 +306,7 @@ class TestDetail:
         self, as_user, public, admin_user, application, db: Session
     ):
         session = _session(db, application, admin_user)
-        with patch("app.api.aptitude.generate_aptitude_summary_bg"):
+        with patch("app.application.api.aptitude.generate_aptitude_summary_bg"):
             public.post(
                 "/api/v1/public/aptitude/apt-tok-test/submit",
                 json={"answers": _full_answers(value=5)},
