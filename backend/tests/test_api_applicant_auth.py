@@ -21,7 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api import applicant_auth
+from app.talent.api import applicant_auth
 from app.db import get_db
 from app.main import app
 from app.models import Application, User
