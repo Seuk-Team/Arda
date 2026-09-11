@@ -139,6 +139,60 @@
   word-break: keep-all;
 }
 
+/* ── 담당자 / 지원자 두 칸 세그먼트 (2026-09-11) ──
+
+   **앱의 `_RoleTabs` 를 그대로 옮긴 것이다** (mobile/lib/screens/login_screen.dart).
+   같은 사람이 두 화면을 같은 순서로 쓰므로 값이 갈리면 안 된다 — 바깥 3px 안쪽,
+   칸 높이 38px, 글자 14px w600, 모서리는 바깥과 같은 --r-ctl 이다.
+
+   탭바가 아니라 **선택**이다. 스와이프로 넘어가지 않는다 — 비밀번호를 치다가
+   손이 미끄러져 입력이 사라지면 안 된다(앱 주석과 같은 이유).
+
+   테두리까지 46px 이라 §9 터치 타깃(HIG 44x44)을 컨트롤 전체가 넘긴다 — 실측값이다. */
+.roles {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--r-ctl);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+}
+
+.role {
+  flex: 1;
+  height: 38px;
+  border: none;
+  border-radius: var(--r-ctl);
+  background: none;
+  color: var(--text-sub);
+  font-family: var(--sans);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.role:hover:not(.roleOn) {
+  background: var(--sunken-hover);
+  color: var(--text);
+}
+
+/* 켜진 칸에 테두리를 두르지 않는다 — 앱이 배경(accentSoft)만으로 가른다 */
+.roleOn {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.role:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, .12);
+}
+
+/* 생년월일 8자리. 자릿수를 세기 쉬우라고 고정폭이다 */
+.birth {
+  font-family: var(--mono);
+  letter-spacing: .08em;
+}
+
 @media (max-width: 768px) {
   .card {
     padding: var(--sp-6);
