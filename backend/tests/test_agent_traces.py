@@ -65,7 +65,7 @@ class FakeAgentResult:
 
 class TestAgentTracePersists:
     def test_llm_path_writes_one_row(self, client: TestClient, db):
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             resp = client.post("/api/v1/agent/chat", json={
                 "message": "김도현에 대해 어떻게 생각해?",  # 라우터가 안 잡는 자유 질의
                 "history": [],
@@ -92,7 +92,7 @@ class TestAgentTracePersists:
             {"role": "user", "content": "김도현 상세"},
             {"role": "assistant", "content": "..."},
         ]
-        with patch("app.api.agent.run_agent", return_value=FakeAgentResult()):
+        with patch("app.application.api.agent.run_agent", return_value=FakeAgentResult()):
             client.post("/api/v1/agent/chat", json={
                 "message": "그럼 다음 단계는?",
                 "history": history,
@@ -110,7 +110,7 @@ class TestAgentTracePersists:
             tool_results=[{"name": "search_applications", "input": {"q": "김"},
                            "output": {"count": 3}}],
         )
-        with patch("app.api.agent.run_agent", return_value=result):
+        with patch("app.application.api.agent.run_agent", return_value=result):
             client.post("/api/v1/agent/chat", json={
                 "message": "김씨 다 보여줘",
                 "history": [],
