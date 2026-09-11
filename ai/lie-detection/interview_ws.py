@@ -52,6 +52,33 @@ SAMPLE_WIDTH = 2  # 16-bit
 #
 # 실제 값은 폰 실측으로 정한다. 재배포 없이 바꿀 수 있게 환경변수로 열어 둔다.
 SILENCE_END_SEC = float(os.getenv("SILENCE_END_SEC", "3.0"))
+
+# ── 답변 끝은 지원자가 정한다 (2026-09-11 개정) ────────────────────
+# **조용해진 것만으로는 답변을 끝내지 않는다.** 3초 침묵으로 넘기던 때는 문장
+# 사이에 생각하느라 쉰 순간 끊겨 답이 반토막 나거나, 폰 스피커 소리·잡음이 질문을
+# 넘겼다(세션 57 · 59). 이제 끝은 지원자가 정한다 — [답변 완료] 를 누르거나
+# **"이상입니다"** 라고 말하거나. 위 SILENCE_END_SEC 는 담당자 화면(`/ws/live`)의
+# 말함·조용 표시에만 남는다.
+#
+# 면접 소켓에서 "멈춤" 으로 볼 침묵. 끝이 아니라 **"이상입니다" 를 확인해 볼 때**
+# 라서 짧게 잡는다 — 말한 뒤 이만큼 + 끝부분 받아쓰기(1~2초) 뒤에 넘어간다.
+PAUSE_CHECK_SEC = float(os.getenv("PAUSE_CHECK_SEC", "1.2"))
+# 멈췄을 때 받아써 볼 끝부분. 뒤의 침묵(PAUSE_CHECK_SEC)을 포함하므로 말은 약 3초치.
+END_TAIL_SEC = float(os.getenv("END_TAIL_SEC", "4.0"))
+# 답변 하나의 상한. 버튼도 "이상입니다" 도 없이 이만큼 이어지면 끊는다. 첫 말부터
+# 센다. 전사 상한(STT_TIMEOUT_SEC 180초, CPU 약 1.8배속)에 맞췄다.
+MAX_ANSWER_SEC = float(os.getenv("MAX_ANSWER_SEC", "180"))
+# "이상입니다" 로 볼 말. 띄어쓰기·문장부호는 떼고 **끝이 이것으로 끝나는지** 본다 —
+# "3초 이상입니다. 그래서…" 처럼 말 중간에 나온 것은 끝이 아니다.
+END_PHRASES = (
+    "이상입니다",
+    "이상이에요",
+    "이상입니당",
+    "이상이요",
+    "이상으로마치겠습니다",
+    "답변마치겠습니다",
+    "답변을마치겠습니다",
+)
 # 이보다 조용하면 무음으로 본다. 마이크·환경에 따라 달라서 절대값으로 두지 않고
 # 배경 소음에서 기준을 잡는다(`_SpeechDetector`).
 NOISE_MARGIN = 2.5
@@ -172,7 +199,10 @@ class _SpeechDetector:
     지원자를 못 잡는다. 어느 쪽으로도 짐작하지 않으려면 바닥값이 따라가야 한다.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, silence_sec: float | None = None) -> None:
+        # 멈춤으로 볼 침묵. None 이면 SILENCE_END_SEC(담당자 화면 `/ws/live`).
+        # 면접 소켓은 짧게 준다(PAUSE_CHECK_SEC) — 끝이 아니라 "이상입니다" 확인 시점이라
+        self._silence_sec = silence_sec
         self._noise: float | None = None
         self._calib: list[float] = []
         # (소리 크기, 그 조각의 길이[초]). 조각 크기가 달라도 창이 2초로 유지된다.
@@ -257,7 +287,7 @@ class _SpeechDetector:
                 self._speech_started = now
                 return "begin"
             if now - (self._speech_started or now) > MAX_SPEECH_SEC:
-                return self._finish()
+                return self._finish(limit=True)
             return None
 
         if not self._speaking:
@@ -265,11 +295,12 @@ class _SpeechDetector:
         if self._silence_started is None:
             self._silence_started = now
             return None
-        if now - self._silence_started >= SILENCE_END_SEC:
+        quiet_for = self._silence_sec if self._silence_sec is not None else SILENCE_END_SEC
+        if now - self._silence_started >= quiet_for:
             return self._finish()
         return None
 
-    def _finish(self) -> str | None:
+    def _finish(self, limit: bool = False) -> str | None:
         # **말이 멈춘 시점까지만 잰다.** `now` 로 재면 뒤따른 침묵이 발화 길이에
         # 섞여, 기침 0.1초 + 침묵 0.9초가 1초짜리 답변으로 둔갑한다.
         # 상한(MAX_SPEECH_SEC)으로 끊는 경우는 아직 말하는 중이라 침묵 시작이 없다.
@@ -279,7 +310,10 @@ class _SpeechDetector:
         self._silence_started = None
         self._speech_started = None
         # 너무 짧으면 답변으로 세지 않는다. 잡음이었다고 보고 계속 듣는다.
-        return "end" if spoke >= MIN_SPEECH_SEC else None
+        if spoke < MIN_SPEECH_SEC:
+            return None
+        # 'limit' 은 한 번 발화가 상한을 넘은 것 — 멈춤('end')과 달리 끊어야 한다
+        return "limit" if limit else "end"
 
     def reset(self) -> None:
         """말 상태만 지운다 — 바닥값·보정은 그대로 (`InterviewSession.force_end`)."""
@@ -389,8 +423,16 @@ class InterviewSession:
 
     def __init__(self, token: str) -> None:
         self.token = token
-        self.detector = _SpeechDetector()
+        # 면접 소켓의 감지기는 **끝이 아니라 멈춤**을 잰다 (2026-09-11) — 멈추면
+        # "이상입니다" 를 확인할 뿐 넘기지 않는다(app.py `_check_end_phrase`).
+        self.detector = _SpeechDetector(silence_sec=PAUSE_CHECK_SEC)
         self.audio: list[bytes] = []
+        # 이 답변의 첫 말 시각. 답변 하나의 상한(MAX_ANSWER_SEC)을 여기서 센다.
+        self.answer_started: float | None = None
+        # 멈출 때 도는 "이상입니다" 확인. 한 번에 하나만 돈다.
+        self.end_check: asyncio.Task | None = None
+        # 답변 하나를 끝내는 중. 그 사이 버튼 · "이상입니다" · 상한이 겹쳐도 한 번만 끝낸다.
+        self.finishing = False
         self.frames: list = []
         self._frame_count = 0
         # 말하는 동안 굴러가는 판정용. 답변이 끝날 때까지 기다리지 않는다 —
@@ -426,9 +468,30 @@ class InterviewSession:
 
     # ── 받기 ────────────────────────────────────────────────
     def add_audio(self, pcm: bytes) -> str | None:
+        """반환: 'begin' · 'end'(멈춤) · 'limit'(답변 상한) · None."""
         self.audio.append(pcm)
         self.scorer.add_audio(pcm)
-        return self.detector.feed(pcm)
+        event = self.detector.feed(pcm)
+        now = time.monotonic()
+        if event == "begin" and self.answer_started is None:
+            self.answer_started = now
+        # 쉬어 가며 길게 말하면 감지기의 한 번 발화 상한은 멈출 때마다 새로 센다 —
+        # 답변 전체는 여기서 센다
+        if self.answer_started is not None and now - self.answer_started >= MAX_ANSWER_SEC:
+            return "limit"
+        return event
+
+    def tail(self, seconds: float) -> bytes:
+        """모아 둔 소리의 끝 `seconds` 초. 멈출 때마다 부르므로 답변 전체를 잇지 않는다."""
+        need = int(seconds * SAMPLE_RATE) * SAMPLE_WIDTH
+        picked: list[bytes] = []
+        got = 0
+        for chunk in reversed(self.audio):
+            picked.append(chunk)
+            got += len(chunk)
+            if got >= need:
+                break
+        return b"".join(reversed(picked))[-need:]
 
     def add_frame(self, jpeg: bytes) -> dict | None:
         """영상 프레임. **모으지 않고 그때그때 본다** — 쌓아 두면 그게 곧 저장이다.
@@ -518,6 +581,7 @@ class InterviewSession:
         rows = self.frames
         self.audio = []
         self.frames = []
+        self.answer_started = None
         return pcm, rows
 
     def force_end(self) -> bool:
@@ -988,7 +1052,17 @@ MIN_VOICE_SEC = float(os.getenv("MIN_VOICE_SEC", "0.3"))
 
 # 밖에서 갈라 볼 계기판 (`/health`) — 넘긴 것 · 거른 것 · 못 잰 것(→ 막지 않고 넘김).
 # 질문이 안 넘어간다는 말이 나오면 `rejected` 가 느는지부터 본다.
-ANSWER_STATS = {"voiced": 0, "rejected": 0, "unmeasured": 0}
+ANSWER_STATS = {
+    "voiced": 0,
+    "rejected": 0,
+    "unmeasured": 0,
+    # 답변이 어떻게 끝났나 (2026-09-11) — [답변 완료] · "이상입니다" · 상한.
+    # "넘어가지 않는다" 는 말이 나오면 pause_checks 가 느는데 by_phrase 가 0 인지부터 본다.
+    "by_button": 0,
+    "by_phrase": 0,
+    "by_limit": 0,
+    "pause_checks": 0,
+}
 
 
 def voice_seconds(pcm: bytes) -> float | None:
@@ -1012,3 +1086,67 @@ def voice_seconds(pcm: bytes) -> float | None:
         logger.exception("목소리 재기 실패 — 막지 않고 넘긴다")
         return None
     return sum(s["end"] - s["start"] for s in spans) / SAMPLE_RATE
+
+
+def _plain(text: str) -> str:
+    """띄어쓰기·문장부호를 뗀 글. "이상 입니다." 와 "이상입니다" 를 같게 본다."""
+    import re
+
+    return re.sub(r"[\s.,!?·…~'\"]", "", text or "")
+
+
+def ends_with_phrase(text: str) -> bool:
+    """받아쓴 글이 "이상입니다" 류로 **끝나는가** (`END_PHRASES`)."""
+    plain = _plain(text)
+    return bool(plain) and any(plain.endswith(p) for p in END_PHRASES)
+
+
+def strip_end_phrase(text: str) -> str:
+    """저장할 답변에서 끝의 "이상입니다" 를 뗀다 — 답변 내용이 아니라 신호다.
+
+    끝에 붙은 것만 뗀다. "이상한 점은…" 이나 말 중간의 "이상입니다" 는 그대로 둔다.
+    """
+    import re
+
+    if not text:
+        return text
+    alts = "|".join(r"\s*".join(map(re.escape, p)) for p in END_PHRASES)
+    # 앞 문장의 마침표는 남긴다 — "붙였습니다. 이상입니다." → "붙였습니다."
+    # 쉼표로 이어 붙인 것("…습니다, 이상입니다")은 쉼표까지 뗀다
+    stripped = re.sub(rf"\s*(?:{alts})[\s.,!?·…~]*$", "", text)
+    return stripped.rstrip(" ,·~").strip()
+
+
+def says_done(pcm: bytes) -> bool | None:
+    """발화 끝부분에 "이상입니다" 가 있나. 못 재면 None — 그때는 버튼·상한만 남는다.
+
+    **전사 줄(`_stt_running`)에 서지 않는다.** 앞 답변의 긴 전사가 몇 분씩 도는
+    동안 이 확인이 뒤에 서면 "이상입니다" 가 몇 분 늦게 먹는다. 끝부분 몇 초라
+    CPU 로 1~2초이고, faster-whisper 는 동시 호출을 조각 단위로 번갈아 돌린다.
+    질문 힌트(`initial_prompt`)는 주지 않는다 — 찾는 것은 정해진 한 마디다.
+    """
+    if not STT_MODEL:
+        return None
+    model = _stt_model()
+    if model is None:
+        return None
+    need = int(END_TAIL_SEC * SAMPLE_RATE) * SAMPLE_WIDTH
+    tail = pcm[-need:]
+    usable = len(tail) - (len(tail) % SAMPLE_WIDTH)
+    if usable == 0:
+        return False
+    audio = np.frombuffer(tail[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+    try:
+        segments, _ = model.transcribe(
+            audio,
+            language=STT_LANGUAGE or None,
+            beam_size=1,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            without_timestamps=True,
+        )
+        text = " ".join(s.text.strip() for s in segments)
+    except Exception:
+        logger.exception("'이상입니다' 확인 실패 — 버튼·상한으로만 끝난다")
+        return None
+    return ends_with_phrase(text)

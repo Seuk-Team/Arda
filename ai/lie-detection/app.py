@@ -47,6 +47,8 @@ from interview_ws import (
     score,
     submit_answer,
     transcribe_async,
+    says_done,
+    strip_end_phrase,
     voice_seconds,
     warm_stt,
 )
@@ -414,9 +416,42 @@ async def _on_binary(ws, client, session: InterviewSession, data: bytes) -> None
     if event == "begin":
         await ws.send_json({"type": "listening"})
         return
+    if event == "limit":
+        # 답변 하나가 상한(MAX_ANSWER_SEC)을 넘었다 — 버튼도 "이상입니다" 도 없으니 끊는다
+        if not session.finishing:
+            iw.ANSWER_STATS["by_limit"] += 1
+            await _finish_answer(ws, client, session)
+        return
     if event != "end":
         return
-    await _finish_answer(ws, client, session)
+    # **말이 멈춘 것만으로는 넘기지 않는다** (2026-09-11). 3초 침묵으로 넘기던 때는
+    # 문장 사이에 쉰 순간 답이 반토막 나고, 폰 스피커 소리가 질문을 넘겼다. 끝부분에
+    # "이상입니다" 가 있는지만 뒤에서 본다 — 보는 동안에도 소리는 계속 받는다.
+    if session.end_check is None or session.end_check.done():
+        session.end_check = asyncio.create_task(_check_end_phrase(ws, client, session))
+
+
+async def _check_end_phrase(ws, client, session: InterviewSession) -> None:
+    """멈춘 순간의 끝부분에 "이상입니다" 가 있으면 그 답변을 끝낸다."""
+    iw.ANSWER_STATS["pause_checks"] += 1
+    seq = session.current_seq()
+    try:
+        done = await asyncio.to_thread(says_done, session.tail(iw.END_TAIL_SEC))
+    except Exception:
+        logger.exception("'이상입니다' 확인 실패: token=%s", session.token[:8])
+        return
+    if not done:
+        return
+    # 확인하는 사이 버튼으로 이미 넘어갔으면 두 번 넘기지 않는다
+    if session.finishing or session.current_seq() != seq or not session.audio:
+        return
+    iw.ANSWER_STATS["by_phrase"] += 1
+    logger.info("'이상입니다' 로 답변을 끝낸다: token=%s seq=%s", session.token[:8], seq)
+    session.detector.reset()
+    try:
+        await _finish_answer(ws, client, session)
+    except Exception:
+        logger.exception("'이상입니다' 뒤 답변 처리 실패: token=%s", session.token[:8])
 
 
 
@@ -452,6 +487,20 @@ async def _refresh_questions(client, session: InterviewSession) -> dict | None:
 
 
 async def _finish_answer(ws, client, session: InterviewSession) -> None:
+    """답변 하나를 끝낸다 — **한 번만.** 끝내는 길이 셋이라(버튼 · "이상입니다" ·
+    상한) 겹칠 수 있다. 끝내는 동안 온 두 번째는 버린다 — 그렇지 않으면 방금 비운
+    버퍼의 몇 조각이 같은 질문의 두 번째 답이 되어 "말이 들리지 않았어요" 가 뜬다.
+    """
+    if session.finishing:
+        return
+    session.finishing = True
+    try:
+        await _end_answer(ws, client, session)
+    finally:
+        session.finishing = False
+
+
+async def _end_answer(ws, client, session: InterviewSession) -> None:
     """말이 끝났다. **전사를 기다리지 않고 다음 질문을 보낸다.**
 
     침묵 감지(`feed` 의 `end`)와 지원자의 [답변 완료](`{"type":"end"}`, 2026-09-09)
@@ -550,6 +599,8 @@ async def _transcribe_pump(client, session: InterviewSession) -> None:
                 transcript = await transcribe_async(pcm, hint_of(session.questions))
             finally:
                 session.transcribing = False
+            # "이상입니다" 는 답변 내용이 아니라 끝 신호다 — 저장 전에 뗀다 (2026-09-11)
+            transcript = strip_end_phrase(transcript)
             if not transcript:
                 # **이 칸은 빈칸으로 남는다.** 전에는 "다시 답변해 주세요" 를 띄웠는데,
                 # 다음 질문이 이미 나간 뒤라 그럴 수 없다. 담당자가 빈칸을 보고
@@ -582,6 +633,7 @@ async def _answer_and_advance(ws, client, session, pcm, rows) -> None:
         transcript = await transcribe_async(pcm, hint_of(session.questions))
     finally:
         session.transcribing = False
+    transcript = strip_end_phrase(transcript)
     if not transcript:
         logger.info("전사 결과가 비어 답변으로 세지 않는다: token=%s", session.token[:8])
         await ws.send_json(
@@ -676,10 +728,12 @@ async def _on_text(ws, client, session: InterviewSession, text: str) -> None:
     if kind == "ping":
         await ws.send_json({"type": "pong"})
     elif kind == "end":
-        # 지원자가 [답변 완료] 를 눌렀다 (PROTOCOL.md). 침묵 3초를 기다리지 않는다 —
-        # 바닥 소음이 높은 환경(WebRTC 가 마이크를 같이 잡는 앱)에선 그 3초가 거의
-        # 안 나와 답변이 영영 안 넘어갔다(2026-09-09 실기기).
+        # 지원자가 [답변 완료] 를 눌렀다 (PROTOCOL.md). 2026-09-11 부터 침묵으로는
+        # 넘어가지 않으므로, 이것과 "이상입니다" 가 답변을 끝내는 두 길이다.
+        if session.finishing:
+            return  # 이미 끝내는 중 — "이상입니다" 와 버튼이 겹쳤다
         if session.force_end():
+            iw.ANSWER_STATS["by_button"] += 1
             await _finish_answer(ws, client, session)
         else:
             await ws.send_json(

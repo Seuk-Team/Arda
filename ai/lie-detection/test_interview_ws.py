@@ -250,6 +250,46 @@ class TestVoiceSeconds:
         assert iw.voice_seconds(LOUD * 20) is None
 
 
+class TestEndPhrase:
+    """"이상입니다" 로 답변을 끝낸다 (2026-09-11)."""
+
+    def test_이상입니다로_끝나면_찾는다(self):
+        assert iw.ends_with_phrase("네 그렇게 했습니다. 이상입니다.")
+        assert iw.ends_with_phrase("이상 입니다")
+        assert iw.ends_with_phrase("이상으로 답변 마치겠습니다")
+
+    def test_말_중간이나_비슷한_말은_아니다(self):
+        """끝이 아니면 끝이 아니다 — "3초 이상입니다. 그래서…" 는 계속 말하는 중이다."""
+        assert not iw.ends_with_phrase("기준은 3초 이상입니다 그래서 바꿨습니다")
+        assert not iw.ends_with_phrase("이상한 점은 없었습니다")
+        assert not iw.ends_with_phrase("")
+
+    def test_저장할_때는_끝의_것만_뗀다(self):
+        assert iw.strip_end_phrase("캐시를 붙였습니다. 이상입니다.") == "캐시를 붙였습니다."
+        assert iw.strip_end_phrase("캐시를 붙였습니다 이상 입니다") == "캐시를 붙였습니다"
+        assert iw.strip_end_phrase("이상입니다") == ""
+        assert iw.strip_end_phrase("이상한 점은 없었습니다") == "이상한 점은 없었습니다"
+        assert iw.strip_end_phrase("[전사 지연 · 발화 8.9초]") == "[전사 지연 · 발화 8.9초]"
+
+    def test_전사가_꺼져_있으면_모른다(self, monkeypatch):
+        """None 이면 버튼·상한만 남는다 — "이상입니다" 가 없다고 면접이 멈추지 않는다."""
+        monkeypatch.setattr(iw, "STT_MODEL", "")
+        assert iw.says_done(LOUD * 20) is None
+
+    def test_면접_소켓은_멈춤을_짧게_잰다(self):
+        """끝이 아니라 확인 시점이라 짧다. 담당자 화면용 감지기는 그대로다."""
+        s = iw.InterviewSession("tok")
+        assert s.detector._silence_sec == iw.PAUSE_CHECK_SEC
+        assert iw._SpeechDetector()._silence_sec is None
+
+    def test_끝부분은_요청한_길이만큼(self):
+        s = iw.InterviewSession("tok")
+        for _ in range(200):
+            s.audio.append(LOUD)                     # 10초
+        tail = s.tail(2.0)
+        assert len(tail) == int(2.0 * iw.SAMPLE_RATE) * iw.SAMPLE_WIDTH
+
+
 class TestNoiseFloor:
     """2026-09-08 운영 사고 회귀 시험.
 
