@@ -1049,3 +1049,94 @@ class TestTurnFindingsHook:
         monkeypatch.setenv("AGENT_FINDINGS_BACKEND", "ollama")
         body = client.get(f"/api/v1/interview-sessions/{running.id}").json()
         assert body["findings_enabled"] is True
+
+
+class _SameSession:
+    """배경 태스크가 **테스트 세션을 그대로 쓰게** 한다.
+
+    `seed_questions_bg` · `generate_followup_bg` 는 자기 `SessionLocal()` 을 연다.
+    테스트 픽스처의 트랜잭션은 커밋되지 않으므로 새 연결에서는 방금 만든 세션이
+    보이지 않고, 배경 함수가 "세션 없음" 으로 조용히 빠져나간다 — 그러면 상한
+    검증이 **거짓 통과**한다 (실제로 그렇게 통과했다). 닫지도 않는다: 닫으면
+    이후 단정에서 쓸 세션이 사라진다.
+    """
+
+    def __init__(self, session):
+        self._session = session
+
+    def __enter__(self):
+        return self._session
+
+    def __exit__(self, *exc):
+        return False
+
+
+class TestQuestionCounts:
+    """질문 수 상한 — 사전 4개 · 꼬리 3개 (2026-09-12 팀장 요청).
+
+    **왜 상한이 필요한가**: 사전 질문 10개 + 답변마다 붙는 꼬리질문이면 한 면접이
+    20문항을 넘어간다. 지원자가 지치고 시연에서는 끝까지 못 간다. 상한이 조용히
+    풀리면 그대로 재발하므로 숫자를 테스트로 못 박는다.
+    """
+
+    def test_사전_질문은_4개까지(self, db: Session, application, admin_user, monkeypatch):
+        from app.interview import session_service
+
+        s = _session(db, application, admin_user, token="tok-seed")
+        monkeypatch.setattr("app.db.SessionLocal", lambda: _SameSession(db))
+
+        # 주장 5개 × 질문 2개 = 10개를 주더라도 4개로 잘려야 한다
+        claims = [
+            {"claim": f"주장 {i}", "type": "역할", "questions": [f"질문 {i}-1", f"질문 {i}-2"]}
+            for i in range(5)
+        ]
+        monkeypatch.setattr(
+            "app.agent.interview_probe.sources_of",
+            lambda app, db=None: {"cover_letter": "글이 있다", "resume": "", "requirements": ""},
+        )
+        monkeypatch.setattr("app.agent.interview_probe.generate_probes", lambda s: claims)
+
+        session_service.seed_questions_bg(s.id)
+
+        rows = (
+            db.query(InterviewTurn)
+            .filter(InterviewTurn.session_id == s.id)
+            .order_by(InterviewTurn.seq)
+            .all()
+        )
+        assert len(rows) == session_service.MAX_SEED_QUESTIONS == 4, [r.question for r in rows]
+        # 주장별 첫 질문이 먼저 채워진다 — 같은 주장을 두 번 묻지 않는다
+        assert [r.question for r in rows] == ["질문 0-1", "질문 1-1", "질문 2-1", "질문 3-1"]
+
+    def test_꼬리질문은_3개까지(self, db: Session, application, admin_user, monkeypatch):
+        from app.interview import session_service
+
+        s = _session(db, application, admin_user, token="tok-follow", status="in_progress")
+        base = _question(db, s, seq=1)
+        base.transcript = "결제 정산 API 를 맡아 응답 시간을 절반으로 줄였습니다"
+        # 이미 상한만큼 꼬리질문이 있다
+        for i in range(session_service.MAX_FOLLOWUPS_PER_SESSION):
+            db.add(InterviewTurn(
+                session_id=s.id, seq=10 + i, question=f"꼬리 {i}",
+                generated_from_turn_id=base.id,
+            ))
+        db.flush()
+        monkeypatch.setattr("app.db.SessionLocal", lambda: _SameSession(db))
+
+        called: list[str] = []
+        monkeypatch.setattr(
+            "app.agent.interview_probe.probe_from_answer",
+            lambda **kw: called.append("x") or "새 꼬리질문",
+        )
+        session_service.generate_followup_bg(s.id, base.id)
+
+        assert called == [], "상한을 넘었는데 LLM 을 불렀다"
+        n = (
+            db.query(InterviewTurn)
+            .filter(
+                InterviewTurn.session_id == s.id,
+                InterviewTurn.generated_from_turn_id.is_not(None),
+            )
+            .count()
+        )
+        assert n == session_service.MAX_FOLLOWUPS_PER_SESSION == 3

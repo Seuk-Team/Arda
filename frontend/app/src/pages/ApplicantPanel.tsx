@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../api/client'
-import { applications, aptitude as aptitudeApi, evaluations, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
+import { agent as agentApi, applications, aptitude as aptitudeApi, evaluations, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
 import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import IntegrityBadge from '../components/IntegrityBadge'
@@ -409,6 +409,35 @@ function OverviewTab({
   startRating: boolean
 }) {
   const [postingTitle, setPostingTitle] = useState<string | null>(null)
+  /* 요약 재생성 (2026-09-12) — **버튼에 핸들러가 없어 눌러도 아무 일도 일어나지
+     않았다.** 서버 로그에도 요청이 한 건도 없었다. 재생성은 LLM 을 부르는 자리라
+     몇 초 걸리므로 진행 중임을 보이고, 실패 사유를 갈라 말한다 (503 백엔드 문제 ·
+     422 응답을 못 읽음). 성공하면 상세를 다시 읽어 새 요약을 띄운다. */
+  const [regenerating, setRegenerating] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+
+  const regenerateSummary = useCallback(async () => {
+    setRegenerating(true)
+    setSummaryError(null)
+    try {
+      await agentApi.regenerateSummary(applicationId)
+      onScored() /* 부모의 reloadDetail — 새 요약을 받아 다시 그린다 */
+    } catch (e: unknown) {
+      if (e instanceof ApiError) {
+        setSummaryError(
+          e.status === 503
+            ? '요약 백엔드를 쓸 수 없습니다 (모델·키 설정 확인)'
+            : e.status === 422
+              ? '요약을 만들지 못했습니다 — 잠시 후 다시 시도해 주세요'
+              : `요약 재생성 실패 (${e.status})`,
+        )
+      } else {
+        setSummaryError('요약 재생성 실패 — 네트워크를 확인해 주세요')
+      }
+    } finally {
+      setRegenerating(false)
+    }
+  }, [applicationId, onScored])
 
   useEffect(() => {
     /* 지원자가 바뀌면 detail 이 null 이 되며 OverviewTab 이 통째로 언마운트되므로
@@ -432,8 +461,16 @@ function OverviewTab({
         <>
           <div className={styles.secRow2}>
             <p className={styles.secLabel}>아르의 요약</p>
-            <button type="button" className={styles.linkBtn}>다시 생성</button>
+            <button
+              type="button"
+              className={styles.linkBtn}
+              onClick={regenerateSummary}
+              disabled={regenerating}
+            >
+              {regenerating ? '생성 중…' : '다시 생성'}
+            </button>
           </div>
+          {summaryError && <p className={styles.err}>{summaryError}</p>}
           {/* 테두리를 두르지 않는다 — 카드 안에 또 박스가 있으면 선이 겹친다.
               구분선만으로 충분하다 */}
           <AiSummaryBody raw={detail.ai_summary} />

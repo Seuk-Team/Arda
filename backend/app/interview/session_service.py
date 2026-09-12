@@ -32,6 +32,23 @@ DEFAULT_QUESTIONS = (
     "입사하면 가장 먼저 하고 싶은 일은 무엇인가요?",
 )
 
+# 면접 시작 전 미리 넣는 질문 수 (2026-09-12, 팀장 요청: 10 → 4).
+#
+# **왜 줄이나**: 사전 질문 10개 + 답변마다 붙는 꼬리질문이면 한 면접이 20문항을
+# 넘어간다. 지원자가 지치고, 시연에서는 끝까지 못 간다. 꼬리질문이 답변을 파고드는
+# 역할을 하므로 사전 질문은 **주제를 넓게 여는 쪽**으로 적게 둔다.
+#
+# `generate_probes` 는 주장별 첫 질문을 먼저 채우므로(interview_probe.py), 4개면
+# **서로 다른 주장 4개**를 각각 하나씩 묻는 모양이 된다 — 같은 주장을 두 번 묻는
+# 것보다 낫다.
+MAX_SEED_QUESTIONS = 4
+
+# 한 면접에서 만들 꼬리질문 상한 (2026-09-12, 팀장 요청).
+#
+# 답변마다 하나씩 무제한으로 붙으면 면접이 안 끝난다. 상한을 넘으면 그냥 안 만든다
+# — 실패가 아니라 정상 종료다 (`generate_followup_bg`).
+MAX_FOLLOWUPS_PER_SESSION = 3
+
 # 위 발급 경로가 만든 모양만 받는다. 클라이언트가 준 키를 그냥 믿으면
 # `applications/<남의 uuid>/resume.pdf` 를 답변이라고 보내 **남의 이력서를 읽어
 # 전사**시킬 수 있다 — 서버가 S3 를 대신 읽어 주는 경로라 그대로 유출이 된다.
@@ -98,7 +115,7 @@ def seed_questions_bg(session_id: int) -> None:
                         qs = c.get("questions") or []
                         if i < len(qs):
                             questions.append(qs[i].strip())
-                questions = [q for q in questions if q][:10]
+                questions = [q for q in questions if q][:MAX_SEED_QUESTIONS]
 
         if not questions:
             questions = list(DEFAULT_QUESTIONS)
@@ -200,6 +217,24 @@ def generate_followup_bg(session_id: int, prev_turn_id: int) -> None:
         prev = db.get(InterviewTurn, prev_turn_id)
         if prev is None or prev.transcript is None:
             return  # 사라졌거나 아직 전사 안 됨
+
+        # 상한을 넘었으면 만들지 않는다 (2026-09-12). 답변마다 하나씩 무제한으로
+        # 붙으면 면접이 안 끝난다. `generated_from_turn_id` 가 있는 턴이 곧
+        # 꼬리질문이다 — 사전 질문(0016)은 그 칸이 비어 있다.
+        made = (
+            db.query(InterviewTurn)
+            .filter(
+                InterviewTurn.session_id == session_id,
+                InterviewTurn.generated_from_turn_id.is_not(None),
+            )
+            .count()
+        )
+        if made >= MAX_FOLLOWUPS_PER_SESSION:
+            logger.info(
+                "꼬리질문 상한 도달 — 생성 건너뜀: session=%s (이미 %s개)",
+                session_id, made,
+            )
+            return
 
         # 지원자 요약이 있으면 문맥에 넣는다. 없어도 답변만으로 굴러간다.
         summary = ""
