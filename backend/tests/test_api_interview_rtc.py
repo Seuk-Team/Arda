@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -468,3 +469,51 @@ class TestVerdictFromWorker:
             f"/api/v1/internal/interview/{s.token}/verdict", json={"truth_pct": 50.0}
         )
         assert r.status_code == 401
+
+
+class TestSessionDeletedClosesRoom:
+    """세션을 지우면 그 방에 앉아 있던 사람이 **이유를 듣고** 끊긴다.
+
+    `delete_session` 독스트링은 오래전부터 "지원자가 접속 중이어도 방이 닫힐 뿐"
+    이라고 적어 뒀지만 **닫는 코드가 없었다** (2026-09-12 확인). 실제로 시연
+    테스트에서 담당자가 62번 방을 열어 둔 채 다른 탭에서 62번을 지우고 63번을
+    새로 만들었고, 방 키가 세션 토큰이라 담당자(62번 방)와 지원자(63번 방)가
+    서로를 못 봤다. 담당자 화면에는 "연결 안 됨" 만 떴다.
+    """
+
+    def test_방에_있으면_session_deleted_를_받고_끊긴다(
+        self, client, as_user, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user, token="tok-del")
+        session_id = s.id
+
+        with client.websocket_connect("/api/v1/ws/interview/tok-del/rtc") as ws:
+            assert ws.receive_json()["type"] == "hello"
+
+            res = as_user(admin_user).delete(f"/api/v1/interview-sessions/{session_id}")
+            assert res.status_code == 204
+
+            # 방 닫기는 **다른 스레드의 루프**에서 일어난다 (동기 라우터 → WS 루프).
+            # 먼저 방이 사라지는지를 보고 넘어간다 — 이 순서가 아니면 수정이
+            # 빠졌을 때 `receive_json()` 이 영원히 기다려 테스트가 매달린다.
+            for _ in range(100):
+                if "tok-del" not in interview_rtc._ROOMS:
+                    break
+                time.sleep(0.02)
+            assert "tok-del" not in interview_rtc._ROOMS, (
+                "세션을 지웠는데 방이 남아 있다 — 담당자 연결이 좀비로 남는다"
+            )
+
+            msg = ws.receive_json()
+            assert msg["type"] == "error"
+            assert msg["code"] == "session_deleted"
+            assert "삭제" in msg["message"]
+
+    def test_아무도_없으면_삭제만_조용히_끝난다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """방이 없을 때 방 닫기가 삭제를 실패시키면 안 된다."""
+        s = _session(db, application, admin_user, token="tok-empty")
+        res = as_user(admin_user).delete(f"/api/v1/interview-sessions/{s.id}")
+        assert res.status_code == 204
+        assert "tok-empty" not in interview_rtc._ROOMS

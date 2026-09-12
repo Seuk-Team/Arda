@@ -1,5 +1,6 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import { applications, interviews, postings } from '../api/endpoints'
 import type { InterviewFinding, InterviewSessionDetail } from '../api/types'
 import styles from './InterviewRoom.module.css'
@@ -263,6 +264,12 @@ export default function InterviewRoom() {
   /* 누구를 면접하는지. 세션 상세에는 이름이 없어 지원자를 한 번 더 읽는다. */
   const [who, setWho] = useState<{ name: string; posting: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  /* 이 세션이 사라졌다 (담당자가 지웠다). **폴링을 멈추고 알린다.**
+     2026-09-12: 지운 세션을 3초마다 계속 조회해 404 를 받으면서 화면은 "연결
+     안 됨" 만 보여 줬다. 지원자는 새로 만든 세션 방에 들어가 있었는데 담당자는
+     사라진 방에 앉아 이유를 알 수 없었다 — 51회까지 404 를 세고도 아무 말이
+     없었다. 방이 없어진 것과 안 붙는 것은 다른 일이고, 화면이 그걸 말해야 한다. */
+  const [gone, setGone] = useState(false)
 
   useEffect(() => {
     if (!valid) return
@@ -281,9 +288,11 @@ export default function InterviewRoom() {
           /* 이름을 못 읽어도 면접은 된다 */
         }
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         /* 상세를 못 읽어도 면접 자체는 된다 — 질문 목록만 안 보인다.
-           여기서 화면을 막으면 붙을 수 있는 면접을 못 하게 만든다. */
+           여기서 화면을 막으면 붙을 수 있는 면접을 못 하게 만든다.
+           **단 404 는 다르다** — 세션이 없으면 붙을 방도 없다. */
+        if (e instanceof ApiError && e.status === 404) setGone(true)
       })
     return () => ac.abort()
   }, [id, valid])
@@ -293,21 +302,26 @@ export default function InterviewRoom() {
      붙인다. **폴링이 심하지 않은 이유**: 면접이 도는 동안만 돌고, 응답은 세션
      한 개(질문 목록·답변)라 서버 부담이 작다. */
   useEffect(() => {
-    if (!valid) return
+    if (!valid || gone) return
     const ac = new AbortController()
     const timer = window.setInterval(() => {
       interviews
         .detail(id, ac.signal)
         .then(setDetail)
-        .catch(() => {
-          /* 한 번 실패해도 다음 주기를 기다린다 */
+        .catch((e: unknown) => {
+          /* 한 번 실패해도 다음 주기를 기다린다 — **404 만 예외다.**
+             세션이 지워졌으면 다음 주기도 404 다. 계속 두드리면 서버 로그가
+             404 로 덮이고 화면은 아무 말도 하지 않는다. */
+          if (e instanceof ApiError && e.status === 404) setGone(true)
         })
     }, 3000)
     return () => {
       window.clearInterval(timer)
       ac.abort()
     }
-  }, [id, valid])
+    /* `gone` 이 의존성에 있어야 **404 를 본 순간 인터벌이 걷힌다.** 빼 두면
+       effect 가 다시 안 돌아 3초 폴링이 그대로 계속된다 (이 버그의 핵심). */
+  }, [id, valid, gone])
 
   const copyLink = useCallback(async () => {
     if (!detail?.url) return
@@ -325,6 +339,27 @@ export default function InterviewRoom() {
       <div className={styles.page}>
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>잘못된 주소입니다</h2>
+        </div>
+      </div>
+    )
+  }
+
+  /* 세션이 사라졌으면 **여기서 멈춘다.** 붙을 방이 없는데 화면만 "연결 중" 으로
+     두면 담당자가 원인을 못 찾는다. 지원자는 보통 새로 만든 세션 링크로 들어와
+     있으므로, 그 세션 방으로 다시 들어가라고 말해 준다 (2026-09-12 시연 사고). */
+  if (gone) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>이 면접 세션이 없습니다</h2>
+          <p>
+            세션이 삭제됐거나 다른 세션으로 교체됐습니다. 지원자 화면은 <b>새 세션의
+            링크</b>를 쓰므로, 지원자 상세로 돌아가 <b>현재 세션의 면접방</b>으로 다시
+            들어가 주세요.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={() => navigate(-1)}>
+            지원자 상세로 돌아가기
+          </button>
         </div>
       </div>
     )
