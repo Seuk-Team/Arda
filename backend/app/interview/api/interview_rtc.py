@@ -169,6 +169,11 @@ class Room:
 
     peers: dict[str, WebSocket] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # 이 방을 만든 이벤트 루프. **동기 라우터(다른 스레드)에서 방을 닫으려면**
+    # 루프를 알아야 한다 — FastAPI 는 `def` 엔드포인트를 스레드풀에서 돌리므로
+    # 그 스레드에는 실행 중인 루프가 없다. 방은 WS 핸들러(=루프 안)에서만
+    # 만들어지니 그때 붙여 둔다. `close_room_from_thread` 가 쓴다.
+    loop: asyncio.AbstractEventLoop | None = None
 
 
 _ROOMS: dict[str, Room] = {}
@@ -271,6 +276,7 @@ async def interview_rtc(
     await websocket.accept()
 
     room = _ROOMS.setdefault(token, Room())
+    room.loop = asyncio.get_running_loop()  # 동기 라우터가 방을 닫을 때 쓴다
     async with room.lock:
         old = room.peers.get(role)
         room.peers[role] = websocket
@@ -338,6 +344,52 @@ async def interview_rtc(
         remaining = room.peers.get(peer_role)
         if remaining is not None:
             await _send(remaining, {"type": "peer-leave", "role": role})
+
+
+async def close_room(token: str, *, code: str, message: str) -> int:
+    """방을 닫고 앉아 있던 사람 전원에게 이유를 알린다. 닫은 연결 수.
+
+    **왜 필요한가** (2026-09-12): 담당자가 면접 세션을 지워도 그 방에 붙어 있던
+    WebSocket 은 그대로 남았다. `delete_session` 독스트링은 "지원자가 접속 중이어도
+    방이 닫힐 뿐"이라고 적어 뒀지만 **닫는 코드가 없었다.**
+
+    실제로 09-12 시연 테스트에서: 담당자가 62번 방을 열어 둔 채 다른 탭에서 62번을
+    지우고 63번을 새로 만들었다. 방 키가 세션 토큰이라 담당자는 사라진 62번 방에,
+    지원자는 63번 방에 앉아 서로를 못 봤다. 담당자 화면에는 "연결 안 됨" 만 떴고
+    원인을 알 길이 없었다 — 이제 그 순간 방이 닫히며 이유가 전달된다.
+    """
+    room = _ROOMS.pop(token, None)
+    if room is None:
+        return 0
+    async with room.lock:
+        peers = list(room.peers.values())
+        room.peers.clear()
+    for ws in peers:
+        await _send(ws, {"type": "error", "code": code, "message": message})
+        try:
+            await ws.close(code=4404)
+        except RuntimeError:
+            pass
+    return len(peers)
+
+
+def close_room_from_thread(token: str, *, code: str, message: str) -> bool:
+    """동기 라우터에서 방을 닫는다. 예약했으면 True.
+
+    `def` 엔드포인트는 스레드풀에서 돌아 실행 중인 루프가 없다. 그래서 방을 만든
+    루프(`Room.loop`)에 코루틴을 던진다. 닫을 방이 없으면(아무도 안 붙어 있으면)
+    그냥 False — **그것 때문에 삭제가 실패하면 안 된다.**
+    """
+    room = _ROOMS.get(token)
+    if room is None or room.loop is None:
+        return False
+    try:
+        asyncio.run_coroutine_threadsafe(
+            close_room(token, code=code, message=message), room.loop
+        )
+    except RuntimeError:  # 루프가 이미 닫혔다 — 서버가 내려가는 중
+        return False
+    return True
 
 
 async def push_to_recruiter(token: str, payload: dict) -> bool:

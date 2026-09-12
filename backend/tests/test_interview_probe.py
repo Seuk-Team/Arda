@@ -194,3 +194,60 @@ class TestResumeSource:
         claims = _run(_ONE_CLAIM)
         assert len(claims) == 1
         assert claims[0]["source"] == "자기소개서"
+
+
+class TestTruncatedResponse:
+    """`max_tokens` 로 잘린 응답 — **완성된 주장만 건져 쓴다.**
+
+    2026-09-12 프로덕션: 이력서가 촘촘한 지원자에서 응답이 상한(당시 1200)에 걸려
+    잘렸고, 잘린 JSON 은 파싱이 안 되니 개인화 질문이 통째로 날아가 폴백 3개
+    ("성함과 지원하신 직무를…") 로 떨어졌다. **같은 지원자인데 실행마다 갈렸다** —
+    세션 63은 10개(개인화), 19분 뒤 세션 64는 3개(폴백). 상한 근처에서는 응답 길이
+    편차가 곧 동전 던지기가 된다.
+
+    상한을 올렸고(2400), 그래도 잘리면 건져 쓴다 — 5개 중 3개가 멀쩡하면 그 3개로
+    면접을 볼 수 있고, 그게 일반 질문 3개보다 낫다.
+    """
+
+    def _cut(self, text: str, tail: int) -> str:
+        return text[: len(text) - tail]
+
+    def test_잘린_응답에서_완성된_주장을_건진다(self):
+        full = _claims("주장 0", "주장 1", "주장 2")
+        got = _run3(self._cut(full, 40))  # 마지막 주장을 도중에 자른다
+
+        assert got is not None, "건질 수 있는데 None 을 냈다 — 폴백으로 떨어진다"
+        assert len(got) >= 1
+        assert got[0]["claim"] == "주장 0"
+
+    def test_첫_주장도_못_끝냈으면_None(self):
+        """진짜로 못 읽은 것은 None 이어야 한다 — 빈 리스트와 구분된다."""
+        full = _claims("주장 0")
+        assert _run3(self._cut(full, 60)) is None
+
+    def test_인용문_속_중괄호에_속지_않는다(self):
+        """중괄호를 세는 방식이면 여기서 깨진다."""
+        cover = COVER + " 설정은 {json} 형식입니다"
+        full = json.dumps(
+            {
+                "claims": [
+                    {"claim": "설정은 {json} 형식입니다", "type": "기술", "questions": ["가", "나"]},
+                    {"claim": "주장 1", "type": "역할", "questions": ["다", "라"]},
+                ]
+            },
+            ensure_ascii=False,
+        )
+        got = _run3(self._cut(full, 35), cover=cover)
+
+        assert got is not None
+        assert got[0]["claim"] == "설정은 {json} 형식입니다"
+
+    def test_멀쩡한_응답은_그대로_간다(self):
+        got = _run3(_claims("주장 0", "주장 1"))
+        assert got is not None and len(got) == 2
+
+    def test_상한이_충분히_높다(self):
+        """상한이 다시 내려가면 같은 사고가 난다."""
+        from app.agent.interview_probe import PROBE_MAX_TOKENS
+
+        assert PROBE_MAX_TOKENS >= 2000, "주장 5개 × 질문 2개 + 인용이 들어갈 여유가 필요하다"

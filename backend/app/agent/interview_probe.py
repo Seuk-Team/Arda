@@ -20,7 +20,17 @@ logger = logging.getLogger(__name__)
 _WS = re.compile(r"\s+")
 _QUOTES = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'"})
 
-PROBE_MAX_TOKENS = 1200
+# 주장 5개 × 질문 2개 + 인용까지 한 JSON 이 들어갈 상한.
+#
+# **1200 이었다가 2026-09-12 에 올렸다.** 이력서가 촘촘한 지원자(류성민 · 수치·이관·
+# ADR 이력이 많은 글)에서 응답이 상한에 걸려 잘리고, 잘린 JSON 은 파싱이 안 되니
+# 폴백 3개("성함과 지원하신 직무를…")로 떨어졌다. **같은 지원자인데 실행마다
+# 갈렸다** — 세션 63은 10개(개인화), 19분 뒤 세션 64는 3개(폴백). 응답 길이가
+# 실행마다 달라서 상한 근처에서는 동전 던지기가 된다.
+#
+# max_tokens 는 **상한**이라 올려도 짧은 응답의 비용은 그대로다. 긴 응답만
+# 잘리지 않고 끝난다. 아래 `_salvage_claims` 가 2차 안전망이다.
+PROBE_MAX_TOKENS = 2400
 
 MAX_CLAIMS = 5
 QUESTIONS_PER_CLAIM = 2
@@ -234,6 +244,36 @@ def _fingerprint(text: str) -> str:
     return _WS.sub("", text.translate(_QUOTES))
 
 
+def _salvage_claims(s: str) -> list[dict] | None:
+    """`max_tokens` 로 잘린 JSON 에서 **완성된 claim 객체만** 꺼낸다. 없으면 None.
+
+    `json.JSONDecoder.raw_decode` 로 객체를 하나씩 읽는다 — 중괄호를 세는 방식은
+    인용문 안의 `{`·`}` 에 속는다. 마지막(잘린) 객체에서 멈추고 그 앞까지만 쓴다.
+    """
+    head = s.find('"claims"')
+    if head == -1:
+        return None
+    start = s.find("[", head)
+    if start == -1:
+        return None
+
+    decoder = json.JSONDecoder()
+    objs: list[dict] = []
+    i = start + 1
+    while i < len(s):
+        while i < len(s) and s[i] in " \t\r\n,":
+            i += 1
+        if i >= len(s) or s[i] != "{":
+            break
+        try:
+            obj, i = decoder.raw_decode(s, i)
+        except json.JSONDecodeError:
+            break  # 여기서 잘렸다 — 앞까지가 멀쩡한 것이다
+        if isinstance(obj, dict):
+            objs.append(obj)
+    return objs or None
+
+
 def _parse_claims(raw: str, cover: str, resume: str) -> list[dict] | None:
     """`{"claims": [...]}` 를 꺼내 정제한다. 못 읽으면 None.
 
@@ -258,7 +298,14 @@ def _parse_claims(raw: str, cover: str, resume: str) -> list[dict] | None:
     try:
         data = json.loads(s)
     except json.JSONDecodeError:
-        return None
+        # 상한에 걸려 잘린 응답이다. **완성된 주장만 건져 쓴다** — 5개 중 3개가
+        # 멀쩡하면 그 3개로 면접을 볼 수 있고, 그게 폴백 일반 질문 3개보다 낫다.
+        # (2026-09-12: 잘림 한 번에 개인화 질문이 통째로 날아가던 것을 막는다)
+        salvaged = _salvage_claims(s)
+        if salvaged is None:
+            return None
+        logger.warning("잘린 응답에서 주장 %d개를 건졌다", len(salvaged))
+        data = {"claims": salvaged}
     if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
         return None
 

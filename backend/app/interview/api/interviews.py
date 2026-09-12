@@ -21,6 +21,11 @@ from sqlalchemy.orm import Session
 
 from app.shared import s3
 from app.interview import lie_analysis, pacing as interview_pacing
+
+# 방 저장소(`_ROOMS`)가 RTC 라우터에 있어 여기서 가져온다 — 세션을 지울 때 그 방을
+# 닫아야 하기 때문이다. 라우터→라우터 import 라 좋은 모양은 아니고, 방 저장소를
+# `interview/rtc_service.py` 로 옮기는 것이 다음 정리 대상이다 (2026-09-12 감사).
+from app.interview.api.interview_rtc import close_room_from_thread
 from app.shared.api.files import _extract_ext, validate_audio_upload
 from app.shared.s3 import EXPIRES_IN
 from app.db import get_db
@@ -193,8 +198,25 @@ def delete_session(
             InterviewTurn.session_id == session_id
         )
     )
+    token = session.token
     db.delete(session)
     db.commit()
+
+    # **붙어 있던 방을 실제로 닫는다** (2026-09-12). 위 독스트링이 오래전부터
+    # "방이 닫힐 뿐" 이라고 적어 뒀는데 닫는 코드가 없었다 — 지운 세션의 방에
+    # 담당자가 그대로 앉아 있었고, 지원자는 새로 만든 세션의 방으로 들어가
+    # 서로를 못 봤다 (09-12 시연 테스트에서 실제로 그랬다). 방 키가 세션
+    # 토큰이라 두 방은 완전히 별개다.
+    #
+    # 실패해도 삭제는 이미 끝났다 — 방이 없으면 그냥 False 다.
+    #
+    # TODO: `_ROOMS` 는 RTC 라우터 안에 있어 라우터→라우터 import 가 된다.
+    # 방 저장소를 `interview/rtc_service.py` 로 옮기는 것이 다음 정리 대상이다.
+    close_room_from_thread(
+        token,
+        code="session_deleted",
+        message="이 면접 세션이 삭제됐습니다. 목록에서 새 세션을 만들어 주세요",
+    )
 
 
 @router.post("/interview-turns/{turn_id}/analyze")
