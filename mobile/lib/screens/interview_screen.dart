@@ -683,6 +683,22 @@ class _CameraBox extends StatelessWidget {
                   top: AppSpace.s3,
                   child: _LiveDot(),
                 ),
+                // 얼굴이 실제로 나가고 있는가. **없으면 아무도 모른다** —
+                // 2026-09-10 에 프레임이 0장 가는데 화면도 로그도 조용해서
+                // 원인을 찾는 데 실측을 네 번 했다.
+                Positioned(
+                  right: AppSpace.s3,
+                  bottom: AppSpace.s3,
+                  child: Text(
+                    camera.frameErrors > 0
+                        ? '얼굴 ${camera.framesSent} · 실패 ${camera.frameErrors}'
+                        : '얼굴 ${camera.framesSent}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSub,
+                    ),
+                  ),
+                ),
               ],
             ),
             CameraStatus.starting => const Center(
