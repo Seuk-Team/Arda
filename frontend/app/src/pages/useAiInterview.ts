@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import { FRAME_MS, KIND_AUDIO, KIND_VIDEO, SR, WORKLET, aiWsUrl, sendMedia } from './aiSocket'
+import { startRtcSender, type RtcSender, type RtcSenderState } from './rtcSender'
 
 /* AI 면접 — 아르가 묻고, 얼굴을 실시간으로 본다.
 
-   **소켓은 하나뿐이다.** 카메라·마이크를 `/ai/ws/interview/{token}` 한 곳에만
+   **분석 소켓은 하나뿐이다.** 카메라·마이크를 `/ai/ws/interview/{token}` 한 곳에만
    보내고 질문을 받는다.
+
+   ## 담당자에게도 얼굴을 보낸다 (2026-09-16 · 앱 `interview_live_screen.dart` 와 동일)
+
+   같은 카메라 스트림을 시그널링 방(`/ws/interview/{token}/rtc`)에 **지원자 자리**로
+   붙여 WebRTC 로 담당자 `InterviewRoom` 에 흘린다(`rtcSender.ts`). 담당자가 방에
+   없으면 그냥 기다리고, 들어오면 담당자가 offer 를 만들어 붙는다. 이게 없으면
+   담당자 화상 면접방은 영영 "지원자를 기다리는 중" 이다. 담당자 쪽은 받은 영상을
+   자기 분석(`useLiveAnalysis`)에 넘기고, 이 워커 소켓은 그대로 본인 확인·표정·전사를
+   맡는다 — 두 경로가 겹치지만 심사 시연은 동시 면접 1건이라 감당된다.
 
    ## 판정은 이 기기를 지나가지 않는다
 
@@ -42,17 +52,24 @@ export function useAiInterview(token: string | null) {
   const [error, setError] = useState<string | null>(null)
   /* 서버가 같은 질문에 다시 답하라고 한 이유(`retry` 의 message). 질문이 바뀌면 지운다. */
   const [note, setNote] = useState<string | null>(null)
+  /* 담당자 화상 연결 상태. 화면은 안 그려도 된다 — 판정이 아니라 연결 여부일 뿐이고,
+     문제 진단(담당자가 방에 들어왔는데 영상이 안 갈 때) 에 쓴다. */
+  const [rtcState, setRtcState] = useState<RtcSenderState>('off')
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
   const timerRef = useRef<number | null>(null)
   const socketsRef = useRef<WebSocket[]>([])
+  const rtcRef = useRef<RtcSender | null>(null)
   const aliveRef = useRef(true)
 
   const cleanup = useCallback(() => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
     timerRef.current = null
+    /* 트랙을 멈추기 **전에** 담당자 쪽에 bye 를 보낸다 */
+    rtcRef.current?.stop()
+    rtcRef.current = null
     socketsRef.current.forEach((ws) => {
       try {
         ws.close()
@@ -120,6 +137,16 @@ export function useAiInterview(token: string | null) {
         videoRef.current.srcObject = stream
         videoRef.current.muted = true
         void videoRef.current.play().catch(() => {})
+      }
+
+      /* ⓞ 담당자 화상 면접방 — 같은 스트림을 WebRTC 로. 실패해도 면접은 계속된다
+         (담당자가 얼굴을 못 보는 것뿐이고, 판정·질문은 아래 워커 소켓이 맡는다). */
+      try {
+        rtcRef.current = startRtcSender(token, stream, (s) => {
+          if (aliveRef.current) setRtcState(s)
+        })
+      } catch {
+        setRtcState('error')
       }
 
       /* ① 아르 — 질문을 준다 */
@@ -236,5 +263,5 @@ export function useAiInterview(token: string | null) {
     ws.send(JSON.stringify({ type: 'end' }))
   }, [])
 
-  return { phase, question, seq, error, note, videoRef, leave, endAnswer }
+  return { phase, question, seq, error, note, rtcState, videoRef, leave, endAnswer }
 }
