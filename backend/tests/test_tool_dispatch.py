@@ -12,8 +12,8 @@ class TestToolDefinitions:
     """TOOL_DEFINITIONS 가 Claude 프로토콜에 맞는 형식인지."""
 
     def test_all_tools_defined(self):
-        # 도구를 늘리면 이 숫자와 아래 이름 집합을 같이 고친다 (#153 search_users).
-        assert len(TOOL_DEFINITIONS) == 12
+        # 도구를 늘리면 이 숫자와 아래 이름 집합을 같이 고친다 (#153 search_users, #318 create_application).
+        assert len(TOOL_DEFINITIONS) == 13
 
     def test_all_have_required_fields(self):
         for td in TOOL_DEFINITIONS:
@@ -29,6 +29,7 @@ class TestToolDefinitions:
             "search_users", "list_availability", "get_schedule_status",
             "list_interviews", "change_stage", "create_schedule_proposal",
             "assign_interviewer", "draft_email", "send_email",
+            "create_application",
         }
         assert defined_names == expected
 
@@ -47,7 +48,7 @@ class TestToolDefinitions:
         # send_email 이고 그것만 확인을 받는다 (G4 결정 3).
         assert WRITE_TOOL_NAMES == {
             "change_stage", "assign_interviewer", "send_email",
-            "create_schedule_proposal",
+            "create_schedule_proposal", "create_application",
         }
 
 
