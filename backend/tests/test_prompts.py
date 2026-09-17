@@ -101,7 +101,8 @@ class TestRender:
         assert "경력 5년" in text
         assert "지원합니다" in text
         assert "{{" not in text
-        assert tag == "chain_summarize.v1"
+        # 최신 버전 자동 로드. v2 는 career_years 추가본. 새 버전 나오면 여기 갱신.
+        assert tag == "chain_summarize.v2"
 
     def test_missing_variable_raises(self):
         with pytest.raises(MissingVariable):
