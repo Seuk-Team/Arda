@@ -604,24 +604,42 @@ function SummaryLinkRow({ detail, applicationId }: { detail: ApplicationDetail; 
   const finalScore = detail.final_score
   const hasAnyScore = docScore != null || interviewScore != null || finalScore != null
 
+  /* 어느 축에서 탈락했는가 (2026-09-17 사용자 판단).
+     불합격이 아니면 null · rejected 인 경우만 축을 골라 그 타일을 빨간으로 표시한다.
+     `stage_history` 마지막 rejected 앞 단계를 근거로 :
+       applied · screening → 서류 컷 (서류 타일)
+       interview           → 면접 컷 (면접 타일)
+       accepted            → 종합 후 철회 (희귀 · 종합 타일)
+     탈락이 아닌 지원자는 지금 그대로 (색 없음 · 종합만 teal ring).
+     05-design §1 「색은 판단에만」 규칙 안 — 이 색은 실제 판정 결과다. */
+  const rejectAxis: 'doc' | 'interview' | 'final' | null = (() => {
+    if (detail.current_stage !== 'rejected') return null
+    const history = detail.stage_history ?? []
+    const fell = rejectedFrom(history)
+    if (fell === 'applied' || fell === 'screening') return 'doc'
+    if (fell === 'interview') return 'interview'
+    if (fell === 'accepted') return 'final'
+    return null
+  })()
+
   return (
     <div className={styles.summaryPanel}>
       {hasAnyScore ? (
         <div className={styles.summaryScores}>
           {docScore != null && (
-            <span className={styles.scoreChip}>
+            <span className={`${styles.scoreChip} ${rejectAxis === 'doc' ? styles.scoreChipReject : ''}`}>
               <span className={styles.scoreChipLabel}>서류</span>
               <span className={styles.scoreChipValue}>{docScore}</span>
             </span>
           )}
           {interviewScore != null && (
-            <span className={styles.scoreChip}>
+            <span className={`${styles.scoreChip} ${rejectAxis === 'interview' ? styles.scoreChipReject : ''}`}>
               <span className={styles.scoreChipLabel}>면접</span>
               <span className={styles.scoreChipValue}>{interviewScore}</span>
             </span>
           )}
           {finalScore != null && (
-            <span className={styles.scoreChipFinal}>
+            <span className={`${styles.scoreChipFinal} ${rejectAxis === 'final' ? styles.scoreChipReject : ''}`}>
               <span className={styles.scoreChipLabel}>종합</span>
               <span className={styles.scoreChipValue}>{Math.round(finalScore)}</span>
             </span>

@@ -1019,6 +1019,23 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   box-shadow: 0 0 0 3px rgba(34, 211, 238, .08);
   font-weight: 600;
 }
+
+/* 탈락 축 표시 (2026-09-17 사용자 판단).
+   불합격 지원자를 열었을 때, 어느 축(서류·면접·종합)에서 컷 미달로 떨어졌는지
+   담당자가 한 눈에 알 수 있게 그 축 타일만 danger 색으로 칠한다.
+   합격 · 진행 중은 색을 안 칠하고 그대로 (종합만 teal ring).
+
+   05-design §1 규칙 안 — 여기 danger 는 "판정 결과" 다. teal ring 이 "이 셋 중
+   결론" 을 지목하는 강조라면, danger 는 "실제로 이 축에서 떨어졌다" 는 판정 사실. */
+.scoreChipReject {
+  background: var(--danger-soft);
+  border: 1.5px solid var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.scoreChipReject .scoreChipLabel { color: var(--danger); opacity: 0.9; }
+.scoreChipReject .scoreChipValue { color: var(--danger); }
+
 .scoreChipLabel {
   font-size: var(--font-cap);
   letter-spacing: var(--ls-cap);
