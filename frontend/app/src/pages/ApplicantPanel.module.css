@@ -1425,3 +1425,107 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   resize: vertical;
 }
 .confirmReason:focus-visible { outline: none; border-color: var(--danger); }
+
+/* ── 이력서 변동 배지 (2026-09-17) ─────────────────────────
+   IntegrityBadge 옆에 나란히 · 이전 지원과 대비한 이력서 변동을 보인다.
+   05-design §1 규칙 준수: 판단 색 아님 · "존재를 알리는" 배지. */
+.diffBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--sp-2);
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  border: 0;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.diffBadgeChanged {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  cursor: pointer;
+  border: var(--border-w) solid var(--accent-text);
+}
+
+.diffBadgeChanged:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.diffBadgeChanged:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* 확장 카드 — 첨부 파일 목록 위에 · 요약 한 줄 + 변동 필드 목록 */
+.diffPanel {
+  margin: var(--sp-2) 0 var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+}
+
+.diffSummary {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.diffMeta {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.diffList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.diffItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+}
+
+.diffField {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--accent-text);
+  letter-spacing: 0.02em;
+}
+
+.diffNote {
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.diffValues {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.diffBefore::before { content: '↩ '; opacity: 0.7; }
+.diffAfter::before  { content: '↪ '; color: var(--accent-text); opacity: 1; }

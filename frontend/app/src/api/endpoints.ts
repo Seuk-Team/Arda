@@ -20,6 +20,7 @@ import type {
   UserItem,
   MailTemplate,
   EmailLogItem,
+  ResumeDiff,
 } from './types'
 
 export const files = {
@@ -127,6 +128,12 @@ export const applications = {
     })
     return res.total ?? 0
   },
+
+  /* 이력서 변동 요약 (2026-09-17, PR #320). 동일 인물의 가장 최근 이전 지원과 비교.
+     이전 지원이 없으면 changed=false + summary="이전 지원 이력이 없습니다." 로 온다
+     (404 아님 · 프론트가 조용히 배지를 숨기기 좋게). */
+  priorResumeDiff: (id: number, signal?: AbortSignal) =>
+    api.get<ResumeDiff>(`/applications/${id}/resume-diff/prior`, { signal }),
 }
 
 export const summary = {

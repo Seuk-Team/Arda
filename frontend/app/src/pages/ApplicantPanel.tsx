@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { agent as agentApi, applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
-import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
+import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, ResumeDiff, Stage, StageHistoryItem } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import IntegrityBadge from '../components/IntegrityBadge'
 import { STAGE_LABEL, careerText, fmtDate, fmtDateShort } from '../lib/stage'
@@ -698,6 +699,7 @@ function FilesSection({ detail, applicationId }: { detail: ApplicationDetail; ap
         <p className={styles.secLabel}>
           첨부 파일
           <IntegrityBadge key={applicationId} applicationId={applicationId} compact />
+          <ResumeDiffBadge key={`diff-${applicationId}`} applicationId={applicationId} />
         </p>
       </div>
       {files.length === 0
@@ -705,6 +707,103 @@ function FilesSection({ detail, applicationId }: { detail: ApplicationDetail; ap
         : <FileList files={files} />}
     </>
   )
+}
+
+/* 이력서 변동 배지 (2026-09-17 · PR #320 + 이 PR)
+   지원자가 재접수한 경우 이전 지원 대비 무엇이 바뀌었는지를 배지로 보인다.
+   - 이전 지원 없음: 조용히 숨김
+   - 있고 변동 없음: 회색 "제출 당시와 같음" 배지
+   - 있고 변동 있음: 클릭 가능한 액센트 배지 → 확장 카드로 요약 + 필드 목록
+
+   AI 자동 판정이 아니고 "이전 이력서와 비교해 다르다" 는 사실 서술이라 05-design §1
+   ("판단 색 아님") 범위 안. 색은 존재 알림 용도. */
+function ResumeDiffBadge({ applicationId }: { applicationId: number }): ReactElement | null {
+  const [diff, setDiff] = useState<ResumeDiff | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const ac = new AbortController()
+    setError(null)
+    setDiff(null)
+    setExpanded(false)
+    applications.priorResumeDiff(applicationId, ac.signal)
+      .then(setDiff)
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
+        setError(err instanceof ApiError ? err.message : '이력서 변동을 확인하지 못했습니다')
+      })
+    return () => ac.abort()
+  }, [applicationId])
+
+  if (error !== null) {
+    /* 조용히 넘긴다 — 변동 배지는 부가 정보라 실패해도 첨부 표시에 영향 안 준다.
+       다만 콘솔에는 남긴다 (담당자가 개발자 도구로 원인 확인할 수 있게). */
+    // eslint-disable-next-line no-console
+    console.warn('resume-diff', applicationId, error)
+    return null
+  }
+  if (diff === null) return null                         // 로딩 중 · 자리를 잡지 않는다
+  if (diff.prev_application_id === null) return null     // 이전 지원 없음 → 조용히 숨김
+
+  if (!diff.changed) {
+    return (
+      <span className={styles.diffBadge} title="이 지원자의 이전 지원과 이력서 내용이 같습니다.">
+        제출 당시와 같음
+      </span>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`${styles.diffBadge} ${styles.diffBadgeChanged}`}
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        title={`이전 지원(${diff.prev_created_at?.slice(0, 10) ?? '이전'}) 대비 이력서가 변동됐습니다. 클릭해서 자세히 보기.`}
+      >
+        변동 있음 · {diff.changes.length}건
+      </button>
+      {expanded && (
+        <div className={styles.diffPanel} role="region" aria-label="이력서 변동 요약">
+          <p className={styles.diffSummary}>{diff.summary}</p>
+          {diff.prev_created_at && (
+            <p className={styles.diffMeta}>
+              이전 지원: {diff.prev_created_at.slice(0, 10)}
+            </p>
+          )}
+          {diff.changes.length > 0 && (
+            <ul className={styles.diffList}>
+              {diff.changes.map((c, i) => (
+                <li key={i} className={styles.diffItem}>
+                  <span className={styles.diffField}>{DIFF_FIELD_LABEL[c.field] ?? c.field}</span>
+                  <span className={styles.diffNote}>{c.note}</span>
+                  {(c.before || c.after) && (
+                    <span className={styles.diffValues}>
+                      {c.before && <span className={styles.diffBefore}>이전: {c.before}</span>}
+                      {c.after && <span className={styles.diffAfter}>지금: {c.after}</span>}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+/* 이력서 diff 필드 라벨 — 서버는 소문자 코드로 오고, 담당자 화면에는 한국어로. */
+const DIFF_FIELD_LABEL: Record<string, string> = {
+  career: '경력',
+  education: '학력',
+  skills_added: '추가된 기술',
+  skills_removed: '제외된 기술',
+  project: '프로젝트',
+  other: '기타',
 }
 
 /* ── 메모 탭 ───────────────────────────────────────────── */

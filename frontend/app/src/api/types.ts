@@ -589,3 +589,20 @@ export interface SummaryPosting {
   applicant_count: number
   applicants: SummaryApplicant[]
 }
+
+/* 이력서 변동 요약 (2026-09-17, PR #320 백엔드 매칭).
+   동일 인물이 재접수했을 때 이전 지원 대비 무엇이 바뀌었는지 담당자에게 보인다. */
+export interface ResumeChange {
+  field: string        // 'career' · 'education' · 'skills_added' · 'skills_removed' · 'project' · 'other'
+  before: string
+  after: string
+  note: string         // 사람이 읽는 한 줄 요약
+}
+
+export interface ResumeDiff {
+  changed: boolean
+  summary: string
+  changes: ResumeChange[]
+  prev_application_id: number | null
+  prev_created_at: string | null
+}
