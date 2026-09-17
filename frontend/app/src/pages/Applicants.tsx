@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import PageHead from '../components/PageHead'
 import { useRightPanel } from '../components/RightPanel'
 import ApplicantPanel from './ApplicantPanel'
@@ -118,12 +118,10 @@ export default function Applicants() {
   const detailOpen = openId !== null && rightPanel.active === 'applicant'
   const [tick, setTick] = useState(0)
 
-  /* 목록의 [평가] 로 들어왔는지. 상세가 평가 입력을 펼친 채로 열린다 */
-  const [startRating, setStartRating] = useState(false)
+  /* 평가 입력을 펼친 채로 여는 flag 는 종합 평가 링크로 대체되며 제거. */
 
-  function openDetail(id: number, rating = false) {
+  function openDetail(id: number) {
     setOpenId(id)
-    setStartRating(rating)
     rightPanel.open('applicant')
   }
 
@@ -429,18 +427,18 @@ export default function Applicants() {
                     </span>
                   </span>
                   <span className={styles.num}>{careerText(a.career_years)}</span>
-                  {/* 값이 없다고 줄표를 두면 컬럼이 통째로 죽는다 — 리스트에
-                      평가를 넣을 자리가 없어서 아무도 안 채우고 있었다.
-                      빈 상태를 행동으로 바꾼다 (행 클릭과 겹치지 않게 stopPropagation) */}
+                  {/* 담당자 별점(avg_score) 은 자동 종합 판정으로 대체됐다.
+                      값이 없을 때 "평가" 버튼으로 별점 입력을 유도하던 자리를
+                      종합 평가 상세 링크로 바꾼다 (SPA 이동 · 행 클릭과 겹치지 않게 stopPropagation). */}
                   <span className={styles.num}>
                     {a.avg_score === null ? (
-                      <button
-                        type="button"
+                      <Link
+                        to={`/summary/${a.id}`}
                         className={styles.rate}
-                        onClick={(e) => { e.stopPropagation(); openDetail(a.id, true) }}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        평가
-                      </button>
+                        종합 →
+                      </Link>
                     ) : a.avg_score.toFixed(1)}
                   </span>
                   <span className={styles.num}>{fmtDate(a.created_at)}</span>
@@ -473,7 +471,6 @@ export default function Applicants() {
       {detailOpen && openId !== null && (
         <ApplicantPanel
           applicationId={openId}
-          startRating={startRating}
           onClose={closeDetail}
           onChanged={() => setTick((n) => n + 1)}
         />

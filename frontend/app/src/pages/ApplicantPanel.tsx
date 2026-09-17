@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
-import { agent as agentApi, applications, aptitude as aptitudeApi, evaluations, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
+import { agent as agentApi, applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
 import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import IntegrityBadge from '../components/IntegrityBadge'
@@ -400,13 +401,12 @@ const MAIL_ON_CHANGE: Partial<Record<Stage, string>> = {
    평가 → 아르 요약 → 지원 정보 → 연락처 → 첨부 → 인적성 검사.
    판단에 쓰는 것만 모았다. */
 function OverviewTab({
-  detail, applicationId, onScored, onMailSent, startRating,
+  detail, applicationId, onScored, onMailSent,
 }: {
   detail: ApplicationDetail
   applicationId: number
   onScored: () => void
   onMailSent: () => void
-  startRating: boolean
 }) {
   const [postingTitle, setPostingTitle] = useState<string | null>(null)
   /* 요약 재생성 (2026-09-12) — **버튼에 핸들러가 없어 눌러도 아무 일도 일어나지
@@ -453,7 +453,7 @@ function OverviewTab({
 
   return (
     <>
-      <EvalRow detail={detail} applicationId={applicationId} onScored={onScored} startOpen={startRating} />
+      <SummaryLinkRow applicationId={applicationId} />
 
       <hr className={styles.rule} />
 
@@ -538,106 +538,24 @@ function OverviewTab({
 }
 
 /* 평가 — 없으면 줄표 대신 행동을 둔다 */
-function EvalRow({
-  detail, applicationId, onScored, startOpen = false,
-}: {
-  detail: ApplicationDetail
-  applicationId: number
-  onScored: () => void
-  /* 목록에서 [평가] 를 눌러 들어왔는가 */
-  startOpen?: boolean
-}) {
-  const [open, setOpen] = useState(startOpen)
-  const [score, setScore] = useState(0)
-  const [comment, setComment] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function submit() {
-    if (score < 1) return
-    setBusy(true); setErr(null)
-    try {
-      await evaluations.create(applicationId, score, comment.trim() || undefined)
-      setOpen(false); setScore(0); setComment('')
-      onScored()
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : '평가를 남기지 못했습니다')
-    } finally {
-      setBusy(false)
-    }
-  }
-
+/* 상세 화면 상단의 평가 자리.
+   담당자 별점(1~5) 을 매기던 EvalRow 를 걷어내고 종합 평가 상세 페이지로 보낸다.
+   자동 심사(doc_score) 와 면접 점수·인적성이 이미 종합 판단 재료를 낸다 —
+   담당자 별점은 중복이었고 편향 유발 요인이었다. 종합 평가 페이지에서
+   서류·인적성·면접 세 갈래 근거를 함께 본다 (Summary.tsx · 사이드바 "종합 평가"). */
+function SummaryLinkRow({ applicationId }: { applicationId: number }) {
   return (
-    <>
-      <div className={styles.evalRow}>
-        {detail.avg_score === null ? (
-          <span className={styles.state}>아직 평가 없음</span>
-        ) : (
-          <span className={styles.stars}>
-            <Stars value={detail.avg_score} />
-            <span className={styles.score}>
-              {detail.avg_score.toFixed(1)}
-              <small> / 5.0 · 평가 {detail.eval_count ?? 0}명</small>
-            </span>
-          </span>
-        )}
-        <button type="button" className={styles.btnSm} onClick={() => setOpen(!open)}>
-          {open ? '닫기' : '평가하기'}
-        </button>
-      </div>
-
-      {open && (
-        <div className={styles.reasonBox}>
-          {/* 점수는 라디오다 — 하나만 고른다. 고른 것은 채워서 표시한다 */}
-          <div className={styles.scoreRow} role="radiogroup" aria-label="점수">
-            <span className={styles.scoreLabel}>점수</span>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={score === n}
-                aria-label={`${n}점`}
-                className={`${styles.scoreBtn} ${score === n ? styles.scoreOn : ''}`}
-                disabled={busy}
-                onClick={() => setScore(n)}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <textarea
-            className={styles.input}
-            rows={2}
-            aria-label="평가 의견"
-            placeholder="의견 (선택)"
-            value={comment}
-            disabled={busy}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          <div className={styles.actions}>
-            <button type="button" className={styles.btnStage} disabled={busy || score < 1} onClick={() => void submit()}>
-              {busy ? '남기는 중…' : '등록'}
-            </button>
-          </div>
-          {err && <p className={styles.err} role="alert">{err}</p>}
-        </div>
-      )}
-    </>
+    <div className={styles.evalRow}>
+      <span className={styles.state}>서류·인적성·면접 자동 판정 결과</span>
+      <Link to={`/summary/${applicationId}`} className={styles.btnSm}>
+        종합 평가 보기 →
+      </Link>
+    </div>
   )
 }
 
-function Stars({ value }: { value: number }) {
-  return (
-    <span aria-hidden="true" className={styles.stars}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <svg key={n} viewBox="0 0 24 24" fill={n <= Math.round(value) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={n <= Math.round(value) ? 0 : 1.6} opacity={n <= Math.round(value) ? 1 : .35}>
-          <path d="M12 2l3 6.6 7 .8-5.2 4.8 1.4 7L12 17.8 5.8 21.2l1.4-7L2 9.4l7-.8z" />
-        </svg>
-      ))}
-    </span>
-  )
-}
+/* Stars 컴포넌트(별점 표시) 는 EvalRow 전용이었고 다른 참조 없음 · 함께 삭제.
+   지원자 목록(Applicants·PostingApplicants·Kanban) 의 avg_score 표시는 별건 · 그대로. */
 
 /* 연락처 + 메일 — 단계와 무관한 메일은 주소가 있는 자리에서 보낸다.
    단계 메일은 단계 변경 드롭다운이 맡는다(둘의 역할이 갈린다). */
@@ -784,12 +702,11 @@ interface Props {
   applicationId: number
   onClose: () => void
   onChanged: () => void
-  /* 목록의 [평가] 를 눌러 들어온 경우. 개요 탭의 평가 입력을 펼친 채로 연다 —
-     새 모달을 만들지 않는다(입력 자리는 여기 하나뿐이어야 한다) */
-  startRating?: boolean
+  /* startRating 은 평가하기 폼을 펼친 채로 여는 flag 였다. 평가 폼이 종합 평가 링크로
+     대체되면서 의미 없어짐 · 남겨두면 호출부가 계속 넘긴다. 완전 제거. */
 }
 
-export default function ApplicantPanel({ applicationId, onClose, onChanged, startRating = false }: Props) {
+export default function ApplicantPanel({ applicationId, onClose, onChanged }: Props) {
   const [detail, setDetail] = useState<ApplicationDetail | null>(null)
   const [noteList, setNoteList] = useState<Note[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -959,7 +876,6 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged, star
               <OverviewTab
                 detail={detail}
                 applicationId={applicationId}
-                startRating={startRating}
                 onScored={reloadDetail}
                 onMailSent={() => setMailHistoryKey((k) => k + 1)}
               />
