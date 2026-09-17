@@ -12,9 +12,11 @@ presigned URL 로 직접 내려받는다(shared/s3.py 머리말).
 헤더를 붙일 수 없다. 그렇다고 로그인 없이 열게 두면 file_id 를 아는 누구든 이력서를
 받아 갈 수 있다(ADR-0017 위반). 그래서 로그인한 사람에게만 60초·1회용 티켓을 발급하고
 그 티켓을 쿼리스트링으로 받는다 — WebRTC 시그널링의 rtc-ticket 과 같은 방식
-(`interview_rtc.py` 티켓 절 참고).
+(`interview_rtc.py` 티켓 절 참고). URL 자체가 리퍼러·접속 로그에 남더라도 다음 사용은
+없다.
 
-`file_blobs` 가 없는 파일은 기존 S3 presign 으로 자동 폴백 — AWS 배포는 이 경로만 탄다.
+`file_blobs` 가 없는 파일은 기존 S3 presign 으로 자동 폴백 — AWS 개발 서버(seuk) 는
+이 경로만 탄다.
 """
 
 import io
@@ -293,12 +295,15 @@ def download_file(
 
     ascii_fallback = row.filename.encode("ascii", "replace").decode("ascii")
     utf8_encoded = urllib.parse.quote(row.filename, safe="")
+    # inline: 브라우저 내장 뷰어(PDF·이미지)로 새 탭에 미리보기. 다운로드는 일부러 안 준다 —
+    # 이력서는 블록체인 앵커(ADR-0028)로 원본 무결성이 걸려 있어 저장·수정 흐름이 없다.
+    # 뷰어가 지원 못 하는 형식(docx/hwp) 은 브라우저가 알아서 저장 다이얼로그로 폴백.
     return StreamingResponse(
         io.BytesIO(blob.content),
         media_type=row.content_type or "application/octet-stream",
         headers={
             "Content-Disposition": (
-                f'attachment; filename="{ascii_fallback}"; '
+                f'inline; filename="{ascii_fallback}"; '
                 f"filename*=UTF-8''{utf8_encoded}"
             ),
             "Content-Length": str(blob.size_bytes),

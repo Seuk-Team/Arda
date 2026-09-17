@@ -67,7 +67,8 @@ def test_presign_download_로컬_저장분은_티켓_URL_로_돌려준다(
     assert dl.status_code == 200
     assert dl.content == body
     cd = dl.headers.get("content-disposition", "")
-    assert "attachment" in cd and "filename*=UTF-8''" in cd
+    # inline: 브라우저 내장 뷰어로 새 탭에 미리보기 (블록체인 앵커 걸린 이력서라 다운로드 안 준다)
+    assert "inline" in cd and "filename*=UTF-8''" in cd
 
     # 같은 티켓 재사용은 막힌다 (1회용)
     again = client.get(f"/api/v1/files/{f.id}/download?ticket={ticket}")
