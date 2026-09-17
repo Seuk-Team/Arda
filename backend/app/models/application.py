@@ -8,12 +8,14 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    CHAR,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
     Index,
     JSON,
+    LargeBinary,
     SmallInteger,
     String,
     Text,
@@ -264,6 +266,27 @@ class File(Base):
     )
 
     __table_args__ = (CheckConstraint(_in("kind", FILE_KINDS), name="ck_files_kind"),)
+
+
+# ── file_blobs — 파일 본문(온프레미스, 2026-09-17) ─────────────────
+# **AWS 배포에는 비어 있다** — 그쪽은 S3 를 그대로 쓰기 때문에 이 테이블을 안 쓴다.
+# 온프레미스에서만 이관 스크립트가 채우고, 다운로드 코드가 이 행이 있으면 S3 대신
+# 여기서 스트리밍한다. 배경은 alembic 0023_file_blobs.py 머리말 참고.
+class FileBlob(Base):
+    __tablename__ = "file_blobs"
+
+    # 1:1(file_id 가 PK). files 가 지워지면 블롭도 CASCADE.
+    file_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("files.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 # ── email_logs — 메일 발송 (G1~G3) ───────────────────────────────────

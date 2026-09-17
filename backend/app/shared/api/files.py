@@ -1,18 +1,38 @@
-"""이력서 파일 presigned URL (F1·F2).
+"""이력서 파일 presigned URL (F1·F2) + 온프레미스 스트리밍 다운로드.
 
-파일 본문은 이 서버를 지나가지 않는다 — `app/shared/s3.py` 의 설명 참고.
+원칙은 여전히 **"파일 본문은 서버를 지나가지 않는다"** — S3/MinIO 배포에서 브라우저가
+presigned URL 로 직접 내려받는다(shared/s3.py 머리말).
+
+**온프레미스만 예외**(2026-09-17). MinIO 가 컨테이너 안에만 있어 서명 URL 호스트가
+`minio:9000` 이라 브라우저에서 이름이 안 풀린다. 이관 스크립트가 파일을 `file_blobs`
+(bytea) 에 넣어 두면 `presign_download` 가 티켓 기반 API URL 을 대신 돌려주고,
+`download_file` 이 티켓을 검사한 뒤 바이트를 스트리밍한다.
+
+**티켓을 쓰는 이유**: `window.open(download_url)` 은 브라우저 새 탭이라 `Authorization`
+헤더를 붙일 수 없다. 그렇다고 로그인 없이 열게 두면 file_id 를 아는 누구든 이력서를
+받아 갈 수 있다(ADR-0017 위반). 그래서 로그인한 사람에게만 60초·1회용 티켓을 발급하고
+그 티켓을 쿼리스트링으로 받는다 — WebRTC 시그널링의 rtc-ticket 과 같은 방식
+(`interview_rtc.py` 티켓 절 참고).
+
+`file_blobs` 가 없는 파일은 기존 S3 presign 으로 자동 폴백 — AWS 배포는 이 경로만 탄다.
 """
 
+import io
+import os
 import re
+import secrets
+import time
 import uuid
+import urllib.parse
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status as http
+from fastapi import APIRouter, Depends, HTTPException, Request, status as http
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import File, User
+from app.models import File, FileBlob, User
 from app.shared.s3 import EXPIRES_IN, presign_get, presign_put
 from app.schemas.file import (
     PresignDownloadResponse,
@@ -21,6 +41,38 @@ from app.schemas.file import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["files"])
+
+# ── 다운로드 티켓 (온프레미스 스트리밍 전용) ────────────────────────
+# 60초·1회용. rtc-ticket 과 같은 자료구조라 통합하고 싶지만 의미(면접방 입장 vs
+# 파일 다운로드)가 달라 분리한다 — 실수로 파일 티켓이 방에 통하는 것 방지.
+_FILE_TICKET_TTL_SEC = 60
+_FILE_TICKETS: dict[str, tuple[int, int, float]] = {}  # ticket → (file_id, user_id, at)
+
+
+def _sweep_file_tickets(now: float) -> None:
+    for t in [
+        t for t, (_, _, at) in _FILE_TICKETS.items() if now - at > _FILE_TICKET_TTL_SEC
+    ]:
+        _FILE_TICKETS.pop(t, None)
+
+
+def _issue_file_ticket(file_id: int, user_id: int) -> str:
+    now = time.time()
+    _sweep_file_tickets(now)
+    ticket = secrets.token_urlsafe(24)
+    _FILE_TICKETS[ticket] = (file_id, user_id, now)
+    return ticket
+
+
+def _redeem_file_ticket(ticket: str, file_id: int) -> int | None:
+    """쓰면 사라진다. 맞으면 user_id, 아니면 None."""
+    entry = _FILE_TICKETS.pop(ticket, None)
+    if entry is None:
+        return None
+    fid, user_id, at = entry
+    if fid != file_id or time.time() - at > _FILE_TICKET_TTL_SEC:
+        return None
+    return user_id
 
 # 확장자로 쓸 수 있는 모양인지 먼저 본다 (경로 주입·빈 확장자 차단).
 _EXT = re.compile(r"^[a-z0-9]{1,10}$")
@@ -172,10 +224,14 @@ def presign_upload(body: PresignUploadRequest):
 )
 def presign_download(
     file_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """다운로드용 presigned URL 발급 (F2). 로그인한 사람이면 누구나 (ADR-0017).
+    """다운로드용 URL 발급 (F2). 로그인한 사람이면 누구나 (ADR-0017).
+
+    - `file_blobs` 에 본문이 있으면 API 스트리밍 URL(1회용 티켓) 을 돌려준다 — 온프레미스.
+    - 없으면 기존 S3 presign — AWS 배포. 두 경로가 이 안에서만 갈리므로 프론트는 같다.
 
     로그인 자체는 여전히 필수다 — 이력서는 개인정보이므로 토큰 없는 요청은 401.
     """
@@ -183,8 +239,68 @@ def presign_download(
     if row is None:
         raise HTTPException(http.HTTP_404_NOT_FOUND, "파일을 찾을 수 없습니다")
 
+    if db.get(FileBlob, file_id) is not None:
+        # 온프레미스 경로. 프론트가 `window.open(download_url)` 을 하니 절대 URL 이 필요하다.
+        # base 는 세 순위로 정한다: (1) `PUBLIC_API_BASE_URL` 환경변수 — 온프레미스처럼
+        # 최종 스킴이 정해져 있을 때 이걸 못박아 둬야 안전하다 (2) `Cf-Visitor` — Cloudflare
+        # Tunnel 이 붙이는 원래 스킴, `{"scheme":"https"}` (3) 헤더/요청 스킴. 이유:
+        # cloudflared → Caddy 는 http 로 오므로 Caddy 는 `X-Forwarded-Proto: http` 를
+        # 붙여 넘긴다. 그 값으로 URL 을 만들면 브라우저가 https 페이지에서 mixed-content
+        # 로 막는다 (2026-09-17 실측).
+        ticket = _issue_file_ticket(file_id, user.id)
+        base = os.getenv("PUBLIC_API_BASE_URL", "").rstrip("/")
+        if not base:
+            cf_visitor = request.headers.get("cf-visitor") or ""
+            scheme = (
+                request.headers.get("x-forwarded-proto")
+                or ("https" if '"scheme":"https"' in cf_visitor else request.url.scheme)
+            )
+            host = request.headers.get("host") or request.url.netloc
+            base = f"{scheme}://{host}"
+        url = f"{base}/api/v1/files/{file_id}/download?ticket={urllib.parse.quote(ticket)}"
+        return PresignDownloadResponse(
+            download_url=url,
+            filename=row.filename,
+            expires_in=_FILE_TICKET_TTL_SEC,
+        )
+
     return PresignDownloadResponse(
         download_url=presign_get(row.s3_key),
         filename=row.filename,
         expires_in=EXPIRES_IN,
+    )
+
+
+@router.get("/files/{file_id}/download")
+def download_file(
+    file_id: int,
+    ticket: str,
+    db: Session = Depends(get_db),
+):
+    """티켓 검사 후 파일 바이트 스트리밍 (온프레미스 전용).
+
+    - 로그인 헤더 대신 티켓 하나로 인증한다 — 사유는 파일 머리말.
+    - 티켓이 없거나 만료/재사용이면 401. 파일 메타·본문 어느 쪽이든 없으면 404.
+    - Content-Disposition 은 attachment — 브라우저가 미리보기 대신 저장 다이얼로그를 띄운다.
+      파일명에 한글이 있어 RFC 5987 `filename*` 을 함께 붙인다.
+    """
+    if _redeem_file_ticket(ticket, file_id) is None:
+        raise HTTPException(http.HTTP_401_UNAUTHORIZED, "티켓이 유효하지 않습니다")
+    row = db.get(File, file_id)
+    blob = db.get(FileBlob, file_id)
+    if row is None or blob is None:
+        raise HTTPException(http.HTTP_404_NOT_FOUND, "파일을 찾을 수 없습니다")
+
+    ascii_fallback = row.filename.encode("ascii", "replace").decode("ascii")
+    utf8_encoded = urllib.parse.quote(row.filename, safe="")
+    return StreamingResponse(
+        io.BytesIO(blob.content),
+        media_type=row.content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_fallback}"; '
+                f"filename*=UTF-8''{utf8_encoded}"
+            ),
+            "Content-Length": str(blob.size_bytes),
+        },
     )

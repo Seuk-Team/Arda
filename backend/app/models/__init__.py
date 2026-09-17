@@ -38,7 +38,7 @@ from app.models.talent import (
     User,
 )
 from app.models.hiring import JobPosting, PostingInterviewer, CompanyProfile, EmailTemplate, IntegrationClient  # noqa: F401 — IntegrationClient 는 관계 그래프에 필요
-from app.models.application import Application, StageHistory, Evaluation, ApplicationNote, File, EmailLog, AptitudeSession, AptitudeAnswer
+from app.models.application import Application, StageHistory, Evaluation, ApplicationNote, File, FileBlob, EmailLog, AptitudeSession, AptitudeAnswer
 from app.models.interview import InterviewerAssignment, InterviewerAvailability, ScheduleProposal, ScheduleSlot, InterviewSession, InterviewTurn, InterviewFinding
 from app.models.shared import AgentTrace, DocumentAnchor, ChainPublication
 
@@ -85,6 +85,7 @@ __all__ = [
     "Evaluation",
     "ApplicationNote",
     "File",
+    "FileBlob",
     "EmailLog",
     "AptitudeSession",
     "AptitudeAnswer",
