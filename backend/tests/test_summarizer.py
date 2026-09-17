@@ -293,6 +293,8 @@ class TestGenerateSummary:
         generate_summary(db, app.id)
 
         assert app.career_years == 5
+        # 우정 리뷰 #294 제안: AI 로 채운 것을 doc_score_detail 에 표식으로 남긴다.
+        assert app.doc_score_detail.get("career_years_source") == "ai"
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
@@ -316,6 +318,8 @@ class TestGenerateSummary:
         generate_summary(db, app.id)
 
         assert app.career_years == 3   # AI 의 7 로 덮이지 않는다
+        # 폼 값 그대로면 AI 출처 표식이 없어 "신고값" 이 기본 가정.
+        assert "career_years_source" not in app.doc_score_detail
 
     @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
     @patch("anthropic.Anthropic")
