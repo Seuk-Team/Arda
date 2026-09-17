@@ -107,6 +107,7 @@ def send_log(db: Session, log: EmailLog) -> bool:
     같은 통보를 두 번 받는다. 그건 안 보내는 것만큼이나 나쁘다.
     """
     from app.shared import mail
+    from app.hiring.company import name_for
     from app.shared.worker import _actor, _context, _reply_to
 
     if log.status == "sent":
@@ -130,7 +131,9 @@ def send_log(db: Session, log: EmailLog) -> bool:
             subject,
             body,
             reply_to=_reply_to(log, actor_email),
-            from_name=mail.sender_name(log.stage, log.actor_kind, actor_name),
+            from_name=mail.sender_name(
+                log.stage, log.actor_kind, actor_name, company_name=name_for(db)
+            ),
         )
     except Exception:
         log.retry_count += 1
