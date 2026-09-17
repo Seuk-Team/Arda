@@ -287,6 +287,14 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         logger.error(reason)
         return None
 
+    # 우정 PR #311 리뷰 지적 반영. 소연 PR #307 (`_fill_structured_fields`) 이 요약 앞에서
+    # 별도 LLM 호출로 career_years 를 먼저 채우고 커밋하는데, 그러면 step1 시점의 「비었나」
+    # 판정이 False 가 되어 source="ai" 표식이 안 붙는다. 요약을 시작할 때의 상태를 기록해
+    # 두고 detail 을 쓸 때 함께 본다. 사람이 고친 값을 AI 가 덮는 API 는 지금 없으므로
+    # (담당자 직접 등록만 받음) 「요약 시작 전에 비어 있었다면 지금 있는 값은 AI 로 채운 것」
+    # 이라는 가정이 성립한다.
+    career_years_was_empty_at_start = app.career_years is None
+
     # 폼에서 학력·경력·기술스택을 입력하지 않은 경우 이력서 파일에서 추출
     if not app.education or app.career_years is None or not app.skills:
         from app.agent.extractor import extract_text
@@ -484,9 +492,15 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     # AI 가 채운 career_years 는 출처를 남긴다 (우정 리뷰 #294 제안).
     # 프론트가 "N년 (AI 추정)" 으로 표시하고 · 아르 검색 도구가 신고값과 구별하고 · 공정성
     # 질문 때 근거로 쓴다. 폼 값이 있었으면 이 필드는 안 붙어 "신고값" 이 기본 가정이다.
-    # 이번 세션에 AI 로 채웠거나 · 이전에 AI 로 채운 표시가 있었다면 이어받는다.
-    # 이래야 두 번째 재생성에서 detail 이 새로 쓰여도 "ai" 표식이 유지된다 (우정 지적).
-    if career_years_filled_from_ai or prev_source == "ai":
+    # 다음 셋 중 하나라도 참이면 AI 표식을 붙인다:
+    #   1. 이번 step1 이 채웠다 (career_years_filled_from_ai).
+    #   2. 이전 재생성에 AI 로 채운 흔적이 있다 (prev_source == "ai").
+    #   3. 요약 시작 시 비었는데 지금은 값이 있다 — 그 사이에 채운 것이 우리(요약 앞 단계
+    #      _fill_structured_fields) 아니면 불가능한 상황이라 AI 가 채운 것이다 (우정 지적).
+    filled_between_start_and_now = (
+        career_years_was_empty_at_start and app.career_years is not None
+    )
+    if career_years_filled_from_ai or prev_source == "ai" or filled_between_start_and_now:
         detail["career_years_source"] = "ai"
     app.doc_score_detail = detail
     db.commit()
