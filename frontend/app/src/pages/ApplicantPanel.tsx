@@ -623,8 +623,10 @@ function SummaryLinkRow({ detail, applicationId }: { detail: ApplicationDetail; 
             <span className={styles.scoreChipFinal}>
               <span className={styles.scoreChipLabel}>종합</span>
               <span className={styles.scoreChipValue}>{Math.round(finalScore)}</span>
-              {detail.grade && <span className={styles.gradeBadge}>{detail.grade}</span>}
             </span>
+          )}
+          {finalScore != null && detail.grade && (
+            <span className={styles.gradeBadge}>{detail.grade}</span>
           )}
         </div>
       ) : (

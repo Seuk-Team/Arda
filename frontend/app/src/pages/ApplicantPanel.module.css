@@ -986,55 +986,69 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   gap: var(--sp-2);
   align-items: flex-start;
 }
+/* 서류·면접·종합 을 나란한 타일 카드로. 2026-09-17 —
+   전에는 라벨·값이 한 줄에 붙는 얇은 pill 이었다. 세 값이 시선을 다투기만 하고
+   "무엇이 결론인가" 가 안 읽혀서, 라벨을 위로 올리고 숫자를 크게 앉힌 뒤
+   **종합 타일에만 teal ring** 을 둘렀다. 색으로 합·불을 말하는 게 아니라
+   "이 셋 중 결론은 이것" 을 가리키는 강조라 규칙(§1) 안이다. */
 .summaryScores {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
-.scoreChip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--radius-2);
-  background: var(--bg-2);
-  color: var(--fg-1);
-  font-weight: 500;
-}
+.scoreChip,
 .scoreChipFinal {
   display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--radius-2);
-  background: var(--accent-2);
-  color: var(--fg-accent);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 12px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  border: 1px solid var(--border-soft);
+  font-weight: 500;
+  line-height: 1;
+}
+.scoreChipFinal {
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, .08);
   font-weight: 600;
-  border: 1px solid var(--accent-1);
 }
 .scoreChipLabel {
   font-size: var(--font-cap);
   letter-spacing: var(--ls-cap);
-  color: var(--fg-2);
+  color: var(--text-sub);
   text-transform: none;
 }
-.scoreChipFinal .scoreChipLabel { color: var(--fg-accent); opacity: .85; }
+.scoreChipFinal .scoreChipLabel { color: var(--accent-text); }
 .scoreChipValue {
-  font-size: var(--font-lg);
+  font-size: 22px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  color: var(--text);
 }
+/* 등급 = 종합 옆의 별도 타일. 종합 안에 등급 A 를 같이 두면 숫자·글자가
+   시선을 다투는데, 등급은 "이 결론을 한 글자로" 라서 자기 자리에 두는 편이 낫다. */
 .gradeBadge {
-  display: inline-block;
-  margin-left: var(--sp-1);
-  padding: 0 var(--sp-1);
-  border-radius: var(--radius-1);
-  background: var(--accent-1);
-  color: var(--bg-1);
-  font-size: var(--font-cap);
-  font-weight: 700;
-  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 0 var(--sp-2);
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--sans, inherit);
+  align-self: stretch;
 }
 .summaryDetailLink {
   font-size: var(--font-sm);
