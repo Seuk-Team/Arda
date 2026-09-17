@@ -239,6 +239,7 @@ from app.application.api.evaluations import router as evaluations_router  # noqa
 from app.shared.api.files import router as files_router  # noqa: E402
 from app.application.api.integrations import router as integrations_router  # noqa: E402
 from app.shared.api.integrity import router as integrity_router  # noqa: E402
+from app.application.api.resume_diff import router as resume_diff_router  # noqa: E402
 from app.shared.api.internal import router as internal_router  # noqa: E402
 from app.interview.api.interviews import router as interviews_router  # noqa: E402
 from app.interview.api.interview_rtc import router as interview_rtc_router  # noqa: E402
@@ -264,6 +265,7 @@ app.include_router(evaluations_router)
 app.include_router(files_router)
 app.include_router(integrations_router)
 app.include_router(integrity_router)
+app.include_router(resume_diff_router)
 app.include_router(internal_router)
 app.include_router(interviews_router)
 app.include_router(interview_rtc_router)
