@@ -21,7 +21,7 @@
 
 ## 가장 중요한 규칙
 
-- **[backend/app/models.py](../../backend/app/models.py)를 수정하지 않는다.** 컬럼이 부족해 보여도 추가하지 않는다. 멈추고 팀 채널에 묻는다.
+- **[backend/app/models/](../../backend/app/models/)를 수정하지 않는다.** 컬럼이 부족해 보여도 추가하지 않는다. 멈추고 팀 채널에 묻는다.
 - **[docs/00_overview/01-erd.md](../00_overview/01-erd.md)·[docs/00_overview/02-api.md](../00_overview/02-api.md)를 수정하지 않는다.** 공용 문서다.
 - **인증·권한 코드를 넣지 않는다.** 인증은 팀장 담당(A1~A3)이고 아직 없다. 토큰 검사를 흉내 내면 나중에 팀장 것과 충돌한다. 사용자 id 가 필요한 자리는 `# TODO(A1): 토큰의 사용자로 채운다` 주석만 남긴다.
 - **`main.py` 는 `include_router` 한 줄만** 건드린다. 그 파일의 다른 부분은 손대지 않는다.
