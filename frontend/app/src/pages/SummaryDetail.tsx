@@ -132,21 +132,16 @@ function ScorePill({ label, value, strong = false }: { label: string; value: num
 
 function IntroAndResumeSection({ app }: { app: ApplicationDetail }) {
   /* 담당자가 서류·인적성·면접 요약을 보다가 "원문은 뭐라고 쓰여 있었지?" 를 바로 확인할
-     수 있게 자기소개서(자체 텍스트) 와 이력서(브라우저 내장 뷰어로 보기) 를 상단에 붙인다.
-     자기소개서는 몇 백 자 이내면 그대로 보이고, 길면 접힘 · 이력서는 클릭 시 새 탭에 미리보기.
-
-     **다운로드는 일부러 안 준다.** 이력서는 블록체인 앵커로 원본 무결성이 걸려 있어서
-     저장·수정 흐름이 없다 (ADR-0028). 백엔드도 `Content-Disposition: inline` 을 주므로
-     브라우저 PDF 뷰어가 열리고, 그 안에서 저장 버튼을 누를 이유가 없다. */
+     수 있게 자기소개서(자체 텍스트) 와 이력서(파일 다운로드) 를 상단에 붙인다.
+     자기소개서는 몇 백 자 이내면 그대로 보이고, 길면 접힘 · 이력서는 클릭 시 서명 URL 발급. */
   const resumeFile = (app.files ?? []).find((f) => f.kind === 'resume')
 
   const openResume = async () => {
     if (!resumeFile) return
     try {
       const { download_url } = await filesApi.presignDownload(resumeFile.id)
-      // 새 탭에서 열어 브라우저 PDF 뷰어로 미리보기 (담당자 화면은 그대로 남는다).
-      // noopener 로 새 탭이 opener 를 못 잡게 — 이력서 링크가 신뢰 경계 밖 리소스를 여는 셈이다.
-      window.open(download_url, '_blank', 'noopener,noreferrer')
+      // window.location.href 로 열어야 브라우저가 다운로드로 처리 (fetch 는 CORS 로 막힘)
+      window.location.href = download_url
     } catch { /* 발급 실패 시 조용히 무시 · 담당자가 다시 시도 가능 */ }
   }
 
@@ -159,7 +154,7 @@ function IntroAndResumeSection({ app }: { app: ApplicationDetail }) {
         <span className={styles.sectionMeta}>
           {resumeFile && (
             <button type="button" className={styles.linkOut} onClick={openResume}>
-              이력서 보기 →
+              이력서 다운로드 ↓
             </button>
           )}
         </span>
