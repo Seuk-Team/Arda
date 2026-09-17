@@ -1,13 +1,13 @@
 # backend — FastAPI 서버
 
-> 모델(테이블 정의)까지 있음. 라우터·서비스는 아직 없다.
+> 2026-09-17 갱신: 이 머리말은 08 월 뼈대 시점에 쓰였다. 지금은 라우터·서비스가 컨텍스트별 폴더(`application`·`hiring`·`interview`·`talent`·`shared`, ADR-0035)에 있다.
 
 ```bash
 uv sync
 ```
 
-- `app/models.py` — [../docs/00_overview/01-erd.md](../docs/00_overview/01-erd.md)를 그대로 옮긴 테이블 9개. **문서가 기준이고, 어긋나면 문서를 고친 뒤 여기를 맞춘다.**
-- `app/db.py` — 엔진·세션·`Base`. 스키마가 굳기 전까지는 마이그레이션을 쌓지 않고 `create_all`로 만들고 지운다.
+- `app/models/` — [../docs/00_overview/01-erd.md](../docs/00_overview/01-erd.md)의 표를 옮긴 모델(표 28개, 컨텍스트별 파일). **문서가 기준이고, 어긋나면 문서를 고친 뒤 여기를 맞춘다.**
+- `app/db.py` — 엔진·세션·`Base`. 스키마 변경은 alembic 리비전으로 쌓는다 ([alembic/README.md](alembic/README.md)).
 - DB 접속 정보는 `.env`(git 제외)에 넣는다. 키 이름은 `.env.example` 참고.
 
 - Python 3.12 · uv · FastAPI · SQLAlchemy · PostgreSQL

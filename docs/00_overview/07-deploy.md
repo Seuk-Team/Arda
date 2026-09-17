@@ -218,7 +218,7 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 
 **무엇**: Cloudflare Realtime **TURN Server** (대시보드 Realtime → TURN Server). 무료 구간 월 1,000GB relay — 1:1 면접 1건 ≈ 100MB 라 시연·발표 전 구간 무료. 같은 EC2 에 coturn 을 올리는 대안은 t3.medium 이 컨테이너 6개로 이미 빠듯하고 UDP 포트 범위를 열어야 해서 접었다([ADR-0031](../03_decision/0031-aws-최소화.md) 표면적 원칙과도 부합 — 자격 증명만 옮기면 어느 서버에서든 같다).
 
-**credential 은 24시간짜리다.** Cloudflare 가 발급하는 TURN username/credential 은 TTL 최대 86400초. 손으로 `RTC_ICE_SERVERS` 에 박아 두면 **매일 만료**된다. 그래서 api 가 **필요할 때 직접 발급**한다(`backend/app/api/interview_rtc.py` `ice_servers()`): 서버 `.env` 에 키 두 개만 두면 첫 요청 때 받아 캐시하고 만료 4시간 전에 새로 받는다. 부르는 쪽(입장권·WebSocket hello)은 그대로.
+**credential 은 24시간짜리다.** Cloudflare 가 발급하는 TURN username/credential 은 TTL 최대 86400초. 손으로 `RTC_ICE_SERVERS` 에 박아 두면 **매일 만료**된다. 그래서 api 가 **필요할 때 직접 발급**한다(`backend/app/interview/api/interview_rtc.py` `ice_servers()`): 서버 `.env` 에 키 두 개만 두면 첫 요청 때 받아 캐시하고 만료 4시간 전에 새로 받는다. 부르는 쪽(입장권·WebSocket hello)은 그대로.
 
 ```bash
 # 서버 ~/arda/backend/.env — Cloudflare TURN Server → Create TURN Key 에서 받은 두 값
@@ -316,7 +316,7 @@ docker compose -f ~/arda/docker-compose.prod.yml up -d n8n
   docker compose -f ~/arda/docker-compose.prod.yml up -d --force-recreate caddy
   ```
 - **Basic Auth 통과했는데 화면이 하얗다** = 자산이 404. 원인 위 3층 협력 어긋남. 진단: `curl -sI -u '<user>:<pass>' https://.../n8n/assets/…js | head -3` 에 `HTTP/2 404` + `content-type: text/html` 이면 확정. `handle_path` 로 교체 후 `up -d --force-recreate n8n caddy`.
-- **n8n 웹훅 URL 은 `/webhook/…` (N8N_PATH 접두어 없음, 2026-09-08 실측 확정)**. n8n 은 웹훅을 항상 루트에 등록한다 — `N8N_PATH=/n8n/` 로 편집 화면은 `/n8n/…` 이지만 웹훅은 `/webhook/…` 그대로. 백엔드가 `http://n8n:5678/n8n/webhook/…` 로 부르면 `Cannot POST` 404. `backend/app/mail.py` 의 `_N8N_WEBHOOK_URL_DEFAULT` 가 이걸 반영한 정본. 다른 데서 부르려면 `http://n8n:5678/webhook/<path>` 로.
+- **n8n 웹훅 URL 은 `/webhook/…` (N8N_PATH 접두어 없음, 2026-09-08 실측 확정)**. n8n 은 웹훅을 항상 루트에 등록한다 — `N8N_PATH=/n8n/` 로 편집 화면은 `/n8n/…` 이지만 웹훅은 `/webhook/…` 그대로. 백엔드가 `http://n8n:5678/n8n/webhook/…` 로 부르면 `Cannot POST` 404. `backend/app/adapter/outbound/mail/n8n_dispatcher.py` 의 `_N8N_WEBHOOK_URL_DEFAULT` 가 이걸 반영한 정본. 다른 데서 부르려면 `http://n8n:5678/webhook/<path>` 로.
 - **`N8N_BLOCK_ENV_ACCESS_IN_NODE=false` 필수 (2026-09-08 실측 확정)**. n8n 2.x 기본은 워크플로 표현식에서 `$env.XXX` 접근 차단. 우리 워크플로는 `ARDA_INTERNAL_URL`·`ARDA_SERVICE_TOKEN` 을 읽어야 하므로 이 옵션 없으면 렌더링 조회 노드가 "access to env vars denied" 로 죽는다. compose 에 이미 박혀 있으므로 새 배포에는 문제 없지만, 기존 서버에서 `.env` 만 갱신하는 것으로는 안 되고 compose 재기동 필요.
 - **워크플로 URL 필드는 Expression 모드 유지 (2026-09-08 실측)**. n8n 화면에서 URL 을 편집하면 필드가 String 모드로 다운그레이드될 수 있고, 그러면 `=` 접두어가 리터럴 문자로 저장돼 `Invalid URL: =http://…` 로 죽는다. `=` 접두어를 지우거나 fx 아이콘 클릭해 Expression 모드 유지.
 - 화면이 계속 깨지면 마지막 대안은 서브도메인(`n8n.seuk.suvisdev.cloud` — DNS A 레코드 1개 + Caddy 블록 하나, `N8N_PATH` 제거). 지금 세팅은 실측 통과했으니 굳이 안 감.

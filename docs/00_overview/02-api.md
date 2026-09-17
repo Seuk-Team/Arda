@@ -112,7 +112,7 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /applications/{id}/interview-sessions | 면접 세션 생성 + 공개 링크 발급 | 본문 `{expires_in_days?}` (1~30, 기본 7). **재발급이 아니라 새 행**이라 이전 링크가 죽지 않는다 — 공고 public-link 와 다르다 |
+| POST | /applications/{id}/interview-sessions | 면접 세션 생성 + 공개 링크 발급 | 본문 `{expires_in_days?}` (1~30, 기본 7). **재발급이 아니라 새 행**이라 이전 링크가 죽지 않는다 — 공고 public-link 와 다르다. **질문은 자동으로 들어간다**: 기본 질문 3개를 세션과 같은 커밋에 먼저 넣고(만들자마자 시작해도 422 가 안 난다, 2026-09-17 #309), 뒤에서 자기소개서·이력서로 맞춤 질문 **최대 4개**(09-12 에 10 → 4)를 만들어 아직 시작 전이면 바꿔 넣는다(`seed_questions_bg`). 담당자는 `PUT …/questions` 로 덮어쓸 수 있다 |
 | GET | /applications/{id}/interview-sessions | 이 지원자의 세션 목록 | 최신순 |
 | GET | /interview-sessions/active | **지금 진행 중인 면접들** | 2026-09-09 신설. `in_progress` 만 낸다 — 안 시작한 것은 볼 게 없고 끝난 것은 방이 안 열린다. 지원자 이름·공고 제목을 같이 내려 **대시보드가 한 번에 들어간다** (없으면 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야 실시간 분석 화면에 닿는다). **경로 순서 주의** — `{id}` 위에 둔다. 아래 두면 `active` 가 id 로 읽혀 422 |
 | GET | /interview-sessions/{id} | 세션 상세 | 전사(`turns`)와 서류↔발언 대조(`findings`) 포함. 대조마다 **`turn_seq`**(어느 답변에서 나왔나 — 끝날 때 전체로 만든 것은 `null`), 그리고 **`findings_enabled`**(대조 스위치가 켜져 있는가 — 꺼진 것과 아직 없는 것을 화면이 가르게) (2026-09-11) |
@@ -135,13 +135,13 @@
 - **답변 음성은 이력서 업로드 경로를 쓰지 않는다** (2026-09-07 변경). `POST /public/files/presign-upload` 는 토큰 없이 누구나 부를 수 있어서, 거기에 음성 형식을 얹으면 아무나 버킷에 미디어를 올릴 수 있다. 그리고 이력서 허용 목록에 `.webm` 이 들어가면 **이력서 자리에 음성이 박힌다.** 그래서 면접 토큰이 필요한 별도 경로를 뒀다
 - **전사는 `raw` 를 저장한다 — `resolved` 가 아니다.** 엔티티 해석("파이썬 이년" → "Python 2년")을 거친 문장을 저장하면, 나중에 이력서 주장과 맞춰 **원문으로 인용**할 때(ADR-0026 결정 3) 지원자가 하지 않은 말을 인용하게 된다
 - **전사에 실패하면 아무것도 저장하지 않고 502.** 반쯤 저장하면 답을 못 한 채로 다음 질문으로 넘어간다. 음성은 S3 에 남지만 회차가 비어 있어 지원자에게 같은 질문이 그대로 보이고 다시 답할 수 있다
-- **`pacing` — 진행 보조** (2026-09-07, [ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md) 결정 4). 답변 응답에만 붙고 조회(GET)에는 항상 `null` 이다. 모양은 `{action, message}` 이고 `action` 은 `follow_up`(되묻기) · `offer_break`(쉬어가기 권함) · `rephrase`(질문을 바꿔 보자) 셋. **점수가 없고 DB 에 저장되지 않는다** — 평가로 가는 길을 만들지 않기 위해서다. 제안할 것이 없으면 `null`. 규칙은 `app/interview_pacing.py`
+- **`pacing` — 진행 보조** (2026-09-07, [ADR-0026](../03_decision/0026-AI-면접-음성분석-제외.md) 결정 4). 답변 응답에만 붙고 조회(GET)에는 항상 `null` 이다. 모양은 `{action, message}` 이고 `action` 은 `follow_up`(되묻기) · `offer_break`(쉬어가기 권함) · `rephrase`(질문을 바꿔 보자) 셋. **점수가 없고 DB 에 저장되지 않는다** — 평가로 가는 길을 만들지 않기 위해서다. 제안할 것이 없으면 `null`. 규칙은 `app/interview/pacing.py`
   - 보는 것 둘: **답이 아주 짧다**(전사 글자 수) · **말이 유난히 느리다**(글자 수 ÷ `audio_duration_sec`, 음성으로 답했을 때만)
   - **말이 느린 것을 "긴장했다"로 적지 않는다.** 그렇게 적으면 심리 추론이 되어 ADR-0026 결정 2 를 넘는다. 우리가 말할 수 있는 것은 "말이 느렸다"까지고, 할 수 있는 것은 "질문을 바꿔 보자"까지다
   - 속도 임계값은 **임시값**이다. 실제 지원자 녹음이 쌓이면 분포를 보고 다시 정한다
   - 침묵 길이는 아직 못 본다 — 브라우저가 녹음 시작~첫 발화를 재서 보내야 한다
   - **프론트는 모르는 `action` 을 무시하도록** 짠다. 신호가 늘면 여기가 늘어난다
-- 아직 없는 것: 질문 자동 생성(설계 §5-5) · 대조 판정(§5-6) · 평가 초안(§5-7). **셋 다 에이전트 폴더**다
+- 설계 §5-5~7 의 현재 (2026-09-17 갱신 — 전에는 셋 다 "아직 없음"으로 적혀 있었다): **질문 자동 생성(§5-5)** 은 세션을 만들면 뒤에서 돈다(위 세션 생성 줄) · **대조 판정(§5-6)** 은 `interview_findings.verdict`(`consistent`/`inconsistent`/`unverified`) · **평가 초안(§5-7)** 은 따로 없고, `finish` 뒤 AI 채점(`app/interview/scoring.py`)이 남기는 강점·우려가 그 역할을 한다
 
 ## 지원 현황 조회 — 지원자용
 
@@ -185,7 +185,7 @@
 | GET | /public/aptitude/{token} | 지원자용 조회 | **공개**. 만료는 조회 시점 판정. pending 일 때만 문항을 내려준다. 담당자 정보 없음 |
 | POST | /public/aptitude/{token}/submit | 응답 제출 | **공개**. 전 문항 필수(부분 제출 422) · 재제출 409 · 만료 410. 제출되면 백그라운드로 관찰 요약 생성 |
 
-- 문항은 코드 상수 10개, 리커트 5점 (`backend/app/aptitude_questions.py`)
+- 문항은 코드 상수 10개, 리커트 5점 (`backend/app/application/aptitude_questions.py`)
 - **AI 는 요약만** — 응답 통계는 코드가 계산하고 LLM 은 재서술 한 문단만 쓴다. 유형 판정·점수·합불 의견을 만들지 않는다 ([ADR-0027](../03_decision/0027-인적성-검사.md) · [ADR-0003](../03_decision/0003-ai-추천만.md))
 - **미응답은 아무것도 막지 않는다** — 서류검토·단계 이동 어디에도 응답 여부가 끼지 않는다
 - 발송 메일은 `email_logs` 의 custom 경로(create_custom_log)로 남는다 — 보낸 그대로가 감사 기록
@@ -370,7 +370,7 @@
 
 | 메서드 | 경로 | 설명 | 비고 |
 |---|---|---|---|
-| GET | /settings/scoring | 가중치 7개 · 인재상 · 기본값 · 등급 경계 | admin. 값이 없으면 기본값(`app/screening.py DEFAULT_WEIGHTS`)이 채워져 온다 |
+| GET | /settings/scoring | 가중치 7개 · 인재상 · 기본값 · 등급 경계 | admin. 값이 없으면 기본값(`app/application/screening.py DEFAULT_WEIGHTS`)이 채워져 온다 |
 | PUT | /settings/scoring | 가중치·인재상 변경 | admin. `weights`(7개 전부, 각 0~100 — 묶음 합이 100 이 아니어도 됨, 합으로 나눈다) · `talent_profile`(text). 보낸 키만 반영 |
 
 점수 규칙(원본은 [N1 지시서](../02_tasks/N1-자동심사-파이프라인.md)): 서류 = 요건·우대·인재상 가중 평균 → `applications.doc_score` · 임계(`job_postings.pass_threshold`) 이상이면 아르가 `applied→screening→interview`, 미만이면 `→rejected`(이력 `changed_by` NULL + 점수 사유, 메일은 `send-rejections` 로 일괄) · 면접 = 답변 대조 + 진위 일관성 → `interview_sessions.ai_score` · 최종 = 서류×w + 면접×w → 상세의 `final_score`·`grade`. 사람이 단계를 옮기면 `decision_source=human` 이 되어 그 뒤 자동은 손대지 않는다. `accepted` 는 사람만.
