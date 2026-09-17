@@ -307,8 +307,14 @@ def generate_summary(db: Session, application_id: int) -> str | None:
 
     # ── Step 1: 요약 ──
     try:
+        # 백엔드가 로컬 어댑터(Ollama)면 v1 프롬프트를 명시적으로 로드한다.
+        # 오늘 학습한 요약 어댑터는 chain_summarize.v1 gold 기반이라 v2 의 career_years
+        # 필드를 낼 학습을 안 했다. Anthropic 은 최신(v2)로 그대로 · career_years 채워진다.
+        # 어댑터 v2 gold 재학습 없이 서빙 스위치 가능하도록 (2026-09-17).
+        summarize_version = 1 if getattr(backend, "name", None) == "ollama" else None
         step1_text, step1_tag = render(
             "chain_summarize",
+            version=summarize_version,
             resume_text=prompt_vars["resume_text"],
             cover_letter_text=prompt_vars["cover_letter_text"],
         )
@@ -344,8 +350,15 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     # v2 신설: 이력서에서 추출한 경력 연수를 폼 값이 비었을 때만 채운다.
     # 지원자가 폼에 명시적으로 입력한 값이 있으면 그것을 우선 (지원자 의사 존중).
     # AI 가 null 을 반환하면 폼 값도 건드리지 않는다.
+    # 이전 재생성이 AI 로 채웠는지 (2026-09-17 우정 PR #294 재확인 지적).
+    # 첫 재생성: career_years=None → AI 값 채움 → source="ai" 저장.
+    # 두 번째 재생성: career_years 이미 채워짐 → filled_from_ai=False → detail 재작성 시
+    #   source 필드가 빠져 신고값으로 보이게 됐다. 이전 표시를 이어받아 방지한다.
+    prev_source = (app.doc_score_detail or {}).get("career_years_source")
+
     career_years_filled_from_ai = False
     if app.career_years is None:
+        # 폼 값이 비었으면 AI 값을 처음 채운다.
         ai_years = step1.get("career_years")
         if isinstance(ai_years, int) and 0 <= ai_years <= 60:
             app.career_years = ai_years
@@ -354,6 +367,18 @@ def generate_summary(db: Session, application_id: int) -> str | None:
                 "career_years_filled_from_summary",
                 extra={"application_id": application_id, "value": ai_years},
             )
+    elif prev_source == "ai":
+        # 이전에 AI 로 채운 값이 있으면 AI 가 다시 세는 값으로 갱신한다 (우정 제안).
+        # 이력서·자소서가 갱신되면 새 AI 값이 더 정확할 수 있다. 폼 값이 신고값이면
+        # source 표식이 없어 이 갈래에 안 들어온다 — 지원자 의사는 여전히 우선.
+        ai_years = step1.get("career_years")
+        if isinstance(ai_years, int) and 0 <= ai_years <= 60 and ai_years != app.career_years:
+            logger.info(
+                "career_years_updated_from_summary",
+                extra={"application_id": application_id, "before": app.career_years, "after": ai_years},
+            )
+            app.career_years = ai_years
+            career_years_filled_from_ai = True
 
     # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v2, ADR-0034) ──
     try:
@@ -459,7 +484,9 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     # AI 가 채운 career_years 는 출처를 남긴다 (우정 리뷰 #294 제안).
     # 프론트가 "N년 (AI 추정)" 으로 표시하고 · 아르 검색 도구가 신고값과 구별하고 · 공정성
     # 질문 때 근거로 쓴다. 폼 값이 있었으면 이 필드는 안 붙어 "신고값" 이 기본 가정이다.
-    if career_years_filled_from_ai:
+    # 이번 세션에 AI 로 채웠거나 · 이전에 AI 로 채운 표시가 있었다면 이어받는다.
+    # 이래야 두 번째 재생성에서 detail 이 새로 쓰여도 "ai" 표식이 유지된다 (우정 지적).
+    if career_years_filled_from_ai or prev_source == "ai":
         detail["career_years_source"] = "ai"
     app.doc_score_detail = detail
     db.commit()
