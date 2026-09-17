@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applications, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, PostingStatus, Stage } from '../api/types'
@@ -417,7 +417,13 @@ export default function PostingApplicants() {
               aria-current={a.id === openId ? 'true' : undefined}
               onClick={() => openDetail(a.id)}
             >
-              <span className={styles.name}>{a.name}</span>
+              <Link
+                to={`/summary/${a.id}`}
+                className={styles.name}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {a.name}
+              </Link>
               <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
               <span className={styles.num}>{careerText(a.career_years)}</span>
               <span className={styles.email}>{a.email}</span>

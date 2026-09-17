@@ -376,7 +376,15 @@ export default function Applicants() {
                   }}
                 >
                   <div className={styles.appCardTop}>
-                    <span className={styles.appName}>{a.name}</span>
+                    {/* 이름 클릭 = 종합 평가 상세 페이지 (2026-09-17 사용자 판단).
+                        stopPropagation 으로 카드 클릭 (사이드패널) 과 분리. */}
+                    <Link
+                      to={`/summary/${a.id}`}
+                      className={styles.appName}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {a.name}
+                    </Link>
                     <span className={stageBadgeClass(a.current_stage)}>
                       {STAGE_LABEL[a.current_stage]}
                     </span>
@@ -419,7 +427,13 @@ export default function Applicants() {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(a.id) }
                   }}
                 >
-                  <span className={styles.name}>{a.name}</span>
+                  <Link
+                    to={`/summary/${a.id}`}
+                    className={styles.name}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {a.name}
+                  </Link>
                   <span className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
                   <span>
                     <span className={`${styles.stageBadge} ${STAGE_CLASS[a.current_stage]}`}>
