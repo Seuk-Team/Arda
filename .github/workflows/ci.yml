@@ -143,3 +143,65 @@ jobs:
       - name: 빌드 (tsc -b + vite build)
         working-directory: frontend/app
         run: npm run build
+
+  # 2026-09-17 추가. 실시간 면접 서버(ai/lie-detection) 시험 110개가 CI 밖에 있었다.
+  # 09-01 이후 51번 바뀌었는데 매번 각자 로컬 컨테이너로만 확인했다 — 시험이
+  # 깨졌는지 머지한 사람의 기억에 달려 있었다. 우정 님이 실측 (python:3.13-slim ·
+  # 서비스 Dockerfile 과 같은 apt 5개) 로 110 passed / 50초 확인 후 요청 (2026-09-17
+  # 「수택님께_백엔드회신_통합」 2부). 의존성은 서비스 Dockerfile 과 같게 둔다.
+  # requirements-vit.txt(torch)는 시험에 필요 없어 뺀다 — 넣으면 수 GB.
+  #
+  # 린트는 지금 붙이면 빨간 CI. 기존 오류 5건(analyze_file·app·deception_vit·
+  # interview_ws·test_interview_ws) 을 우정 님이 다음 ai/ 변경 때 정리한 뒤 붙인다.
+  ai:
+    name: AI 면접 서버 시험
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"   # ai/lie-detection/Dockerfile 과 맞춘다
+          cache: pip
+          cache-dependency-path: ai/lie-detection/requirements.txt
+
+      - name: 시스템 라이브러리 (opencv·mediapipe·soundfile)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libglib2.0-0 libegl1 libgles2 libsndfile1
+
+      - name: 의존성
+        working-directory: ai/lie-detection
+        run: pip install -r requirements.txt pytest
+
+      # 로컬 실측(2026-09-17, python:3.13-slim): 110 passed / 50초
+      - name: pytest
+        working-directory: ai/lie-detection
+        run: python -m pytest -q test_interview_flow.py test_interview_ws.py test_speaker_match.py
+
+  # 2026-09-17 추가 (Issue #254 · minahdev 원안). 09-15 앱 시험 15건이 깨진 채
+  # 며칠 지나갔다 — 아무도 몰랐다. Flutter 3.44.8 로 analyze + test.
+  mobile:
+    name: 앱 시험 (Flutter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.8"
+          channel: stable
+          cache: true
+
+      - name: pub get
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: test
+        working-directory: mobile
+        run: flutter test

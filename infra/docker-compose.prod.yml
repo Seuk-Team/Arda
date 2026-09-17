@@ -39,7 +39,11 @@ services:
     # (`./backend` 이면 infra/backend 를 찾아 없다고 죽는다, 2026-09-09 실측). 상위로.
     build: ../backend
     env_file: ../backend/.env
-    command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # `--workers 1` 명시. 세션 방(`_ROOMS`)·티켓(`_TICKETS`)·로그인 잠금(`_FAILS`)·
+    # STT 모델(`_local_model`) 이 전부 프로세스 인메모리다. 워커 여럿이면 지원자와
+    # 담당자가 다른 프로세스에 앉아 서로를 못 본다 (2026-09-17 우정 B9 지적 · deploy-arda.sh 재확인).
+    # Redis 이관은 프리즈 뒤 별건.
+    command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
     ports:
       - "8000:8000"
     restart: unless-stopped

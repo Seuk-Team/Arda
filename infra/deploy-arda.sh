@@ -74,5 +74,16 @@ if [ "$HEALTHY" = 1 ]; then
 else
   echo "$(date -Is) deploy WARN: health check 60초 실패 — 로그 확인 필요" >> "$LOG"
 fi
+
+# uvicorn 워커 1개 재확인 (2026-09-17 우정 B9 지적).
+# 세션 방·티켓·잠금·STT 모델이 프로세스 인메모리라 여러 워커면 지원자·담당자가
+# 다른 프로세스에 앉아 서로를 못 본다. compose command 에 `--workers 1` 이 명시되어
+# 있지만 배포 뒤 실제 프로세스 수를 한 번 더 본다. 2개 이상이면 즉시 알림.
+WORKERS=$(docker exec arda-api-1 sh -c 'ps -ef | grep -c "uvicorn app.main:app.*--port 8000$"' 2>/dev/null || echo "0")
+if [ "$WORKERS" != "1" ]; then
+  echo "$(date -Is) deploy WARN: uvicorn 워커 $WORKERS 개 (기대 1) — compose command 확인 필요" >> "$LOG"
+else
+  echo "$(date -Is) uvicorn worker=1 확인" >> "$LOG"
+fi
 docker image prune -f > /dev/null 2>&1 || true
 docker builder prune -f --keep-storage 3g > /dev/null 2>&1 || true
