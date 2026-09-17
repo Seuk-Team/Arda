@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent, ReactElement, ReactNode } from 'react'
-import { ApiError } from '../api/client'
+import type { DragEvent, KeyboardEvent, ReactElement, ReactNode } from 'react'
+import { api, ApiError } from '../api/client'
 import { agent } from '../api/endpoints'
 import type { AgentChoice, AgentHistoryMessage, AgentPendingAction, AgentToolCall } from '../api/types'
 import { STAGE_LABEL } from '../lib/stage'
@@ -14,6 +14,37 @@ import styles from './ArChat.module.css'
    띄우고, 사람이 [확인]을 누를 때만 /agent/confirm 을 부른다. */
 
 export type ArMotion = 'idle' | 'listen' | 'think' | 'ask' | 'confirm' | 'fail'
+
+/* 이력서 드래그·드롭 접수 (A안 · 2026-09-17)
+   담당자가 아르 채팅 창에 이력서 PDF/DOCX 를 떨어뜨리면
+   1) 파일을 S3 로 올린다 (공개 지원 폼과 같은 presign 경로 재사용)
+   2) 아르에게 "이 이력서로 지원자 접수해줘 (s3_key + filename)" 를 자동으로 말한다
+   3) 아르가 담당자에게 공고·이름·연락처를 물으면 담당자가 답한다
+   4) 확인 카드 → 승인 → create_application 실행 → 요약·앵커 자동 트리거
+
+   백엔드는 s3_key 만 받는다 — 텍스트 추출은 접수 뒤 요약 chain 이 한다. */
+const DROP_EXT = /\.(pdf|docx|hwpx|hwp|txt)$/i
+const DROP_MAX_BYTES = 20 * 1024 * 1024  // 20MB — 공개 지원 폼과 같은 상한
+
+async function uploadDropped(file: File): Promise<{ s3_key: string; content_type: string }> {
+  /* 공개 지원 폼과 같은 presign 경로. 담당자 인증이 있어도 여기서는 auth: false 를 유지 —
+     같은 서버 로직·검증을 그대로 재사용하는 자리라 별도 관리자 엔드포인트를 새로 만들지 않는다. */
+  const contentType = file.type || 'application/octet-stream'
+  const presign = await api.post<{ upload_url: string; s3_key: string }>(
+    '/public/files/presign-upload',
+    { filename: file.name, content_type: contentType, kind: 'resume', size_bytes: file.size },
+    { auth: false },
+  )
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', presign.upload_url)
+    xhr.setRequestHeader('Content-Type', contentType)
+    xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`올리지 못했습니다 (${xhr.status})`)))
+    xhr.onerror = () => reject(new Error('올리지 못했습니다'))
+    xhr.send(file)
+  })
+  return { s3_key: presign.s3_key, content_type: contentType }
+}
 
 /* 실행 로그에 쓰는 도구 이름. TOOLS.md 의 도구 목록과 같은 순서 */
 const TOOL_LABELS: Record<string, string> = {
@@ -201,6 +232,12 @@ export default function ArChat({
   const streamRef = useRef<HTMLDivElement>(null)
   const fieldRef = useRef<HTMLTextAreaElement>(null)
 
+  /* 드래그·드롭 상태. `depth` 로 dragEnter/dragLeave 중첩을 센다 — 자식 요소를 지나갈 때마다
+     leave 가 나서 오버레이가 깜빡거리는 것을 막는다. */
+  const [dropOver, setDropOver] = useState(false)
+  const [dropBusy, setDropBusy] = useState<string | null>(null)  // 업로드 중인 파일명
+  const dropDepth = useRef(0)
+
   const push = useCallback((body: Body) => {
     seq.current += 1
     setItems((prev) => [...prev, { ...body, id: seq.current }])
@@ -356,6 +393,71 @@ export default function ArChat({
     fieldRef.current?.focus()
   }
 
+  /* ── 이력서 드래그·드롭 (2026-09-17) ─────────────────────────────
+     dragEnter/leave 는 자식 요소를 지나갈 때마다 나니 depth 로 카운트해서 오버레이가
+     깜빡이지 않게 한다. 드롭 파일이 여러 개면 첫 번째만 받는다 (아르 채팅은 하나에
+     이력서 하나씩 접수하는 자리라 두 개 이상 받는 것은 UX 상 혼란). */
+  function onDragEnter(e: DragEvent<HTMLDivElement>) {
+    if (busy || dropBusy !== null) return
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return
+    e.preventDefault()
+    dropDepth.current += 1
+    setDropOver(true)
+  }
+  function onDragOver(e: DragEvent<HTMLDivElement>) {
+    if (busy || dropBusy !== null) return
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+  function onDragLeave() {
+    dropDepth.current = Math.max(0, dropDepth.current - 1)
+    if (dropDepth.current === 0) setDropOver(false)
+  }
+  async function onDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    dropDepth.current = 0
+    setDropOver(false)
+    if (busy || dropBusy !== null) return
+
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+    if (!DROP_EXT.test(file.name)) {
+      push({ kind: 'error', text: 'PDF · DOCX · HWPX · TXT 만 접수할 수 있어요.' })
+      setFlash('fail')
+      return
+    }
+    if (file.size > DROP_MAX_BYTES) {
+      push({ kind: 'error', text: '파일이 20MB 를 넘어요 — 이력서에는 큰 파일입니다.' })
+      setFlash('fail')
+      return
+    }
+
+    setDropBusy(file.name)
+    try {
+      const { s3_key, content_type } = await uploadDropped(file)
+      /* 서버로 가는 글은 s3_key·filename·크기·타입을 실제 값으로 · 담당자에게 보이는 글은
+         파일 이름만 (s3_key 는 시각적 잡음이라 채팅 흐름에 노출하지 않는다). */
+      const shown = `📎 ${file.name} 을 접수 대상으로 드롭했어요.`
+      const message = [
+        '지원자 이력서 파일을 접수해 주세요.',
+        `filename: ${file.name}`,
+        `resume_s3_key: ${s3_key}`,
+        `content_type: ${content_type}`,
+        `size_bytes: ${file.size}`,
+        '',
+        '어느 공고에 접수할지, 지원자 이름·이메일·전화번호를 이 자리에서 물어봐 주세요.',
+        '모두 확인되면 create_application 으로 접수 확인 카드를 띄우고, 승인되면 요약과 무결성 앵커도 자동으로 시작해 주세요.',
+      ].join('\n')
+      await submit(message, shown)
+    } catch (err) {
+      push({ kind: 'error', text: err instanceof Error ? err.message : '파일을 올리지 못했습니다.' })
+      setFlash('fail')
+    } finally {
+      setDropBusy(null)
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     /* 한글 조합 중 Enter 는 확정용이다 — 여기서 보내면 마지막 글자가 잘린다 */
     if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
@@ -363,10 +465,34 @@ export default function ArChat({
     void send()
   }
 
-  const locked = busy !== null
+  const locked = busy !== null || dropBusy !== null
 
   return (
-    <div className={styles.root}>
+    <div
+      className={`${styles.root} ${dropOver ? styles.dropOver : ''}`}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {/* 드롭 오버레이 — 실제로 드롭 대상이 되는 시각 신호. 자식 이벤트를 가로채지 않게
+          pointer-events 는 CSS 에서 none 으로 둔다. */}
+      {dropOver && (
+        <div className={styles.dropOverlay} aria-hidden="true">
+          <div className={styles.dropCard}>
+            <span className={styles.dropIcon}>📎</span>
+            <span className={styles.dropTitle}>이력서 접수</span>
+            <span className={styles.dropSub}>PDF · DOCX · HWPX · TXT · 20MB 이하</span>
+          </div>
+        </div>
+      )}
+
+      {dropBusy !== null && (
+        <p className={styles.dropStatus} role="status">
+          <span className={styles.spinner} aria-hidden="true" />
+          {dropBusy} 올리는 중…
+        </p>
+      )}
       <div className={styles.stream} ref={streamRef} aria-live="polite" aria-busy={locked}>
         {items.map((item) => {
           if (item.kind === 'user') return <p key={item.id} className={styles.user}>{item.text}</p>
