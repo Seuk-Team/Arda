@@ -441,12 +441,19 @@ def create_application(db: Session, user: User, params: dict) -> dict:
     ))
     db.commit()
 
-    # AI 요약 chain 자동 트리거 (기존 D6 API 와 같은 흐름).
+    # AI 요약 chain + 무결성 앵커 자동 트리거.
     # BackgroundTasks 를 여기서 못 쓰므로 단순 스레드로 띄운다 — 아르 응답은 즉시 반환하고
-    # 요약 chain 은 뒤에서 돌게 한다 (실 서비스에서는 큐로 전환 검토, 시연에는 이 쪽이 단순).
+    # 두 태스크는 뒤에서 돈다.
+    #
+    # 앵커 (ADR-0028) 는 지원자 자체 폼 제출 (public.py) 에만 걸려 있었고 D6 담당자 직접
+    # 등록에는 없다. 그러나 아르 채팅에서 담당자가 이력서를 드롭하는 경로는 "지원자 파일이
+    # 서버에 들어와 저장되는 자리" 라 사후 변조 방지 목적이 그대로 유효하다. 개인정보인
+    # 이력서가 저장된 뒤 임의로 바뀌지 않게 앵커를 함께 건다 (2026-09-17 판단).
     from app.agent.summarizer import generate_summary_bg
+    from app.shared.anchoring import anchor_application_bg
     import threading
     threading.Thread(target=generate_summary_bg, args=(row.id,), daemon=True).start()
+    threading.Thread(target=anchor_application_bg, args=(row.id,), daemon=True).start()
 
     return {
         "ok": True,
