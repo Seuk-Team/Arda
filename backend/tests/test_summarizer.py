@@ -32,6 +32,9 @@ class FakeApp:
     ai_summary: str | None = None
     ai_summary_at: object = None
     ai_summary_model: str | None = None
+    # 2026-09-17: career_years_source 이어받기 규칙이 이전 detail 을 읽어 판정한다.
+    doc_score: int | None = None
+    doc_score_detail: dict | None = None
     # 이력서 파일 텍스트 추출(extractor.py) 이후 _build_prompt_vars 가 읽는다
     files: list = field(default_factory=list)
 
@@ -343,6 +346,115 @@ class TestGenerateSummary:
         generate_summary(db, app.id)
 
         assert app.career_years is None   # null 그대로
+
+    # 2026-09-17 우정 PR #294 재확인 지적: 두 번째 재생성에서 source="ai" 가 사라지지 않는지.
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_career_years_source_persists_across_regen(self, mock_cls, fake_db):
+        step1_with_years = json.dumps({
+            "insufficient": False,
+            "gist": "요약",
+            "key_skills": ["Python"],
+            "key_experiences": ["6년 백엔드"],
+            "career_years": 6,
+        }, ensure_ascii=False)
+        # 첫 재생성용 3턴 + 두 번째 재생성용 3턴
+        mock_cls.return_value.messages.create.side_effect = [
+            FakeResponse(content=[FakeContent(text=step1_with_years)]),
+            FakeResponse(content=[FakeContent(text=STEP2_JSON)]),
+            FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+            FakeResponse(content=[FakeContent(text=step1_with_years)]),
+            FakeResponse(content=[FakeContent(text=STEP2_JSON)]),
+            FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+        ]
+
+        db, app = fake_db
+        app.career_years = None    # 첫 재생성 전엔 폼 빈 상태
+
+        # 1차 재생성 → source="ai" 저장
+        generate_summary(db, app.id)
+        assert app.career_years == 6
+        assert app.doc_score_detail.get("career_years_source") == "ai"
+
+        # 2차 재생성 → career_years 이미 채워짐 · prev_source == "ai" 이어받아 유지되어야 함
+        generate_summary(db, app.id)
+        assert app.career_years == 6
+        assert app.doc_score_detail.get("career_years_source") == "ai"   # 사라지지 않음
+
+    # AI 가 재평가로 다른 연수를 낼 경우 source="ai" 케이스만 갱신 (폼 신고값은 유지).
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_career_years_updates_when_ai_reevaluates(self, mock_cls, fake_db):
+        step1_first  = json.dumps({"insufficient": False, "gist": "g", "key_skills": ["p"],
+                                    "key_experiences": ["e"], "career_years": 4}, ensure_ascii=False)
+        step1_second = json.dumps({"insufficient": False, "gist": "g", "key_skills": ["p"],
+                                    "key_experiences": ["e"], "career_years": 8}, ensure_ascii=False)
+        mock_cls.return_value.messages.create.side_effect = [
+            FakeResponse(content=[FakeContent(text=step1_first)]),
+            FakeResponse(content=[FakeContent(text=STEP2_JSON)]),
+            FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+            FakeResponse(content=[FakeContent(text=step1_second)]),
+            FakeResponse(content=[FakeContent(text=STEP2_JSON)]),
+            FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+        ]
+
+        db, app = fake_db
+        app.career_years = None
+        generate_summary(db, app.id)
+        assert app.career_years == 4
+
+        # 같은 입력에 AI 가 두 번째 요약에서 8년으로 다른 값을 냈다 → source="ai" 케이스라 갱신됨
+        generate_summary(db, app.id)
+        assert app.career_years == 8
+        assert app.doc_score_detail.get("career_years_source") == "ai"
+
+    # 우정 PR #311 리뷰 지적 반영. 소연 PR #307 (`_fill_structured_fields`) 이 요약 앞에서
+    # career_years 를 채우는 경우, step1 시점의 「비었나」 판정이 False 가 되어 source="ai"
+    # 표식이 안 붙는 문제. 요약 시작 시점의 상태를 기록해 두고 detail 을 쓸 때 함께 본다.
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_career_years_source_when_prefilled_by_structured_fields(self, mock_cls, fake_db):
+        # step1 에서는 career_years 를 안 낸다 (이력서 앞선 추출로 이미 채워짐 가정).
+        step1_no_years = json.dumps({
+            "insufficient": False,
+            "gist": "요약",
+            "key_skills": ["Python"],
+            "key_experiences": ["3년"],
+        }, ensure_ascii=False)
+        mock_cls.return_value.messages.create.side_effect = [
+            FakeResponse(content=[FakeContent(text=step1_no_years)]),
+            FakeResponse(content=[FakeContent(text=STEP2_JSON)]),
+            FakeResponse(content=[FakeContent(text=STEP3_JSON)]),
+        ]
+
+        db, app = fake_db
+        # 시작 시점: 폼 값 None (지원자가 안 채움) → 요약 시작 앞에서 _fill_structured_fields
+        # 가 채우게 되는 시나리오를 흉내낸다.
+        app.career_years = None
+        # generate_summary 안의 「폼에서 학력·경력·기술스택 없으면 이력서 파일 추출」 이
+        # 실제로 도는 것을 mock 하기 어려우니 side effect 로 채운다.
+        # → 코드가 `career_years_was_empty_at_start` 를 저장한 뒤에 채워진 것으로 관찰되어야 한다.
+        # 간이 재현: _fill_structured_fields 대신 files 순회 안에서 채운다.
+        # 여기서는 career_years_was_empty_at_start 만 검증할 수 있게 폼 값을 직접 채워 둔다:
+        # generate_summary 진입 → career_years=None 관찰 → files 없음이라 _fill 안 돌지만 …
+        # 결국 우리 로직에 값을 강제로 주입해야 한다. Test 는 `files` 에 한 개 넣고 monkey patch.
+        import app.agent.summarizer as summ
+
+        def fake_fill(db, application, backend, resume_text):
+            application.career_years = 3   # 이력서에서 3년으로 채웠다고 가정
+
+        # files 가 비어 있으면 원 코드가 for f in app.files: 로 진입 못 하니 한 개 넣는다.
+        from types import SimpleNamespace
+        app.files = [SimpleNamespace(kind="resume")]
+
+        with patch.object(summ, "_fill_structured_fields", side_effect=fake_fill), \
+             patch("app.agent.extractor.extract_text", return_value="이력서 텍스트"):
+            generate_summary(db, app.id)
+
+        assert app.career_years == 3
+        # step1 응답은 career_years 를 안 냈지만, 시작 시점에 비어 있다가 지금은 값이 있으니
+        # AI 로 채운 것으로 간주해 표식을 붙인다.
+        assert app.doc_score_detail.get("career_years_source") == "ai"
 
     @patch.dict("os.environ", {}, clear=True)
     def test_missing_api_key(self, fake_db):
