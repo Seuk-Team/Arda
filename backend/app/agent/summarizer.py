@@ -48,6 +48,9 @@ _STEP_SCHEMAS: dict[str, dict] = {
                 "type": "array", "maxItems": 2,
                 "items": {"type": "string", "maxLength": 40},
             },
+            # v2 신설: 이력서·자소서 근무 기간에서 추출한 경력 연수. 폼 값이 비었을 때 채운다.
+            # 정확한 규칙은 chain_summarize.v2.md 를 본다. 서류에서 못 세면 null.
+            "career_years": {"type": ["integer", "null"], "minimum": 0, "maximum": 60},
         },
         "required": ["insufficient", "gist", "key_skills", "key_experiences"],
     },
@@ -293,6 +296,18 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         db.commit()
         return summary_json
 
+    # v2 신설: 이력서에서 추출한 경력 연수를 폼 값이 비었을 때만 채운다.
+    # 지원자가 폼에 명시적으로 입력한 값이 있으면 그것을 우선 (지원자 의사 존중).
+    # AI 가 null 을 반환하면 폼 값도 건드리지 않는다.
+    if app.career_years is None:
+        ai_years = step1.get("career_years")
+        if isinstance(ai_years, int) and 0 <= ai_years <= 60:
+            app.career_years = ai_years
+            logger.info(
+                "career_years_filled_from_summary",
+                extra={"application_id": application_id, "value": ai_years},
+            )
+
     # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v2, ADR-0034) ──
     try:
         step2_text, step2_tag = render(
@@ -362,6 +377,7 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         "gist": step1.get("gist", ""),
         "key_skills": step1.get("key_skills", []),
         "key_experiences": step1.get("key_experiences", []),
+        "career_years": step1.get("career_years"),  # v2 신설 · null 이면 폼 값도 없음
         "fit_score": step2.get("fit_score"),
         "doc_score": doc_score,
         "scores": parts,
