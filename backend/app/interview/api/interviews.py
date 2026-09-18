@@ -9,6 +9,7 @@
 담당자가 넣은 질문 목록으로 돈다 — 그래야 뼈대가 먼저 관통된다.
 """
 
+import logging
 import os
 import secrets
 import uuid
@@ -19,7 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.shared import s3
+from app.shared import mail, s3
 from app.interview import lie_analysis, pacing as interview_pacing
 
 # 방 저장소(`_ROOMS`)가 RTC 라우터에 있어 여기서 가져온다 — 세션을 지울 때 그 방을
@@ -57,6 +58,8 @@ from app.adapter.outbound.pg.interview_pg_repository import PgInterviewRepositor
 
 router = APIRouter(prefix="/api/v1", tags=["interviews"])
 
+logger = logging.getLogger(__name__)
+
 PUBLIC_APP_BASE_URL = os.getenv("PUBLIC_APP_BASE_URL", "").rstrip("/")
 
 # 링크 기본 유효 기간. 일정 제안과 같은 감각으로 짧게 둔다 —
@@ -71,6 +74,96 @@ def _public_url(token: str) -> str:
     `PUBLIC_APP_BASE_URL` 이 비면 상대 경로로 준다(일정 제안과 같은 처리).
     """
     return f"{PUBLIC_APP_BASE_URL}/interview/{token}"
+
+
+# 앱 내려받는 곳. **비어 있으면 메일에서 그 줄을 뺀다** — 없는 주소를 적어 두면
+# 지원자가 눌러 보고 막힌다. 스토어에 올리기 전까지는 비워 둔다 (2026-09-18).
+APP_DOWNLOAD_URL = os.getenv("APP_DOWNLOAD_URL", "").strip()
+
+
+def queue_interview_mail(
+    db: Session,
+    application: Application,
+    posting: JobPosting,
+    session: InterviewSession,
+    *,
+    actor_kind: str,
+    actor_name: str | None,
+    actor_id: int | None,
+) -> int:
+    """AI 면접 링크 메일을 `email_logs` 에 queued 로 쌓는다. **커밋·발행은 호출부가.**
+
+    2026-09-18 신설. 전에는 링크가 메일로 나가지 않아 담당자가 「링크 복사」로 따로
+    전달해야 했다 — 인적성 설문은 자동으로 나가는데 면접만 손으로 나가고 있었다.
+
+    문구는 `mail._TEMPLATES` 가 아니라 본문을 행에 실어 두는 `create_custom_log` 로
+    간다 — 설문 메일과 같은 이유다(링크가 있어 변수 집합이 다르고, 보낸 그대로가
+    감사 기록으로 남는다).
+
+    **웹 링크를 먼저 준다.** 앱을 깔지 않아도 그 링크로 바로 면접을 볼 수 있고, 앱을
+    쓰는 지원자는 이메일·생년월일로 로그인하면 같은 면접이 목록에 뜬다.
+    """
+    kst = timezone(timedelta(hours=9))
+    expires_str = (
+        session.expires_at.astimezone(kst).strftime("%m월 %d일 %H시")
+        if session.expires_at
+        else "별도 안내"
+    )
+    signature = mail.build_signature("custom", actor_kind=actor_kind, actor_name=actor_name)
+    subject = f"[{mail.COMPANY_NAME}] {posting.title} AI 면접 안내"
+    app_line = (
+        f"앱으로 보시려면: {APP_DOWNLOAD_URL} 에서 앱을 내려받아 "
+        "이메일과 생년월일로 로그인하시면 같은 면접이 목록에 있습니다.\n"
+        if APP_DOWNLOAD_URL
+        else "앱을 이미 설치하셨다면 이메일과 생년월일로 로그인해 「면접」 탭에서도 같은 면접을 보실 수 있습니다.\n"
+    )
+    body = f"""{application.name} 님, 안녕하세요.
+
+{mail.COMPANY_NAME} {posting.title} 포지션 지원과 관련해 AI 면접을 안내드립니다.
+아래 링크를 열어 안내에 따라 진행해 주세요. 카메라와 마이크를 사용합니다.
+
+{_public_url(session.token)}
+
+{app_line}
+조용한 곳에서 얼굴이 잘 보이게 앉아 주시고, 질문마다 답변이 끝나면 [답변 완료]를 눌러 주세요.
+링크는 {expires_str}까지 유효합니다.
+
+{signature}"""
+
+    log = mail.create_custom_log(
+        db,
+        application_id=application.id,
+        to_email=application.email,
+        subject=subject,
+        body=body,
+        actor_kind=actor_kind,
+        actor_id=actor_id,
+    )
+    return log.id
+
+
+def _publish_mail(log_id: int) -> None:
+    """커밋 뒤 발행 — 실패해도 행은 queued 로 남는다 (aptitude._publish_all 과 같은 처리)."""
+    try:
+        mail.publish(log_id)
+    except Exception:
+        logger.exception("면접 링크 메일 발행 실패 email_log_id=%s", log_id)
+
+
+def _send_interview_mail(
+    db: Session, session: InterviewSession, user: User
+) -> int | None:
+    """링크 메일을 쌓고 id 를 돌려준다. 지원자·공고를 못 찾으면 None(면접은 그대로)."""
+    application = PgApplicationRepository(db).get(session.application_id)
+    if application is None:
+        return None
+    posting = PgHiringRepository(db).get_posting(application.job_posting_id)
+    if posting is None:
+        return None
+    return queue_interview_mail(
+        db, application, posting, session,
+        actor_kind="human", actor_name=user.name, actor_id=user.id,
+    )
 
 
 def _to_out(session: InterviewSession) -> SessionOut:
@@ -129,6 +222,10 @@ def create_session(
     **폴백 3개는 세션과 같은 커밋에 먼저 넣는다** (2026-09-17). 만들자마자
     「시작」 해도 422 가 나지 않는다 — 그 면접은 폴백으로 진행되고, 아직 시작 전이면
     뒤의 생성이 맞춤 질문으로 바꿔 넣는다(`seed_questions_bg`).
+
+    **링크 메일이 같이 나간다** (2026-09-18, 팀 논의). 인적성 설문은 자동으로 나가는데
+    면접 링크만 담당자가 「링크 복사」로 손수 전달하고 있었다. 메일 없이 링크만 뽑고
+    싶으면 `notify: false` — 그때는 화면의 「메일 보내기」로 나중에 보낸다.
     """
     application = PgApplicationRepository(db).get(application_id)
     if application is None:
@@ -146,8 +243,13 @@ def create_session(
     db.add(session)
     db.flush()
     _add_default_questions(db, session.id)
+    log_id = _send_interview_mail(db, session, user) if body.notify else None
     db.commit()
     db.refresh(session)
+
+    # 발행은 커밋 뒤에 — 실패해도 행은 queued 로 남아 나중에 쓸어 담긴다(mail_smtp).
+    if log_id is not None:
+        _publish_mail(log_id)
 
     # 자동 질문 생성 — 백그라운드로. 담당자를 응답 앞에 세워 두지 않는다.
     background.add_task(_seed_questions_bg, session.id)
@@ -171,6 +273,42 @@ def list_sessions(
         .order_by(InterviewSession.created_at.desc())
     ).all()
     return [_to_out(s) for s in rows]
+
+
+@router.post(
+    "/interview-sessions/{session_id}/send",
+    response_model=SessionOut,
+    status_code=HTTPStatus.CREATED,
+)
+def send_interview_link(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """링크 메일을 (다시) 보낸다 — **같은 세션·같은 링크** (2026-09-18).
+
+    설문(`aptitude/send`)은 보낼 때마다 새 세션을 만들지만 면접은 그러면 안 된다:
+    앱이 끝나지 않은 세션 중 **가장 먼저 만든 것**으로 들어가므로, 재발송마다 방이
+    하나씩 늘면 담당자와 지원자가 다른 방을 본다(2026-09-10 실측). 그래서 여기서는
+    메일만 다시 쌓는다 — 옛 메일의 링크도 그대로 살아 있다.
+
+    끝난 면접(410 은 만료)은 보내 봐야 들어갈 수 없으므로 막는다.
+    """
+    session = PgInterviewRepository(db).get_session(session_id)
+    if session is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "면접을 찾을 수 없습니다")
+    if session.expires_at is not None and session.expires_at <= datetime.now(timezone.utc):
+        raise HTTPException(HTTPStatus.GONE, "링크 유효 기간이 지났습니다 — 새로 만들어 주세요")
+    if session.status in ("done", "expired"):
+        raise HTTPException(HTTPStatus.CONFLICT, "이미 끝난 면접입니다 — 새로 만들어 주세요")
+
+    log_id = _send_interview_mail(db, session, user)
+    if log_id is None:
+        raise HTTPException(HTTPStatus.NOT_FOUND, "지원자 또는 공고를 찾을 수 없습니다")
+    db.commit()
+    _publish_mail(log_id)
+    db.refresh(session)
+    return _to_out(session)
 
 
 @router.delete(

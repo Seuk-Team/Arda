@@ -112,7 +112,8 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| POST | /applications/{id}/interview-sessions | 면접 세션 생성 + 공개 링크 발급 | 본문 `{expires_in_days?}` (1~30, 기본 7). **재발급이 아니라 새 행**이라 이전 링크가 죽지 않는다 — 공고 public-link 와 다르다 |
+| POST | /applications/{id}/interview-sessions | 면접 세션 생성 + 공개 링크 발급 **+ 링크 메일 발송** | 본문 `{expires_in_days?}` (1~30, 기본 7) · **`notify?`**(기본 `true`, 2026-09-18). **재발급이 아니라 새 행**이라 이전 링크가 죽지 않는다 — 공고 public-link 와 다르다. `notify` 가 참이면 지원자에게 **링크 메일**이 나간다(`email_logs` 에 `custom` 행 — 인적성 설문과 같은 방식). 메일에는 웹 링크와 앱 로그인 안내(이메일·생년월일)가 들어간다. `APP_DOWNLOAD_URL` 이 있으면 내려받는 곳도 |
+| POST | /interview-sessions/{id}/send | 링크 메일 **재발송** | 2026-09-18 신설. **같은 세션·같은 링크**를 다시 보낸다(설문과 다른 점 — 새 세션을 만들면 앱이 가장 먼저 만든 방으로 들어가 담당자와 갈린다). 만료 **410** · 끝난 면접 **409** |
 | GET | /applications/{id}/interview-sessions | 이 지원자의 세션 목록 | 최신순 |
 | GET | /interview-sessions/active | **지금 진행 중인 면접들** | 2026-09-09 신설. `in_progress` 만 낸다 — 안 시작한 것은 볼 게 없고 끝난 것은 방이 안 열린다. 지원자 이름·공고 제목을 같이 내려 **대시보드가 한 번에 들어간다** (없으면 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야 실시간 분석 화면에 닿는다). **경로 순서 주의** — `{id}` 위에 둔다. 아래 두면 `active` 가 id 로 읽혀 422 |
 | GET | /interview-sessions/{id} | 세션 상세 | 전사(`turns`)와 서류↔발언 대조(`findings`) 포함. 대조마다 **`turn_seq`**(어느 답변에서 나왔나 — 끝날 때 전체로 만든 것은 `null`), 그리고 **`findings_enabled`**(대조 스위치가 켜져 있는가 — 꺼진 것과 아직 없는 것을 화면이 가르게) (2026-09-11). **`ai_score_detail.live`**(2026-09-17): 면접 중 실시간 분석 요약 — `summary`(AI 문장. 숫자가 `stats` 에 없거나 사람을 단정하면 버리고 고정 틀 문장, `summary_source` 로 구별) · `stats.overall`·`stats.per_question[]`(`n` 판정 수 · `truth` % · `expressions[{label,pct}]` · `blink_per_sec` · `flags_pct` · `voice`). 판정이 없던 면접은 `null`. **점수 재료 아님** |

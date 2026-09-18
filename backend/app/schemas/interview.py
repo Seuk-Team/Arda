@@ -15,6 +15,9 @@ class SessionCreate(BaseModel):
 
     # 링크 유효 기간. 비우면 서버 기본값(7일)
     expires_in_days: int | None = Field(default=None, ge=1, le=30)
+    # 만들면서 지원자에게 링크 메일을 보낼지 (2026-09-18). 기본은 보낸다 —
+    # 인적성 설문과 같은 감각. 링크만 뽑아 두고 싶을 때만 false.
+    notify: bool = True
 
 
 class SessionOut(BaseModel):
