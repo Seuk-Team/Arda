@@ -19,6 +19,16 @@ interface FromState {
    나간다(앱 주석과 같은 이유). */
 type Role = 'staff' | 'applicant'
 
+/* 시연 소개 영상 (2026-09-18).
+
+   `public/` 에 두고 정적으로 내보낸다 — 유튜브·드라이브에 올리면 심사 환경에서
+   바깥 망이 막혔을 때 링크가 죽고, S3 presigned 는 만료된다. 프론트가 뜨는
+   곳이면 영상도 같이 뜬다. */
+const INTRO_VIDEO_URL = '/arda-intro.mp4'
+/* 세션당 한 번. localStorage 로 하면 심사위원이 브라우저를 새로 켜도 안 뜬다 —
+   "시작 전에 보라"는 안내라 그 자리에 앉은 사람마다 한 번씩은 보여야 한다. */
+const VIDEO_NOTICE_KEY = 'arda_intro_video_seen'
+
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -61,6 +71,10 @@ export default function Login() {
   /* 세션당 1회. 판정은 마운트 시점에 한 번만 한다 — 렌더마다 다시 물으면
      인트로가 끝나며 sessionStorage 를 쓴 직후 스스로 사라진다 */
   const [intro, setIntro] = useState(() => !introAlreadySeen())
+
+  /* 소개 영상 안내. 접속 시퀀스가 **끝난 뒤** 띄운다 — 인트로 위에 겹치면
+     두 겹이 동시에 움직여 무엇을 보라는 화면인지 읽히지 않는다. */
+  const [videoNotice, setVideoNotice] = useState(false)
 
   const stageRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<SceneHandle | null>(null)
@@ -108,6 +122,24 @@ export default function Login() {
     else if (demo === 'applicant') demoLoginApplicant()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* 접속 시퀀스가 끝나면 소개 영상 안내를 띄운다.
+
+     `?demo=` 로 들어온 사람은 제외한다 — 그 주소는 "바로 안으로"라는 뜻이고,
+     자동 로그인이 도는 동안 팝업이 한 번 번쩍이고 사라진다. */
+  useEffect(() => {
+    if (intro) return
+    if (new URLSearchParams(window.location.search).get('demo')) return
+    try {
+      if (sessionStorage.getItem(VIDEO_NOTICE_KEY) === '1') return
+    } catch { /* 무시 — 시크릿 창에서도 화면은 떠야 한다 */ }
+    setVideoNotice(true)
+  }, [intro])
+
+  function closeVideoNotice() {
+    try { sessionStorage.setItem(VIDEO_NOTICE_KEY, '1') } catch { /* 무시 */ }
+    setVideoNotice(false)
+  }
 
   /* 이미 로그인된 사용자가 /login 에 오면 폼을 또 보여주지 않는다.
      pending 중엔 제외 — login() 직후 setUser 가 먼저 돌면 handleSubmit 의
@@ -418,6 +450,57 @@ export default function Login() {
       {intro && (
         <LoginIntro stageRef={stageRef} sceneRef={sceneRef} onDone={() => setIntro(false)} />
       )}
+
+      {videoNotice && <IntroVideoOverlay onClose={closeVideoNotice} />}
+    </div>
+  )
+}
+
+/* ── 시작 전 소개 영상 안내 ────────────────────────────
+
+   심사위원이 로그인 화면 앞에 앉았을 때 가장 먼저 보는 것이 이 판이다.
+   **영상은 새 탭으로 연다** — 여기서 재생하면 로그인 화면이 영상 재생기가 되고,
+   보다 만 채로 닫으면 어디까지 봤는지 알 길이 없다. */
+function IntroVideoOverlay({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className={styles.videoScrim} onClick={onClose} role="presentation">
+      <div
+        className={styles.videoSheet}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="intro-video-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className={styles.videoTitle} id="intro-video-title">
+          시작 전 Arda 소개 영상 시청
+        </h2>
+        <p className={styles.videoBody}>
+          로그인하기 전에 2분짜리 소개 영상을 먼저 봐 주세요.
+          공고 등록부터 AI 서류 심사·AI 면접·합격 통보까지 전체 흐름이 담겨 있습니다.
+        </p>
+
+        <a
+          className={styles.videoOpen}
+          href={INTRO_VIDEO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          소개 영상 보기
+        </a>
+        <p className={styles.videoMeta}>약 2분 · 한국어 자막 · 새 탭에서 열립니다</p>
+
+        <button type="button" className={styles.videoLater} onClick={onClose}>
+          나중에 보기
+        </button>
+      </div>
     </div>
   )
 }
