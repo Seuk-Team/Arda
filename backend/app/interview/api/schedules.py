@@ -387,6 +387,7 @@ def public_faq(token: str, body: FaqRequest, db: Session = Depends(get_db)):
     아직 공고 자체에는 지원자다).
     """
     from app.agent.faq import answer_question
+    from app.hiring.company import prompt_context as company_prompt_context
 
     proposal = _get_proposal_by_token(db, token)
     application = PgApplicationRepository(db).get(proposal.application_id)
@@ -399,6 +400,7 @@ def public_faq(token: str, body: FaqRequest, db: Session = Depends(get_db)):
             posting,
             body.question,
             applicant_context=_build_applicant_context(db, application, proposal),
+            company_context=company_prompt_context(db),
         )
     except Exception:
         # 백엔드 미설정·모델 오류 등. 지원자에게 원문 노출은 하지 않고 안내로 감싼다.
