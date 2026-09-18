@@ -376,15 +376,10 @@ export default function Applicants() {
                   }}
                 >
                   <div className={styles.appCardTop}>
-                    {/* 이름 클릭 = 종합 평가 상세 페이지 (2026-09-17 사용자 판단).
-                        stopPropagation 으로 카드 클릭 (사이드패널) 과 분리. */}
-                    <Link
-                      to={`/summary/${a.id}`}
-                      className={styles.appName}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {a.name}
-                    </Link>
+                    {/* 이름 클릭 = 카드(상세 패널) 열기 (2026-09-18 사용자 판단으로 되돌림).
+                        종합 평가로는 상세 패널의 「종합 평가 자세히 보기」 로만 간다 —
+                        이름을 눌러 목록을 떠나던 동작이 실수 이동을 낳아 되돌렸다. */}
+                    <span className={styles.appName}>{a.name}</span>
                     <span className={stageBadgeClass(a.current_stage)}>
                       {STAGE_LABEL[a.current_stage]}
                     </span>
@@ -427,13 +422,9 @@ export default function Applicants() {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(a.id) }
                   }}
                 >
-                  <Link
-                    to={`/summary/${a.id}`}
-                    className={styles.name}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {a.name}
-                  </Link>
+                  {/* 이름 클릭 = 행(상세 패널) 열기 (2026-09-18 되돌림).
+                      종합 평가는 상세 패널의 「종합 평가 자세히 보기」·아래 「종합 →」 링크로만. */}
+                  <span className={styles.name}>{a.name}</span>
                   <span className={styles.posting}>{postingMap.get(a.job_posting_id)?.title ?? '—'}</span>
                   <span>
                     <span className={`${styles.stageBadge} ${STAGE_CLASS[a.current_stage]}`}>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applications, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, PostingStatus, Stage } from '../api/types'
@@ -417,13 +417,9 @@ export default function PostingApplicants() {
               aria-current={a.id === openId ? 'true' : undefined}
               onClick={() => openDetail(a.id)}
             >
-              <Link
-                to={`/summary/${a.id}`}
-                className={styles.name}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {a.name}
-              </Link>
+              {/* 이름 클릭 = 행(상세 패널) 열기 (2026-09-18 되돌림).
+                  종합 평가로는 상세 패널의 「종합 평가 자세히 보기」 로만 간다. */}
+              <span className={styles.name}>{a.name}</span>
               <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
               <span className={styles.num}>{careerText(a.career_years)}</span>
               <span className={styles.email}>{a.email}</span>
