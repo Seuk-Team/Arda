@@ -73,7 +73,7 @@ export default function Login() {
     try {
       setError(null)
       setPending(true)
-      await login('ab@ab.com', 'ab12!@')
+      await login('ab@ab.com', 'abc123!@#')
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '자동 로그인 실패')
