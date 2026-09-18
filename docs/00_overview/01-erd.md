@@ -1,6 +1,7 @@
 # 01. 테이블 정의서 (ERD)
 
-> **상태: 확정 v2.7 · 2026-09-17** — v2.7: **`file_blobs`** 추가(**alembic `0026`**, #282 온프레미스 다운로드). #282 에서는 `0023` 으로 들어와 **기존 `0023`(applicant_password)과 번호가 겹쳤다** — 운영 DB 에서 표가 안 생기는 문제라 0026 으로 옮기고 "없을 때만 만든다"로 고쳤다. 번호 중복은 이제 `tests/test_alembic_revisions.py` 가 CI 에서 막는다.
+> **상태: 확정 v2.8 · 2026-09-17** — v2.8: **코드에는 있고 문서에 없던 것을 채웠다(스키마 변화 없음).** 모델 전체를 이 문서와 기계적으로 대조해 나온 네 가지 — `integration_clients` 표와 `applications.external_id`·`integration_client_id`·`source` 확장값(**alembic `0021`**, 09-14 [ADR-0037](../03_decision/0037-회사-통합-API.md)), `interview_turns.generated_from_turn_id`(**alembic `0017`**, 09-10 꼬리질문), `agent_traces` 표(**alembic `0015`**, 09-08 [ADR-0024](../03_decision/0024-sLLM-로컬-모델-전략.md)).
+> v2.7 · 2026-09-17 — v2.7: **`file_blobs`** 추가(**alembic `0026`**, #282 온프레미스 다운로드). #282 에서는 `0023` 으로 들어와 **기존 `0023`(applicant_password)과 번호가 겹쳤다** — 운영 DB 에서 표가 안 생기는 문제라 0026 으로 옮기고 "없을 때만 만든다"로 고쳤다. 번호 중복은 이제 `tests/test_alembic_revisions.py` 가 CI 에서 막는다.
 > v2.6 · 2026-09-17 — v2.6: `email_logs.stage` 에 **`resume_missing`** 허용(**alembic `0025`**). 회사 통합 API 로 온 이력서 URL 을 받지 못했다고 지원자에게 알리는 기능성 메일([ADR-0037](../03_decision/0037-회사-통합-API.md) Phase B). 0024 와 같은 사고를 피하려고 코드와 같은 커밋에 넣었다.
 > v2.5 · 2026-09-16 — v2.5: `email_logs.stage` 에 **`password_setup`** 허용(**alembic `0024`**). 비밀번호 설정 링크 메일은 어느 전형 단계에도 안 붙는 기능성 메일이라 `custom`(담당자가 직접 쓴 메일)과도 구별한다. **운영에서 실제로 막혔던 것** — 제약이 거부해 INSERT 가 실패했고 백그라운드라 요청은 202 로 끝나 아무도 몰랐다.
 > v2.4 · 2026-09-16 — v2.4: 지원자 비밀번호 로그인 2테이블 `applicant_credentials`·`applicant_password_tokens` 추가 ([ADR-0033](../03_decision/0033-지원자-앱-로그인.md) 개정). 신규 테이블만 만들므로 기존 행 영향 없음. **alembic `0023`**.
@@ -52,6 +53,8 @@ erDiagram
     applications ||--o{ aptitude_sessions : "성향 설문"
     aptitude_sessions ||--o{ aptitude_answers : "응답"
     users ||--o{ aptitude_sessions : "발송"
+    company_profile ||--o{ integration_clients : "API key"
+    integration_clients ||--o{ applications : "통합으로 접수"
 ```
 
 ## 단계(stage) — 고정 enum
@@ -122,6 +125,27 @@ UNIQUE(job_posting_id, user_id).
 | talent_profile | text | NULL 허용 | 인재상 원문(회사 소개 §8). 서류·면접 채점의 "문화 적합" 재료 |
 | updated_at | timestamptz | NOT NULL | |
 
+## integration_clients — 회사 통합 API key (v2.8 문서화 · alembic `0021`, ADR-0037)
+
+회사 시스템이 서버 대 서버로 지원자를 밀어 넣을 때 쓰는 key. 회사 하나에 key 여러 개(시스템별 발급·개별 회수). **원본 key 는 발급 응답에서 한 번만 보이고 해시만 남는다.**
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| company_id | bigint | FK → company_profile.id, NOT NULL | |
+| api_key_hash | text | NOT NULL, UNIQUE | bcrypt 해시 |
+| api_key_prefix | varchar(24) | NOT NULL | 관리 화면 표시용 앞부분(`arda_ak_…`). 노출돼도 안전한 부분만 |
+| name | varchar(100) | NOT NULL | 별칭 — 어느 시스템의 key 인지 |
+| webhook_url | varchar(500) | NULL 허용 | (선택) 상태 변경 콜백 주소 |
+| webhook_secret | varchar(128) | NULL 허용 | 콜백 서명(HMAC-SHA256) 비밀값 |
+| rate_limit_per_minute | integer | NOT NULL, 기본 60 | 분당 요청 상한 |
+| created_at | timestamptz | NOT NULL | |
+| revoked_at | timestamptz | NULL 허용 | 회수 시각. **행은 지우지 않는다**(누가 언제 통합을 썼는지 감사용) |
+| last_used_at | timestamptz | NULL 허용 | 마지막 사용 시각 |
+
+- 인덱스: `company_id`
+- 부분 인덱스: `api_key_hash WHERE revoked_at IS NULL` — 인증 조회가 살아 있는 key 만 본다. 모델도 같은 이름으로 선언한다(#315 — 그 전에는 모델에 선언이 없고 `company_id` 인덱스 이름도 달랐다)
+
 ## applications — 지원서 (C1·D1·D6) ★핵심 테이블
 
 지원자는 로그인 없이 지원하므로(C1) 지원자 정보를 별도 인물 테이블로 나누지 않고 지원서에 포함한다. (D11 인재풀을 하게 되면 그때 `applicants` 분리 — 전원 합의 필요)
@@ -149,12 +173,15 @@ UNIQUE(job_posting_id, user_id).
 | ai_summary_model | varchar(200) | | 생성 모델명 + 프롬프트 태그 — 발표 때 근거 제시용. 값 예: `claude-haiku-4-5-20251001/chain_summarize.v1+chain_evaluate.v1+chain_recommend.v1` (81자). **50 이던 것을 2026-09-01 에 200 으로 고쳤다** — models.py 는 이미 String(200) 인데 이 표만 50 으로 남아 낡아 있었고, 50 인 DB 에서는 요약이 생성된 뒤 저장에서 StringDataRightTruncation 으로 죽는다 |
 | current_stage | varchar(20) | NOT NULL, default `applied` | 위 stage enum |
 | privacy_agreed_at | timestamptz | NOT NULL | 개인정보 동의 시각 (C3) |
-| source | varchar(20) | NOT NULL, default `form` | `form`(외부 지원) / `manual`(담당자 등록, D6) |
+| source | varchar(20) | NOT NULL, default `form`, CHECK | `form`(외부 지원) / `manual`(담당자 등록, D6) / `integration`(회사 통합 API, 0021). CHECK 는 앞으로 붙일 채널 `email`·`saramin`·`jobkorea`·`wanted` 도 미리 허용한다 — 지금 이 값을 쓰는 코드는 없다 |
+| external_id | varchar(200) | NULL 허용 | **회사 쪽 지원자 id (0021, ADR-0037).** 통합 API 의 멱등 키 — 같은 값이 다시 오면 새 행을 만들지 않고 기존 지원서를 돌려준다. 폼·수동 접수는 NULL |
+| integration_client_id | bigint | FK → integration_clients.id, NULL 허용 | 어느 API key 로 들어왔는가. 통합 밖 접수는 NULL |
 | portal_token | varchar(64) | UNIQUE | **2026-09-16 미사용** — 메일 링크 포털을 철거해 이 토큰을 읽는 경로가 없다. 컬럼은 남기되 새로 채우지 않는다(데이터를 없애는 이행은 되돌리기 어렵다). ~~지원 현황 조회 링크(신-1). 접수 시점에 만들지 않고 지원자가 이메일로 요청할 때 발급 (2026-09-07, 리비전 `0010`)~~ |
 | portal_token_expires_at | timestamptz | | 위 토큰 기한(미사용, 위 참조). 기본 7일 |
 | created_at / updated_at | timestamptz | NOT NULL | |
 
 - UNIQUE `(job_posting_id, email)` — 중복 지원 방지(C6, 권장이지만 제약 하나로 끝나므로 처음부터 포함)
+- UNIQUE `(integration_client_id, external_id)` — 같은 통합에서 같은 회사 id 가 두 번 들어오지 않는다(0021). 둘 다 NULL 인 폼·수동 행은 PostgreSQL 에서 서로 겹치지 않는 것으로 본다
 - UNIQUE `portal_token` — 재발급이 남의 링크를 덮지 않게. 다시 요청하면 **지난 링크는 그 자리에서 죽는다**
 - 인덱스: `email` — 앱 로그인이 매번 이메일로 찾는다 (2026-09-08, 리비전 `0012`)
 - 인덱스: `(job_posting_id, current_stage)` — 칸반·단계 필터(H2)
@@ -439,6 +466,7 @@ UNIQUE(job_posting_id, user_id).
 | answered_at | timestamptz | NULL 허용 | 지원자가 답을 마친 시각 (0018 · 2026-09-11). **"지금 질문" 은 이게 NULL 인 가장 앞 칸**이다 — 전사는 뒤에서 몇 분씩 늦게 채워지므로 `transcript` 로 정하면 이미 답한 질문으로 되돌아간다 |
 | audio_duration_sec | numeric(10,2) | NULL 허용 | 원가 관측 — `SttResponse` 와 같은 필드명 |
 | stt_cost_usd | numeric(10,6) | NULL 허용 | 〃 |
+| generated_from_turn_id | bigint | FK → interview_turns.id (SET NULL), NULL 허용 | **꼬리질문의 근거 (0017 · 2026-09-10).** 값이 있으면 아르가 그 답변을 재료로 만든 질문이고, 담당자 화면이 "AI 생성" 배지로 표시한다. 담당자가 미리 넣은 사전 질문은 NULL |
 | created_at | timestamptz | NOT NULL | |
 
 ## interview_findings — 서류 주장 ↔ 면접 발언 대조 (AI 면접 · v1.6)
@@ -523,3 +551,32 @@ UNIQUE(job_posting_id, user_id).
 - **조회 링크(일정·인적성·면접)와 저장 방식이 다르다.** 그쪽은 평문이다 — 새어 봐야 "내 지원 현황이 보인다" 지만, **이 링크가 새면 계정이 통째로 넘어간다.** 그래서 회사 API 키(`integration_clients.api_key_hash`)와 같은 무게로 다룬다
 - 해시는 O(1) 조회가 안 된다. 링크를 열 때는 살아 있는 토큰만 훑어 대조한다 — 만료·사용된 것은 대조 대상에서 빠져 순회가 짧게 유지된다
 - **행을 지우지 않는다.** "이미 쓴 링크" 와 "없는 링크" 를 서버 로그에서 가를 수 있어야 한다. 지원자에게는 둘 다 같은 문구(410 「만료됐거나 이미 사용한 링크입니다」)로 답한다
+
+## agent_traces — 아르 대화 로그 (v2.8 문서화 · alembic `0015`, ADR-0024)
+
+담당자용 아르 채팅 한 턴마다 한 줄. **관측**(무슨 도구를 부르고 얼마 들었나)과 **학습 데이터**(사람이 나중에 라벨한 줄만 Qwen 학습셋으로)를 겸한다. 에이전트 도메인(cloverky) 소관.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| id | bigint | PK | |
+| request_id | varchar(64) | NULL 허용, INDEX | 서버 로그의 `request_id` 와 이어 붙이는 키 |
+| session_id | varchar(64) | NULL 허용, INDEX | 대화 창 하나. 새 창이면 새 값 |
+| turn_index | smallint | NOT NULL, 기본 0 | 그 창 안에서 몇 번째 턴인가 |
+| user_id | bigint | FK → users.id (SET NULL), NULL 허용 | 말을 건 담당자 |
+| user_message | text | NOT NULL | |
+| assistant_reply | text | NOT NULL, 기본 '' | |
+| history | json | NOT NULL, 기본 `[]` | 앞선 턴들(role·content) |
+| tool_calls | json | NOT NULL, 기본 `[]` | 실행한 도구(name·input·output) |
+| pending_action | json | NULL 허용 | 확인 카드로 넘긴 쓰기 도구 |
+| backend | varchar(50) | NOT NULL, 기본 '' | 어느 엔진이 답했나(`anthropic` · `ollama` 등) |
+| model_tag | varchar(200) | NOT NULL, 기본 '' | |
+| input_tokens · output_tokens | integer | NOT NULL, 기본 0 | |
+| cost_usd | numeric(10,6) | NOT NULL, 기본 0 | |
+| created_at | timestamptz | NOT NULL | |
+| label_verdict | varchar(20) | NULL 허용, CHECK | `good` / `bad` / `needs_fix`. NULL = 아직 라벨 안 함(학습셋에 안 들어간다) |
+| label_correction | text | NULL 허용 | 사람이 쓴 정답 — `bad`·`needs_fix` 일 때 |
+| label_by | bigint | FK → users.id (SET NULL), NULL 허용 | |
+| label_at | timestamptz | NULL 허용 | |
+
+- 인덱스: `(label_verdict, created_at)` — 라벨된 줄만 뽑아 학습셋을 만들 때
+- **지원자 이메일·이력서 내용이 섞여 들어올 수 있다.** 외부로 내보내지 않는다 — 조회 API 를 만들면 admin 전용(0015 머리말)

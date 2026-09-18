@@ -104,6 +104,7 @@
 | GET | /applications/{id}/schedule-proposals | 최신 제안 상태 | 대시보드·상세 패널 칩 용도. 제안 없으면 404 |
 | GET | /public/schedule/{token} | 지원자용 일정·전형 현황 조회 | **공개**. 만료된 제안은 조회 시점에 `expired` 판정(B4 방식). 없는 토큰 404 |
 | POST | /public/schedule/{token}/confirm | 슬롯 선택 → 확정 | **공개**. 본문 `{slot_id}`. 이미 확정·만료·취소면 409. 확정 시 통보 메일 큐 발행 |
+| POST | /public/schedule/{token}/faq | 지원자용 아르 문답 | **공개**. 본문 `{question}` → `{answer}`. 공고 내용을 근거로 한 번 묻고 한 번 답한다(도구·대화 이력 없음). 연봉·평가·다른 지원자·회사 내부 절차는 답하지 않는다(`faq_answer.v1.md`). 무효·교체된 링크는 막고 **만료된 링크는 통과**. 답을 못 만들면 503 |
 
 ## AI 면접 (ADR-0026)
 
@@ -117,6 +118,7 @@
 | GET | /applications/{id}/interview-sessions | 이 지원자의 세션 목록 | 최신순 |
 | GET | /interview-sessions/active | **지금 진행 중인 면접들** | 2026-09-09 신설. `in_progress` 만 낸다 — 안 시작한 것은 볼 게 없고 끝난 것은 방이 안 열린다. 지원자 이름·공고 제목을 같이 내려 **대시보드가 한 번에 들어간다** (없으면 지원자 목록 → 상세 → 세션 → 링크 넷을 거쳐야 실시간 분석 화면에 닿는다). **경로 순서 주의** — `{id}` 위에 둔다. 아래 두면 `active` 가 id 로 읽혀 422 |
 | GET | /interview-sessions/{id} | 세션 상세 | 전사(`turns`)와 서류↔발언 대조(`findings`) 포함. 대조마다 **`turn_seq`**(어느 답변에서 나왔나 — 끝날 때 전체로 만든 것은 `null`), 그리고 **`findings_enabled`**(대조 스위치가 켜져 있는가 — 꺼진 것과 아직 없는 것을 화면이 가르게) (2026-09-11). **`ai_score_detail.live`**(2026-09-17): 면접 중 실시간 분석 요약 — `summary`(AI 문장. 숫자가 `stats` 에 없거나 사람을 단정하면 버리고 고정 틀 문장, `summary_source` 로 구별) · `stats.overall`·`stats.per_question[]`(`n` 판정 수 · `truth` % · `expressions[{label,pct}]` · `blink_per_sec` · `flags_pct` · `voice`). 판정이 없던 면접은 `null`. **점수 재료 아님** |
+| DELETE | /interview-sessions/{id} | 세션 삭제 | 2026-09-10 신설. **끝난 것·진행 중인 것도 지운다**(잘못 만든 세션·리허설 정리). 회차·대조 행을 먼저 지우고 세션을 지운 뒤 **붙어 있던 화상 방을 닫는다**(09-12). admin 제한 없음 — 로그인한 사람이면 누구나. 없으면 404 · 성공 204 |
 | GET | /public/interview/{token} | 지원자용 조회 | **공개**. 만료는 조회 시점 판정(B4 방식). **담당자 이름·평가·다른 지원자를 내려주지 않는다** |
 | POST | /public/interview/{token}/consent | 녹음·전사 동의 | **공개**. 본문 `{agreed}`. **지원 폼의 개인정보 동의와 별개다** — 거절하면 422, 기록도 안 남는다 |
 | POST | /public/interview/{token}/start | 면접 시작 | **공개**. 동의 없으면 422 · 만료면 410 · 준비된 질문이 없으면 422 |
@@ -233,13 +235,16 @@
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
-| GET | /files/{id}/presign-download | 다운로드용 presigned URL | F2 |
+| GET | /files/{id}/presign-download | 다운로드용 presigned URL | F2. 응답 `{download_url, filename, expires_in}`. **2026-09-17**: 파일 본문이 `file_blobs` 에 있으면(온프레미스) S3 주소 대신 아래 `/download` 주소(60초·1회용 티켓 포함)를 준다 — 프론트는 두 경우를 구분하지 않는다 |
+| GET | /files/{id}/download | 파일 바이트 받기 (온프레미스) | 2026-09-17 신설. 로그인 헤더 대신 **쿼리 `ticket`** 으로 인증한다(`presign-download` 가 발급, 60초·1회용). 티켓이 없거나 만료·재사용이면 401, 파일 메타·본문이 없으면 404. `Content-Disposition: attachment` 라 브라우저가 저장 창을 띄운다 |
 
 ## 에이전트 (M)
 
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
 | POST | /agent/applications/{id}/summarize | AI 요약 재생성 | M2. 기존 요약을 덮어쓴다. **2026-09-17**: 요약이 성공했고 그 지원자가 **한 번도 서류 판정을 받은 적 없으면**(`doc_decided_at` NULL) **공고가 열려 있을 때만** 자동 심사(ADR-0034)까지 이어서 돈다 — 첫 요약이 실패했던 지원자가 영영 판정을 못 받던 빈틈. 이미 판정됐거나 사람이 옮긴 지원자는 요약만 바뀐다. 응답 모양은 그대로 |
+| POST | /agent/applications/{id}/interview-probes | 면접 확인 질문 뽑기 | 2026-09-04 신설. 자기소개서·이력서에서 확인할 주장과 꼬리 질문을 뽑는다 → `{claims: [{claim, type, questions[], source}]}`. **저장하지 않고 참·거짓도 판정하지 않는다.** 빈 목록은 실패가 아니다(확인할 주장이 없는 글). 요약 백엔드가 꺼져 있으면 503 · 자소서·이력서가 둘 다 없거나 생성 실패면 422 · 지원자 없음 404 |
+| POST | /agent/stt | 음성 → 텍스트 | multipart `file`(webm·wav·mpeg·mp4·ogg·flac·m4a, 25MB 이하) → `{raw, resolved, duration_ms, audio_duration_sec, cost_usd}`. `resolved` 는 이름 같은 개체를 풀어 쓴 문장. 형식 밖 415 · 크기 초과 413 · 전사 백엔드 미설정 503 |
 | POST | /agent/chat | 에이전트 채팅 (검색·조회) | M3. 읽기 도구로 지원자 검색·조회, 쓰기 도구는 pending_action으로 반환. 응답에 사용량(`input_tokens`·`output_tokens`·`cache_write_tokens`·`cache_read_tokens`·`cost_usd`) 포함 ([ADR-0011](../03_decision/0011-에이전트-모델-비용.md)). **2026-09-01 변경**: `model` 이 모델명이 아니라 **`backend:model` 태그**다 (`anthropic:claude-haiku-4-5-20251001` · `ollama:qwen3:4b`) — 토크나이저가 달라 백엔드 간 토큰 수 비교가 불가능하므로 어느 엔진이 낸 값인지 함께 남긴다. **`backend` 필드가 추가**됐다(`anthropic` · `ollama`). 로컬 백엔드는 프롬프트 캐싱 개념이 없어 캐시 토큰이 **항상 0**이다 — `backend` 를 봐야 '캐시 미적중'과 '캐시 개념 없음'이 구분된다. 백엔드 선택은 `AGENT_CHAT_BACKEND`(기본 `anthropic`, [ADR-0024](../03_decision/0024-sLLM-로컬-모델-전략.md)) |
 | POST | /agent/confirm | 쓰기 도구 확인 실행 | M4, 로그인 필요. 사용자가 확인 카드를 승인한 뒤 호출. **메일 발송(`send_email`)도 이 경로를 탄다** — 되돌릴 수 없는 조작이라 승인 없이는 실행되지 않는다 (G4) |
 
@@ -375,6 +380,12 @@
 | PUT | /settings/scoring | 가중치·인재상 변경 | admin. `weights`(7개 전부, 각 0~100 — 묶음 합이 100 이 아니어도 됨, 합으로 나눈다) · `talent_profile`(text). 보낸 키만 반영 |
 
 점수 규칙(원본은 [N1 지시서](../02_tasks/N1-자동심사-파이프라인.md)): 서류 = 요건·우대·인재상 가중 평균 → `applications.doc_score` · 임계(`job_postings.pass_threshold`) 이상이면 아르가 `applied→screening→interview`, 미만이면 `→rejected`(이력 `changed_by` NULL + 점수 사유, 메일은 `send-rejections` 로 일괄) · 면접 = 답변 대조 + 진위 일관성 → `interview_sessions.ai_score` · 최종 = 서류×w + 면접×w → 상세의 `final_score`·`grade`. 사람이 단계를 옮기면 `decision_source=human` 이 되어 그 뒤 자동은 손대지 않는다. `accepted` 는 사람만.
+
+## 종합 평가 (2026-09-14)
+
+| 메서드 | 경로 | 설명 | 비고 |
+|---|---|---|---|
+| GET | /summary | 공고별 지원자 종합 평가 | 사이드바 「종합 평가」 화면. 공고(최신순)마다 `{id, title, status, applicant_count, applicants[]}`. 지원자마다 `doc_score`·`doc_decision`·`interview_ai_score`(최신 면접)·`final_score`·`grade`·`ai_summary`, 최신 면접의 `strengths`·`concerns`(각 최대 3개). 점수 계산은 위 「자동 심사 설정」 규칙과 같다. 페이지 없이 전 공고를 한 번에 준다 |
 
 ## 회사 통합 (ADR-0037)
 
