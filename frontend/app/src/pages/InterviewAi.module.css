@@ -73,6 +73,21 @@
   border: var(--border-w) solid var(--border);
 }
 
+/* PC 에서는 가로 상자로 (2026-09-18).
+   `width: 100%` + `aspect-ratio: 3/4` + `max-height` 는 **넓은 화면에서 상자만 가로로
+   늘어난다** — 높이는 50vh 에서 멈추는데 폭은 창을 따라가서, 세로 3:4 로 들어오는
+   웹캠 영상을 `object-fit: cover` 가 위아래로 크게 잘라낸다(실측: 1900×420 상자에
+   얼굴만 가득). 폰 폭에서는 지금 그대로 두고, 640px 이상에서만 웹캠과 같은 4:3 으로
+   두고 가운데 정렬한다 — 잘림 없이 상반신이 보인다. */
+@media (min-width: 640px) {
+  .cameraBox {
+    aspect-ratio: 4 / 3;
+    max-width: 640px;
+    max-height: none;
+    margin-inline: auto;
+  }
+}
+
 /* 자기 모습. cover 로 채우고 좌우를 뒤집는다(화면에만). */
 .cam {
   width: 100%;
