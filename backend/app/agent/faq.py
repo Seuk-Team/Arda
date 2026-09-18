@@ -65,6 +65,7 @@ def answer_question(
     question: str,
     *,
     applicant_context: str = "",
+    company_context: str = "",
 ) -> tuple[str, float, str]:
     """공고 내용을 근거로 지원자 질문에 답한다.
 
@@ -92,6 +93,7 @@ def answer_question(
         posting_title=posting.title,
         posting_description=posting.description or "(설명 없음)",
         applicant_context=applicant_context or "(추가 정보 없음)",
+        company_context=company_context or "(회사 정보 없음)",
         question=question.strip()[:MAX_QUESTION_CHARS],
     )
 
