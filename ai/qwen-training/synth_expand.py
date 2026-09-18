@@ -28,11 +28,8 @@ from typing import Any
 
 import yaml
 
-try:
-    from anthropic import Anthropic
-except ImportError:
-    print("anthropic 패키지 필요 · pip install -r requirements.txt", file=sys.stderr)
-    sys.exit(1)
+# anthropic 은 Haiku 확장 경로에서만 필요하다 — 오프라인($0) 모드는 패키지 없이 돌아야
+# 하므로 최상단에서 import 하지 않고, 실제 호출 직전에 지연 import 한다.
 
 
 def _load_dotenv() -> None:
@@ -60,6 +57,7 @@ _load_dotenv()
 
 SEED_PATH = Path(__file__).parent / "synth_seed.yaml"
 OUT_PATH = Path(__file__).parent / "synth_cases.jsonl"
+OFFLINE_PATH = Path(__file__).parent / "synth_offline.jsonl"  # 오프라인($0) 산출물
 CACHE_PATH = Path(__file__).parent / ".synth_cache.jsonl"  # 이미 만든 (seed_id, pass) 는 스킵
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -109,6 +107,39 @@ def load_seeds() -> list[dict[str, Any]]:
     return data["seeds"]
 
 
+def run_offline() -> int:
+    """Claude API 없이($0) 시드 자체를 1:1 케이스로 굳힌다.
+
+    `reply` 필드를 손으로 달아 둔 시드만 대상 — build_dataset 은 input+reply 가 있어야
+    샘플로 받는다. Haiku 변형이 어려운/불필요한 도구(신규 도구·라우팅 교정)를 정확히
+    한 번씩 앵커로 넣는 용도다. 산출물 synth_offline.jsonl 은 build_dataset 이 synth_cases
+    와 함께 병합한다. Haiku 캐시(.synth_cache)를 건드리지 않으므로, 나중에 예산이 되면
+    같은 시드를 Haiku 로 추가 확장하는 것과 공존한다.
+    """
+    seeds = load_seeds()
+    n = 0
+    with OFFLINE_PATH.open("w", encoding="utf-8") as f:
+        for seed in seeds:
+            reply = seed.get("reply")
+            if not reply:
+                continue  # 손 reply 없는(=Haiku 로 채우는) 시드는 건너뛴다
+            case = {
+                "input": seed["input"],
+                "tool_calls": seed.get("tool_calls", []),
+                "reply": reply,
+                "pending_action": bool(seed.get("pending_action")),
+                "_seed_id": seed["id"],
+                "_category": seed.get("category"),
+                "_pass": "offline",
+            }
+            if seed.get("history"):
+                case["history"] = seed["history"]
+            f.write(json.dumps(case, ensure_ascii=False) + "\n")
+            n += 1
+    print(f"[expand] 오프라인 {n}건 → {OFFLINE_PATH} (Claude API 미사용 · $0)")
+    return 0
+
+
 def load_cache() -> set[tuple[str, str]]:
     """이미 처리된 `(seed_id, pass)` 조합을 돌려준다. 같은 seed_id 라도 pass 가 다르면
     재생성 대상 — 여러 pass 를 돌려 데이터 누적할 수 있게 한다.
@@ -151,8 +182,18 @@ def expand_one(client: Anthropic, seed: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def main() -> int:
+    # 오프라인($0) 모드: Haiku 없이 손 reply 시드만 케이스화한다.
+    if os.getenv("SYNTH_OFFLINE") or "--offline" in sys.argv:
+        return run_offline()
+
     if not os.getenv("ANTHROPIC_API_KEY"):
         print("ANTHROPIC_API_KEY 없음", file=sys.stderr)
+        return 1
+
+    try:
+        from anthropic import Anthropic
+    except ImportError:
+        print("anthropic 패키지 필요 · pip install -r requirements.txt", file=sys.stderr)
         return 1
 
     client = Anthropic()

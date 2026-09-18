@@ -28,6 +28,7 @@ ROOT = Path(__file__).parent
 RAW_PATH = ROOT / "raw_traces.json"
 SYNTH_PATH = ROOT / "synth_cases.jsonl"
 REVERSE_PATH = ROOT / "synth_reverse.jsonl"  # synth_reverse.py 산출물 (있으면 병합)
+OFFLINE_PATH = ROOT / "synth_offline.jsonl"  # synth_expand.py --offline 산출물 ($0 · 있으면 병합)
 INTERVIEW_SEED_PATH = ROOT / "synth_seed_interview.yaml"
 PROMPTS_DIR = ROOT.parent.parent / "backend" / "app" / "agent" / "prompts"
 SYSTEM_PROMPT_PATH = PROMPTS_DIR / "agent.v1.md"
@@ -95,7 +96,11 @@ def load_synth_cases() -> list[dict[str, Any]]:
     if reverse:
         print(f"[build] {REVERSE_PATH.name}: {len(reverse)}건 (역합성)", file=sys.stderr)
 
-    return synth + reverse
+    offline = _read_jsonl(OFFLINE_PATH)
+    if offline:
+        print(f"[build] {OFFLINE_PATH.name}: {len(offline)}건 (오프라인·$0)", file=sys.stderr)
+
+    return synth + reverse + offline
 
 
 def _render_prompt(template: str, vars: dict[str, Any]) -> str:

@@ -12,3 +12,6 @@ __pycache__/
 *.pyc
 results/
 db-snapshot/
+
+# 오프라인($0) 확장 산출물 — 시드에서 재생성 가능
+synth_offline.jsonl

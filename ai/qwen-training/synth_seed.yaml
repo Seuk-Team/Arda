@@ -334,3 +334,123 @@ seeds:
     input: "다음 주 면접 일정"
     tool_calls: [{name: list_interviews, input: {}}]
     reply_pattern: "면접"
+
+  # ══════════ routing fix (2026-09-18) ══════════
+  # v9 실측 오류: "N년 이상 경력자 명단" 을 list_postings(공고 목록) 로 오선택하고
+  # 되물었다. 경력·역량·명단 요청은 곧바로 search_applications(semantic) 로 가야 한다.
+  # 아래 시드는 오프라인($0)으로 케이스화되도록 손으로 쓴 reply 를 함께 둔다.
+  - id: seed_search_experience_list_1
+    category: search
+    input: "3년 이상 웹 개발 경력자 명단 알려줘"
+    tool_calls: [{name: search_applications, input: {semantic: "3년 이상 웹 개발 경력"}}]
+    reply: "3년 이상 웹 개발 경력 지원자를 검색했습니다. 아래에서 확인해 주세요."
+    reply_pattern: "경력"
+
+  - id: seed_search_experience_list_2
+    category: search
+    input: "경력 5년 넘는 백엔드 개발자 뽑아야 해"
+    tool_calls: [{name: search_applications, input: {semantic: "5년 이상 백엔드 개발 경력"}}]
+    reply: "5년 이상 백엔드 경력 지원자를 검색했습니다."
+    reply_pattern: "백엔드"
+
+  - id: seed_search_experience_list_3
+    category: search
+    input: "시니어급 프론트엔드 지원자 리스트 좀"
+    tool_calls: [{name: search_applications, input: {semantic: "시니어 프론트엔드 개발"}}]
+    reply: "시니어 프론트엔드 지원자를 검색했습니다."
+    reply_pattern: "프론트엔드"
+
+  - id: seed_search_skill_list
+    category: search
+    input: "쿠버네티스 다뤄본 사람 있어?"
+    tool_calls: [{name: search_applications, input: {semantic: "쿠버네티스 운영 경험"}}]
+    reply: "쿠버네티스 경험 지원자를 검색했습니다. 아래에서 확인해 주세요."
+    reply_pattern: "검색"
+
+  # 대비: list_postings 는 '공고' 자체를 물을 때만 (경계를 뚜렷이)
+  - id: seed_posting_counts
+    category: posting
+    input: "공고별로 지원자 몇 명씩 들어왔어?"
+    tool_calls: [{name: list_postings, input: {}}]
+    reply: "공고별 지원자 수를 확인했습니다."
+    reply_pattern: "공고"
+
+  # ══════════ create_application (이력서 드롭 접수 · #318, 커버리지 0 → 보강) ══════════
+  - id: seed_create_app_ask_posting
+    category: create_app
+    input: "이 이력서로 지원자 등록해줘"
+    tool_calls: [{name: list_postings, input: {}}]
+    reply: "어느 공고로 접수할까요? 공고를 먼저 확인해 주세요."
+    reply_pattern: "공고"
+
+  - id: seed_create_app_known_posting
+    category: create_app
+    input: "2번 공고에 방금 드롭한 이력서로 접수해줘"
+    tool_calls: [{name: create_application, input: {posting_id: 2, name: "김하늘", email: "haneul.kim@example.com", phone: "010-1234-5678"}}]
+    pending_action: true
+    reply: "이력서에서 정보를 추출했습니다. 이 내용으로 2번 공고에 접수할까요? 확인해 주세요."
+    reply_pattern: "접수"
+
+  - id: seed_create_app_multi
+    category: multi_turn
+    input: "1번 공고로 해줘"
+    history:
+      - {role: user, content: "이 이력서로 지원자 등록해줘"}
+      - {role: assistant, content: "어느 공고로 접수할까요? 공고를 먼저 확인해 주세요."}
+    tool_calls: [{name: create_application, input: {posting_id: 1, name: "이서준", email: "seojun.lee@example.com", phone: "010-2222-3333"}}]
+    pending_action: true
+    reply: "이력서에서 추출한 정보로 1번 공고에 접수할까요? 확인해 주세요."
+    reply_pattern: "접수"
+
+  # ══════════ assign_interviewer (커버리지 0 → 보강) ══════════
+  - id: seed_assign_direct
+    category: scheduling
+    input: "12번 지원자에 3번 면접관 배정해"
+    tool_calls: [{name: assign_interviewer, input: {application_id: 12, interviewer_ids: [3]}}]
+    pending_action: true
+    reply: "3번 면접관을 12번 지원자에게 배정할까요? 확인해 주세요."
+    reply_pattern: "배정"
+
+  - id: seed_assign_multi
+    category: multi_turn
+    input: "응 이민수로 배정해"
+    history:
+      - {role: user, content: "박서준한테 면접관 배정해줘"}
+      - {role: assistant, content: "어느 분을 배정할까요? 이름을 알려주시면 찾겠습니다."}
+      - {role: user, content: "이민수 면접관"}
+      - {role: assistant, content: "이민수 면접관(ID 4) 을 박서준 님(ID 7) 면접에 배정할까요?"}
+    tool_calls: [{name: assign_interviewer, input: {application_id: 7, interviewer_ids: [4]}}]
+    pending_action: true
+    reply: "이민수 면접관을 배정합니다. 확인해 주세요."
+    reply_pattern: "배정"
+
+  # ══════════ list_availability (커버리지 0 → 보강) ══════════
+  - id: seed_availability_direct
+    category: scheduling
+    input: "5번 면접관 언제 비어 있어?"
+    tool_calls: [{name: list_availability, input: {interviewer_id: 5}}]
+    reply: "5번 면접관의 가용 시간을 확인했습니다."
+    reply_pattern: "가용"
+
+  - id: seed_availability_byname
+    category: scheduling
+    input: "면접관 이민수 빈 시간 확인해줘"
+    tool_calls: [{name: search_users, input: {q: "이민수"}}]
+    reply: "이민수 면접관을 먼저 찾겠습니다. 확인되면 가용 시간을 조회하겠습니다."
+    reply_pattern: "이민수"
+
+  # ══════════ 일정 도구 보강 (표현 다양화) ══════════
+  - id: seed_interviews_period
+    category: scheduling
+    input: "이번 주 면접 일정 다 보여줘"
+    tool_calls: [{name: list_interviews, input: {}}]
+    reply: "이번 주 확정된 면접 일정을 확인했습니다."
+    reply_pattern: "면접"
+
+  - id: seed_proposal_slots
+    category: scheduling
+    input: "박서준 면접 후보 시간 3개로 보내줘"
+    tool_calls: [{name: create_schedule_proposal, input: {max_slots: 3}}]
+    pending_action: true
+    reply: "면접 후보 시간 3개를 제안할까요? 확인해 주세요."
+    reply_pattern: "면접"

@@ -28,9 +28,13 @@ Qwen 은 **아르(도구 호출)** 뿐 아니라 **면접 답변 처리 chain �
 `agent_traces` 실측이 21건뿐이라 라벨된 것 0건. **합성 데이터로 부풀린다**:
 
 1. **실측**: 21건 (anthropic 백엔드 · 라벨 없음이지만 Claude 응답이 곧 답) — PII 마스킹 후 넣는다.
-2. **agent 시드 확장**: `synth_seed.yaml` (수작업 47건) → Claude Haiku 로 각 4 변형 → ~180건.
-3. **인터뷰 chain 시드**: `synth_seed_interview.yaml` (수작업 ~10건 · chain 마다 2~3) → 확장 안 함 (input 길이·비용).
-4. 총 ~210건 · 80/10/10 스플릿.
+2. **agent 시드 확장**: `synth_seed.yaml` (수작업) → Claude Haiku 로 각 4 변형 → ~180건.
+3. **오프라인 시드 앵커 ($0)**: `synth_seed.yaml` 에서 손 `reply` 를 단 시드만 `synth_expand.py --offline`
+   이 Haiku 없이 1:1 케이스로 굳혀 `synth_offline.jsonl` 로 낸다 — **Claude API 미사용**.
+   신규 도구(`create_application`)·오선택 교정(경력자 명단→`search_applications`)처럼 정확한
+   앵커가 필요한 것을 예산 없이 넣는 용도. Haiku 캐시와 별도라 나중에 Haiku 확장과 공존한다.
+4. **인터뷰 chain 시드**: `synth_seed_interview.yaml` (수작업 ~10건 · chain 마다 2~3) → 확장 안 함 (input 길이·비용).
+5. 총 ~236건 · 80/10/10 스플릿 · **13개 도구 전부 커버** (2026-09-18 확인).
 
 인터뷰 chain 시드는 **입력이 길다** (자기소개서·이력서·전사 원문). Haiku 확장 시 토큰 비용이 급증하므로 손 시드로 유지하고, 나중에 실측 세션이 쌓이면 라벨해서 교체.
 
@@ -90,8 +94,9 @@ pip install -r requirements.txt
 
 # 2. 데이터셋
 python fetch_traces.py                 # 서버 SSH 필요
-python synth_expand.py                 # ANTHROPIC_API_KEY 필요
-python build_dataset.py                # 마스킹 + 스플릿
+SYNTH_OFFLINE=1 python synth_expand.py # $0 · 손 reply 시드 앵커 (Claude API 미사용)
+python synth_expand.py                 # (선택) Haiku 변형 확장 · ANTHROPIC_API_KEY 필요
+python build_dataset.py                # 마스킹 + 스플릿 (synth_cases + synth_offline + 실측 병합)
 
 # 3. 학습 (3~5h · 8GB 빠듯)
 python train.py
