@@ -271,3 +271,96 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── 시작 전 소개 영상 안내 (2026-09-18) ──────────────
+   로그인 카드 위에 덮는 한 겹. 카드와 같은 유리 재질을 쓰되 한 단계 더
+   불투명하다 — 뒤의 망이 그대로 비치면 글자가 안 읽힌다. */
+.videoScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--scrim);
+  backdrop-filter: blur(6px);
+}
+
+.videoSheet {
+  width: 420px;
+  max-width: 100%;
+  padding: var(--sp-6);
+  border-radius: 16px;
+  border: var(--border-w) solid rgba(255, 255, 255, .16);
+  background: rgba(12, 18, 34, .88);
+  backdrop-filter: blur(26px) saturate(160%);
+  box-shadow: var(--sh-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.videoTitle {
+  margin: 0;
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: #fff;
+  text-shadow: var(--ts-heading);
+  word-break: keep-all;
+}
+
+.videoBody {
+  margin: 0;
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+/* **채운 흰 판을 쓰지 않는다** — 이 화면의 흰 버튼은 「로그인」 하나다
+   (05-design §1). 시안 테두리만으로 동작인 것이 읽힌다 */
+.videoOpen {
+  margin-top: var(--sp-2);
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-ctl);
+  border: var(--border-w) solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--font-body);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.videoOpen:hover {
+  border-color: var(--accent-hover);
+  color: var(--accent-hover);
+}
+
+.videoMeta {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+  opacity: 0.8;
+}
+
+.videoLater {
+  margin-top: var(--sp-2);
+  min-height: 40px;
+  padding: 0 var(--sp-4);
+  background: transparent;
+  border: 0;
+  color: var(--text-sub);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  cursor: pointer;
+}
+
+.videoLater:hover {
+  color: var(--text);
+}
