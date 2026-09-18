@@ -62,6 +62,9 @@ class DirectAction:
     is_write: bool = False
     # 매치된 규칙 이름 (로깅·디버깅용)
     rule: str = ""
+    # 값이 있으면 도구·LLM 없이 이 문구를 그대로 답한다 (캔드 FAQ · 인사·사용법 등).
+    # tool_name 은 "" 로 둔다. handle_direct 가 최상단에서 이걸 먼저 본다.
+    reply_text: str = ""
 
 
 # ── 규칙들 (매치 순서대로 시도, 먼저 잡히는 걸 씀) ─────────────────
@@ -149,7 +152,67 @@ def _try_change_stage(m: str) -> DirectAction | None:
     )
 
 
+# ── 캔드 FAQ (인사·능력·사용법) — 도구·LLM 없이 고정 문구 ──────────
+#
+# 실측(agent_traces) 에서 "안녕"·"뭘 할 수 있어" 같은 정적 발화가 매번 LLM 을 타
+# 호출당 ~$0.02 씩 나갔다. 표현이 고정이라 규칙으로 잡아 $0 로 답한다. 개인정보·
+# 실데이터가 없어 오답 위험도 없다. **뒤에 실제 요청이 붙으면 매치 안 됨** (^…$
+# 로 묶어, "안녕 김도현 찾아줘" 는 LLM 으로 넘긴다).
+
+_GREETING_REPLY = (
+    "안녕하세요! 저는 아르예요. 지원자 검색, 단계 변경, 면접 일정 같은 채용 업무를 "
+    "도와드려요. 무엇을 도와드릴까요?"
+)
+
+_CAPABILITY_REPLY = (
+    "저는 코드브릿지 채용 담당자를 돕는 AI 아르예요. 이런 걸 할 수 있어요:\n\n"
+    "- **지원자 검색·조회** — \"파이썬 경험자 찾아줘\", \"김도현 상세 보여줘\"\n"
+    "- **단계 변경** — \"박서준 면접 단계로 옮겨줘\"\n"
+    "- **면접 배정·일정** — \"이민수 면접관 배정해\", \"다음 주 면접 일정\"\n"
+    "- **안내 메일 초안·발송** — \"합격 안내 메일 초안 만들어줘\"\n\n"
+    "필요한 걸 말씀해 주세요."
+)
+
+# 순수 인사만 (뒤에 자기소개/뭐해 정도까지 허용). 실제 요청이 붙으면 매치 안 됨.
+_GREETING_RE = re.compile(
+    r"^(?:안녕(?:하세요)?|하이|헬로|hello|hi|반가워(?:요)?|반갑(?:습니다|다))"
+    r"(?:\s*[,.!?~]*\s*(?:아르(?:야)?|나(?:야)?|자기\s*소개(?:\s*해줘)?|소개(?:\s*해줘)?|뭐해|누구야|누구세요))?"
+    r"\s*[.!?~]*$"
+)
+
+# 능력·사용법 문의. "면접 방법" 같은 채용 절차 FAQ 와 헷갈리지 않게 '너/아르/이거'
+# 주어나 '사용/기능/도움말' 로 한정한다.
+_CAPABILITY_RE = re.compile(
+    r"^(?:"
+    r"(?:넌|너|아르(?:야)?|이거|이걸?|여기서)?\s*(?:뭘|무얼|뭐|무엇|무슨\s*일)(?:을|를)?\s*"
+    r"(?:할\s*수\s*있|하는|해줄\s*수\s*있|도와)"
+    r"|(?:할\s*수\s*있는\s*(?:게|것)|가능한\s*(?:게|것))\s*(?:뭐|무엇)"
+    r"|사용\s*(?:법|방법)|어떻게\s*(?:써|사용|쓰는)|도움말|기능\s*(?:이|을)?\s*뭐"
+    r"|(?:넌|너|아르(?:야)?)?\s*누구(?:야|세요|니)"
+    r"|(?:넌|너)\s*뭐야"
+    r")"
+    r"[가-힣\s]*[.!?~]*$"
+)
+
+
+def _try_greeting(m: str) -> DirectAction | None:
+    if _GREETING_RE.match(m):
+        return DirectAction("", reply_text=_GREETING_REPLY, rule="canned:greeting")
+    return None
+
+
+def _try_capability(m: str) -> DirectAction | None:
+    if _CAPABILITY_RE.match(m):
+        return DirectAction("", reply_text=_CAPABILITY_REPLY, rule="canned:capability")
+    return None
+
+
+# 캔드(인사·능력)를 먼저 둔다 — "사용법 알려줘" 가 _try_name_search 에 "사용법"
+# 이라는 이름 검색으로 새는 것을 막는다. 캔드 패턴은 매우 좁아 실제 데이터 요청을
+# 가로채지 않는다 ("김도현 찾아줘" 는 인사·능력 어디에도 안 맞음).
 _RULES = [
+    _try_greeting,
+    _try_capability,
     _try_list_applicants,
     _try_stage_applicants,
     _try_name_search,
