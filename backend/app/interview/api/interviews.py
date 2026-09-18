@@ -31,6 +31,7 @@ from app.shared.api.files import _extract_ext, validate_audio_upload
 from app.shared.s3 import EXPIRES_IN
 from app.db import get_db
 from app.deps import get_current_user
+from app.hiring.company import name_for
 from app.models import (
     Application,
     InterviewSession,
@@ -109,8 +110,14 @@ def queue_interview_mail(
         if session.expires_at
         else "별도 안내"
     )
-    signature = mail.build_signature("custom", actor_kind=actor_kind, actor_name=actor_name)
-    subject = f"[{mail.COMPANY_NAME}] {posting.title} AI 면접 안내"
+    # 회사명은 DB(company_profile) 가 먼저다 — 환경변수를 바로 읽으면 같은 지원자에게
+    # 단계 메일은 [코드브릿지], 이 메일만 [Seuk] 로 간다 (#323 이 설문·수동 메일에서
+    # 고친 것과 같은 자리. 면접 링크 메일은 그 뒤에 들어와 빠져 있었다).
+    company_name = name_for(db)
+    signature = mail.build_signature(
+        "custom", actor_kind=actor_kind, actor_name=actor_name, company_name=company_name
+    )
+    subject = f"[{company_name}] {posting.title} AI 면접 안내"
     app_line = (
         f"앱으로 보시려면: {APP_DOWNLOAD_URL} 에서 앱을 내려받아 "
         "이메일과 생년월일로 로그인하시면 같은 면접이 목록에 있습니다.\n"
@@ -119,7 +126,7 @@ def queue_interview_mail(
     )
     body = f"""{application.name} 님, 안녕하세요.
 
-{mail.COMPANY_NAME} {posting.title} 포지션 지원과 관련해 AI 면접을 안내드립니다.
+{company_name} {posting.title} 포지션 지원과 관련해 AI 면접을 안내드립니다.
 아래 링크를 열어 안내에 따라 진행해 주세요. 카메라와 마이크를 사용합니다.
 
 {_public_url(session.token)}
