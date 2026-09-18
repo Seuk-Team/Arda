@@ -203,3 +203,10 @@
 @media (max-width: 768px) {
   .box { display: none; }
 }
+
+/* 나가는 것. 빨간 테두리를 두르지 않는다 — 로그아웃은 되돌릴 수 있는 일이라
+   삭제와 같은 무게를 줄 이유가 없다 (05-design §1 색은 판단에만).
+   지원자 웹 MyShell 의 `.leave` 와 같은 값이다 */
+.leave {
+  color: var(--text-sub);
+}
