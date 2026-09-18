@@ -48,3 +48,6 @@ class UserOut(BaseModel):
     name: str
     role: str
     is_active: bool = True
+    # 시연 잠금 계정(DEMO_LOCKED_EMAILS) 여부. /me 에서만 실제로 채워지고, 프론트가
+    # 사용자·권한 화면 컨트롤을 숨기는 데 쓴다 (심사위원 데모 계정 = 관리 불가).
+    is_demo: bool = False
