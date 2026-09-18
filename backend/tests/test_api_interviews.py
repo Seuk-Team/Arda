@@ -144,6 +144,26 @@ class TestLinkMail:
         assert "AI 면접" in log.subject
         pub.assert_called_once_with(log.id)
 
+    def test_회사명은_DB_값을_쓴다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """#323 이 설문·수동 메일에서 고친 자리 — 면접 링크 메일은 그 뒤에 들어와 빠져 있었다.
+        환경변수를 바로 읽으면 같은 지원자에게 단계 메일과 회사명이 갈린다."""
+        from app.hiring.company import get_profile
+
+        get_profile(db).name = "코드브릿지"
+        db.flush()
+
+        with patch("app.shared.mail.publish"):
+            as_user(admin_user).post(
+                f"/api/v1/applications/{application.id}/interview-sessions", json={}
+            )
+
+        log = self._logs(db, application)[0]
+        assert log.subject.startswith("[코드브릿지] ")
+        assert "코드브릿지 " in log.body
+        assert "Arda" not in log.subject + log.body  # 시험의 환경변수 값
+
     def test_앱_안내가_함께_간다(
         self, as_user, db: Session, application: Application, admin_user: User
     ):
