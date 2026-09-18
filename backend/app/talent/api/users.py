@@ -18,6 +18,7 @@ from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import User
 from app.schemas.user import UserItemOut, UserListOut, UserPatch
+from app.security import is_demo_locked
 from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 router = APIRouter(prefix="/api/v1", tags=["users"])
@@ -68,6 +69,13 @@ def update_user(
 
     new_role = body.role if body.role is not None else target.role
     new_active = body.is_active if body.is_active is not None else target.is_active
+
+    # 시연 잠금 계정(DEMO_LOCKED_EMAILS) — 강등·비활성화 어느 쪽이든 심사위원 자동 로그인을
+    # 깨뜨리므로 admin 이라도 못 바꾼다. 바뀌는 게 없으면 그대로 통과(멱등).
+    if (new_role != target.role or new_active != target.is_active) and is_demo_locked(target.email):
+        raise HTTPException(
+            HTTPStatus.FORBIDDEN, "시연 계정은 역할·활성 상태를 바꿀 수 없습니다"
+        )
 
     was_active_admin = target.role == "admin" and target.is_active
     will_be_active_admin = new_role == "admin" and new_active
