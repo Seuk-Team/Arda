@@ -268,7 +268,8 @@ export interface AgentChatRequest {
 export interface AgentChoice {
   /* 짧은 이름 (fallback 표시용) — 상세는 아래 필드로 */
   label: string
-  application_id: number
+  /* 지원자 선택(동명이인)이면 있음. 공고 선택 카드에서는 없음(null/undefined). */
+  application_id?: number | null
   message: string
   /* 카드 안에 사람이 골라야 하는 만큼의 상세를 함께 준다. 서버가 label 로 이어 붙여
      오던 것을 필드로 분리해, 프론트가 정렬·강조를 마음대로 잡는다. */
@@ -276,6 +277,11 @@ export interface AgentChoice {
   stage_label: string | null
   career_years: number | null
   education: string | null
+  /* 공고 선택 카드(이력서 드롭 접수 흐름) — 있으면 공고 카드로 그리고, 클릭하면
+     message("N번 공고로 접수해 주세요") 를 다시 보낸다. */
+  posting_id?: number | null
+  posting_title?: string | null
+  applicant_count?: number | null
   /* 있으면 카드 안 확인 버튼 클릭 = agent.confirm(...) 직접 실행. 없으면 message
      로 chat 을 다시 보내 서버가 pending_action 을 만드는 두 단계 흐름으로 폴백. */
   pending_action: AgentPendingAction | null

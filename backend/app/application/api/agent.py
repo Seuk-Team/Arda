@@ -32,6 +32,7 @@ from app.models import Application, User
 from app.application.agent_service import (
     choices_from_tool_results as _choices_from_tool_results,
     handle_direct as _handle_direct,
+    posting_choices_from_tool_results as _posting_choices_from_tool_results,
 )
 
 # Pydantic 스키마 (ADR-0035 Phase 4 · schemas/agent.py 로 이관)
@@ -256,8 +257,14 @@ def chat(
         model=result.model,
         cost_usd=round(cost, 6),
         backend=result.backend,
-        choices=_choices_from_tool_results(
-            result.reply, getattr(result, "tool_results", []), body.message
+        # 동명이인(지원자) 선택이 먼저, 없으면 공고 선택(이력서 드롭 접수 흐름).
+        choices=(
+            _choices_from_tool_results(
+                result.reply, getattr(result, "tool_results", []), body.message
+            )
+            or _posting_choices_from_tool_results(
+                result.reply, getattr(result, "tool_results", []), body.message
+            )
         ),
     )
 
