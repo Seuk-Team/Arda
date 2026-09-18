@@ -8,6 +8,7 @@ import type {
   InterviewSession,
   InterviewSessionDetail,
 } from '../api/types'
+import AccountMenu from '../components/AccountMenu'
 import styles from './SummaryDetail.module.css'
 
 /* 종합 평가 · 지원자 한 명의 서류·인적성·면접 종합 (2026-09-14).
@@ -110,6 +111,8 @@ export default function SummaryDetail() {
             )}
           </div>
         </div>
+        {/* 다른 화면(PageHead)과 같은 자리에 계정 메뉴 — 여긴 자체 헤더라 빠져 있었다 */}
+        <div className={styles.acct}><AccountMenu /></div>
       </header>
 
       <IntroAndResumeSection app={app} />

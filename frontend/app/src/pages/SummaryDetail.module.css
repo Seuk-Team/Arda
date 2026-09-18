@@ -37,6 +37,11 @@
   align-items: flex-start;
 }
 
+/* 계정 메뉴는 헤더 맨 오른쪽 (PageHead 와 같은 자리) */
+.acct {
+  margin-left: auto;
+}
+
 .back {
   background: transparent;
   border: var(--border-w) solid var(--border);
