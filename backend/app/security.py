@@ -42,6 +42,19 @@ def is_demo_locked(email: str | None) -> bool:
     return bool(email) and email.strip().lower() in DEMO_LOCKED_EMAILS
 
 
+# 심사위원이 "지원자 데모 로그인" 버튼으로 공유해 쓰는 지원자 계정. 로그인할 때마다
+# 그 지원자의 인적성·면접일정·AI면접 상태를 기준(fresh)으로 되돌려, 앞 심사위원이
+# 끝내 놓아도 다음 심사위원이 세 화면을 처음부터 볼 수 있게 한다. 여기 든 이메일만
+# 리셋되고 실제 지원자는 건드리지 않는다. 비우면(기본) 아무도 리셋되지 않는다.
+DEMO_APPLICANT_EMAILS: frozenset[str] = frozenset(
+    e.strip().lower() for e in os.getenv("DEMO_APPLICANT_EMAILS", "").split(",") if e.strip()
+)
+
+
+def is_demo_applicant(email: str | None) -> bool:
+    return bool(email) and email.strip().lower() in DEMO_APPLICANT_EMAILS
+
+
 def hash_password(raw: str) -> str:
     return bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()
 
