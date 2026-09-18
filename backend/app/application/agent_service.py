@@ -268,6 +268,10 @@ def handle_direct(
       일치 순. 0건이면 되묻기, 동명이인이면 **선택지(choices) 를 붙여** 되묻기,
       1건이면 id 채움. 담당자가 선택지를 눌러 `application_id` 가 왔으면 조회 생략.
     """
+    # 캔드 FAQ (인사·능력·사용법) — 도구·LLM·DB 없이 고정 문구만 반환.
+    if intent.reply_text:
+        return router_reply(intent.reply_text)
+
     args = dict(intent.args)  # 원본 mutate 방지
     app: Application | None = None
 
