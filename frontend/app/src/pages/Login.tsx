@@ -90,6 +90,8 @@ export default function Login() {
          심사위원이 사전 성향 설문·면접 흐름을 그대로 볼 수 있어야 해서 빈 계정을 안 쓴다. */
       const res = await applicantAuth.login('fitcheck-be-01@example.com', '19950101')
       setApplicantToken(res.access_token)
+      // 지원자 데모 첫 진입 안내 팝업 플래그 — MyShell 이 한 번 띄우고 지운다
+      try { sessionStorage.setItem('arda_demo_notice', '1') } catch { /* 무시 */ }
       navigate('/my', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '자동 로그인 실패')

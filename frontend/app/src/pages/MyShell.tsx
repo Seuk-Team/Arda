@@ -176,10 +176,22 @@ export default function MyShell() {
   /* 내 정보 — 계정 메뉴에서 연다. 갈 곳이 여기 하나라 라우트를 따로 파지 않고
      이 화면 위에 덮는다(담당자 쪽 Settings 는 사이드바가 있어 라우트다) */
   const [info, setInfo] = useState(false)
+  /* 지원자 데모로 들어오면 한 번 뜨는 안내 팝업 (로그인 버튼이 sessionStorage 에
+     플래그를 심는다). 실제 지원자에겐 안 뜬다. */
+  const [demoNotice, setDemoNotice] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   /* 한 번이라도 연 탭 (앱의 `_opened`). 안 연 것은 만들지 않는다 — 처음부터
      넷을 다 만들면 화면을 켜는 순간 네 화면이 각자 자기 링크를 부른다 */
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('arda_demo_notice') === '1') {
+        sessionStorage.removeItem('arda_demo_notice')
+        setDemoNotice(true)
+      }
+    } catch { /* 무시 */ }
+  }, [])
 
   /* 지금 탭. 주소만 보면 아는 값이라 이른 return 들보다 위에 둔다 —
      아래 effect 가 훅 순서를 어기지 않게 */
@@ -471,6 +483,7 @@ export default function MyShell() {
       </div>
 
       {info && <InfoOverlay me={me} onClose={() => setInfo(false)} />}
+      {demoNotice && <DemoNoticeOverlay onClose={() => setDemoNotice(false)} />}
     </div>
   )
 }
@@ -593,6 +606,39 @@ function Picker({
 
    덮개로 만든 이유: 사이드바에 자리를 안 주기로 했으니 갔다가 돌아올 길을
    따로 만들어야 한다. 덮으면 닫기만 하면 제자리다. */
+function DemoNoticeOverlay({ onClose }: { onClose: () => void }) {
+  return (
+    <div className={styles.scrim} onClick={onClose} role="presentation">
+      <div
+        className={styles.sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label="데모 안내"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={styles.sheetHead}>
+          <h2 className={styles.sheetTitle}>데모 안내</h2>
+          <span className={styles.gap} />
+          <button type="button" className={styles.x} onClick={onClose} aria-label="닫기">
+            ✕
+          </button>
+        </div>
+        <div className={styles.sheetBody}>
+          <p>이곳은 지원자 화면을 볼 수 있는 데모 환경입니다.</p>
+          <p>
+            실시간으로 면접을 테스트하고 싶으실 경우 담당자 데모를 통해 확인
+            부탁드리겠습니다.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 function InfoOverlay({ me, onClose }: { me: ApplicantMe; onClose: () => void }) {
   const apps = me.applications
   const todo = apps.filter((a) => todoCount(a) > 0).length

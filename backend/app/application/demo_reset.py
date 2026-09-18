@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.interview.session_service import add_default_questions, seed_questions_bg
 from app.models import (
     Application,
     AptitudeAnswer,
@@ -73,68 +74,95 @@ def reset_demo_applicant(db: Session, email: str) -> None:
         p.confirmed_slot_id = None
         p.expires_at = far
 
-    # ── AI 면접: turns·findings 삭제 + pending 으로 (다시 시작 가능) ──
-    iv_ids = list(
-        db.scalars(
-            select(InterviewSession.id).where(
-                InterviewSession.application_id.in_(app_ids)
-            )
-        ).all()
-    )
-    if iv_ids:
-        db.execute(delete(InterviewTurn).where(InterviewTurn.session_id.in_(iv_ids)))
-        db.execute(delete(InterviewFinding).where(InterviewFinding.session_id.in_(iv_ids)))
-        for s in db.scalars(
-            select(InterviewSession).where(InterviewSession.id.in_(iv_ids))
-        ).all():
-            s.status = "pending"
-            s.consented_at = None
-            s.started_at = None
-            s.ended_at = None
-            s.ai_score = None
-            s.ai_score_detail = None
-            s.truth_samples = None
-            s.scored_at = None
-            s.expires_at = far
-
-    # ── 기준 데이터가 없으면 만들어 준다 (self-healing) — 원격 시드 없이 세 화면이 뜨게.
-    #    대표 지원서 하나에만 붙이고, 담당자·면접관 id 는 첫 admin 을 쓴다(데모 편의). ──
     app_id = app_ids[0]
     admin_id = db.scalar(select(User.id).where(User.role == "admin").order_by(User.id).limit(1))
-    if admin_id:
-        if not apt_ids:
-            db.add(AptitudeSession(
-                application_id=app_id, token=secrets.token_hex(32),
-                status="pending", expires_at=far, created_by=admin_id,
-            ))
-        if not iv_ids:
-            db.add(InterviewSession(
-                application_id=app_id, token=secrets.token_hex(32),
-                status="pending", expires_at=far, created_by=admin_id,
-            ))
-        has_sched = db.scalar(
-            select(ScheduleProposal.id).where(
-                ScheduleProposal.application_id.in_(app_ids)
-            ).limit(1)
+
+    # ── 인적성/일정: 없으면 생성 (self-healing) — 원격 시드 없이 화면이 뜨게 ──
+    if admin_id and not apt_ids:
+        db.add(AptitudeSession(
+            application_id=app_id, token=secrets.token_hex(32),
+            status="pending", expires_at=far, created_by=admin_id,
+        ))
+    has_sched = db.scalar(
+        select(ScheduleProposal.id).where(
+            ScheduleProposal.application_id.in_(app_ids)
+        ).limit(1)
+    )
+    if admin_id and not has_sched:
+        p = ScheduleProposal(
+            application_id=app_id, token=secrets.token_hex(32),
+            status="proposed", expires_at=far, created_by=admin_id,
         )
-        if not has_sched:
-            p = ScheduleProposal(
-                application_id=app_id, token=secrets.token_hex(32),
-                status="proposed", expires_at=far, created_by=admin_id,
-            )
-            db.add(p)
-            db.flush()
-            base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
-                hour=1, minute=0, second=0, microsecond=0
-            )  # ~10:00 KST
-            for d in range(3):
-                st = base + timedelta(days=d)
-                db.add(ScheduleSlot(
-                    proposal_id=p.id, interviewer_id=admin_id,
-                    start_at=st, end_at=st + timedelta(hours=1),
-                ))
+        db.add(p)
+        db.flush()
+        base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
+            hour=1, minute=0, second=0, microsecond=0
+        )  # ~10:00 KST
+        for d in range(3):
+            st = base + timedelta(days=d)
+            db.add(ScheduleSlot(
+                proposal_id=p.id, interviewer_id=admin_id,
+                start_at=st, end_at=st + timedelta(hours=1),
+            ))
+
+    # ── AI 면접: 세션을 하나만 남긴다 (심사위원마다 새로 볼 하나). **질문 turn 은 보존**
+    #    하고 답변만 비운다 — 파이프라인이 뽑아 둔 질문이 로그인마다 사라지지 않게.
+    #    질문이 없으면 폴백을 넣고, 커밋 뒤 seed_questions_bg 로 자소서 기반 커스텀으로
+    #    올린다(폴백 그대로일 때만 바꾸므로 이후 로그인엔 재생성 없음 = API 1회). ──
+    iv_sessions = list(db.scalars(
+        select(InterviewSession)
+        .where(InterviewSession.application_id.in_(app_ids))
+        .order_by(InterviewSession.id)
+    ).all())
+    keep_iv = iv_sessions[0] if iv_sessions else None
+    extra_iv = [s.id for s in iv_sessions[1:]]
+    if extra_iv:
+        db.execute(delete(InterviewTurn).where(InterviewTurn.session_id.in_(extra_iv)))
+        db.execute(delete(InterviewFinding).where(InterviewFinding.session_id.in_(extra_iv)))
+        db.execute(delete(InterviewSession).where(InterviewSession.id.in_(extra_iv)))
+
+    if keep_iv is None and admin_id:
+        keep_iv = InterviewSession(
+            application_id=app_id, token=secrets.token_hex(32),
+            status="pending", expires_at=far, created_by=admin_id,
+        )
+        db.add(keep_iv)
+        db.flush()
+
+    keep_iv_id = None
+    if keep_iv is not None:
+        keep_iv.status = "pending"
+        keep_iv.consented_at = None
+        keep_iv.started_at = None
+        keep_iv.ended_at = None
+        keep_iv.ai_score = None
+        keep_iv.ai_score_detail = None
+        keep_iv.truth_samples = None
+        keep_iv.scored_at = None
+        keep_iv.expires_at = far
+        db.execute(delete(InterviewFinding).where(InterviewFinding.session_id == keep_iv.id))
+        turns = list(db.scalars(
+            select(InterviewTurn).where(InterviewTurn.session_id == keep_iv.id)
+        ).all())
+        for t in turns:  # 답변만 비우고 질문은 남긴다
+            t.audio_s3_key = None
+            t.transcript = None
+            t.answered_at = None
+            t.audio_duration_sec = None
+            t.stt_cost_usd = None
+        if not turns:
+            add_default_questions(db, keep_iv.id)
+        keep_iv_id = keep_iv.id
 
     db.commit()
+
+    # 폴백 → 자소서 기반 커스텀 질문 업그레이드 (idempotent · 폴백 그대로일 때만).
+    if keep_iv_id is not None:
+        try:
+            seed_questions_bg(keep_iv_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("demo 면접 질문 생성 실패: session=%s", keep_iv_id)
+
     logger.info(
         "demo_applicant_reset",
         extra={"email_domain": norm.rpartition("@")[2], "apps": len(app_ids)},
