@@ -409,3 +409,20 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* 선택형 답변(공고·동명이인)을 메시지 안에서 클릭하는 인라인 링크 (2026-09-18) */
+.choiceLink {
+  display: inline;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: left;
+}
+.choiceLink:hover { text-decoration: none; }
+.choiceLink:disabled { opacity: 0.5; cursor: default; }

@@ -159,7 +159,33 @@ function mdInline(text: string): ReactNode[] {
     .map((part, i) => (i % 2 === 1 ? <b key={i}>{part}</b> : part))
 }
 
-function mdBlocks(text: string): ReactElement[] {
+/* 선택형 답변(공고 접수·동명이인)에서 "(ID: N)" 이 든 줄을, N 이 실제 선택지면
+   통째로 클릭 링크로 만든다 — 별도 카드 대신 메시지 안에서 바로 고르게 (2026-09-18). */
+const ID_RE = /\(ID:?\s*(\d+)\)/
+
+type ChoiceLinkOpts = {
+  choiceMap: Map<number, AgentChoice>
+  onChoose: (c: AgentChoice) => void
+}
+
+function lineNode(line: string, opts?: ChoiceLinkOpts): ReactNode {
+  if (opts) {
+    const m = ID_RE.exec(line)
+    if (m) {
+      const c = opts.choiceMap.get(Number(m[1]))
+      if (c) {
+        return (
+          <button type="button" className={styles.choiceLink} onClick={() => opts.onChoose(c)}>
+            {mdInline(line)}
+          </button>
+        )
+      }
+    }
+  }
+  return mdInline(line)
+}
+
+function mdBlocks(text: string, opts?: ChoiceLinkOpts): ReactElement[] {
   const out: ReactElement[] = []
   let para: string[] = []
   let list: string[] = []
@@ -173,7 +199,7 @@ function mdBlocks(text: string): ReactElement[] {
     if (list.length === 0) return
     out.push(
       <ul key={out.length}>
-        {list.map((line, i) => <li key={i}>{mdInline(line)}</li>)}
+        {list.map((line, i) => <li key={i}>{lineNode(line, opts)}</li>)}
       </ul>,
     )
     list = []
@@ -502,6 +528,22 @@ export default function ArChat({
 
   const locked = busy !== null || dropBusy !== null
 
+  /* 선택지(공고·동명이인)를 메시지 안 링크로 그리기 위한 준비 (2026-09-18).
+     id(공고=posting_id · 지원자=application_id)로 찾을 수 있게 맵을 만들고, 마지막
+     아르 메시지에 "(ID: N)" 이 실제로 있으면 인라인 링크로 처리했다고 보고 카드를 뺀다.
+     매칭이 안 되면(옛 문구 등) 카드로 폴백한다 — 고를 방법이 사라지지 않게. */
+  const choiceMap = new Map<number, AgentChoice>()
+  for (const c of choices) {
+    const cid = c.posting_id ?? c.application_id
+    if (cid != null) choiceMap.set(cid, c)
+  }
+  let lastArId: number | null = null
+  let lastArText = ''
+  for (const it of items) if (it.kind === 'ar') { lastArId = it.id; lastArText = it.text }
+  const choicesInlined =
+    choices.length > 0 &&
+    [...choiceMap.keys()].some((id) => new RegExp(`\\(ID:?\\s*${id}\\)`).test(lastArText))
+
   return (
     <div
       className={`${styles.root} ${dropOver ? styles.dropOver : ''}`}
@@ -535,8 +577,16 @@ export default function ArChat({
           if (item.kind === 'ar') return (
             <div key={item.id} className={styles.arRow}>
               <Sprout className={styles.arIcon} />
-              {/* ul 이 들어갈 수 있어 p 가 아니라 div — 문단·불릿은 mdBlocks 가 나눈다 */}
-              <div className={styles.ar}>{mdBlocks(item.text)}</div>
+              {/* ul 이 들어갈 수 있어 p 가 아니라 div — 문단·불릿은 mdBlocks 가 나눈다.
+                  마지막 아르 메시지 + 선택지가 있으면 "(ID: N)" 줄을 클릭 링크로 그린다. */}
+              <div className={styles.ar}>
+                {mdBlocks(
+                  item.text,
+                  item.id === lastArId && choicesInlined
+                    ? { choiceMap, onChoose: choose }
+                    : undefined,
+                )}
+              </div>
             </div>
           )
           if (item.kind === 'error') return <p key={item.id} className={styles.error}>{item.text}</p>
@@ -545,10 +595,10 @@ export default function ArChat({
           return null
         })}
 
-        {/* 동명이인 선택지 — 아르 말풍선 아래, 아이콘 자리만큼 들여서 카드 줄.
-            카드 안 확인 버튼 클릭 = 서버가 pending 을 첨부해 왔으면 원샷 실행 (agent.confirm),
-            아니면 폴백으로 원래 요청을 id 와 함께 재전송. 앰버 점선은 §1 규약 (확정 대기). */}
-        {choices.length > 0 && (
+        {/* 선택지 카드 — 아르 답변에 "(ID: N)" 이 있어 메시지 안에서 링크로 고를 수 있으면
+            (choicesInlined) 카드는 뺀다. 매칭이 안 될 때만 카드로 폴백해 고를 방법을 남긴다.
+            카드 안 확인 버튼 클릭 = pending 이 붙어 왔으면 원샷 실행, 아니면 재전송. */}
+        {choices.length > 0 && !choicesInlined && (
           <div className={styles.arRow} role="group" aria-label="선택">
             <span className={styles.arIcon} aria-hidden="true" />
             <div className={styles.choices}>
