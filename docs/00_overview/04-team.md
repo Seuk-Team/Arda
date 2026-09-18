@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 인프라·총괄 | ~~bestcow~~ **suvisdev** (2026-09-04 팀장 승격 — AWS·서버·자동 CD·발표 총괄. 다른 도메인에 게이트 없음. 경위 [ADR-0025](../03_decision/0025-운영-권한-이관.md)·[09-handover.md](09-handover.md)) | `infra/` · `.github/` · `docker-compose.yml` · AWS | [role/infra.md](../01_role/infra.md) |
 | 프론트엔드 | ~~cloverky~~ **minahdev** (2026-09-04 — 앱과 겸임) | `frontend/` | [role/frontend.md](../01_role/frontend.md) |
-| 에이전트 | ~~suvisdev~~ **cloverky** (2026-09-04 — suvisdev 가 인프라·총괄로 이동) | `backend/app/agent/` · `backend/app/api/agent.py` | [role/agent.md](../01_role/agent.md) |
+| 에이전트 | ~~suvisdev~~ **cloverky** (2026-09-04 — suvisdev 가 인프라·총괄로 이동) | `backend/app/agent/` · `backend/app/application/api/agent.py` (09-12 폴더 재편 전 `backend/app/api/agent.py`) | [role/agent.md](../01_role/agent.md) |
 | 앱 | minahdev | `mobile/` | [role/app.md](../01_role/app.md) |
 | 백엔드 | woojeongalex | `backend/` (agent 부분 제외) | [role/backend.md](../01_role/backend.md) |
 

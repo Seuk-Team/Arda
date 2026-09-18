@@ -61,7 +61,7 @@ uv run alembic current             # 지금 리비전
 
 ## 스키마를 바꿀 때
 
-1. `app/models.py` 를 고친다
+1. `app/models/` 를 고친다 (09-12 부터 컨텍스트별 파일 — `application`·`hiring`·`interview`·`talent`·`shared`)
 2. 리비전을 만든다 — `uv run alembic revision --autogenerate -m "무엇을"`
 3. **생성된 파일을 읽는다.** autogenerate 는 완벽하지 않다 — 실제로 `use_alter` 순환 FK 를 빠뜨렸고 `alembic check` 로 잡았다
 4. `alembic upgrade head` 로 적용하고 `alembic check` 로 어긋남이 없는지 확인

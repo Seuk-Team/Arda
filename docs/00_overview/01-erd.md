@@ -98,7 +98,7 @@ erDiagram
 
 ## posting_interviewers — 공고별 기본 면접관 풀 (v2.2, ADR-0034)
 
-서류 합격이 자동으로 나면 이 풀에서 **앞으로의 가용 시간이 있고 배정 건수가 가장 적은 1명**이 자동 배정된다(`app/screening.py`). 수동 배정·변경은 admin(ADR-0013).
+서류 합격이 자동으로 나면 이 풀에서 **앞으로의 가용 시간이 있고 배정 건수가 가장 적은 1명**이 자동 배정된다(`app/application/screening.py`). 수동 배정·변경은 admin(ADR-0013).
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
@@ -118,7 +118,7 @@ UNIQUE(job_posting_id, user_id).
 | id | bigint | PK, CHECK id = 1 | |
 | name | varchar(100) | NOT NULL, 기본 '' | 빈 문자열이면 `COMPANY_NAME` 환경변수로 폴백 |
 | tagline · hr_email · website · description · narrative | — | NULL 허용 | 아르 프롬프트 "회사 정보" 절 |
-| scoring_weights | json | NULL 허용 | **자동 심사 가중치 (v2.2, ADR-0034).** 키·기본값은 `app/screening.py DEFAULT_WEIGHTS` — doc/interview(최종) · doc_requirements/preferred/culture(서류) · itv_answers/truth(면접) |
+| scoring_weights | json | NULL 허용 | **자동 심사 가중치 (v2.2, ADR-0034).** 키·기본값은 `app/application/screening.py DEFAULT_WEIGHTS` — doc/interview(최종) · doc_requirements/preferred/culture(서류) · itv_answers/truth(면접) |
 | talent_profile | text | NULL 허용 | 인재상 원문(회사 소개 §8). 서류·면접 채점의 "문화 적합" 재료 |
 | updated_at | timestamptz | NOT NULL | |
 
@@ -244,7 +244,7 @@ UNIQUE(job_posting_id, user_id).
 | file_id | bigint | FK → files.id, NULL, UNIQUE | 첨부일 때만. `self_intro` 는 NULL. `(doc_type='self_intro') = (file_id IS NULL)` CHECK |
 | content_sha256 | varchar(64) | NOT NULL | **원본 내용의 지문.** 파일은 S3 객체 바이트, 자기소개는 UTF-8 바이트 |
 | prev_chain_hash | varchar(64) | NULL | 앞 고리의 `chain_hash`. 첫 행만 NULL |
-| chain_hash | varchar(64) | NOT NULL, UNIQUE | 앞 고리를 재료로 쓴 이 고리의 지문 — 재료·순서는 `app/anchoring.py` `compute_chain_hash` |
+| chain_hash | varchar(64) | NOT NULL, UNIQUE | 앞 고리를 재료로 쓴 이 고리의 지문 — 재료·순서는 `app/shared/anchoring.py` `compute_chain_hash` |
 | anchored_at | timestamptz | NOT NULL | 지문을 뜬 시각. **재료에 들어간다** |
 
 **원본은 여기 없다.** S3 와 `applications.self_intro` 에 그대로 있고 이 표에는 지문만 남는다. 그래서 이 표가 유출돼도 이력서 내용은 새지 않는다.
@@ -491,7 +491,7 @@ UNIQUE(job_posting_id, user_id).
 | value | smallint | NOT NULL | 리커트 1(전혀 그렇지 않다)~5(매우 그렇다) |
 | created_at | timestamptz | NOT NULL | |
 
-- 문항은 DB 가 아니라 **코드 상수**다 (`backend/app/aptitude_questions.py`, 10문항·5카테고리). 문항 편집 UI 는 만들지 않는다 (ADR-0027 결정 2)
+- 문항은 DB 가 아니라 **코드 상수**다 (`backend/app/application/aptitude_questions.py`, 10문항·5카테고리). 문항 편집 UI 는 만들지 않는다 (ADR-0027 결정 2)
 
 ## applicant_credentials — 지원자 로그인 비밀번호 (v2.4)
 
