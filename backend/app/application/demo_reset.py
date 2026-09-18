@@ -14,6 +14,7 @@ AI 면접** 을 기준(fresh) 상태로 되돌린다. 앞 심사위원이 검사
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -40,6 +41,10 @@ def reset_demo_applicant(db: Session, email: str) -> None:
     if not app_ids:
         return
 
+    # 만료도 미래로 밀어 준다 — 조회 시점 만료 판정(_not_expired)이 심사 기간에 걸쳐
+    # 세 화면을 계속 보이게. status 만 되돌리면 만료된 pending 은 여전히 숨겨진다.
+    far = datetime.now(timezone.utc) + timedelta(days=45)
+
     # ── 인적성: 응답 삭제 + pending 으로 (재응시 가능) ──
     apt_ids = list(
         db.scalars(
@@ -55,6 +60,7 @@ def reset_demo_applicant(db: Session, email: str) -> None:
             s.submitted_at = None
             s.ai_summary = None
             s.ai_summary_model = None
+            s.expires_at = far
 
     # ── 면접 일정: proposed 로, 확정 취소 (다시 고를 수 있게) ──
     for p in db.scalars(
@@ -62,6 +68,7 @@ def reset_demo_applicant(db: Session, email: str) -> None:
     ).all():
         p.status = "proposed"
         p.confirmed_slot_id = None
+        p.expires_at = far
 
     # ── AI 면접: turns·findings 삭제 + pending 으로 (다시 시작 가능) ──
     iv_ids = list(
@@ -85,6 +92,7 @@ def reset_demo_applicant(db: Session, email: str) -> None:
             s.ai_score_detail = None
             s.truth_samples = None
             s.scored_at = None
+            s.expires_at = far
 
     db.commit()
     logger.info(
