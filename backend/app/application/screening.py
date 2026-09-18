@@ -351,6 +351,13 @@ def decide_document(db: Session, application: Application, now: datetime | None 
                 "안내 메일은 마감 뒤 일괄 발송"
             )
             try:
+                # 서류(screening)를 거쳐 탈락시킨다 — "서류 탈락" 으로 라벨되게
+                # (applied→rejected 는 "불합격" 으로만 뜬다). 통과 경로가 screening 을
+                # 거치는 것과 대칭.
+                apply_stage_change(
+                    db, application, "screening", None, reason, now,
+                    notify=False, actor_kind="agent",
+                )
                 apply_stage_change(
                     db, application, "rejected", None, reason, now,
                     notify=False, actor_kind="agent",
@@ -386,6 +393,8 @@ def decide_document(db: Session, application: Application, now: datetime | None 
             log_ids = _after_pass(db, application, posting, now, detail)
         else:
             reason = f"아르 서류 심사 불합격 — {score}점 (기준 {threshold}점). 안내 메일은 마감 뒤 일괄 발송"
+            # 서류(screening)를 거쳐 탈락 — "서류 탈락" 라벨. 통과 경로와 대칭.
+            apply_stage_change(db, application, "screening", None, reason, now, notify=False, actor_kind="agent")
             apply_stage_change(db, application, "rejected", None, reason, now, notify=False, actor_kind="agent")
             application.doc_decision = "reject"
     except StageTransitionError:
