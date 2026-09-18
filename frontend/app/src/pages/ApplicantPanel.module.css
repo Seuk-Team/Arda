@@ -1546,3 +1546,11 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
 
 .diffBefore::before { content: '↩ '; opacity: 0.7; }
 .diffAfter::before  { content: '↪ '; color: var(--accent-text); opacity: 1; }
+
+/* 면접 링크 메일 안내 (2026-09-18) — 만들기 버튼 옆 */
+.ivMailHint {
+  align-self: center;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+.ivCopy:disabled { opacity: 0.6; cursor: default; }

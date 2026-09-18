@@ -212,8 +212,13 @@ import type {
 } from './types'
 
 export const interviews = {
-  create: (applicationId: number) =>
-    api.post<InterviewSession>(`/applications/${applicationId}/interview-sessions`, {}),
+  /* 만들면 **지원자에게 링크 메일이 나간다** (2026-09-18). 링크만 뽑아 두려면 notify: false */
+  create: (applicationId: number, notify = true) =>
+    api.post<InterviewSession>(`/applications/${applicationId}/interview-sessions`, { notify }),
+
+  /* 링크 메일 재발송 — **같은 세션·같은 링크**. 새로 만들면 앱이 가장 먼저 만든 방으로 들어간다 */
+  sendLink: (sessionId: number) =>
+    api.post<InterviewSession>(`/interview-sessions/${sessionId}/send`, {}),
 
   list: (applicationId: number, signal?: AbortSignal) =>
     api.get<InterviewSession[]>(`/applications/${applicationId}/interview-sessions`, { signal }),

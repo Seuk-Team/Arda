@@ -1349,6 +1349,8 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
   const [expandedDetail, setExpandedDetail] = useState<InterviewSessionDetail | null>(null)
   const [questions, setQuestions] = useState<Record<number, string>>({})
   const [savingQ, setSavingQ] = useState<Record<number, boolean>>({})
+  const [sendingMail, setSendingMail] = useState<Record<number, boolean>>({})
+  const [sentMail, setSentMail] = useState<Record<number, boolean>>({})
 
   const load = useCallback(async () => {
     try { setSessions(await interviewsApi.list(applicationId)) } catch { setSessions([]) }
@@ -1367,6 +1369,20 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
     try { await interviewsApi.create(applicationId); await load() }
     catch (e) { setErr(e instanceof ApiError ? e.message : 'AI 면접을 만들지 못했습니다') }
     finally { setCreating(false) }
+  }
+
+  /* 같은 링크를 다시 보낸다. 세션을 새로 만들지 않는다 — 앱이 가장 먼저 만든 방으로
+     들어가므로 방이 늘면 담당자와 지원자가 갈린다(2026-09-10 실측). */
+  async function sendLink(sessionId: number) {
+    setSendingMail((p) => ({ ...p, [sessionId]: true })); setErr(null)
+    try {
+      await interviewsApi.sendLink(sessionId)
+      setSentMail((p) => ({ ...p, [sessionId]: true }))
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '메일을 보내지 못했습니다')
+    } finally {
+      setSendingMail((p) => ({ ...p, [sessionId]: false }))
+    }
   }
 
   async function copyUrl(url: string) {
@@ -1416,6 +1432,9 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
         >
           {creating ? '만드는 중…' : 'AI 면접 만들기'}
         </button>
+        {/* 2026-09-18: 만들면 링크 메일이 같이 나간다. 담당자가 「링크 복사」로
+            손수 전달하던 것을 인적성 설문과 같은 방식으로 맞췄다. */}
+        <span className={styles.ivMailHint}>만들면 지원자에게 링크 메일이 나갑니다</span>
       </div>
       {/* 끝나지 않은 세션이 있으면 못 만들게 한다.
           **누를 때마다 새 행이 생긴다**(백엔드가 일부러 그렇게 한다 — 옛 링크를
@@ -1441,6 +1460,18 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
                 {IV_STATUS_LABEL[s.status] ?? s.status}
               </span>
               <button type="button" className={styles.ivCopy} onClick={() => copyUrl(s.url)}>링크 복사</button>
+              {/* 재발송은 **같은 링크**를 다시 보낸다 — 새 세션을 만들면 앱이 가장 먼저
+                  만든 방으로 들어가 담당자와 갈린다(2026-09-10 실측). */}
+              {!isDone && (
+                <button
+                  type="button"
+                  className={styles.ivCopy}
+                  disabled={sendingMail[s.id]}
+                  onClick={() => void sendLink(s.id)}
+                >
+                  {sendingMail[s.id] ? '보내는 중…' : sentMail[s.id] ? '메일 보냄 ✓' : '메일 다시 보내기'}
+                </button>
+              )}
               {/* 실시간 면접(사람 ↔ 사람). 끝난 면접에는 안 보인다 —
                   들어가 봐야 방이 안 열린다(서버가 session_closed 로 막는다).
                   같은 세션·같은 토큰을 쓰므로 AI 면접과 자리를 나누지 않는다. */}
