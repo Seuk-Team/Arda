@@ -54,7 +54,8 @@ class ChoiceOut(BaseModel):
     를 다시 chat 에 보내 서버가 pending 을 만드는 두 단계 흐름을 탄다.
     """
     label: str
-    application_id: int
+    # 지원자 선택(동명이인)이면 채워진다. 공고 선택 카드에서는 None.
+    application_id: int | None = None
     message: str
     # 카드 안에서 사람이 고를 만한 만큼의 상세를 함께 준다 — label 하나로 이어붙이던
     # 형식은 프론트가 정렬·강조를 잡을 수 없어 카드에 안 맞는다.
@@ -62,6 +63,11 @@ class ChoiceOut(BaseModel):
     stage_label: str | None = None
     career_years: int | None = None
     education: str | None = None
+    # 공고 선택 카드(이력서 드롭 접수 흐름) — 아르가 "어느 공고에 접수?" 를 물을 때
+    # list_postings 결과를 클릭 가능한 카드로 준다. 지원자 선택과 같은 UI 를 공유한다.
+    posting_id: int | None = None
+    posting_title: str | None = None
+    applicant_count: int | None = None
     # 규칙 라우터가 change_stage 를 잡았고 동명이인이 났을 때 각 후보의 pending 을 미리
     # 만들어 붙인다. 도구 하나에 후보만 여러이므로 arguments 는 application_id 만 다르다.
     pending_action: PendingActionOut | None = None

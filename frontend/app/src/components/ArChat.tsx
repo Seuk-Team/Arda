@@ -25,6 +25,9 @@ export type ArMotion = 'idle' | 'listen' | 'think' | 'ask' | 'confirm' | 'fail'
    백엔드는 s3_key 만 받는다 — 텍스트 추출은 접수 뒤 요약 chain 이 한다. */
 const DROP_EXT = /\.(pdf|docx|hwpx|hwp|txt)$/i
 const DROP_MAX_BYTES = 20 * 1024 * 1024  // 20MB — 공개 지원 폼과 같은 상한
+// 자기소개서로 볼 파일 이름 힌트. 이력서·자소서 두 개를 함께 떨어뜨렸을 때 어느 것이
+// 자소서인지 파일명으로 가른다 (못 가르면 첫째=이력서·둘째=자소서 순).
+const COVER_HINT = /(자소서|자기소개|커버|cover)/i
 
 async function uploadDropped(file: File): Promise<{ s3_key: string; content_type: string }> {
   /* 공개 지원 폼과 같은 presign 경로. 담당자 인증이 있어도 여기서는 auth: false 를 유지 —
@@ -319,7 +322,7 @@ export default function ArChat({
       void runConfirm(action)
       return
     }
-    void submit(c.message, `${c.label} 선택`, c.application_id)
+    void submit(c.message, `${c.label} 선택`, c.application_id ?? undefined)
   }
 
   /* message: 서버로 가는 글 · shown: 말풍선·이력에 남는 글. 보통은 같고 선택지만 다르다 */
@@ -420,34 +423,66 @@ export default function ArChat({
     setDropOver(false)
     if (busy || dropBusy !== null) return
 
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    if (!DROP_EXT.test(file.name)) {
-      push({ kind: 'error', text: 'PDF · DOCX · HWPX · TXT 만 접수할 수 있어요.' })
-      setFlash('fail')
-      return
+    /* 이력서·자소서를 함께 떨어뜨릴 수 있다 — 여러 파일을 다 받는다 (예전엔 [0] 하나만).
+       create_application 은 이력서 1 + 자소서 1 을 받으므로 앞 두 개만 쓴다. */
+    const dropped = Array.from(e.dataTransfer.files || [])
+    if (dropped.length === 0) return
+    for (const f of dropped) {
+      if (!DROP_EXT.test(f.name)) {
+        push({ kind: 'error', text: `${f.name}: PDF · DOCX · HWPX · TXT 만 접수할 수 있어요.` })
+        setFlash('fail')
+        return
+      }
+      if (f.size > DROP_MAX_BYTES) {
+        push({ kind: 'error', text: `${f.name}: 파일이 20MB 를 넘어요.` })
+        setFlash('fail')
+        return
+      }
     }
-    if (file.size > DROP_MAX_BYTES) {
-      push({ kind: 'error', text: '파일이 20MB 를 넘어요 — 이력서에는 큰 파일입니다.' })
-      setFlash('fail')
-      return
+    const picked = dropped.slice(0, 2)
+    if (dropped.length > 2) {
+      push({ kind: 'error', text: '이력서·자소서 두 개까지 받아요. 앞 두 개만 접수할게요.' })
     }
 
-    setDropBusy(file.name)
+    setDropBusy(picked.map((f) => f.name).join(', '))
     try {
-      const { s3_key, content_type } = await uploadDropped(file)
-      /* 서버로 가는 글은 s3_key·filename·크기·타입을 실제 값으로 · 담당자에게 보이는 글은
-         파일 이름만 (s3_key 는 시각적 잡음이라 채팅 흐름에 노출하지 않는다). */
-      const shown = `📎 ${file.name} 을 접수 대상으로 드롭했어요.`
+      const uploaded = await Promise.all(
+        picked.map(async (f) => ({ file: f, ...(await uploadDropped(f)) })),
+      )
+      /* 이력서 vs 자소서 구분: 파일명 힌트로 가르고, 못 가르면 첫째=이력서·둘째=자소서 */
+      let resume = uploaded[0]
+      let cover = uploaded[1]
+      if (uploaded.length === 2) {
+        const coverIdx = uploaded.findIndex((u) => COVER_HINT.test(u.file.name))
+        if (coverIdx >= 0) {
+          cover = uploaded[coverIdx]
+          resume = uploaded[coverIdx === 0 ? 1 : 0]
+        }
+      }
+
+      const fileLine = (label: string, u: typeof resume) =>
+        [
+          `${label} filename: ${u.file.name}`,
+          `${label}_s3_key: ${u.s3_key}`,
+          `${label} content_type: ${u.content_type}`,
+          `${label} size_bytes: ${u.file.size}`,
+        ].join('\n')
+
+      const shown =
+        picked.length === 2
+          ? `📎 ${picked.map((f) => f.name).join(', ')} 을 접수 대상으로 드롭했어요.`
+          : `📎 ${picked[0].name} 을 접수 대상으로 드롭했어요.`
       const message = [
-        '지원자 이력서 파일을 접수해 주세요.',
-        `filename: ${file.name}`,
-        `resume_s3_key: ${s3_key}`,
-        `content_type: ${content_type}`,
-        `size_bytes: ${file.size}`,
+        cover
+          ? '지원자 이력서·자기소개서 파일을 접수해 주세요.'
+          : '지원자 이력서 파일을 접수해 주세요.',
+        fileLine('resume', resume),
+        ...(cover ? [fileLine('cover_letter', cover)] : []),
         '',
         '어느 공고에 접수할지, 지원자 이름·이메일·전화번호를 이 자리에서 물어봐 주세요.',
-        '모두 확인되면 create_application 으로 접수 확인 카드를 띄우고, 승인되면 요약과 무결성 앵커도 자동으로 시작해 주세요.',
+        '모두 확인되면 create_application 으로 접수 확인 카드를 띄우고(resume_s3_key' +
+          (cover ? '·cover_letter_s3_key 둘 다' : '') +
+          '), 승인되면 요약과 무결성 앵커도 자동으로 시작해 주세요.',
       ].join('\n')
       await submit(message, shown)
     } catch (err) {
@@ -514,22 +549,30 @@ export default function ArChat({
             카드 안 확인 버튼 클릭 = 서버가 pending 을 첨부해 왔으면 원샷 실행 (agent.confirm),
             아니면 폴백으로 원래 요청을 id 와 함께 재전송. 앰버 점선은 §1 규약 (확정 대기). */}
         {choices.length > 0 && (
-          <div className={styles.arRow} role="group" aria-label="지원자 선택">
+          <div className={styles.arRow} role="group" aria-label="선택">
             <span className={styles.arIcon} aria-hidden="true" />
             <div className={styles.choices}>
               {choices.map((c) => {
+                // 공고 선택 카드(이력서 드롭 접수)면 다르게 그린다.
+                const isPosting = c.posting_id != null
                 // pending 이 있으면 실제로 실행할 문장을 그대로 (서버 _describe_action 결과),
-                // 없으면 "이어가기" 라는 두 단계 흐름을 알리는 라벨
+                // 없으면 "이어가기"/"이 공고로 접수" 라벨
                 const actionLabel = c.pending_action
                   ? c.pending_action.description
-                  : '이 지원자로 이어가기'
+                  : isPosting
+                    ? '이 공고로 접수'
+                    : '이 지원자로 이어가기'
                 // 이름 옆 메타 한 줄. 없는 조각은 뺀다
                 const meta: string[] = []
-                if (c.stage_label) meta.push(`단계 · ${c.stage_label}`)
-                if (typeof c.career_years === 'number') meta.push(`경력 ${c.career_years}년`)
-                if (c.education) meta.push(c.education)
+                if (isPosting) {
+                  if (typeof c.applicant_count === 'number') meta.push(`지원자 ${c.applicant_count}명`)
+                } else {
+                  if (c.stage_label) meta.push(`단계 · ${c.stage_label}`)
+                  if (typeof c.career_years === 'number') meta.push(`경력 ${c.career_years}년`)
+                  if (c.education) meta.push(c.education)
+                }
                 return (
-                  <div key={c.application_id} className={styles.choiceCard}>
+                  <div key={c.posting_id ?? c.application_id ?? c.label} className={styles.choiceCard}>
                     <p className={styles.choiceHead}><b>{c.label}</b></p>
                     {c.email && <p className={styles.choiceEmail}>{c.email}</p>}
                     {meta.length > 0 && <p className={styles.choiceMeta}>{meta.join(' · ')}</p>}
