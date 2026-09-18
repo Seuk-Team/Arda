@@ -23,7 +23,7 @@
 
 필수 27기능 기준. ○ 권장 기능의 확장 포인트는 각 표의 비고에 적어둔다.
 
-실제 테이블은 [backend/app/models.py](../../backend/app/models.py)에 이 문서의 표 순서 그대로 옮겨져 있다. **어긋나면 이 문서가 기준이다** — 문서를 먼저 고치고 모델을 맞춘다.
+실제 테이블은 [backend/app/models/](../../backend/app/models/)에 있다 — 09-12 에 한 파일(`models.py`)을 컨텍스트별 파일(`application`·`hiring`·`interview`·`talent`·`shared`)로 나눠서 이 문서의 표 순서와는 더 이상 같지 않다. **어긋나면 이 문서가 기준이다** — 문서를 먼저 고치고 모델을 맞춘다.
 
 ## 관계 요약
 
@@ -307,7 +307,7 @@ UNIQUE(job_posting_id, user_id).
 
 ## email_templates — 메일 문구 오버라이드 (G4)
 
-담당자가 설정 화면에서 편집한 문구. **행이 없으면 코드 기본값**([mail.py](../../backend/app/mail.py) `_TEMPLATES`, 문구의 기준은 [email-templates.md](email-templates.md))이 나간다.
+담당자가 설정 화면에서 편집한 문구. **행이 없으면 코드 기본값**([shared/mail.py](../../backend/app/shared/mail.py) `_TEMPLATES`, 문구의 기준은 [email-templates.md](email-templates.md))이 나간다.
 
 문구를 통째로 DB 로 옮기지 않은 이유: 시드가 선행돼야 메일이 나가게 되고, 시드 누락이 곧 발송 전면 실패다. 오버라이드만 두면 `create_all` 이 빈 테이블을 만드는 것으로 끝나고, 행을 지우면 기본 문구로 돌아온다.
 
