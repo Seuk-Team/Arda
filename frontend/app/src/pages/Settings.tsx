@@ -398,6 +398,10 @@ const TEMPLATE_VARS = ['{지원자명}', '{공고명}', '{회사명}', '{면접�
 
 function MailTemplates() {
   const { show } = useToast()
+  const { user: me } = useAuth()
+  // 시연 계정(심사위원 데모)은 메일 템플릿도 못 바꾼다 — 백엔드도 403 으로 막지만
+  // 눌러도 실패하는 버튼을 안 보이게 입력·버튼을 비활성화한다.
+  const isDemo = me?.is_demo === true
   const [items, setItems] = useState<MailTemplate[] | null>(null)
   const [stage, setStage] = useState<MailTemplate['stage']>('applied')
   const [subject, setSubject] = useState('')
@@ -496,7 +500,7 @@ function MailTemplates() {
             type="text"
             value={subject}
             maxLength={255}
-            disabled={items === null}
+            disabled={items === null || isDemo}
             onChange={(e) => setSubject(e.target.value)}
           />
         </div>
@@ -507,7 +511,7 @@ function MailTemplates() {
             id="tpl-body"
             rows={14}
             value={body}
-            disabled={items === null}
+            disabled={items === null || isDemo}
             onChange={(e) => setBody(e.target.value)}
           />
         </div>
@@ -517,11 +521,14 @@ function MailTemplates() {
           {'{서명}'}은 보낸 주체에 따라 채워집니다(담당자 이름 / 채용 에이전트 아르 / 채용팀).
         </p>
 
+        {isDemo && (
+          <p className={styles.sub}>시연 계정은 메일 템플릿을 바꿀 수 없습니다 (읽기 전용).</p>
+        )}
         <div className={styles.formActions}>
           <button
             type="button"
             className="btn"
-            disabled={saving || current?.source !== 'custom'}
+            disabled={saving || isDemo || current?.source !== 'custom'}
             onClick={reset}
           >
             기본 문구로 되돌리기
@@ -529,7 +536,7 @@ function MailTemplates() {
           <button
             type="button"
             className="btn btn-primary"
-            disabled={saving || !dirty}
+            disabled={saving || isDemo || !dirty}
             onClick={save}
           >
             {saving ? '저장 중…' : '저장'}

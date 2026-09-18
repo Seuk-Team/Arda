@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.shared import mail
 from app.db import get_db
 from app.deps import get_current_user, require_roles
+from app.security import is_demo_locked
 from app.hiring.company import name_for
 from app.models import (
     TEMPLATE_STAGES,
@@ -100,7 +101,11 @@ def save_template(
 
     `{서명}` 이 없으면 본문 끝에 붙인다. 편집하다 서명 줄을 지우는 일이 흔한데,
     서명 없는 메일이 나가게 두느니 자동으로 채운다.
+
+    시연 잠금 계정(심사위원 데모)은 admin 이라도 못 바꾼다 — 사용자·권한과 같은 이유.
     """
+    if is_demo_locked(actor.email):
+        raise HTTPException(HTTPStatus.FORBIDDEN, "시연 계정은 메일 템플릿을 바꿀 수 없습니다")
     _assert_known_stage(stage)
 
     bad = mail.unknown_vars(body.subject) + mail.unknown_vars(body.body)
@@ -138,6 +143,8 @@ def reset_template(
 
     204 가 아니라 복귀한 기본 문구를 돌려준다 — 화면이 곧바로 그것을 그린다.
     """
+    if is_demo_locked(actor.email):
+        raise HTTPException(HTTPStatus.FORBIDDEN, "시연 계정은 메일 템플릿을 바꿀 수 없습니다")
     _assert_known_stage(stage)
     row = db.scalar(select(EmailTemplate).where(EmailTemplate.stage == stage))
     if row is None:
