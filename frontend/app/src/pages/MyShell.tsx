@@ -626,7 +626,7 @@ function DemoNoticeOverlay({ onClose }: { onClose: () => void }) {
         <div className={styles.sheetBody}>
           <p>이곳은 지원자 화면을 볼 수 있는 데모 환경입니다.</p>
           <p>
-            실시간으로 면접을 테스트하고 싶으실 경우 담당자 데모로 로그인을 통해
+            실시간으로 면접을 테스트하고 싶으실 경우 담당자 데모로 로그인 하여
             확인 부탁드리겠습니다.
           </p>
           <button type="button" className="btn btn-primary" onClick={onClose}>
