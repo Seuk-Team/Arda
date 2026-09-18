@@ -28,6 +28,7 @@ from app.application.aptitude_questions import (
 )
 from app.db import get_db
 from app.deps import get_current_user
+from app.hiring.company import name_for
 from app.models import Application, AptitudeAnswer, AptitudeSession, JobPosting, User
 from app.schemas.aptitude import (
     AnswerOut,
@@ -131,13 +132,16 @@ def queue_aptitude_mail(
         if session.expires_at
         else "별도 안내"
     )
+    # 회사명은 DB(company_profile) 가 먼저다 — 환경변수를 바로 읽으면 같은 지원자에게
+    # 단계 메일은 [코드브릿지], 이 메일만 [Seuk] 로 갔다 (2026-09-17 운영 점검).
+    company_name = name_for(db)
     signature = mail.build_signature(
-        "custom", actor_kind=actor_kind, actor_name=actor_name
+        "custom", actor_kind=actor_kind, actor_name=actor_name, company_name=company_name
     )
-    subject = f"[{mail.COMPANY_NAME}] {posting.title} 사전 성향 설문 요청"
+    subject = f"[{company_name}] {posting.title} 사전 성향 설문 요청"
     body = f"""{application.name} 님, 안녕하세요.
 
-{mail.COMPANY_NAME} {posting.title} 포지션 지원과 관련해, 서류 검토에 참고할 사전 성향 설문을 요청드립니다.
+{company_name} {posting.title} 포지션 지원과 관련해, 서류 검토에 참고할 사전 성향 설문을 요청드립니다.
 문항은 {len(QUESTIONS)}개이며 3분 정도 걸립니다.
 
 {_public_url(session.token)}

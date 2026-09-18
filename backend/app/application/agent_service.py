@@ -180,6 +180,48 @@ def choices_from_tool_results(reply: str, tool_results: list, original: str) -> 
     ]
 
 
+def posting_choices_from_tool_results(reply: str, tool_results: list, original: str) -> list[ChoiceOut]:
+    """이력서 드롭 접수 흐름 — 아르가 "어느 공고에 접수할지" 물을 때 list_postings
+    결과를 **클릭 가능한 공고 선택 카드**로 준다 (지원자 선택과 같은 UI 재사용).
+
+    답변 본문을 파싱하지 않고 도구 결과를 믿는다. 클릭하면 "{id}번 공고로 접수해
+    주세요" 를 다시 보내 아르가 그 공고로 접수를 이어간다 (이력서 s3_key 는 이미
+    대화 이력에 있다). 트리거가 과하게 잡혀도 결과는 "카드가 하나 더 뜸" 이지
+    데이터 훼손이 아니다.
+    """
+    r = reply or ""
+    if "공고" not in r or not any(k in r for k in ("어느", "선택", "접수", "골라", "어디")):
+        return []
+    rows: list[dict] = []
+    seen: set[int] = set()
+    for tr in tool_results or []:
+        if not isinstance(tr, dict) or tr.get("name") != "list_postings":
+            continue
+        out = tr.get("output")
+        items = out if isinstance(out, list) else (out.get("results") if isinstance(out, dict) else None)
+        for p in items or []:
+            if not isinstance(p, dict) or p.get("id") is None or not p.get("title"):
+                continue
+            try:
+                pid = int(p["id"])
+            except (TypeError, ValueError):
+                continue
+            if pid in seen:
+                continue
+            seen.add(pid)
+            rows.append(p)
+    return [
+        ChoiceOut(
+            label=str(p["title"]),
+            message=f"{int(p['id'])}번 공고로 접수해 주세요.",
+            posting_id=int(p["id"]),
+            posting_title=str(p["title"]),
+            applicant_count=p.get("application_count"),
+        )
+        for p in rows[:CHOICE_LIMIT]
+    ]
+
+
 def build_per_choice_pendings(
     intent: DirectAction,
     apps: list[Application],
@@ -268,6 +310,10 @@ def handle_direct(
       일치 순. 0건이면 되묻기, 동명이인이면 **선택지(choices) 를 붙여** 되묻기,
       1건이면 id 채움. 담당자가 선택지를 눌러 `application_id` 가 왔으면 조회 생략.
     """
+    # 캔드 FAQ (인사·능력·사용법) — 도구·LLM·DB 없이 고정 문구만 반환.
+    if intent.reply_text:
+        return router_reply(intent.reply_text)
+
     args = dict(intent.args)  # 원본 mutate 방지
     app: Application | None = None
 

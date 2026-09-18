@@ -471,6 +471,42 @@ class TestVerdictFromWorker:
         assert got["type"] == "verdict"
         assert got["truth_pct"] == 61.2
 
+    def test_표정_목소리까지_지금_질문으로_센다(
+        self, client, db: Session, application: Application, admin_user: User, monkeypatch
+    ):
+        """종합 평가의 실시간 분석 요약 재료 (2026-09-17). 답한 칸은 건너뛰고 지금 질문에."""
+        from app.models import InterviewTurn
+
+        monkeypatch.setenv("ARDA_SERVICE_TOKEN", "test-token-x")
+        s = _session(db, application, admin_user)
+        db.add_all([
+            InterviewTurn(session_id=s.id, seq=1, question="q1",
+                          answered_at=datetime.now(UTC), transcript="답"),
+            InterviewTurn(session_id=s.id, seq=2, question="q2"),
+        ])
+        db.flush()
+
+        r = client.post(
+            f"/api/v1/internal/interview/{s.token}/verdict",
+            headers=self.HEAD,
+            json={
+                "truth_pct": 70.0, "lie_pct": 30.0,
+                "signals": [{"key": "눈 깜빡임", "value": "0.5회/초 (정상)", "flag": "normal"}],
+                "expressions": [{"label": "neutral", "label_ko": "무표정", "prob": 0.9}],
+                "voice": {"pitch_hz": 150.0},
+            },
+        )
+        assert r.status_code == 204
+
+        db.refresh(s)
+        assert s.truth_samples["n"] == 1
+        assert s.truth_samples["truth_sum"] == 70.0
+        q2 = s.truth_samples["by_q"]["2"]
+        assert q2["expr"] == {"무표정": 1}
+        assert q2["blink_sum"] == 0.5
+        assert q2["pitch_hz_sum"] == 150.0
+        assert "1" not in s.truth_samples["by_q"]
+
     def test_지원자에게는_안_간다(
         self, client, db: Session, application: Application, admin_user: User, monkeypatch
     ):

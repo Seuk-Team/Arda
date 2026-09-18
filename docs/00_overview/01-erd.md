@@ -23,7 +23,7 @@
 
 필수 27기능 기준. ○ 권장 기능의 확장 포인트는 각 표의 비고에 적어둔다.
 
-실제 테이블은 [backend/app/models.py](../../backend/app/models.py)에 이 문서의 표 순서 그대로 옮겨져 있다. **어긋나면 이 문서가 기준이다** — 문서를 먼저 고치고 모델을 맞춘다.
+실제 테이블은 [backend/app/models/](../../backend/app/models/)에 있다 — 09-12 에 한 파일(`models.py`)을 컨텍스트별 파일(`application`·`hiring`·`interview`·`talent`·`shared`)로 나눠서 이 문서의 표 순서와는 더 이상 같지 않다. **어긋나면 이 문서가 기준이다** — 문서를 먼저 고치고 모델을 맞춘다.
 
 ## 관계 요약
 
@@ -307,7 +307,7 @@ UNIQUE(job_posting_id, user_id).
 
 ## email_templates — 메일 문구 오버라이드 (G4)
 
-담당자가 설정 화면에서 편집한 문구. **행이 없으면 코드 기본값**([mail.py](../../backend/app/mail.py) `_TEMPLATES`, 문구의 기준은 [email-templates.md](email-templates.md))이 나간다.
+담당자가 설정 화면에서 편집한 문구. **행이 없으면 코드 기본값**([shared/mail.py](../../backend/app/shared/mail.py) `_TEMPLATES`, 문구의 기준은 [email-templates.md](email-templates.md))이 나간다.
 
 문구를 통째로 DB 로 옮기지 않은 이유: 시드가 선행돼야 메일이 나가게 되고, 시드 누락이 곧 발송 전면 실패다. 오버라이드만 두면 `create_all` 이 빈 테이블을 만드는 것으로 끝나고, 행을 지우면 기본 문구로 돌아온다.
 
@@ -420,8 +420,8 @@ UNIQUE(job_posting_id, user_id).
 | created_by | bigint | FK → users.id, NOT NULL | 만든 담당자 |
 | created_at | timestamptz | NOT NULL | |
 | ai_score | smallint | NULL 허용 | **아르 면접 점수 0~100 (v2.2, ADR-0034).** 답변 대조 × w + 진위 일관성 × w. `finish` 뒤 백그라운드 채점 |
-| ai_score_detail | json | NULL 허용 | answers · truth · per_question · strengths · concerns · weights · prompt · model |
-| truth_samples | json | NULL 허용 | 실시간 판정 **집계값만** `{"n", "truth_sum"}` — 개별 판정·프레임은 저장하지 않는다(ADR-0029 취지 유지) |
+| ai_score_detail | json | NULL 허용 | answers · truth · per_question · strengths · concerns · weights · prompt · model · **live**(2026-09-17: 면접 중 실시간 분석 요약 `{summary, summary_source: ai\|template, stats: {overall, per_question}}` — 점수 재료 아님) |
+| truth_samples | json | NULL 허용 | 실시간 판정 **집계값만** `{"n", "truth_sum"}` — 개별 판정·프레임은 저장하지 않는다(ADR-0029 취지 유지). 2026-09-17 부터 같은 칸에 표정 1위 횟수(`expr`)·눈 깜빡임·고개/입 표시·목소리 합계, 그리고 질문별 같은 모양(`by_q["<seq>"]`)도 센다 — 여전히 합계뿐이다. 옛 두 키는 그대로라 진위 평균 계산이 바뀌지 않는다. 스키마 변경 없음 |
 | scored_at | timestamptz | NULL 허용 | |
 
 - **영상을 저장하지 않는다 — 현재 결정(v1.6).** 음성만 S3 에 둔다 — 저장하면 민감정보 보관 의무가 붙는데 대리 응시 확인·표정 판별은 실시간 표시로 충분하다(ADR-0026·0029). 개정하면 보관 정책·동의·별도 테이블이 같이 온다([AI면접-설계 §7](../02_tasks/AI면접-설계.md))

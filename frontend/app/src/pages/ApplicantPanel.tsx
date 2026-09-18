@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { agent as agentApi, applications, aptitude as aptitudeApi, files as filesApi, interviews as interviewsApi, mail as mailApi, notes as notesApi, postings as postingsApi, stages } from '../api/endpoints'
-import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, Stage, StageHistoryItem } from '../api/types'
+import type { ApplicationDetail, AptitudeDetail, EmailLogItem, FileOut, InterviewSession, InterviewSessionDetail, Note, ResumeDiff, Stage, StageHistoryItem } from '../api/types'
 import SidePanel from '../components/SidePanel'
 import IntegrityBadge from '../components/IntegrityBadge'
 import { STAGE_LABEL, careerText, fmtDate, fmtDateShort } from '../lib/stage'
@@ -157,16 +158,21 @@ function rejectedLabel(history: StageHistoryItem[]): string {
 
 
 /* ── 탭 ──────────────────────────────────────────────────
-   판단 재료(개요) · 도구(면접·메모) · 로그(이력) 를 가른다.
-   예전에는 열 개 섹션이 세로 한 줄에 같은 무게로 쌓여 있었다. */
+   판단 재료(개요) · 도구(면접) · 읽을 것(이력·메모) 순이다.
+   예전에는 열 개 섹션이 세로 한 줄에 같은 무게로 쌓여 있었다.
+
+   **메모가 제일 뒤다** (2026-09-17, 멘토링 의견). 앞의 셋은 「이 사람을
+   어떻게 할까」를 정하는 자리인데 메모는 정하고 난 뒤에 남기는 자리라,
+   가운데 끼어 있으면 지나가는 길목이 된다. 이력은 남이 뭘 했는지 보는
+   것이라 판단에 더 가깝다. */
 type TabKey = 'overview' | 'interview' | 'notes' | 'history'
 type AptitudeStatus = AptitudeDetail['status']
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: '개요' },
   { key: 'interview', label: '면접' },
-  { key: 'notes', label: '메모' },
   { key: 'history', label: '이력' },
+  { key: 'notes', label: '메모' },
 ]
 
 /* 헤더 한 줄 요약 — 이름 아래에서 "누구인지" 를 한 번에 말한다.
@@ -603,28 +609,48 @@ function SummaryLinkRow({ detail, applicationId }: { detail: ApplicationDetail; 
   const finalScore = detail.final_score
   const hasAnyScore = docScore != null || interviewScore != null || finalScore != null
 
+  /* 어느 축에서 탈락했는가 (2026-09-17 사용자 판단).
+     불합격이 아니면 null · rejected 인 경우만 축을 골라 그 타일을 빨간으로 표시한다.
+     `stage_history` 마지막 rejected 앞 단계를 근거로 :
+       applied · screening → 서류 컷 (서류 타일)
+       interview           → 면접 컷 (면접 타일)
+       accepted            → 종합 후 철회 (희귀 · 종합 타일)
+     탈락이 아닌 지원자는 지금 그대로 (색 없음 · 종합만 teal ring).
+     05-design §1 「색은 판단에만」 규칙 안 — 이 색은 실제 판정 결과다. */
+  const rejectAxis: 'doc' | 'interview' | 'final' | null = (() => {
+    if (detail.current_stage !== 'rejected') return null
+    const history = detail.stage_history ?? []
+    const fell = rejectedFrom(history)
+    if (fell === 'applied' || fell === 'screening') return 'doc'
+    if (fell === 'interview') return 'interview'
+    if (fell === 'accepted') return 'final'
+    return null
+  })()
+
   return (
     <div className={styles.summaryPanel}>
       {hasAnyScore ? (
         <div className={styles.summaryScores}>
           {docScore != null && (
-            <span className={styles.scoreChip}>
+            <span className={`${styles.scoreChip} ${rejectAxis === 'doc' ? styles.scoreChipReject : ''}`}>
               <span className={styles.scoreChipLabel}>서류</span>
               <span className={styles.scoreChipValue}>{docScore}</span>
             </span>
           )}
           {interviewScore != null && (
-            <span className={styles.scoreChip}>
+            <span className={`${styles.scoreChip} ${rejectAxis === 'interview' ? styles.scoreChipReject : ''}`}>
               <span className={styles.scoreChipLabel}>면접</span>
               <span className={styles.scoreChipValue}>{interviewScore}</span>
             </span>
           )}
           {finalScore != null && (
-            <span className={styles.scoreChipFinal}>
+            <span className={`${styles.scoreChipFinal} ${rejectAxis === 'final' ? styles.scoreChipReject : ''}`}>
               <span className={styles.scoreChipLabel}>종합</span>
               <span className={styles.scoreChipValue}>{Math.round(finalScore)}</span>
-              {detail.grade && <span className={styles.gradeBadge}>{detail.grade}</span>}
             </span>
+          )}
+          {finalScore != null && detail.grade && (
+            <span className={styles.gradeBadge}>{detail.grade}</span>
           )}
         </div>
       ) : (
@@ -696,6 +722,7 @@ function FilesSection({ detail, applicationId }: { detail: ApplicationDetail; ap
         <p className={styles.secLabel}>
           첨부 파일
           <IntegrityBadge key={applicationId} applicationId={applicationId} compact />
+          <ResumeDiffBadge key={`diff-${applicationId}`} applicationId={applicationId} />
         </p>
       </div>
       {files.length === 0
@@ -703,6 +730,103 @@ function FilesSection({ detail, applicationId }: { detail: ApplicationDetail; ap
         : <FileList files={files} />}
     </>
   )
+}
+
+/* 이력서 변동 배지 (2026-09-17 · PR #320 + 이 PR)
+   지원자가 재접수한 경우 이전 지원 대비 무엇이 바뀌었는지를 배지로 보인다.
+   - 이전 지원 없음: 조용히 숨김
+   - 있고 변동 없음: 회색 "제출 당시와 같음" 배지
+   - 있고 변동 있음: 클릭 가능한 액센트 배지 → 확장 카드로 요약 + 필드 목록
+
+   AI 자동 판정이 아니고 "이전 이력서와 비교해 다르다" 는 사실 서술이라 05-design §1
+   ("판단 색 아님") 범위 안. 색은 존재 알림 용도. */
+function ResumeDiffBadge({ applicationId }: { applicationId: number }): ReactElement | null {
+  const [diff, setDiff] = useState<ResumeDiff | null>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const ac = new AbortController()
+    setError(null)
+    setDiff(null)
+    setExpanded(false)
+    applications.priorResumeDiff(applicationId, ac.signal)
+      .then(setDiff)
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return
+        setError(err instanceof ApiError ? err.message : '이력서 변동을 확인하지 못했습니다')
+      })
+    return () => ac.abort()
+  }, [applicationId])
+
+  if (error !== null) {
+    /* 조용히 넘긴다 — 변동 배지는 부가 정보라 실패해도 첨부 표시에 영향 안 준다.
+       다만 콘솔에는 남긴다 (담당자가 개발자 도구로 원인 확인할 수 있게). */
+    // eslint-disable-next-line no-console
+    console.warn('resume-diff', applicationId, error)
+    return null
+  }
+  if (diff === null) return null                         // 로딩 중 · 자리를 잡지 않는다
+  if (diff.prev_application_id === null) return null     // 이전 지원 없음 → 조용히 숨김
+
+  if (!diff.changed) {
+    return (
+      <span className={styles.diffBadge} title="이 지원자의 이전 지원과 이력서 내용이 같습니다.">
+        제출 당시와 같음
+      </span>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`${styles.diffBadge} ${styles.diffBadgeChanged}`}
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        title={`이전 지원(${diff.prev_created_at?.slice(0, 10) ?? '이전'}) 대비 이력서가 변동됐습니다. 클릭해서 자세히 보기.`}
+      >
+        변동 있음 · {diff.changes.length}건
+      </button>
+      {expanded && (
+        <div className={styles.diffPanel} role="region" aria-label="이력서 변동 요약">
+          <p className={styles.diffSummary}>{diff.summary}</p>
+          {diff.prev_created_at && (
+            <p className={styles.diffMeta}>
+              이전 지원: {diff.prev_created_at.slice(0, 10)}
+            </p>
+          )}
+          {diff.changes.length > 0 && (
+            <ul className={styles.diffList}>
+              {diff.changes.map((c, i) => (
+                <li key={i} className={styles.diffItem}>
+                  <span className={styles.diffField}>{DIFF_FIELD_LABEL[c.field] ?? c.field}</span>
+                  <span className={styles.diffNote}>{c.note}</span>
+                  {(c.before || c.after) && (
+                    <span className={styles.diffValues}>
+                      {c.before && <span className={styles.diffBefore}>이전: {c.before}</span>}
+                      {c.after && <span className={styles.diffAfter}>지금: {c.after}</span>}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+/* 이력서 diff 필드 라벨 — 서버는 소문자 코드로 오고, 담당자 화면에는 한국어로. */
+const DIFF_FIELD_LABEL: Record<string, string> = {
+  career: '경력',
+  education: '학력',
+  skills_added: '추가된 기술',
+  skills_removed: '제외된 기술',
+  project: '프로젝트',
+  other: '기타',
 }
 
 /* ── 메모 탭 ───────────────────────────────────────────── */
@@ -981,6 +1105,15 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
                 )
             )}
 
+            {tab === 'history' && (
+              <HistoryTab
+                history={detail.stage_history ?? []}
+                applicationId={applicationId}
+                refreshKey={mailHistoryKey}
+                onFailed={setMailFailed}
+              />
+            )}
+
             {tab === 'notes' && (
               <NotesTab
                 notes={noteList}
@@ -989,15 +1122,6 @@ export default function ApplicantPanel({ applicationId, onClose, onChanged }: Pr
                 error={actionError}
                 onDraft={setDraft}
                 onSubmit={addNote}
-              />
-            )}
-
-            {tab === 'history' && (
-              <HistoryTab
-                history={detail.stage_history ?? []}
-                applicationId={applicationId}
-                refreshKey={mailHistoryKey}
-                onFailed={setMailFailed}
               />
             )}
           </div>
@@ -1225,6 +1349,8 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
   const [expandedDetail, setExpandedDetail] = useState<InterviewSessionDetail | null>(null)
   const [questions, setQuestions] = useState<Record<number, string>>({})
   const [savingQ, setSavingQ] = useState<Record<number, boolean>>({})
+  const [sendingMail, setSendingMail] = useState<Record<number, boolean>>({})
+  const [sentMail, setSentMail] = useState<Record<number, boolean>>({})
 
   const load = useCallback(async () => {
     try { setSessions(await interviewsApi.list(applicationId)) } catch { setSessions([]) }
@@ -1243,6 +1369,20 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
     try { await interviewsApi.create(applicationId); await load() }
     catch (e) { setErr(e instanceof ApiError ? e.message : 'AI 면접을 만들지 못했습니다') }
     finally { setCreating(false) }
+  }
+
+  /* 같은 링크를 다시 보낸다. 세션을 새로 만들지 않는다 — 앱이 가장 먼저 만든 방으로
+     들어가므로 방이 늘면 담당자와 지원자가 갈린다(2026-09-10 실측). */
+  async function sendLink(sessionId: number) {
+    setSendingMail((p) => ({ ...p, [sessionId]: true })); setErr(null)
+    try {
+      await interviewsApi.sendLink(sessionId)
+      setSentMail((p) => ({ ...p, [sessionId]: true }))
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '메일을 보내지 못했습니다')
+    } finally {
+      setSendingMail((p) => ({ ...p, [sessionId]: false }))
+    }
   }
 
   async function copyUrl(url: string) {
@@ -1292,6 +1432,9 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
         >
           {creating ? '만드는 중…' : 'AI 면접 만들기'}
         </button>
+        {/* 2026-09-18: 만들면 링크 메일이 같이 나간다. 담당자가 「링크 복사」로
+            손수 전달하던 것을 인적성 설문과 같은 방식으로 맞췄다. */}
+        <span className={styles.ivMailHint}>만들면 지원자에게 링크 메일이 나갑니다</span>
       </div>
       {/* 끝나지 않은 세션이 있으면 못 만들게 한다.
           **누를 때마다 새 행이 생긴다**(백엔드가 일부러 그렇게 한다 — 옛 링크를
@@ -1317,6 +1460,18 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
                 {IV_STATUS_LABEL[s.status] ?? s.status}
               </span>
               <button type="button" className={styles.ivCopy} onClick={() => copyUrl(s.url)}>링크 복사</button>
+              {/* 재발송은 **같은 링크**를 다시 보낸다 — 새 세션을 만들면 앱이 가장 먼저
+                  만든 방으로 들어가 담당자와 갈린다(2026-09-10 실측). */}
+              {!isDone && (
+                <button
+                  type="button"
+                  className={styles.ivCopy}
+                  disabled={sendingMail[s.id]}
+                  onClick={() => void sendLink(s.id)}
+                >
+                  {sendingMail[s.id] ? '보내는 중…' : sentMail[s.id] ? '메일 보냄 ✓' : '메일 다시 보내기'}
+                </button>
+              )}
               {/* 실시간 면접(사람 ↔ 사람). 끝난 면접에는 안 보인다 —
                   들어가 봐야 방이 안 열린다(서버가 session_closed 로 막는다).
                   같은 세션·같은 토큰을 쓰므로 AI 면접과 자리를 나누지 않는다. */}

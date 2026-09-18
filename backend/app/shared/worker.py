@@ -253,8 +253,12 @@ def handle(db: Session, email_log_id: int, receive_count: int = 1) -> None:
         actor_name, actor_email = _actor(db, log)
         # From 표시 이름은 본문 서명과 같은 문자열을 쓴다 (mail.sender_name).
         # 받은편지함의 이름과 본문 끝의 서명이 다르면 지원자가 누구에게 연락해야
-        # 하는지 헷갈린다.
-        from_name = mail.sender_name(log.stage, log.actor_kind, actor_name)
+        # 하는지 헷갈린다. 회사명도 서명과 같은 곳(DB 먼저)에서 얻는다.
+        from app.hiring.company import name_for  # 순환 import 방지 (mail.py 와 같음)
+
+        from_name = mail.sender_name(
+            log.stage, log.actor_kind, actor_name, company_name=name_for(db)
+        )
         if log.body is not None:
             # 확정 본문이 있는 행(수동·에이전트 발송)은 **다시 렌더하지 않는다.**
             # 사람이 보고 승인한 그 문구가 그대로 나가야 한다 — 그 사이에 템플릿이

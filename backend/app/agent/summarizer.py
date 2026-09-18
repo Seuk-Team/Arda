@@ -237,37 +237,47 @@ def _parse_json(
 
 def _fill_structured_fields(
     db: Session, app: Application, backend, resume_text: str
-) -> None:
-    """이력서 텍스트에서 학력·경력·기술스택을 추출해 비어 있는 DB 필드만 채운다."""
+) -> set[str]:
+    """이력서 텍스트에서 학력·경력·기술스택을 추출해 비어 있는 DB 필드만 채운다.
+
+    반환값: 실제로 채운 필드 이름 집합 (예: {"education", "skills"}).
+    호출자가 source 표식을 detail 에 기록할 때 쓴다.
+    """
     needs_fill = not app.education or app.career_years is None or not app.skills
     if not needs_fill or not resume_text.strip():
-        return
+        return set()
 
     prompt = (
         "다음은 지원자 이력서 내용이다. 아래 JSON 형식으로 정보를 추출하라.\n"
-        "없는 정보는 null로 둔다. career_years는 총 경력 연수(정수, 신입/없으면 0).\n\n"
+        "없는 정보는 null로 둔다. career_years는 총 경력 연수(정수). 신입이 명확하면 0, 기간을 셀 수 없으면 null.\n\n"
         f"이력서:\n{resume_text[:3000]}\n\n"
         "JSON만 출력:\n"
-        '{"education": "최종학력 문자열 또는 null", "career_years": 0, "skills": ["스킬1"]}'
+        '{"education": "최종학력 문자열 또는 null", "career_years": null, "skills": ["스킬1"]}'
     )
+    filled: set[str] = set()
     try:
         raw = backend.complete(prompt=prompt, max_tokens=300).text
         data = _parse_json(raw.strip(), "extract_fields", app.id)
         if data is None:
-            return
+            return filled
         if not app.education and data.get("education"):
             app.education = str(data["education"])[:100]
+            filled.add("education")
         if app.career_years is None and data.get("career_years") is not None:
             try:
                 app.career_years = max(0, int(data["career_years"]))
+                filled.add("career_years")
             except (TypeError, ValueError):
                 pass
         if not app.skills and isinstance(data.get("skills"), list):
             app.skills = [str(s) for s in data["skills"] if s][:20]
+            if app.skills:
+                filled.add("skills")
         db.commit()
-        logger.info("구조화 필드 채움: application_id=%d", app.id)
+        logger.info("구조화 필드 채움: application_id=%d fields=%s", app.id, filled)
     except Exception:
         logger.warning("구조화 필드 추출 실패: application_id=%d", app.id)
+    return filled
 
 
 def generate_summary(db: Session, application_id: int) -> str | None:
@@ -288,13 +298,14 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         return None
 
     # 폼에서 학력·경력·기술스택을 입력하지 않은 경우 이력서 파일에서 추출
+    ai_filled_fields: set[str] = set()
     if not app.education or app.career_years is None or not app.skills:
         from app.agent.extractor import extract_text
         for f in app.files:
             if f.kind == "resume":
                 resume_text = extract_text(f)
                 if resume_text:
-                    _fill_structured_fields(db, app, backend, resume_text)
+                    ai_filled_fields = _fill_structured_fields(db, app, backend, resume_text)
                 break
 
     prompt_vars = _build_prompt_vars(db, app)
@@ -456,11 +467,15 @@ def generate_summary(db: Session, application_id: int) -> str | None:
         "evidence": step2.get("evidence", []),
         "weights": {k: v for k, v in screening.weights(db).items() if k.startswith("doc_")},
     }
-    # AI 가 채운 career_years 는 출처를 남긴다 (우정 리뷰 #294 제안).
-    # 프론트가 "N년 (AI 추정)" 으로 표시하고 · 아르 검색 도구가 신고값과 구별하고 · 공정성
-    # 질문 때 근거로 쓴다. 폼 값이 있었으면 이 필드는 안 붙어 "신고값" 이 기본 가정이다.
+    # AI 가 채운 필드는 출처를 남긴다 (우정 리뷰 #294 제안).
+    # 프론트가 "AI 추정" 표시 · 아르 검색 도구가 신고값과 구별 · 공정성 질문 근거.
+    # 폼에서 직접 입력된 값에는 이 필드가 없어 "신고값"이 기본 가정이다.
     if career_years_filled_from_ai:
         detail["career_years_source"] = "ai"
+    if "education" in ai_filled_fields:
+        detail["education_source"] = "ai"
+    if "skills" in ai_filled_fields:
+        detail["skills_source"] = "ai"
     app.doc_score_detail = detail
     db.commit()
 

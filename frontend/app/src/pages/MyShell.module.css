@@ -692,31 +692,6 @@
   cursor: default;
 }
 
-.wideBtn {
-  width: 100%;
-  height: 44px;
-  border: var(--border-w) solid var(--border);
-  border-radius: var(--r-ctl);
-  background: var(--bg-sunken);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: var(--font-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
-}
-
-.wideBtn:hover:not(:disabled) {
-  background: var(--sunken-hover);
-}
-
-/* 아직 안 되는 것. **이유는 위 hint 가 글자로 말한다** — 흐린 버튼만
-   두면 고장인지 아직인지 구별이 안 된다 */
-.wideBtn:disabled {
-  opacity: .45;
-  cursor: not-allowed;
-}
-
 /* 나가는 것. 빨간 테두리를 두르지 않는다 — 로그아웃은 되돌릴 수 있는 일이라
    삭제와 같은 무게를 줄 이유가 없다(05-design §1 색은 판단에만) */
 .leave {

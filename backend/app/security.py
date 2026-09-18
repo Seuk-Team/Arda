@@ -29,6 +29,32 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRES_MINUTES = 60 * 12
 
 
+# 시연 잠금 계정 (박제 온프레미스 · 2026-09-16). 쉼표로 구분한 이메일 목록.
+# 여기 든 계정은 **비밀번호 변경(PATCH /auth/me)·역할/활성 변경(PATCH /users/{id})이 403** 이다.
+# 심사위원이 로그인 화면의 "담당자 데모 로그인" 버튼으로 들어오는 계정이라, 누구든 한 번 바꾸면
+# 이후 모든 심사위원의 자동 로그인이 막힌다. 비우면(기본) 아무 계정도 잠기지 않는다.
+DEMO_LOCKED_EMAILS: frozenset[str] = frozenset(
+    e.strip().lower() for e in os.getenv("DEMO_LOCKED_EMAILS", "").split(",") if e.strip()
+)
+
+
+def is_demo_locked(email: str | None) -> bool:
+    return bool(email) and email.strip().lower() in DEMO_LOCKED_EMAILS
+
+
+# 심사위원이 "지원자 데모 로그인" 버튼으로 공유해 쓰는 지원자 계정. 로그인할 때마다
+# 그 지원자의 인적성·면접일정·AI면접 상태를 기준(fresh)으로 되돌려, 앞 심사위원이
+# 끝내 놓아도 다음 심사위원이 세 화면을 처음부터 볼 수 있게 한다. 여기 든 이메일만
+# 리셋되고 실제 지원자는 건드리지 않는다. 비우면(기본) 아무도 리셋되지 않는다.
+DEMO_APPLICANT_EMAILS: frozenset[str] = frozenset(
+    e.strip().lower() for e in os.getenv("DEMO_APPLICANT_EMAILS", "").split(",") if e.strip()
+)
+
+
+def is_demo_applicant(email: str | None) -> bool:
+    return bool(email) and email.strip().lower() in DEMO_APPLICANT_EMAILS
+
+
 def hash_password(raw: str) -> str:
     return bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()
 

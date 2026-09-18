@@ -9,6 +9,9 @@ export interface User {
   role: 'admin' | 'member'
   /* 비활성 계정은 로그인도 기존 토큰도 막힌다 (A4). 옛 응답에는 없어 선택이다 */
   is_active?: boolean
+  /* 시연 잠금 계정(심사위원 데모). /me 에서만 채워진다 — 사용자·권한 화면 컨트롤을
+     숨기는 데 쓴다. 옛 응답엔 없어 선택이다 */
+  is_demo?: boolean
 }
 
 /* 설정 > 사용자·권한 (A4) */
@@ -265,7 +268,8 @@ export interface AgentChatRequest {
 export interface AgentChoice {
   /* 짧은 이름 (fallback 표시용) — 상세는 아래 필드로 */
   label: string
-  application_id: number
+  /* 지원자 선택(동명이인)이면 있음. 공고 선택 카드에서는 없음(null/undefined). */
+  application_id?: number | null
   message: string
   /* 카드 안에 사람이 골라야 하는 만큼의 상세를 함께 준다. 서버가 label 로 이어 붙여
      오던 것을 필드로 분리해, 프론트가 정렬·강조를 마음대로 잡는다. */
@@ -273,6 +277,11 @@ export interface AgentChoice {
   stage_label: string | null
   career_years: number | null
   education: string | null
+  /* 공고 선택 카드(이력서 드롭 접수 흐름) — 있으면 공고 카드로 그리고, 클릭하면
+     message("N번 공고로 접수해 주세요") 를 다시 보낸다. */
+  posting_id?: number | null
+  posting_title?: string | null
+  applicant_count?: number | null
   /* 있으면 카드 안 확인 버튼 클릭 = agent.confirm(...) 직접 실행. 없으면 message
      로 chat 을 다시 보내 서버가 pending_action 을 만드는 두 단계 흐름으로 폴백. */
   pending_action: AgentPendingAction | null
@@ -377,8 +386,27 @@ export interface InterviewSessionDetail extends InterviewSession {
     weights?: Record<string, number>
     prompt?: string
     model?: string
+    /** 면접 중 실시간 분석 요약 (2026-09-17). 점수 재료가 아니다 — 판정이 없던 면접은 null. */
+    live?: InterviewLiveSummary | null
   } | null
   scored_at?: string | null
+}
+
+/** 실시간 분석 수치 한 묶음 — 면접 전체 또는 질문 하나 (backend `live_summary._bucket_stats`). */
+export interface InterviewLiveStats {
+  n: number
+  truth?: number
+  expressions?: Array<{ label: string; pct: number }>
+  blink_per_sec?: number
+  flags_pct?: Record<string, number>
+  voice?: { pitch_hz?: number; pitch_var_st?: number; loud_var_db?: number; voiced_pct?: number }
+}
+
+export interface InterviewLiveSummary {
+  summary: string
+  /** ai = AI 문장(숫자 검사 통과) · template = 고정 틀 문장 */
+  summary_source: 'ai' | 'template'
+  stats: { overall: InterviewLiveStats; per_question: Array<InterviewLiveStats & { seq: number }> }
 }
 
 /* ── 제출물 무결성 (ADR-0028) ─────────────────────────────────────
@@ -569,4 +597,21 @@ export interface SummaryPosting {
   status: string
   applicant_count: number
   applicants: SummaryApplicant[]
+}
+
+/* 이력서 변동 요약 (2026-09-17, PR #320 백엔드 매칭).
+   동일 인물이 재접수했을 때 이전 지원 대비 무엇이 바뀌었는지 담당자에게 보인다. */
+export interface ResumeChange {
+  field: string        // 'career' · 'education' · 'skills_added' · 'skills_removed' · 'project' · 'other'
+  before: string
+  after: string
+  note: string         // 사람이 읽는 한 줄 요약
+}
+
+export interface ResumeDiff {
+  changed: boolean
+  summary: string
+  changes: ResumeChange[]
+  prev_application_id: number | null
+  prev_created_at: string | null
 }

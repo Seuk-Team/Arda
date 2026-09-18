@@ -18,6 +18,7 @@ from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import User
 from app.schemas.user import UserItemOut, UserListOut, UserPatch
+from app.security import is_demo_locked
 from app.adapter.outbound.pg.talent_pg_repository import PgTalentRepository
 
 router = APIRouter(prefix="/api/v1", tags=["users"])
@@ -61,13 +62,30 @@ def update_user(
     자신이든 남이든 같은 규칙이다 — "자기 강등 금지"로 쪼개면 admin 이 둘일 때의
     정당한 조작까지 막고, 정작 마지막 한 명을 남이 강등하는 경로는 열려 있다.
     막아야 하는 것은 **아무도 admin 이 아닌 상태**뿐이다.
+
+    **시연 잠금 계정(심사위원 데모)은 admin 이라도 사용자 관리를 못 한다** — 판정을
+    돌려 보는 계정이 진짜 관리자를 강등·비활성화해 계정을 잠가버리는 사고를 막는다.
+    #333 은 데모 계정을 *대상* 으로 한 변경을 막았고, 여기서는 데모 계정이 *행위자*
+    로서 남을 바꾸는 것을 막는다.
     """
+    if is_demo_locked(actor.email):
+        raise HTTPException(
+            HTTPStatus.FORBIDDEN, "시연 계정은 사용자 관리를 할 수 없습니다"
+        )
+
     target = PgTalentRepository(db).get_user(user_id)
     if target is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "사용자를 찾을 수 없습니다")
 
     new_role = body.role if body.role is not None else target.role
     new_active = body.is_active if body.is_active is not None else target.is_active
+
+    # 시연 잠금 계정(DEMO_LOCKED_EMAILS) — 강등·비활성화 어느 쪽이든 심사위원 자동 로그인을
+    # 깨뜨리므로 admin 이라도 못 바꾼다. 바뀌는 게 없으면 그대로 통과(멱등).
+    if (new_role != target.role or new_active != target.is_active) and is_demo_locked(target.email):
+        raise HTTPException(
+            HTTPStatus.FORBIDDEN, "시연 계정은 역할·활성 상태를 바꿀 수 없습니다"
+        )
 
     was_active_admin = target.role == "admin" and target.is_active
     will_be_active_admin = new_role == "admin" and new_active

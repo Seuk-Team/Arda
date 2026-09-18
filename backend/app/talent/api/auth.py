@@ -12,7 +12,13 @@ from app.schemas.auth import (
     TokenResponse,
     UserOut,
 )
-from app.security import APP_ENV, create_access_token, hash_password, verify_password
+from app.security import (
+    APP_ENV,
+    create_access_token,
+    hash_password,
+    is_demo_locked,
+    verify_password,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -32,6 +38,11 @@ def signup(
             raise HTTPException(http.HTTP_401_UNAUTHORIZED, "인증이 필요합니다")
         if caller.role != "admin":
             raise HTTPException(http.HTTP_403_FORBIDDEN, "계정 생성은 admin 만 할 수 있습니다")
+
+    # 시연 잠금 계정(심사위원 데모)은 admin 이라도 사용자를 만들 수 없다 — 사용자 관리
+    # 전체를 데모 계정에서 차단한다 (update_user 의 행위자 가드와 짝).
+    if caller is not None and is_demo_locked(caller.email):
+        raise HTTPException(http.HTTP_403_FORBIDDEN, "시연 계정은 사용자 관리를 할 수 없습니다")
 
     # 역할 지정은 admin 만 할 수 있다. 그 외에는 member 로 만든다.
     role = body.role if (caller and caller.role == "admin") else "member"
@@ -66,7 +77,10 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
-    return UserOut.model_validate(user)
+    out = UserOut.model_validate(user)
+    # 프론트가 시연 계정에서 사용자·권한 컨트롤을 숨기도록 플래그를 실어 보낸다.
+    out.is_demo = is_demo_locked(user.email)
+    return out
 
 
 @router.patch("/me", response_model=UserOut)
@@ -85,6 +99,12 @@ def update_me(
     있게 두면 자리를 비운 사이 화면을 잡은 사람이 계정을 통째로 가져간다.
     """
     if body.new_password is not None:
+        # 시연 잠금 계정(DEMO_LOCKED_EMAILS) — 심사위원 자동 로그인이 걸린 계정은 비밀번호를
+        # 못 바꾼다. 현재 비밀번호를 맞혔더라도 막는다(맞히는 건 버튼 하나면 되니까).
+        if is_demo_locked(user.email):
+            raise HTTPException(
+                http.HTTP_403_FORBIDDEN, "시연 계정의 비밀번호는 바꿀 수 없습니다"
+            )
         if not verify_password(body.current_password or "", user.password_hash):
             raise HTTPException(
                 http.HTTP_401_UNAUTHORIZED, "현재 비밀번호가 올바르지 않습니다"

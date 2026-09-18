@@ -223,6 +223,9 @@ function Users() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
+  // 시연 잠금 계정(심사위원 데모)은 사용자 관리를 못 한다 — 추가 버튼·역할·상태
+  // 컨트롤을 숨긴다. 백엔드도 403 으로 막지만, 눌러도 실패하는 버튼을 안 보이게.
+  const isDemo = me?.is_demo === true
 
   const load = useCallback(async () => {
     try {
@@ -257,9 +260,13 @@ function Users() {
   return (
     <div role="tabpanel">
       <div className={styles.rowActions}>
-        <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
-          사용자 추가
-        </button>
+        {isDemo ? (
+          <p className={styles.sub}>시연 계정은 사용자·권한을 바꿀 수 없습니다 (읽기 전용).</p>
+        ) : (
+          <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+            사용자 추가
+          </button>
+        )}
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
@@ -279,7 +286,7 @@ function Users() {
             <select
               className={styles.rowSelect}
               value={u.role}
-              disabled={busy === u.id}
+              disabled={busy === u.id || isDemo}
               aria-label={`${u.name} 역할`}
               onChange={(e) => patch(u.id, { role: e.target.value as 'admin' | 'member' })}
             >
@@ -289,7 +296,7 @@ function Users() {
             <button
               type="button"
               className={u.is_active ? styles.on : styles.off}
-              disabled={busy === u.id}
+              disabled={busy === u.id || isDemo}
               onClick={() => patch(u.id, { is_active: !u.is_active })}
               title={u.is_active ? '비활성화' : '활성화'}
             >

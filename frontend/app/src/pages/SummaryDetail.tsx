@@ -4,9 +4,11 @@ import { applications, aptitude as aptitudeApi, files as filesApi, interviews } 
 import type {
   ApplicationDetail,
   AptitudeDetail,
+  InterviewLiveSummary,
   InterviewSession,
   InterviewSessionDetail,
 } from '../api/types'
+import AccountMenu from '../components/AccountMenu'
 import styles from './SummaryDetail.module.css'
 
 /* 종합 평가 · 지원자 한 명의 서류·인적성·면접 종합 (2026-09-14).
@@ -109,6 +111,8 @@ export default function SummaryDetail() {
             )}
           </div>
         </div>
+        {/* 다른 화면(PageHead)과 같은 자리에 계정 메뉴 — 여긴 자체 헤더라 빠져 있었다 */}
+        <div className={styles.acct}><AccountMenu /></div>
       </header>
 
       <IntroAndResumeSection app={app} />
@@ -325,6 +329,8 @@ function InterviewSection({ list, detail }: { list: InterviewSession[] | null; d
             <ProCon variant="con" title="우려 / 확인 필요" items={detail.ai_score_detail?.concerns ?? []} />
           </div>
 
+          <LiveAnalysis live={detail.ai_score_detail?.live ?? null} turns={detail.turns} />
+
           {(detail.ai_score_detail?.per_question?.length ?? 0) > 0 && (
             <details className={styles.dropdown}>
               <summary className={styles.dropdownSummary}>질문별 점수 · {detail.ai_score_detail!.per_question!.length}개</summary>
@@ -391,6 +397,102 @@ function FactBlock({ label, items }: { label: string; items: string[] }) {
       <ul className={styles.factList}>
         {items.map((it, i) => <li key={i}>{it}</li>)}
       </ul>
+    </div>
+  )
+}
+
+/* 면접 중 실시간 분석 요약 (2026-09-17).
+
+   AI 가 쓴 문장 + 그 문장의 근거인 수치. 문장의 숫자는 백엔드가 센 값과 하나라도
+   다르면 버려지고 고정 틀 문장이 온다(`live_summary.check_summary`). **점수가 아니다**
+   — 면접 점수에는 진위 평균만 들어간다는 것을 화면에 같이 적는다. */
+function LiveAnalysis({ live, turns }: { live: InterviewLiveSummary | null; turns: InterviewSessionDetail['turns'] }) {
+  if (!live) {
+    return (
+      <div className={styles.live}>
+        <div className={styles.liveHead}>
+          <span className={styles.liveTitle}>면접 중 실시간 분석</span>
+        </div>
+        <p className={styles.dim}>기록 없음 — 실시간 분석이 돌지 않았거나 2026-09-17 이전 면접입니다.</p>
+      </div>
+    )
+  }
+  const o = live.stats.overall
+  const question = (seq: number) => turns.find((t) => t.seq === seq)?.question ?? ''
+  return (
+    <div className={styles.live}>
+      <div className={styles.liveHead}>
+        <span className={styles.liveTitle}>면접 중 실시간 분석</span>
+        <span className={styles.liveBadge}>{live.summary_source === 'ai' ? 'AI 요약' : '자동 문장'}</span>
+        <span className={styles.liveNote}>참고 지표 · 면접 점수에는 진위 평균만 반영</span>
+      </div>
+
+      <p className={styles.liveSummary}>{live.summary}</p>
+
+      <dl className={styles.liveFacts}>
+        <LiveFact label="판정" value={`${o.n}회`} />
+        {o.truth !== undefined && <LiveFact label="진위 평균" value={`${o.truth}%`} />}
+        {o.blink_per_sec !== undefined && <LiveFact label="눈 깜빡임" value={`${o.blink_per_sec}회/초`} />}
+        {o.voice?.pitch_hz !== undefined && <LiveFact label="음 높이" value={`${o.voice.pitch_hz}Hz`} />}
+        {o.voice?.pitch_var_st !== undefined && <LiveFact label="억양 폭" value={`${o.voice.pitch_var_st}반음`} />}
+      </dl>
+
+      {(o.expressions?.length ?? 0) > 0 && (
+        <div className={styles.exprBars} aria-label="표정 비율">
+          {o.expressions!.map((e) => (
+            <div key={e.label} className={styles.exprRow}>
+              <span className={styles.exprLabel}>{e.label}</span>
+              <span className={styles.exprTrack}>
+                <span className={styles.exprFill} style={{ width: `${e.pct}%` }} />
+              </span>
+              <span className={styles.exprPct}>{e.pct}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {live.stats.per_question.length > 0 && (
+        <details className={styles.dropdown}>
+          <summary className={styles.dropdownSummary}>질문별 수치 · {live.stats.per_question.length}개</summary>
+          <div className={styles.liveTableWrap}>
+            <table className={styles.liveTable}>
+              <thead>
+                <tr>
+                  <th>질문</th>
+                  <th>판정</th>
+                  <th>진위</th>
+                  <th>표정 1위</th>
+                  <th>눈 깜빡임</th>
+                  <th>고개 움직임</th>
+                  <th>음 높이</th>
+                </tr>
+              </thead>
+              <tbody>
+                {live.stats.per_question.map((q) => (
+                  <tr key={q.seq}>
+                    <th scope="row" title={question(q.seq)}>Q{q.seq}</th>
+                    <td>{q.n}회</td>
+                    <td>{q.truth !== undefined ? `${q.truth}%` : '—'}</td>
+                    <td>{q.expressions?.[0] ? `${q.expressions[0].label} ${q.expressions[0].pct}%` : '—'}</td>
+                    <td>{q.blink_per_sec !== undefined ? `${q.blink_per_sec}회/초` : '—'}</td>
+                    <td>{q.flags_pct?.['고개 움직임'] !== undefined ? `${q.flags_pct['고개 움직임']}%` : '—'}</td>
+                    <td>{q.voice?.pitch_hz !== undefined ? `${q.voice.pitch_hz}Hz` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
+function LiveFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.liveFact}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
     </div>
   )
 }

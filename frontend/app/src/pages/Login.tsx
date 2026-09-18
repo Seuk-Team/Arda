@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError, setApplicantToken } from '../api/client'
 import { applicantAuth } from '../api/endpoints'
@@ -64,6 +64,48 @@ export default function Login() {
 
   const stageRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<SceneHandle | null>(null)
+
+  /* 심사자 자동 로그인 (박제 온프레미스 전용 · 2026-09-16).
+     페이지 안 버튼 · URL 쿼리 두 방식 지원.
+     담당자 시연 계정은 `ab@ab.com` (admin) — 백엔드 `DEMO_LOCKED_EMAILS` 에 올라 있어
+     비밀번호 변경·비활성화·역할 변경이 막힌다. 심사위원이 건드려도 자동 로그인이 안 깨진다. */
+  async function demoLoginStaff() {
+    try {
+      setError(null)
+      setPending(true)
+      await login('ab@ab.com', 'abc123!@#')
+      navigate('/dashboard', { replace: true })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '자동 로그인 실패')
+      setPending(false)
+    }
+  }
+  async function demoLoginApplicant() {
+    try {
+      setError(null)
+      setRole('applicant')
+      setPending(true)
+      /* 지원자 시연 = 실제 데이터가 있는 합격자 한 명 (2026-09-16 프로덕션 덤프 기준):
+         조민석 · 백엔드 공고 · 서류 pass 84점 · 이력서 2건 · AI 요약 · 면접 세션 있음.
+         심사위원이 사전 성향 설문·면접 흐름을 그대로 볼 수 있어야 해서 빈 계정을 안 쓴다. */
+      const res = await applicantAuth.login('fitcheck-be-01@example.com', '19950101')
+      setApplicantToken(res.access_token)
+      navigate('/my', { replace: true })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '자동 로그인 실패')
+      setPending(false)
+    }
+  }
+  const demoTriggered = useRef(false)
+  useEffect(() => {
+    if (demoTriggered.current) return
+    const demo = new URLSearchParams(window.location.search).get('demo')
+    if (!demo) return
+    demoTriggered.current = true
+    if (demo === 'staff') demoLoginStaff()
+    else if (demo === 'applicant') demoLoginApplicant()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /* 이미 로그인된 사용자가 /login 에 오면 폼을 또 보여주지 않는다.
      pending 중엔 제외 — login() 직후 setUser 가 먼저 돌면 handleSubmit 의
@@ -336,6 +378,38 @@ export default function Login() {
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={disabled}>
             {pending ? '로그인 중…' : '로그인'}
           </button>
+
+          {/* 심사자용 데모 자동 로그인 (박제 온프레미스 전용) */}
+          <div style={{
+            marginTop: 24,
+            paddingTop: 16,
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}>
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+              심사자 데모 · 별도 입력 없이 즉시 진입
+            </p>
+            <button
+              type="button"
+              className="btn"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)' }}
+              onClick={demoLoginStaff}
+              disabled={pending}
+            >
+              담당자 데모 로그인
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)' }}
+              onClick={demoLoginApplicant}
+              disabled={pending}
+            >
+              지원자 데모 로그인
+            </button>
+          </div>
         </form>
       </div>
 

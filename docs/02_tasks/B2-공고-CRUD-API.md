@@ -22,7 +22,7 @@
 
 ## 가장 중요한 규칙 — 스키마를 건드리지 않는다
 
-- **[backend/app/models.py](../../backend/app/models.py)를 수정하지 않는다.** 컬럼이 부족해 보여도 추가하지 않는다. 필요하면 멈추고 팀 채널에 묻는다.
+- **[backend/app/models/](../../backend/app/models/)를 수정하지 않는다.** 컬럼이 부족해 보여도 추가하지 않는다. 필요하면 멈추고 팀 채널에 묻는다.
 - **인증·권한은 이번 범위가 아니다.** 02-api.md에 `recruiter+`라 적혀 있지만 *(2026-08-31 [ADR-0017](../03_decision/0017-등급-이분화.md) 로 공고 CRUD 는 로그인한 사람이면 누구나로 바뀌었다)*, 인증은 팀장 담당이고 아직 없다. **토큰 검사를 흉내 내지 마라.** `created_by`는 지금 `None`으로 두고 `# TODO(A1): 토큰의 사용자로 채운다` 주석만 남긴다.
 - **상태값은 직접 쓰지 않는다.** `models.POSTING_STATUSES`(`draft` / `open` / `closed`)를 import 해서 쓴다.
 - **B3 지원자 수는 컬럼이 아니라 집계 쿼리다** ([01-erd.md](../00_overview/01-erd.md) job_postings 비고). 테이블에 컬럼을 추가하지 마라.
@@ -164,7 +164,7 @@ app.include_router(postings_router)
 
 - [docs/00_overview/01-erd.md](../00_overview/01-erd.md) — `job_postings` 표. 컬럼과 타입의 기준
 - [docs/00_overview/02-api.md](../00_overview/02-api.md) — "채용 공고 (B)" 표. 경로·메서드의 기준
-- [backend/app/models.py](../../backend/app/models.py) — `JobPosting` 클래스, `POSTING_STATUSES` 상수
+- [backend/app/models/](../../backend/app/models/) — `JobPosting` 클래스, `POSTING_STATUSES` 상수
 
 ## Claude에게 시키기
 

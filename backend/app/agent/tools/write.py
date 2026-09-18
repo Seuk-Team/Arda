@@ -16,10 +16,12 @@ from sqlalchemy.orm import Session
 from app.shared import mail
 from app.models import (
     Application,
+    File,
     InterviewerAssignment,
     InterviewerAvailability,
     ScheduleProposal,
     ScheduleSlot,
+    StageHistory,
     User,
 )
 from app.application.stage_service import apply_stage_change, publish_all, require_reason
@@ -31,8 +33,10 @@ from app.adapter.outbound.pg.hiring_pg_repository import PgHiringRepository
 # draft_email 은 초안 텍스트만 돌려주고 아무것도 바꾸지 않아서 뺐다 — 초안 하나
 # 보려고 확인 카드를 지나야 하면 승인 한 번의 의미가 흐려진다. 실제로 되돌릴 수
 # 없는 것은 send_email 이고, 그것이 게이트를 탄다 (G4 결정 3).
+# create_application 은 지원자를 실제로 만들고 AI 심사까지 자동 트리거하므로 확인 게이트를 탄다.
 WRITE_TOOL_NAMES = frozenset({
     "change_stage", "assign_interviewer", "send_email", "create_schedule_proposal",
+    "create_application",
 })
 
 
@@ -352,4 +356,116 @@ def send_email(db: Session, user: User, params: dict) -> dict:
         "email_log_id": log.id,
         "to": log.to_email,
         "subject": log.subject,
+    }
+
+
+def create_application(db: Session, user: User, params: dict) -> dict:
+    """아르 채팅에서 이력서·자소서를 드롭해 지원자를 접수한다 (D6 담당자 직접 등록 재사용).
+
+    시나리오: 담당자가 채팅에 이력서 PDF 를 드롭 → 프론트가 /files/presign 으로 S3 업로드
+    → 이 도구를 호출해 지원자 생성. 이력서·자소서 파일은 이미 S3 에 있고 `s3_key` 만
+    넘어온다. AI 요약 chain 은 접수 뒤 자동으로 시작된다 (기존 generate_summary_bg).
+
+    확인 게이트를 탄다. `WRITE_TOOL_NAMES` 에 등록.
+    """
+    from datetime import datetime, UTC
+    from app.models import JobPosting
+
+    posting_id = int(params["posting_id"])
+    name = params["name"].strip()
+    email = params["email"].strip()
+    phone = params["phone"].strip()
+
+    # 공고 확인
+    posting = db.get(JobPosting, posting_id)
+    if posting is None:
+        raise HTTPException(404, "공고를 찾을 수 없습니다")
+
+    # 중복 이메일 확인 (같은 공고에 한 이메일 하나)
+    dup = db.scalar(
+        select(Application.id).where(
+            Application.job_posting_id == posting_id,
+            Application.email == email,
+        )
+    )
+    if dup:
+        raise HTTPException(
+            409,
+            f"이미 등록된 지원자입니다 (application_id={dup})",
+        )
+
+    # 지원자 생성. source="manual" — D6 담당자 직접 등록과 같은 취급 (동의 시각을 지금으로
+    # 두는 것도 그 선례를 따른다 · 담당자가 지원자 대신 접수하는 자리라 실 동의는 오프라인 가정).
+    row = Application(
+        job_posting_id=posting_id,
+        source="manual",
+        current_stage="applied",
+        name=name,
+        email=email,
+        phone=phone,
+        education=params.get("education"),
+        career_years=params.get("career_years"),
+        skills=params.get("skills"),
+        self_intro=params.get("self_intro"),
+        privacy_agreed_at=datetime.now(UTC),
+    )
+    db.add(row)
+    db.flush()
+
+    # 첨부 파일 (있으면). resume_meta·cover_letter_meta 에 filename·size·content_type.
+    attached_files = []
+    for kind_arg, meta_arg, kind_value in [
+        ("resume_s3_key", "resume_meta", "resume"),
+        ("cover_letter_s3_key", "cover_letter_meta", "cover_letter"),
+    ]:
+        s3_key = params.get(kind_arg)
+        if not s3_key:
+            continue
+        meta = params.get(meta_arg) or {}
+        db.add(File(
+            application_id=row.id,
+            s3_key=s3_key,
+            filename=meta.get("filename", kind_value + "_file"),
+            size_bytes=int(meta.get("size_bytes", 0)),
+            content_type=meta.get("content_type", "application/octet-stream"),
+            kind=kind_value,
+        ))
+        attached_files.append(kind_value)
+
+    # 접수 이력 · 담당자 (아르 승인자) 를 changed_by 로
+    db.add(StageHistory(
+        application_id=row.id,
+        from_stage=None,
+        to_stage="applied",
+        changed_by=user.id,
+    ))
+    db.commit()
+
+    # AI 요약 chain + 무결성 앵커 자동 트리거.
+    # BackgroundTasks 를 여기서 못 쓰므로 단순 스레드로 띄운다 — 아르 응답은 즉시 반환하고
+    # 두 태스크는 뒤에서 돈다.
+    #
+    # 앵커 (ADR-0028) 는 지원자 자체 폼 제출 (public.py) 에만 걸려 있었고 D6 담당자 직접
+    # 등록에는 없다. 그러나 아르 채팅에서 담당자가 이력서를 드롭하는 경로는 "지원자 파일이
+    # 서버에 들어와 저장되는 자리" 라 사후 변조 방지 목적이 그대로 유효하다. 개인정보인
+    # 이력서가 저장된 뒤 임의로 바뀌지 않게 앵커를 함께 건다 (2026-09-17 판단).
+    from app.agent.summarizer import generate_summary_bg
+    from app.shared.anchoring import anchor_application_bg
+    import threading
+    threading.Thread(target=generate_summary_bg, args=(row.id,), daemon=True).start()
+    threading.Thread(target=anchor_application_bg, args=(row.id,), daemon=True).start()
+
+    return {
+        "ok": True,
+        "application_id": row.id,
+        "name": row.name,
+        "email": row.email,
+        "posting_id": posting_id,
+        "posting_title": posting.title,
+        "current_stage": "applied",
+        "attached_files": attached_files,
+        "message": (
+            f"{row.name} 님을 「{posting.title}」 공고로 접수했습니다 "
+            f"(id={row.id}). AI 서류 심사가 자동으로 시작됩니다."
+        ),
     }

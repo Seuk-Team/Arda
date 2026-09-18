@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.orm import Session
 
+from app.hiring.company import get_profile
 from app.models import Application, EmailLog, JobPosting, User
 from app.shared import mail, mail_smtp
 
@@ -63,6 +64,15 @@ class TestSendLog:
         sent.assert_called_once()
         assert log.status == "sent"
         assert log.sent_at is not None
+
+    def test_보낸_사람_이름은_DB_회사명을_쓴다(self, db: Session, log: EmailLog, smtp_on):
+        """환경변수(시험에서는 Arda)가 아니라 company_profile.name (2026-09-17 운영 점검)."""
+        get_profile(db).name = "코드브릿지"
+        db.flush()
+        with patch("app.shared.mail_smtp.send_message") as sent:
+            mail_smtp.send_log(db, log)
+
+        assert sent.call_args.kwargs["from_name"] == "코드브릿지 채용팀"
 
     def test_폴백으로_나간_것을_구별할_수_있다(self, db: Session, log: EmailLog, smtp_on):
         """`provider_message_id` 가 빈 `sent` 행이 곧 "폴백으로 나갔다" 는 표시다."""

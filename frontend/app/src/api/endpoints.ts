@@ -20,6 +20,7 @@ import type {
   UserItem,
   MailTemplate,
   EmailLogItem,
+  ResumeDiff,
 } from './types'
 
 export const files = {
@@ -127,6 +128,12 @@ export const applications = {
     })
     return res.total ?? 0
   },
+
+  /* 이력서 변동 요약 (2026-09-17, PR #320). 동일 인물의 가장 최근 이전 지원과 비교.
+     이전 지원이 없으면 changed=false + summary="이전 지원 이력이 없습니다." 로 온다
+     (404 아님 · 프론트가 조용히 배지를 숨기기 좋게). */
+  priorResumeDiff: (id: number, signal?: AbortSignal) =>
+    api.get<ResumeDiff>(`/applications/${id}/resume-diff/prior`, { signal }),
 }
 
 export const summary = {
@@ -205,8 +212,13 @@ import type {
 } from './types'
 
 export const interviews = {
-  create: (applicationId: number) =>
-    api.post<InterviewSession>(`/applications/${applicationId}/interview-sessions`, {}),
+  /* 만들면 **지원자에게 링크 메일이 나간다** (2026-09-18). 링크만 뽑아 두려면 notify: false */
+  create: (applicationId: number, notify = true) =>
+    api.post<InterviewSession>(`/applications/${applicationId}/interview-sessions`, { notify }),
+
+  /* 링크 메일 재발송 — **같은 세션·같은 링크**. 새로 만들면 앱이 가장 먼저 만든 방으로 들어간다 */
+  sendLink: (sessionId: number) =>
+    api.post<InterviewSession>(`/interview-sessions/${sessionId}/send`, {}),
 
   list: (applicationId: number, signal?: AbortSignal) =>
     api.get<InterviewSession[]>(`/applications/${applicationId}/interview-sessions`, { signal }),

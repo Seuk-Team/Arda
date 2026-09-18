@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { applications, stages as stagesApi } from '../api/endpoints'
 import type { ApplicationListItem, Stage } from '../api/types'
@@ -182,7 +183,14 @@ export default function Kanban({ postingId, onChanged, tick }: Props) {
                       {a.name.charAt(0)}
                     </span>
                     <div className={styles.cardText}>
-                      <div className={styles.cardName}>{a.name}</div>
+                      {/* 이름 = 종합 평가 상세로 (2026-09-17 사용자 판단). */}
+                      <Link
+                        to={`/summary/${a.id}`}
+                        className={styles.cardName}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {a.name}
+                      </Link>
                       <div className={styles.cardSub}>
                         {careerText(a.career_years)}
                         {/* 지원일 — 서버가 주는데 카드가 안 쓰고 있었다.

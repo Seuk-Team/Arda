@@ -37,6 +37,11 @@
   align-items: flex-start;
 }
 
+/* 계정 메뉴는 헤더 맨 오른쪽 (PageHead 와 같은 자리) */
+.acct {
+  margin-left: auto;
+}
+
 .back {
   background: transparent;
   border: var(--border-w) solid var(--border);
@@ -451,4 +456,123 @@
 
 @media (max-width: 720px) {
   .prosCons { grid-template-columns: 1fr; }
+}
+
+/* 면접 중 실시간 분석 요약 (2026-09-17) — AI 문장 + 근거 수치 */
+.live {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border-radius: var(--r-card);
+}
+.liveHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+.liveTitle {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--text-sub);
+  letter-spacing: 0.06em;
+}
+.liveBadge {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+.liveNote {
+  margin-left: auto;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+.liveSummary {
+  margin: 0;
+  font-size: var(--font-body);
+  line-height: 1.6;
+  color: var(--text);
+}
+.liveFacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+}
+.liveFact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.liveFact dt {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+.liveFact dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.exprBars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.exprRow {
+  display: grid;
+  grid-template-columns: 64px 1fr 44px;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--font-sm);
+}
+.exprLabel {
+  color: var(--text);
+}
+.exprTrack {
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--border-soft);
+  overflow: hidden;
+}
+.exprFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+.exprPct {
+  text-align: right;
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+.liveTableWrap {
+  overflow-x: auto;
+  padding-top: var(--sp-3);
+}
+.liveTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.liveTable th,
+.liveTable td {
+  padding: var(--sp-1) var(--sp-2);
+  text-align: left;
+  border-bottom: var(--border-w) solid var(--border-soft);
+}
+.liveTable thead th {
+  color: var(--text-sub);
+  font-weight: 600;
+}
+.liveTable tbody th {
+  color: var(--accent-text);
+  font-weight: 700;
 }

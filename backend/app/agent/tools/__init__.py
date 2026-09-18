@@ -29,6 +29,7 @@ from .write import (
     WRITE_TOOL_NAMES as WRITE_TOOL_NAMES,
     assign_interviewer,
     change_stage,
+    create_application,
     create_schedule_proposal,
     draft_email,
     send_email,
@@ -341,6 +342,53 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["application_id", "subject", "body"],
         },
     },
+    # 2026-09-17 신설. 아르 채팅에 이력서·자소서를 드롭해 새 지원자를 접수한다.
+    # 프론트가 /files/presign 으로 S3 에 파일 업로드 → 이 도구를 부른다. 확인 게이트를
+    # 탄다 (WRITE_TOOL_NAMES). 접수 뒤 AI 요약 chain 이 자동으로 돈다.
+    {
+        "name": "create_application",
+        "description": (
+            "채팅에 드롭된 이력서·자소서로 새 지원자를 접수한다 (D6 담당자 직접 등록). "
+            "먼저 list_postings 로 어느 공고인지 담당자에게 확인받고, 파일에서 이름·이메일·"
+            "연락처를 뽑아 이 도구로 접수한다. 이력서·자소서 파일은 이미 S3 에 있고 "
+            "`resume_s3_key`/`cover_letter_s3_key` 로만 넘긴다. 접수 뒤 AI 서류 심사가 "
+            "자동으로 시작되므로 담당자에게 `application_id` 와 요약 대기 안내를 함께 준다."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "posting_id": {"type": "integer", "description": "접수할 공고 ID"},
+                "name": {"type": "string", "description": "지원자 이름 (이력서에서 추출)"},
+                "email": {"type": "string", "description": "지원자 이메일 (이력서에서 추출)"},
+                "phone": {"type": "string", "description": "지원자 연락처 (이력서에서 추출)"},
+                "education": {"type": "string", "description": "학력 (있으면)"},
+                "career_years": {"type": "integer", "description": "경력 연차 (있으면 · 신입은 0)"},
+                "skills": {"type": "array", "items": {"type": "string"}, "description": "기술 스택 (있으면)"},
+                "self_intro": {"type": "string", "description": "자기소개서 본문 (파싱했으면)"},
+                "resume_s3_key": {"type": "string", "description": "이력서 파일 S3 키 (프론트가 presign 후 회수)"},
+                "resume_meta": {
+                    "type": "object",
+                    "description": "이력서 파일 메타 · {filename, size_bytes, content_type}",
+                    "properties": {
+                        "filename": {"type": "string"},
+                        "size_bytes": {"type": "integer"},
+                        "content_type": {"type": "string"},
+                    },
+                },
+                "cover_letter_s3_key": {"type": "string", "description": "자소서 파일 S3 키 (있으면)"},
+                "cover_letter_meta": {
+                    "type": "object",
+                    "description": "자소서 파일 메타",
+                    "properties": {
+                        "filename": {"type": "string"},
+                        "size_bytes": {"type": "integer"},
+                        "content_type": {"type": "string"},
+                    },
+                },
+            },
+            "required": ["posting_id", "name", "email", "phone"],
+        },
+    },
 ]
 
 
@@ -357,6 +405,7 @@ _DISPATCH = {
     "assign_interviewer": assign_interviewer,
     "draft_email": draft_email,
     "send_email": send_email,
+    "create_application": create_application,
 }
 
 

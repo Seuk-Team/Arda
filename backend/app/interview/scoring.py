@@ -6,6 +6,9 @@
   표본이 없으면 답변 점수만으로 100 환산(screening.interview_score_from).
 
 면접관 점수는 여기 들어가지 않는다 — 팀장 결정(면접관은 코멘트만).
+
+같은 자리에서 **면접 중 실시간 분석 요약**(`ai_score_detail.live`)도 만든다 — 표정·얼굴·
+목소리 수치와 AI 문장. 점수 재료가 아니다(`live_summary.py`).
 """
 
 from __future__ import annotations
@@ -28,12 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 def record_truth_sample(db: Session, session: InterviewSession, truth_pct: float) -> None:
-    """실시간 판정 한 건을 집계에 더한다. **개별 값은 남기지 않는다.**"""
-    current = dict(session.truth_samples or {})
-    current["n"] = int(current.get("n") or 0) + 1
-    current["truth_sum"] = float(current.get("truth_sum") or 0.0) + float(truth_pct)
-    session.truth_samples = current  # JSON 컬럼은 재대입해야 변경이 잡힌다
-    db.commit()
+    """실시간 판정 한 건을 집계에 더한다. **개별 값은 남기지 않는다.**
+
+    2026-09-17 부터 표정·얼굴·목소리 수치도 함께 센다 — `live_summary.record_live_sample`.
+    이 함수는 진위만 있는 옛 호출용으로 남긴다.
+    """
+    from app.interview.live_summary import record_live_sample
+
+    record_live_sample(db, session, {"truth_pct": truth_pct}, None)
 
 
 def _transcript_text(session: InterviewSession) -> str:
@@ -93,6 +98,18 @@ def score_interview(db: Session, session_id: int) -> int | None:
     w = screening.weights(db)
     ai = screening.interview_score_from(answers_score, truth, w)
 
+    # 면접 중 실시간 분석 요약 (2026-09-17) — 점수에는 안 들어간다. 판정이 없었으면 없다.
+    from app.interview import live_summary
+
+    live: dict | None = None
+    stats = live_summary.live_stats(session.truth_samples)
+    if stats is not None:
+        if reason:
+            live = {"summary": live_summary.template_summary(stats), "summary_source": "template"}
+        else:
+            live = live_summary.summarize(backend, stats)
+        live["stats"] = stats
+
     session.ai_score = ai
     session.ai_score_detail = {
         "answers": answers_score,
@@ -104,6 +121,7 @@ def score_interview(db: Session, session_id: int) -> int | None:
         "weights": {"itv_answers": w["itv_answers"], "itv_truth": w["itv_truth"]},
         "prompt": prompt_tag,
         "model": backend.model_tag() if not reason else None,
+        "live": live,
     }
     session.scored_at = datetime.now(timezone.utc)
     db.commit()

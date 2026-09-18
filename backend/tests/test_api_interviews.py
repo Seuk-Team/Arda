@@ -111,6 +111,124 @@ class TestCreate:
         assert all(r.status == "pending" for r in rows)
 
 
+class TestLinkMail:
+    """링크를 만들면 지원자에게 메일로 나간다 (2026-09-18, 팀 논의).
+
+    전에는 담당자가 「링크 복사」로 손수 전달했다 — 인적성 설문은 자동으로 나가는데
+    면접만 손으로 나가고 있었다.
+    """
+
+    def _logs(self, db: Session, application: Application):
+        from app.models import EmailLog
+
+        return db.scalars(
+            select(EmailLog)
+            .where(EmailLog.application_id == application.id)
+            .order_by(EmailLog.id)
+        ).all()
+
+    def test_만들면_링크_메일이_쌓인다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        with patch("app.shared.mail.publish") as pub:
+            body = as_user(admin_user).post(
+                f"/api/v1/applications/{application.id}/interview-sessions", json={}
+            ).json()
+
+        logs = self._logs(db, application)
+        assert len(logs) == 1
+        log = logs[0]
+        assert log.to_email == application.email
+        assert log.status == "queued" and log.stage == "custom"
+        assert body["token"] in log.body, "링크가 본문에 없다"
+        assert "AI 면접" in log.subject
+        pub.assert_called_once_with(log.id)
+
+    def test_앱_안내가_함께_간다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """수택님 지적 — 웹으로 들어가는 길과 앱으로 들어가는 길을 둘 다 적는다."""
+        with patch("app.shared.mail.publish"):
+            as_user(admin_user).post(
+                f"/api/v1/applications/{application.id}/interview-sessions", json={}
+            )
+
+        body = self._logs(db, application)[0].body
+        assert "생년월일" in body and "앱" in body
+
+    def test_notify_false_면_안_보낸다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """링크만 뽑아 두고 나중에 보내는 자리."""
+        with patch("app.shared.mail.publish") as pub:
+            res = as_user(admin_user).post(
+                f"/api/v1/applications/{application.id}/interview-sessions",
+                json={"notify": False},
+            )
+
+        assert res.status_code == 201
+        assert self._logs(db, application) == []
+        pub.assert_not_called()
+
+    def test_다시_보내도_같은_링크다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """재발송마다 새 세션을 만들면 앱은 가장 먼저 만든 방으로 들어가 담당자와 갈린다."""
+        client = as_user(admin_user)
+        with patch("app.shared.mail.publish"):
+            first = client.post(
+                f"/api/v1/applications/{application.id}/interview-sessions", json={}
+            ).json()
+            res = client.post(f"/api/v1/interview-sessions/{first['id']}/send")
+
+        assert res.status_code == 201
+        assert res.json()["token"] == first["token"]
+        logs = self._logs(db, application)
+        assert len(logs) == 2
+        assert all(first["token"] in log.body for log in logs)
+        assert (
+            db.scalars(
+                select(InterviewSession).where(
+                    InterviewSession.application_id == application.id
+                )
+            ).all().__len__()
+            == 1
+        ), "재발송이 세션을 새로 만들면 안 된다"
+
+    def test_끝난_면접은_다시_안_보낸다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(db, application, admin_user, token="tok-done", status="done")
+        db.commit()
+
+        res = as_user(admin_user).post(f"/api/v1/interview-sessions/{s.id}/send")
+        assert res.status_code == 409
+
+    def test_만료된_링크는_다시_안_보낸다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        s = _session(
+            db, application, admin_user, token="tok-old",
+            expires_at=datetime.now(UTC) - timedelta(days=1),
+        )
+        db.commit()
+
+        res = as_user(admin_user).post(f"/api/v1/interview-sessions/{s.id}/send")
+        assert res.status_code == 410
+
+    def test_메일이_안_나가도_면접은_만들어진다(
+        self, as_user, db: Session, application: Application, admin_user: User
+    ):
+        """발행 실패는 로그만 — 행은 queued 로 남아 나중에 쓸어 담긴다(mail_smtp)."""
+        with patch("app.shared.mail.publish", side_effect=RuntimeError("n8n 죽음")):
+            res = as_user(admin_user).post(
+                f"/api/v1/applications/{application.id}/interview-sessions", json={}
+            )
+
+        assert res.status_code == 201
+        assert self._logs(db, application)[0].status == "queued"
+
+
 class TestConsentGate:
     """녹음 동의는 지원 폼의 개인정보 동의와 **별개다**. 없으면 시작하지 않는다."""
 

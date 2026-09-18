@@ -417,6 +417,8 @@ export default function PostingApplicants() {
               aria-current={a.id === openId ? 'true' : undefined}
               onClick={() => openDetail(a.id)}
             >
+              {/* 이름 클릭 = 행(상세 패널) 열기 (2026-09-18 되돌림).
+                  종합 평가로는 상세 패널의 「종합 평가 자세히 보기」 로만 간다. */}
               <span className={styles.name}>{a.name}</span>
               <span className={TONE_CLASS[stageTone(a.current_stage)]}>{STAGE_LABEL[a.current_stage]}</span>
               <span className={styles.num}>{careerText(a.career_years)}</span>

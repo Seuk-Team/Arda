@@ -123,12 +123,22 @@ def face_row(frame):
 # 화면(`ai/expression-vit/serve.py`)에서는 그대로 믿으면 안 된다.
 VIT_MODEL = os.environ.get("VIT_MODEL", "").strip()
 VIT_BATCH = int(os.environ.get("VIT_BATCH", "16"))
+# **`auto` 로 두지 않는다** — STT_DEVICE 와 같은 방침. GPU 가 보이면 CUDA 를
+# 고르는데, CUDA 런타임이 없는 이미지에서 뜨면 조용히 실패한다. 명시적으로 넣는다.
+#   CPU (지금 프로덕션 t3.large): VIT_DEVICE 안 넣거나 cpu
+#   GPU 로 옮기면: VIT_DEVICE=cuda · float16 는 T4 이상에서만 의미가 있다
+VIT_DEVICE = os.environ.get("VIT_DEVICE", "cpu").strip() or "cpu"
 
 _vit = None
 
 
 def _vit_pair():
-    """(전처리기, 모델). 처음 부를 때 한 번만 올린다(~0.9GB, torch 포함)."""
+    """(전처리기, 모델). 처음 부를 때 한 번만 올린다(~0.9GB, torch 포함).
+
+    VIT_DEVICE=cuda 면 모델을 CUDA 로 올린다 (2026-09-17, arda-gpu 이관). CPU 기본은
+    기존 t3.large 배포와 회귀 없이 그대로 도는 자리라 유지한다. float16 은 T4 이상에서만
+    의미가 있어 device 가 cuda 일 때만 쓴다.
+    """
     global _vit
     if _vit is None:
         import torch
@@ -136,6 +146,8 @@ def _vit_pair():
 
         proc = AutoImageProcessor.from_pretrained(VIT_MODEL)
         model = AutoModelForImageClassification.from_pretrained(VIT_MODEL).eval()
+        if VIT_DEVICE == "cuda":
+            model = model.to("cuda", dtype=torch.float16)
         _vit = (proc, model, torch)
     return _vit
 
@@ -171,9 +183,13 @@ def expression_rows(crops):
     out = []
     for i in range(0, len(crops), VIT_BATCH):
         batch = [Image.fromarray(c) for c in crops[i : i + VIT_BATCH]]
+        inputs = proc(images=batch, return_tensors="pt")
+        if VIT_DEVICE == "cuda":
+            inputs = {k: v.to("cuda", dtype=torch.float16 if v.is_floating_point() else v.dtype)
+                      for k, v in inputs.items()}
         with torch.no_grad():
-            logits = model(**proc(images=batch, return_tensors="pt")).logits
-        out.append(torch.softmax(logits, -1).numpy())
+            logits = model(**inputs).logits
+        out.append(torch.softmax(logits, -1).float().cpu().numpy())
     return np.concatenate(out)
 
 

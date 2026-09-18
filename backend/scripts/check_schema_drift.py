@@ -17,11 +17,14 @@
 2. 모델의 컬럼이 DB 에 다 있는가 · NULL 허용이 같은가
 3. 이름 붙은 CHECK 제약이 DB 에 있는가 · **허용 값 목록**(따옴표 안 문자열)이 같은가
 4. 이름 붙은 UNIQUE 제약이 DB 에 있는가
+5. 모델의 인덱스가 **같은 이름으로** DB 에 있는가 (2026-09-17 추가). 이름만 본다 —
+   칼럼·조건식까지 비교하면 표현 차이로 시끄럽다. 추가한 날 어긋난 곳은
+   `integration_clients` 하나였다(모델은 자동 이름, 0021 은 다른 이름 + 부분 인덱스)
 
-보지 않는 것 — 타입의 세부(varchar 길이 등), 인덱스, 기본값. SQLAlchemy 표현과 Postgres
-표현이 달라 비교가 시끄럽고, 지금까지의 사고는 전부 위 네 가지에서 났다.
+보지 않는 것 — 타입의 세부(varchar 길이 등), 기본값. SQLAlchemy 표현과 Postgres
+표현이 달라 비교가 시끄럽고, 지금까지의 사고는 전부 위 다섯 가지에서 났다.
 
-DB 에만 있고 모델에 없는 것(옛 컬럼 등)은 **경고만** 한다 — 지우는 이행은 일부러 늦게 한다.
+DB 에만 있고 모델에 없는 것(옛 컬럼·인덱스 등)은 **경고만** 한다 — 지우는 이행은 일부러 늦게 한다.
 
 사용 (backend/ 에서):
     uv run alembic upgrade head
@@ -115,6 +118,16 @@ def check() -> tuple[list[str], list[str]]:
             if isinstance(cons, UniqueConstraint) and cons.name:
                 if str(cons.name) not in db_uniques | db_unique_idx:
                     problems.append(f"[UNIQUE 없음] {name}.{cons.name}")
+
+        # 5. 인덱스 — 이름만. UNIQUE 제약이 만든 인덱스는 4 에서 봤으니 뺀다
+        db_indexes = {
+            i["name"] for i in insp.get_indexes(name) if not i.get("duplicates_constraint")
+        }
+        model_indexes = {str(i.name) for i in table.indexes}
+        for missing in sorted(model_indexes - db_indexes):
+            problems.append(f"[인덱스 없음] {name}.{missing}")
+        for extra in sorted(db_indexes - model_indexes):
+            warnings.append(f"[DB 에만 있는 인덱스] {extra} ({name})")
 
     model_tables = {t.name for t in Base.metadata.sorted_tables}
     for extra in sorted(db_tables - model_tables):

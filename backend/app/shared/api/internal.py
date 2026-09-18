@@ -236,6 +236,10 @@ async def push_verdict(token: str, body: VerdictIn, db: Session = Depends(get_db
     ADR-0034: 판정 개별 값은 여전히 저장하지 않지만, 면접 점수의 "진위 일관성" 재료로
     세션에 **집계값**(표본 수·truth_pct 합)만 더한다. 이 부분이 실패해도 담당자
     화면으로 미는 것은 이미 끝났으므로 로그만 남긴다.
+
+    2026-09-17: 표정·얼굴·목소리 수치도 **같은 집계에** 세고, 그 순간의 질문(아직 답하지
+    않은 가장 앞 칸) 번호로도 나눠 센다 — 종합 평가의 실시간 분석 요약 재료
+    (`app/interview/live_summary.py`).
     """
     from app.interview.api.interview_rtc import push_to_recruiter
 
@@ -243,12 +247,22 @@ async def push_verdict(token: str, body: VerdictIn, db: Session = Depends(get_db
 
     if body.truth_pct is not None:
         try:
-            from app.interview.scoring import record_truth_sample
-            from app.models import InterviewSession
+            from app.interview.live_summary import record_live_sample
+            from app.models import InterviewSession, InterviewTurn
 
             session = db.scalar(select(InterviewSession).where(InterviewSession.token == token))
             if session is not None and session.status == "in_progress":
-                record_truth_sample(db, session, float(body.truth_pct))
+                seq = db.scalar(
+                    select(InterviewTurn.seq)
+                    .where(
+                        InterviewTurn.session_id == session.id,
+                        InterviewTurn.answered_at.is_(None),
+                        InterviewTurn.transcript.is_(None),
+                    )
+                    .order_by(InterviewTurn.seq)
+                    .limit(1)
+                )
+                record_live_sample(db, session, body.model_dump(), seq)
         except Exception:
             logger.exception("진위 표본 집계 실패: token=%s", token[:8])
 

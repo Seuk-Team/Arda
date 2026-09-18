@@ -101,20 +101,41 @@ def test_change_stage_matches(message, expected_name, expected_stage):
 
 
 @pytest.mark.parametrize("message", [
-    "안녕",
-    "너는 누구야",
-    "너 뭐 할 수 있어?",
+    "너는 누구야",  # 조사(는)가 붙어 캔드 규칙엔 안 걸림 → LLM
     "백엔드 개발 지원자 알려줘",  # 이름이 아니라 역량 → 시맨틱, LLM 로
     "Kubernetes 경험 있는 지원자",
     "김도현에게 합격 이메일 초안 써줘",  # 이메일 초안 = 복잡, LLM 로
     "김도현 면접 다음 주 화요일로 잡아줘",  # 날짜 파싱 = 복잡, LLM 로
     "응 변경해줘",  # 확인 응답은 프론트 라우터 담당
     "김도현이 어때?",  # 자유 질의
+    "면접 방법 알려줘",  # 채용 절차 FAQ — 캔드(능력) 아님, LLM
+    "안녕 김도현 찾아줘",  # 인사 뒤 실제 요청 → 캔드 아님, LLM
     "",  # 빈 문자열
     "   ",  # 공백만
 ])
 def test_ambiguous_returns_none(message):
     assert classify(message) is None
+
+
+# ── 캔드 FAQ (인사·능력·사용법) — 도구·LLM 없이 고정 문구 ──────────
+
+
+@pytest.mark.parametrize("message,rule", [
+    ("안녕", "canned:greeting"),
+    ("안녕하세요", "canned:greeting"),
+    ("안녕 자기소개해줘", "canned:greeting"),
+    ("뭘 할 수 있어", "canned:capability"),
+    ("너 뭐 할 수 있어?", "canned:capability"),
+    ("할 수 있는 게 뭐야", "canned:capability"),
+    ("사용법 알려줘", "canned:capability"),
+    ("어떻게 써", "canned:capability"),
+])
+def test_canned_faq_returns_fixed_reply(message, rule):
+    action = classify(message)
+    assert action is not None
+    assert action.rule == rule
+    assert action.reply_text  # 고정 문구가 실려 있다
+    assert action.tool_name == ""  # 도구 호출 없음
 
 
 # ── 잠재적 오탐 방지 ───────────────────────────────────────

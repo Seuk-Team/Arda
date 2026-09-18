@@ -69,7 +69,8 @@ from app.schemas.applicant_auth import (
     PasswordTokenOut,
     SetPasswordRequest,
 )
-from app.security import APPLICANT_EXPIRES_MINUTES, create_applicant_token
+from app.security import APPLICANT_EXPIRES_MINUTES, create_applicant_token, is_demo_applicant
+from app.application.demo_reset import reset_demo_applicant
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["applicant-auth"])
@@ -182,6 +183,18 @@ def applicant_login(
         raise HTTPException(HTTPStatus.UNAUTHORIZED, "로그인 정보가 맞지 않습니다")
 
     _FAILS.pop(email, None)
+
+    # 심사위원 공유 데모 지원자면 로그인 때마다 세 화면(인적성·면접일정·AI면접)을
+    # 기준 상태로 되돌린다 — 앞 심사위원이 끝내 놨어도 다음 사람이 처음부터 본다.
+    # 실 지원자는 DEMO_APPLICANT_EMAILS 에 없어 이 경로를 타지 않는다. 리셋이 실패해도
+    # 로그인은 막지 않는다 (편의 기능이 인증을 가로막지 않게).
+    if is_demo_applicant(email):
+        try:
+            reset_demo_applicant(db, email)
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            logger.exception("demo_applicant_reset 실패: %s", email.rpartition("@")[2])
+
     return ApplicantLoginResponse(
         access_token=create_applicant_token(email),
         expires_in=APPLICANT_EXPIRES_MINUTES * 60,

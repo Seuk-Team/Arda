@@ -6,6 +6,73 @@
   height: 100%;
   min-height: 0;
   font-family: var(--sans);
+  /* 드래그·드롭 시 상대 좌표계가 필요하다 (오버레이가 이 컨테이너를 덮게) */
+  position: relative;
+}
+
+/* ── 이력서 드래그·드롭 (2026-09-17) ───────────────────────
+   dropOver 상태에서 시안 소프트 배경으로 바꾼다. 색은 판단 색이 아니라
+   "여기 놓으세요" 라는 안내라 05-design §1 규칙 안이다. */
+.dropOver .stream {
+  filter: blur(1px);
+  opacity: 0.5;
+  transition: filter var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-sticky, 10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  border: 2px dashed var(--accent);
+  border-radius: var(--r-card);
+  /* 자식 드래그 이벤트를 가로채면 leave 무한 반복이 난다 */
+  pointer-events: none;
+}
+
+.dropCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-5) var(--sp-6);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--accent);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-card);
+  backdrop-filter: var(--glass);
+}
+
+.dropIcon {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.dropTitle {
+  font-size: var(--font-body);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dropSub {
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.dropStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-sub);
+  background: var(--bg-sunken);
+  border-top: var(--border-w) solid var(--border-soft);
+  border-bottom: var(--border-w) solid var(--border-soft);
 }
 
 /* ── 대화 흐름 ───────────────────────────────────────── */

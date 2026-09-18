@@ -986,55 +986,86 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   gap: var(--sp-2);
   align-items: flex-start;
 }
+/* 서류·면접·종합 을 나란한 타일 카드로. 2026-09-17 —
+   전에는 라벨·값이 한 줄에 붙는 얇은 pill 이었다. 세 값이 시선을 다투기만 하고
+   "무엇이 결론인가" 가 안 읽혀서, 라벨을 위로 올리고 숫자를 크게 앉힌 뒤
+   **종합 타일에만 teal ring** 을 둘렀다. 색으로 합·불을 말하는 게 아니라
+   "이 셋 중 결론은 이것" 을 가리키는 강조라 규칙(§1) 안이다. */
 .summaryScores {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
-.scoreChip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--radius-2);
-  background: var(--bg-2);
-  color: var(--fg-1);
-  font-weight: 500;
-}
+.scoreChip,
 .scoreChipFinal {
   display: inline-flex;
-  align-items: baseline;
-  gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--radius-2);
-  background: var(--accent-2);
-  color: var(--fg-accent);
-  font-weight: 600;
-  border: 1px solid var(--accent-1);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: 12px;
+  background: var(--bg-sunken);
+  color: var(--text);
+  border: 1px solid var(--border-soft);
+  font-weight: 500;
+  line-height: 1;
 }
+.scoreChipFinal {
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, .08);
+  font-weight: 600;
+}
+
+/* 탈락 축 표시 (2026-09-17 사용자 판단).
+   불합격 지원자를 열었을 때, 어느 축(서류·면접·종합)에서 컷 미달로 떨어졌는지
+   담당자가 한 눈에 알 수 있게 그 축 타일만 danger 색으로 칠한다.
+   합격 · 진행 중은 색을 안 칠하고 그대로 (종합만 teal ring).
+
+   05-design §1 규칙 안 — 여기 danger 는 "판정 결과" 다. teal ring 이 "이 셋 중
+   결론" 을 지목하는 강조라면, danger 는 "실제로 이 축에서 떨어졌다" 는 판정 사실. */
+.scoreChipReject {
+  background: var(--danger-soft);
+  border: 1.5px solid var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.scoreChipReject .scoreChipLabel { color: var(--danger); opacity: 0.9; }
+.scoreChipReject .scoreChipValue { color: var(--danger); }
+
 .scoreChipLabel {
   font-size: var(--font-cap);
   letter-spacing: var(--ls-cap);
-  color: var(--fg-2);
+  color: var(--text-sub);
   text-transform: none;
 }
-.scoreChipFinal .scoreChipLabel { color: var(--fg-accent); opacity: .85; }
+.scoreChipFinal .scoreChipLabel { color: var(--accent-text); }
 .scoreChipValue {
-  font-size: var(--font-lg);
+  font-size: 22px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  color: var(--text);
 }
+/* 등급 = 종합 옆의 별도 타일. 종합 안에 등급 A 를 같이 두면 숫자·글자가
+   시선을 다투는데, 등급은 "이 결론을 한 글자로" 라서 자기 자리에 두는 편이 낫다. */
 .gradeBadge {
-  display: inline-block;
-  margin-left: var(--sp-1);
-  padding: 0 var(--sp-1);
-  border-radius: var(--radius-1);
-  background: var(--accent-1);
-  color: var(--bg-1);
-  font-size: var(--font-cap);
-  font-weight: 700;
-  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 0 var(--sp-2);
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--sans, inherit);
+  align-self: stretch;
 }
 .summaryDetailLink {
   font-size: var(--font-sm);
@@ -1411,3 +1442,115 @@ details:not([open]) .sysSummary { margin-bottom: 0; }
   resize: vertical;
 }
 .confirmReason:focus-visible { outline: none; border-color: var(--danger); }
+
+/* ── 이력서 변동 배지 (2026-09-17) ─────────────────────────
+   IntegrityBadge 옆에 나란히 · 이전 지원과 대비한 이력서 변동을 보인다.
+   05-design §1 규칙 준수: 판단 색 아님 · "존재를 알리는" 배지. */
+.diffBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--sp-2);
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  color: var(--text-sub);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  border: 0;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.diffBadgeChanged {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  cursor: pointer;
+  border: var(--border-w) solid var(--accent-text);
+}
+
+.diffBadgeChanged:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.diffBadgeChanged:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* 확장 카드 — 첨부 파일 목록 위에 · 요약 한 줄 + 변동 필드 목록 */
+.diffPanel {
+  margin: var(--sp-2) 0 var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: var(--border-w) solid var(--border-soft);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0;
+}
+
+.diffSummary {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.diffMeta {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.diffList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.diffItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  background: var(--bg-elev);
+  border: var(--border-w) solid var(--border-soft);
+  border-radius: var(--r-ctl);
+}
+
+.diffField {
+  font-size: var(--font-caption);
+  font-weight: 700;
+  color: var(--accent-text);
+  letter-spacing: 0.02em;
+}
+
+.diffNote {
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.diffValues {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-1);
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.diffBefore::before { content: '↩ '; opacity: 0.7; }
+.diffAfter::before  { content: '↪ '; color: var(--accent-text); opacity: 1; }
+
+/* 면접 링크 메일 안내 (2026-09-18) — 만들기 버튼 옆 */
+.ivMailHint {
+  align-self: center;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+.ivCopy:disabled { opacity: 0.6; cursor: default; }
