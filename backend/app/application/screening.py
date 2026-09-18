@@ -18,7 +18,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -291,6 +293,25 @@ def _after_pass(
     return log_ids
 
 
+def _summary_insufficient(application: Application) -> bool:
+    """요약이 '자료 부족(insufficient)' 으로 저장됐는가.
+
+    아직 요약이 안 된 것(ai_summary 비어 있음)과 **분석할 자료가 없어 insufficient 로
+    저장된 것**을 구분한다 — 후자만 자동 탈락 대상이다. 이력서 기반으로 gist 가 채워진
+    지원자(insufficient=false, doc_score 는 아직 없을 수 있음)는 걸리지 않는다.
+    """
+    raw = (application.ai_summary or "").strip()
+    if not raw:
+        return False
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z]*\n?|\n?```$", "", raw).strip()
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("insufficient") is True
+
+
 def decide_document(db: Session, application: Application, now: datetime | None = None) -> str:
     """서류 자동 판정. `doc_score` 가 이미 저장된 뒤에 부른다. 커밋한다.
 
@@ -303,7 +324,6 @@ def decide_document(db: Session, application: Application, now: datetime | None 
 
     if (
         posting is None
-        or score is None
         or application.decision_source == "human"
         or application.current_stage != "applied"
     ):
@@ -319,6 +339,36 @@ def decide_document(db: Session, application: Application, now: datetime | None 
         application.doc_decision = "hold"
         application.doc_decided_at = now
         db.commit()
+        return "hold"
+
+    # 점수가 없다 — **자료 부족(요약 insufficient)이면 분석할 게 없으므로 자동 서류 탈락**
+    # (2026-09-18). 자소서 한 줄·나머지 미기재처럼 평가 근거가 없는 지원자를 접수에
+    # 무한정 남겨 두지 않는다. 아직 요약이 안 됐거나 점수만 비어 있으면 그대로 보류한다.
+    if score is None:
+        if _summary_insufficient(application):
+            reason = (
+                "아르 서류 심사 불합격 — 자기소개서·이력서 자료가 부족해 평가할 수 없습니다. "
+                "안내 메일은 마감 뒤 일괄 발송"
+            )
+            try:
+                apply_stage_change(
+                    db, application, "rejected", None, reason, now,
+                    notify=False, actor_kind="agent",
+                )
+                application.doc_decision = "reject"
+                application.doc_decided_at = now
+                db.commit()
+                logger.info(
+                    "screening_insufficient_reject",
+                    extra={"application_id": application.id},
+                )
+                return "reject"
+            except StageTransitionError:
+                logger.exception("자료부족 자동 탈락 전이 실패: application_id=%s", application.id)
+                db.rollback()
+        if application.doc_decided_at is None:
+            application.doc_decision = "hold"
+            db.commit()
         return "hold"
 
     threshold = int(posting.pass_threshold)
