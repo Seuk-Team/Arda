@@ -12,6 +12,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     SmallInteger,
@@ -209,7 +210,7 @@ class IntegrationClient(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     company_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("company_profile.id"), nullable=False, index=True
+        BigInteger, ForeignKey("company_profile.id"), nullable=False
     )
     # bcrypt 해시. 원본 key 는 발급 순간만 응답에 실린다.
     api_key_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
@@ -234,3 +235,15 @@ class IntegrationClient(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # 최근 API 사용 시각 · 유휴 감시·인증 로그
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # 이름을 이행 0021 과 맞춘다 (2026-09-17). 전에는 `company_id` 에 `index=True` 라
+    # 모델만 `ix_integration_clients_company_id` 를 만들고, 인증 조회용 부분 인덱스는
+    # 선언이 없었다 — 운영 DB 는 0021 을 따른다.
+    __table_args__ = (
+        Index("ix_integration_clients_company", "company_id"),
+        Index(
+            "ix_integration_clients_active_hash",
+            "api_key_hash",
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
