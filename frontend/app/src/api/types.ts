@@ -9,6 +9,9 @@ export interface User {
   role: 'admin' | 'member'
   /* 비활성 계정은 로그인도 기존 토큰도 막힌다 (A4). 옛 응답에는 없어 선택이다 */
   is_active?: boolean
+  /* 시연 잠금 계정(심사위원 데모). /me 에서만 채워진다 — 사용자·권한 화면 컨트롤을
+     숨기는 데 쓴다. 옛 응답엔 없어 선택이다 */
+  is_demo?: boolean
 }
 
 /* 설정 > 사용자·권한 (A4) */

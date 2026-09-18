@@ -39,6 +39,11 @@ def signup(
         if caller.role != "admin":
             raise HTTPException(http.HTTP_403_FORBIDDEN, "계정 생성은 admin 만 할 수 있습니다")
 
+    # 시연 잠금 계정(심사위원 데모)은 admin 이라도 사용자를 만들 수 없다 — 사용자 관리
+    # 전체를 데모 계정에서 차단한다 (update_user 의 행위자 가드와 짝).
+    if caller is not None and is_demo_locked(caller.email):
+        raise HTTPException(http.HTTP_403_FORBIDDEN, "시연 계정은 사용자 관리를 할 수 없습니다")
+
     # 역할 지정은 admin 만 할 수 있다. 그 외에는 member 로 만든다.
     role = body.role if (caller and caller.role == "admin") else "member"
     row = User(
@@ -72,7 +77,10 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
-    return UserOut.model_validate(user)
+    out = UserOut.model_validate(user)
+    # 프론트가 시연 계정에서 사용자·권한 컨트롤을 숨기도록 플래그를 실어 보낸다.
+    out.is_demo = is_demo_locked(user.email)
+    return out
 
 
 @router.patch("/me", response_model=UserOut)

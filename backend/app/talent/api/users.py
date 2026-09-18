@@ -62,7 +62,17 @@ def update_user(
     자신이든 남이든 같은 규칙이다 — "자기 강등 금지"로 쪼개면 admin 이 둘일 때의
     정당한 조작까지 막고, 정작 마지막 한 명을 남이 강등하는 경로는 열려 있다.
     막아야 하는 것은 **아무도 admin 이 아닌 상태**뿐이다.
+
+    **시연 잠금 계정(심사위원 데모)은 admin 이라도 사용자 관리를 못 한다** — 판정을
+    돌려 보는 계정이 진짜 관리자를 강등·비활성화해 계정을 잠가버리는 사고를 막는다.
+    #333 은 데모 계정을 *대상* 으로 한 변경을 막았고, 여기서는 데모 계정이 *행위자*
+    로서 남을 바꾸는 것을 막는다.
     """
+    if is_demo_locked(actor.email):
+        raise HTTPException(
+            HTTPStatus.FORBIDDEN, "시연 계정은 사용자 관리를 할 수 없습니다"
+        )
+
     target = PgTalentRepository(db).get_user(user_id)
     if target is None:
         raise HTTPException(HTTPStatus.NOT_FOUND, "사용자를 찾을 수 없습니다")
