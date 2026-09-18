@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.shared import mail
 from app.db import get_db
 from app.deps import get_current_user
+from app.hiring.company import get_profile
 from app.main import app
 from app.models import EmailLog, EmailTemplate, User
 
@@ -126,6 +127,18 @@ class TestPreview:
         assert application.name in body
         assert "{지원자명}" not in body
         assert f"채용 담당자 {admin_user.name} 드림" in body
+
+    def test_회사명은_DB_값을_쓴다(self, as_user, admin_user, application, db):
+        """단계 메일과 같은 곳(company_profile)에서 얻는다 — 환경변수를 바로 읽으면
+        수동 메일만 다른 회사명으로 나갔다 (2026-09-17 운영 점검)."""
+        get_profile(db).name = "코드브릿지"
+        db.flush()
+        res = as_user(admin_user).get(
+            f"/api/v1/applications/{application.id}/emails/preview?stage=interview"
+        )
+        out = res.json()
+        assert "코드브릿지" in out["subject"] + out["body"]
+        assert f"코드브릿지 채용 담당자 {admin_user.name} 드림" in out["body"]
 
 
 class TestManualSend:

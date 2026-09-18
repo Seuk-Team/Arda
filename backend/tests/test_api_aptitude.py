@@ -23,6 +23,7 @@ from app.shared import mail
 from app.application.aptitude_questions import QUESTION_KEYS, QUESTIONS
 from app.db import get_db
 from app.deps import get_current_user
+from app.hiring.company import get_profile
 from app.main import app
 from app.models import (
     Application,
@@ -118,6 +119,22 @@ class TestSend:
         assert log.status == "queued"
         assert session.token in log.body  # 링크가 본문에 실린다
         assert "불이익이 없습니다" in log.body  # ADR-0027 결정 4 의 문구
+
+    def test_mail_uses_company_name_from_db(
+        self, as_user, admin_user, posting, application, db: Session
+    ):
+        """회사명은 company_profile 이 먼저다 — 환경변수를 바로 읽어서 이 메일만
+        [Seuk], 단계 메일은 [코드브릿지] 로 갈렸다 (2026-09-17 운영 점검)."""
+        get_profile(db).name = "코드브릿지"
+        db.flush()
+        as_user(admin_user).post(f"/api/v1/postings/{posting.id}/aptitude/send")
+
+        log = db.scalar(
+            select(EmailLog).where(EmailLog.application_id == application.id)
+        )
+        assert log.subject.startswith("[코드브릿지] ")
+        assert "코드브릿지 " in log.body
+        assert "Arda" not in log.subject + log.body  # 시험의 환경변수 값
 
     def test_bulk_send_skips_already_sent_and_late_stages(
         self, as_user, admin_user, posting, application, db: Session

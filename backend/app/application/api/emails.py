@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.shared import mail
 from app.db import get_db
 from app.deps import get_current_user, require_roles
+from app.hiring.company import name_for
 from app.models import (
     TEMPLATE_STAGES,
     Application,
@@ -158,12 +159,14 @@ def _application(db: Session, application_id: int) -> Application:
 
 def _values(db: Session, application: Application, actor: User, stage: str) -> dict:
     posting = PgHiringRepository(db).get_posting(application.job_posting_id)
+    # 단계 메일(`mail.render`)과 같은 곳에서 회사명을 얻는다 — DB 먼저, 없으면 환경변수
+    company_name = name_for(db)
     return {
         "지원자명": application.name,
         "공고명": posting.title if posting else "",
-        "회사명": mail.COMPANY_NAME,
+        "회사명": company_name,
         "면접일시": mail.INTERVIEW_AT_UNKNOWN,
-        "서명": mail.build_signature(stage, "human", actor.name),
+        "서명": mail.build_signature(stage, "human", actor.name, company_name=company_name),
     }
 
 
