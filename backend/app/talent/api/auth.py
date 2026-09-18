@@ -12,7 +12,13 @@ from app.schemas.auth import (
     TokenResponse,
     UserOut,
 )
-from app.security import APP_ENV, create_access_token, hash_password, verify_password
+from app.security import (
+    APP_ENV,
+    create_access_token,
+    hash_password,
+    is_demo_locked,
+    verify_password,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -85,6 +91,12 @@ def update_me(
     있게 두면 자리를 비운 사이 화면을 잡은 사람이 계정을 통째로 가져간다.
     """
     if body.new_password is not None:
+        # 시연 잠금 계정(DEMO_LOCKED_EMAILS) — 심사위원 자동 로그인이 걸린 계정은 비밀번호를
+        # 못 바꾼다. 현재 비밀번호를 맞혔더라도 막는다(맞히는 건 버튼 하나면 되니까).
+        if is_demo_locked(user.email):
+            raise HTTPException(
+                http.HTTP_403_FORBIDDEN, "시연 계정의 비밀번호는 바꿀 수 없습니다"
+            )
         if not verify_password(body.current_password or "", user.password_hash):
             raise HTTPException(
                 http.HTTP_401_UNAUTHORIZED, "현재 비밀번호가 올바르지 않습니다"
