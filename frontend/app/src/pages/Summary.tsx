@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { stages as stagesApi, summary as summaryApi } from '../api/endpoints'
 import type { Stage, SummaryApplicant, SummaryPosting } from '../api/types'
+import AccountMenu from '../components/AccountMenu'
 import styles from './Summary.module.css'
 
 /* ai_summary 는 프로덕션 DB 에 JSON 문자열로 저장돼 있다 (요약 프롬프트가 구조화된
@@ -76,8 +77,12 @@ export default function Summary() {
   return (
     <div className={styles.page}>
       <header className={styles.head}>
-        <h1 className={styles.title}>종합 평가</h1>
-        <p className={styles.sub}>공고별 지원자 · 서류 + 면접 자동 점수 · 종합 등급 · 요약</p>
+        <div className={styles.headText}>
+          <h1 className={styles.title}>종합 평가</h1>
+          <p className={styles.sub}>공고별 지원자 · 서류 + 면접 자동 점수 · 종합 등급 · 요약</p>
+        </div>
+        {/* 다른 화면(PageHead)과 같은 자리에 계정 메뉴 — 여긴 자체 헤더라 빠져 있었다 */}
+        <AccountMenu />
       </header>
 
       {state.kind === 'loading' && <p className={styles.state}>불러오는 중…</p>}
