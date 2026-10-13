@@ -124,6 +124,12 @@ class _InterviewScreenState extends State<InterviewScreen>
   StreamSubscription<Uint8List>? _audio;
   StreamSubscription<Uint8List>? _video;
 
+  /// 얼굴이 실제로 나가고 있는지 되보는 시계. [_watchFrames] 참고
+  Timer? _frameWatch;
+  int _framesSeen = 0;
+  int _frameRetries = 0;
+  static const int _frameRetryMax = 10;
+
   LivePhase? _phase;
 
   /// 다시 붙어 본 횟수. **한없이 시도하지 않는다** — 서버가 정말 죽었으면
@@ -410,6 +416,46 @@ class _InterviewScreenState extends State<InterviewScreen>
       onDone: () => _video = null,
       cancelOnError: false,
     );
+    _watchFrames();
+  }
+
+  /// 얼굴이 실제로 나가는지 **4초마다 되본다**. 안 나가면 다시 잇는다 (2026-10-13).
+  ///
+  /// **구독이 살아 있는 것과 프레임이 나가는 것은 다르다.** 플러그인의 이미지
+  /// 스트림이 멈춘 채로 구독만 남으면 `onDone` 이 안 오고, 그러면 `_video == null`
+  /// 을 보는 재연결 경로가 영영 안 걸린다. 10-13 리허설에서 소리만 가고 얼굴이
+  /// 한 장도 안 간 것이 이 상태였고, 앱을 껐다 켜도 안 풀렸다.
+  ///
+  /// 원인 하나([CameraService] 의 start/stop 겹침)는 그쪽에서 막았지만, **면접
+  /// 중에 얼굴이 끊기면 담당자는 복구할 길이 없다.** 그래서 밖에서 한 겹 더 본다 —
+  /// 재는 값은 지원자 화면이 이미 보여 주고 있는 `framesSent` 다.
+  ///
+  /// 한 장이라도 나가면 실패 횟수를 0 으로 되돌린다. 열 번 연속 실패하면 멈춘다 —
+  /// 그 기기는 이미지 스트림 자체를 못 주는 것이라 더 눌러도 소용이 없다.
+  void _watchFrames() {
+    _frameWatch?.cancel();
+    _framesSeen = _camera.framesSent;
+    _frameWatch = Timer.periodic(const Duration(seconds: 4), (timer) {
+      final socket = _socket;
+      if (!mounted || socket == null) {
+        timer.cancel();
+        return;
+      }
+      if (_camera.status != CameraStatus.live) return;
+
+      final sent = _camera.framesSent;
+      if (sent != _framesSeen) {
+        _framesSeen = sent;
+        _frameRetries = 0;
+        return;
+      }
+      if (_frameRetries >= _frameRetryMax) {
+        timer.cancel();
+        return;
+      }
+      _frameRetries++;
+      _attachFrames(socket); // 타이머도 여기서 새로 걸린다
+    });
   }
 
   /// 끊긴 소켓을 다시 잇는다. **마이크·카메라는 놓지 않는다.**
@@ -520,6 +566,10 @@ class _InterviewScreenState extends State<InterviewScreen>
     _video = null;
     _events = null;
     _socket = null;
+    // 끝난 면접에 얼굴을 다시 이으려 들지 않게 시계부터 멈춘다
+    _frameWatch?.cancel();
+    _frameWatch = null;
+    _frameRetries = 0;
 
     audio?.cancel().ignore();
     video?.cancel().ignore();
