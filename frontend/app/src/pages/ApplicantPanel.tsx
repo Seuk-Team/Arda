@@ -1352,9 +1352,39 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
   const [sendingMail, setSendingMail] = useState<Record<number, boolean>>({})
   const [sentMail, setSentMail] = useState<Record<number, boolean>>({})
 
+  /* 담당자가 입력칸을 건드린 세션. 서버 질문으로 덮어쓰지 않는다 (2026-10-13) */
+  const touchedQ = useRef<Record<number, boolean>>({})
+
+  /** 서버에 이미 저장된 질문을 입력칸으로 가져온다 (2026-10-13).
+   *
+   * **없으면 담당자가 질문을 못 본다.** 「AI 면접 만들기」는 이력서를 읽고 맞춤
+   * 질문을 만들어 두는데(`_seed_questions_bg`), 입력칸은 로컬 state 만 보고 있어서
+   * 늘 비어 있었다 — 담당자는 만들기가 실패한 줄 알고, 자동 생성된 질문을 보지도
+   * 못한 채 자기 질문으로 덮어썼다(10-13 전 구간 점검에서 발견).
+   *
+   * 담당자가 이미 고쳐 쓰고 있는 칸은 건드리지 않는다. */
+  const seedQuestions = useCallback(async (list: InterviewSession[]) => {
+    const open = list.filter((s) => s.status !== 'done' && s.status !== 'expired')
+    for (const s of open) {
+      if (touchedQ.current[s.id]) continue
+      try {
+        const detail = await interviewsApi.detail(s.id)
+        const text = (detail.turns ?? []).map((t) => t.question).join('\n')
+        if (!text) continue
+        setQuestions((prev) => (touchedQ.current[s.id] ? prev : { ...prev, [s.id]: text }))
+      } catch {
+        /* 못 읽으면 입력칸이 비어 있을 뿐이다 — 담당자가 직접 쓰면 된다 */
+      }
+    }
+  }, [])
+
   const load = useCallback(async () => {
-    try { setSessions(await interviewsApi.list(applicationId)) } catch { setSessions([]) }
-  }, [applicationId])
+    try {
+      const list = await interviewsApi.list(applicationId)
+      setSessions(list)
+      void seedQuestions(list)
+    } catch { setSessions([]) }
+  }, [applicationId, seedQuestions])
 
   useEffect(() => { void load() }, [load])
 
@@ -1366,7 +1396,14 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
 
   async function create() {
     setCreating(true); setErr(null)
-    try { await interviewsApi.create(applicationId); await load() }
+    try {
+      await interviewsApi.create(applicationId)
+      await load()
+      /* 맞춤 질문은 **뒤에서** 만들어진다(`_seed_questions_bg`). 방금 읽은 것은
+         폴백 3개일 수 있어, 몇 초 뒤 한 번 더 읽어 입력칸을 맞춘다. 담당자가
+         그 사이에 손을 댔으면 그 칸은 건드리지 않는다. */
+      window.setTimeout(() => { void load() }, 6000)
+    }
     catch (e) { setErr(e instanceof ApiError ? e.message : 'AI 면접을 만들지 못했습니다') }
     finally { setCreating(false) }
   }
@@ -1530,7 +1567,11 @@ function InterviewSection({ applicationId, onStatus }: { applicationId: number; 
                   }
                   value={questions[s.id] ?? ''}
                   disabled={savingQ[s.id]}
-                  onChange={(e) => setQuestions((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                  onChange={(e) => {
+                    /* 담당자가 손을 댄 칸은 서버 질문으로 덮어쓰지 않는다 */
+                    touchedQ.current[s.id] = true
+                    setQuestions((prev) => ({ ...prev, [s.id]: e.target.value }))
+                  }}
                 />
                 <div className={styles.actions}>
                   <button type="button" className="btn" disabled={savingQ[s.id]}
