@@ -723,6 +723,62 @@ class _InterviewScreenState extends State<InterviewScreen>
 /// 미리보기 상자. 켜지는 중·거부·실패까지 여기서 다 그린다 —
 /// **꺼진 것을 조용히 넘기지 않는다.** 카메라가 죽은 줄 모르고 말하면
 /// 그 면접은 다시 볼 수 없다
+/// 지금까지 서버로 보낸 얼굴 장수. [CameraService] 가 세고 있던 값을 꺼내 보인다.
+///
+/// 1초마다 다시 그린다 — 프레임마다 `setState` 를 때리면 초당 10번이라 아깝다.
+class _FrameCount extends StatefulWidget {
+  const _FrameCount({required this.camera});
+
+  final CameraService camera;
+
+  @override
+  State<_FrameCount> createState() => _FrameCountState();
+}
+
+class _FrameCountState extends State<_FrameCount> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sent = widget.camera.framesSent;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.s2,
+        vertical: AppSpace.s1,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.bgChrome,
+        borderRadius: AppShape.pill,
+        border: Border.all(color: AppColors.border, width: AppShape.borderW),
+      ),
+      child: Text(
+        '얼굴 $sent장',
+        style: const TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.caption,
+          fontWeight: AppType.wSemiBold,
+          color: AppColors.textSub,
+          fontFeatures: AppType.tabularNums,
+        ),
+      ),
+    );
+  }
+}
+
 class _CameraBox extends StatelessWidget {
   const _CameraBox({required this.camera});
 
@@ -750,6 +806,17 @@ class _CameraBox extends StatelessWidget {
                   left: AppSpace.s3,
                   top: AppSpace.s3,
                   child: _LiveDot(),
+                ),
+                // **얼굴이 실제로 나가는지 숫자로 보여 준다** (2026-10-13).
+                //
+                // 미리보기가 나오는 것과 프레임이 서버로 가는 것은 **다른 일**이다.
+                // 10-13 리허설에서 얼굴은 멀쩡히 보이는데 한 장도 안 나가고 있었고,
+                // 화면에 아무 표시가 없어 그걸 가리는 데만 한 시간을 썼다. 0 에서
+                // 안 움직이면 지원자도 담당자도 그 자리에서 안다.
+                Positioned(
+                  right: AppSpace.s3,
+                  top: AppSpace.s3,
+                  child: _FrameCount(camera: camera),
                 ),
               ],
             ),
