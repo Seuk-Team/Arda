@@ -198,6 +198,24 @@ class _InterviewScreenState extends State<InterviewScreen>
   }
 
   void _onCamera() {
+    /* **카메라가 소켓보다 늦게 열리면 얼굴이 영영 안 간다** (2026-10-13 실측).
+
+       `_attachFrames` 는 소켓이 열리는 순간 불리는데, 그때 카메라 컨트롤러가 아직
+       초기화 중이면 `CameraService.frames()` 가 스트림을 **그냥 닫는다**(소리만으로도
+       면접은 도니까 오류로 만들지 않는 쪽을 골랐다). 닫히면 `_video` 가 null 이 되고,
+       그 뒤 카메라가 살아나도 다시 잇는 곳이 없었다 — 앱을 뒤로 보냈다 돌아오는
+       경로(`didChangeAppLifecycleState`)가 유일했다.
+
+       증상은 조용하다: 받아쓰기·질문·채점은 멀쩡하고 **표정·음성 판정만 0건**이라
+       종합 평가의 실시간 분석 칸이 빈다. 판정 서버 `/health` 로 재 보면 웹 지원자는
+       `recv` 가 오르는데 앱은 한 장도 안 올라간다.
+
+       그래서 카메라가 `live` 가 된 순간 다시 잇는다. `_attachFrames` 가 앞의
+       구독을 취소하므로 두 번 불려도 겹치지 않는다. */
+    final socket = _socket;
+    if (socket != null && _video == null && _camera.status == CameraStatus.live) {
+      _attachFrames(socket);
+    }
     if (mounted) setState(() {});
   }
 
