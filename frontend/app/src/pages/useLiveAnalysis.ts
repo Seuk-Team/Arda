@@ -282,52 +282,72 @@ export function useLiveAnalysis(
       connect()
 
       /* 오디오 — 상대 소리를 그대로 PCM 으로 옮긴다. **스피커로 내보내지 않는다**:
-         소리는 `<video>` 가 이미 내고 있어서, 여기서 또 내면 두 번 들린다. */
-      const audio = new AudioContext({ sampleRate: SR })
-      ctx = audio
-      const blobUrl = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }))
-      try {
-        await audio.audioWorklet.addModule(blobUrl)
-      } catch {
-        if (!aliveRef.current) return
-        setState((s) => ({ ...s, error: '소리를 분석에 넘기지 못했습니다' }))
-        return
-      } finally {
-        URL.revokeObjectURL(blobUrl)
-      }
+         소리는 `<video>` 가 이미 내고 있어서, 여기서 또 내면 두 번 들린다.
+
+         **소리 트랙이 없는 상대가 있다** (2026-10-13). 앱(`interview_live_screen.dart`)
+         은 WebRTC 를 `audio: false` 로 연다 — 안드로이드가 마이크를 하나만 줘서,
+         지원자 소리는 앱이 워커로 직접 보내고 담당자에게는 **영상만** 온다.
+
+         그 스트림으로 `createMediaStreamSource` 를 부르면
+         `InvalidStateError: MediaStream has no audio track` 이 나는데, 그 예외가
+         **아래 얼굴 전송 루프까지 통째로 날렸다.** 담당자 화면이 "지원자가 말하기
+         시작하면…" 에서 영영 멈춘 원인이 이것이다 — 웹 지원자는 소리 트랙이 있어서
+         멀쩡하고 **앱 지원자일 때만** 그랬다(10-13 실측).
+
+         소리가 없으면 소리만 건너뛴다. 얼굴은 보내야 한다 — 그 토큰의 판정은
+         앱이 보내는 소리와 여기서 보내는 얼굴을 서버가 묶어서 낸다. */
+      const hasAudio = stream.getAudioTracks().length > 0
+      if (hasAudio) await setUpAudio()
       if (!aliveRef.current) return
 
-      /* **크롬은 페이지를 한 번도 누르지 않았으면 소리 장치를 멈춘 채로 만든다**
-         (자동재생 정책). 면접방 주소를 새 탭에 붙여 열면 그렇다 — 그러면 지원자
-         소리가 분석으로 한 조각도 안 가서 판정이 영영 안 뜬다(2026-09-11 실측:
-         "말하기 시작하면…" 에서 멈춤). 바로 깨워 보고, 안 깨면 첫 클릭·키에 깨운다.
-         멈춰 있는 동안은 화면이 "한 번 누르세요" 를 띄운다(`audioBlocked`). */
-      const wake = () => {
-        if (audio.state === 'suspended') void audio.resume().catch(() => {})
-      }
-      audio.onstatechange = () => {
+      async function setUpAudio() {
+        const audio = new AudioContext({ sampleRate: SR })
+        ctx = audio
+        const blobUrl = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }))
+        try {
+          await audio.audioWorklet.addModule(blobUrl)
+        } catch {
+          if (!aliveRef.current) return
+          /* **영상까지 멈추지는 않는다** — 얼굴만으로도 담당자가 볼 것이 있다 */
+          setState((s) => ({ ...s, error: '소리를 분석에 넘기지 못했습니다' }))
+          return
+        } finally {
+          URL.revokeObjectURL(blobUrl)
+        }
         if (!aliveRef.current) return
-        setState((s) => ({ ...s, audioBlocked: audio.state === 'suspended' }))
-      }
-      window.addEventListener('pointerdown', wake)
-      window.addEventListener('keydown', wake)
-      stopWaking = () => {
-        window.removeEventListener('pointerdown', wake)
-        window.removeEventListener('keydown', wake)
-        audio.onstatechange = null
-      }
-      wake()
-      setState((s) => ({ ...s, audioBlocked: audio.state === 'suspended' }))
 
-      const node = new AudioWorkletNode(audio, 'pcm')
-      node.port.onmessage = (e) => {
-        if (ws) sendMedia(ws, KIND_AUDIO, e.data as ArrayBuffer)
+        /* **크롬은 페이지를 한 번도 누르지 않았으면 소리 장치를 멈춘 채로 만든다**
+           (자동재생 정책). 면접방 주소를 새 탭에 붙여 열면 그렇다 — 그러면 지원자
+           소리가 분석으로 한 조각도 안 가서 판정이 영영 안 뜬다(2026-09-11 실측:
+           "말하기 시작하면…" 에서 멈춤). 바로 깨워 보고, 안 깨면 첫 클릭·키에 깨운다.
+           멈춰 있는 동안은 화면이 "한 번 누르세요" 를 띄운다(`audioBlocked`). */
+        const wake = () => {
+          if (audio.state === 'suspended') void audio.resume().catch(() => {})
+        }
+        audio.onstatechange = () => {
+          if (!aliveRef.current) return
+          setState((s) => ({ ...s, audioBlocked: audio.state === 'suspended' }))
+        }
+        window.addEventListener('pointerdown', wake)
+        window.addEventListener('keydown', wake)
+        stopWaking = () => {
+          window.removeEventListener('pointerdown', wake)
+          window.removeEventListener('keydown', wake)
+          audio.onstatechange = null
+        }
+        wake()
+        setState((s) => ({ ...s, audioBlocked: audio.state === 'suspended' }))
+
+        const node = new AudioWorkletNode(audio, 'pcm')
+        node.port.onmessage = (e) => {
+          if (ws) sendMedia(ws, KIND_AUDIO, e.data as ArrayBuffer)
+        }
+        audio.createMediaStreamSource(stream).connect(node)
+        /* 워크릿에 목적지가 없으면 브라우저가 그래프를 안 돌린다. 소리는 죽여 둔다. */
+        const mute = audio.createGain()
+        mute.gain.value = 0
+        node.connect(mute).connect(audio.destination)
       }
-      audio.createMediaStreamSource(stream).connect(node)
-      /* 워크릿에 목적지가 없으면 브라우저가 그래프를 안 돌린다. 소리는 죽여 둔다. */
-      const mute = audio.createGain()
-      mute.gain.value = 0
-      node.connect(mute).connect(audio.destination)
 
       /* 영상 — 화면에 그려진 것이 아니라 **스트림에서 직접** 뽑는다.
          화면의 `<video>` 를 읽으면 그 요소가 언제 붙는지에 매이고, 채용자가
