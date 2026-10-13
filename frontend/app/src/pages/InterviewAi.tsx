@@ -241,12 +241,20 @@ function ConsentPanel({ busy, onAgree }: { busy: boolean; onAgree: () => void })
       {/* AI 를 쓴다는 것을 지원자에게 알린다 — 질문·답변 정리에 AI, 카메라·마이크는
           본인 확인과 기록, 표정·음성 분석은 참고 신호, 합격 여부는 사람. AI 이용정책
           (고위험 용도: 고지 + 사람 검토)과 개인정보 동의가 요구하는 것이다. 앱
-          (interview_live_screen.dart) 과 같은 내용. */}
+          (interview_live_screen.dart) 과 같은 내용.
+
+          「기기 밖으로 나간다」와 무엇이 남는지까지 적는다 (2026-10-13, 앱과 맞춤).
+          이 화면은 얼굴 프레임과 음성을 소켓으로 서버에 보낸다(useAiInterview).
+          영상은 쌓지 않고 버리며(lie-detection interview_ws.add_frame), 음성은
+          받아쓰기에 실패한 회차만 남는다(preserve_audio). 그 음성을 다시 받아쓰게
+          하면 외부 전사 서비스로 나갈 수 있다(backend agent/stt.py 기본값 openai). */}
       <p className={styles.help}>
         면접이 시작되면 <strong>카메라와 마이크가 켜집니다</strong>. 질문 생성과 답변 정리에
-        AI(아르)가 쓰이고, 담당자가 실시간으로 참여합니다. 카메라·마이크는 본인 확인과 답변
-        기록에 쓰이며, 표정·음성 분석은 참고 신호일 뿐입니다. <strong>합격 여부는 담당자가
-        직접 판단</strong>하고, 면접 내용은 채용 검토 목적으로만 활용됩니다.
+        AI(아르)가 쓰이고, 담당자가 실시간으로 참여합니다. 면접 중 카메라 영상과 마이크 음성은{' '}
+        <strong>회사 서버로 전송</strong>되어 본인 확인과 답변 기록에 쓰이며, 표정·음성 분석은
+        참고 신호일 뿐입니다. 영상은 저장하지 않고, 받아쓰기에 실패한 답변만 음성이 보관되며
+        이때 외부 전사 서비스로 전송될 수 있습니다. <strong>합격 여부는 담당자가 직접
+        판단</strong>하고, 면접 내용은 채용 검토 목적으로만 활용됩니다.
       </p>
       <div className={styles.actions}>
         <button type="button" className="btn btn-primary" disabled={busy} onClick={onAgree}>
