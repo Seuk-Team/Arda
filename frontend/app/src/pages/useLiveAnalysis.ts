@@ -297,10 +297,10 @@ export function useLiveAnalysis(
          소리가 없으면 소리만 건너뛴다. 얼굴은 보내야 한다 — 그 토큰의 판정은
          앱이 보내는 소리와 여기서 보내는 얼굴을 서버가 묶어서 낸다. */
       const hasAudio = stream.getAudioTracks().length > 0
-      if (hasAudio) await setUpAudio()
+      if (hasAudio) await setUpAudio(stream)
       if (!aliveRef.current) return
 
-      async function setUpAudio() {
+      async function setUpAudio(src: MediaStream) {
         const audio = new AudioContext({ sampleRate: SR })
         ctx = audio
         const blobUrl = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }))
@@ -342,7 +342,7 @@ export function useLiveAnalysis(
         node.port.onmessage = (e) => {
           if (ws) sendMedia(ws, KIND_AUDIO, e.data as ArrayBuffer)
         }
-        audio.createMediaStreamSource(stream).connect(node)
+        audio.createMediaStreamSource(src).connect(node)
         /* 워크릿에 목적지가 없으면 브라우저가 그래프를 안 돌린다. 소리는 죽여 둔다. */
         const mute = audio.createGain()
         mute.gain.value = 0
