@@ -36,6 +36,10 @@ import '../data/mic_service.dart';
 import '../models/applicant_portal.dart';
 import '../theme/tokens.dart';
 
+/// 이 빌드의 꼬리표. **APK 를 새로 낼 때마다 올린다** — 폰에 깔린 것이 무엇인지
+/// 화면에서 바로 알 수 있어야 한다(10-13).
+const String liveBuildTag = 'v5';
+
 class InterviewLiveScreen extends StatefulWidget {
   const InterviewLiveScreen({
     super.key,
@@ -114,6 +118,15 @@ class _InterviewLiveScreenState extends State<InterviewLiveScreen> {
 
   /// [답변 완료] 를 눌러 서버 응답(다음 질문·retry·done)을 기다리는 중
   bool _submitting = false;
+
+  /// 마이크 조각이 서버로 가고 있는지 되보는 시계. [_watchMic] 참고
+  Timer? _micWatch;
+  int _micChunks = 0;
+  int _micSeen = 0;
+  int _micRetries = 0;
+  static const int _micRetryMax = 5;
+  static const String _micStuckNote =
+      '마이크 소리가 서버로 가지 않습니다. 면접을 나갔다 다시 들어와 주세요.';
 
   /// 이 시각까지는 마이크 조각 대신 무음을 보낸다 (② 폴백)
   DateTime? _muteUntil;
@@ -255,21 +268,95 @@ class _InterviewLiveScreenState extends State<InterviewLiveScreen> {
     try {
       final pcm = await _mic.start();
       if (!mounted) return;
-      _audio = pcm.listen(
-        (chunk) {
-          // [답변 완료] 직후엔 조각을 무음으로 바꿔 보낸다 (② 폴백)
-          final until = _muteUntil;
-          final muted = until != null && DateTime.now().isBefore(until);
-          _liveSocket?.sendAudio(muted ? Uint8List(chunk.length) : chunk);
-        },
-        onError: (Object _) {},
-        cancelOnError: false,
-      );
+      _listenMic(pcm);
+      _watchMic();
     } on MicUnavailable catch (e) {
       // 마이크가 막혔다. 서버는 소리를 못 들으니 답변이 넘어가지 않는다 —
       // 지원자에게 사유를 그대로 알린다.
       if (!mounted) return;
       setState(() => _liveNote = e.message);
+    }
+  }
+
+  void _listenMic(Stream<Uint8List> pcm) {
+    _audio?.cancel();
+    _audio = pcm.listen(
+      (chunk) {
+        _micChunks++;
+        // [답변 완료] 직후엔 조각을 무음으로 바꿔 보낸다 (② 폴백)
+        final until = _muteUntil;
+        final muted = until != null && DateTime.now().isBefore(until);
+        _liveSocket?.sendAudio(muted ? Uint8List(chunk.length) : chunk);
+      },
+      onError: (Object _) {},
+      cancelOnError: false,
+    );
+  }
+
+  /// 마이크 조각이 **실제로 오고 있는지** 3초마다 되본다. 안 오면 다시 연다
+  /// (2026-10-13).
+  ///
+  /// **열렸다는 것과 조각이 온다는 것은 다르다.** `record` 는 예외 없이 열리는데
+  /// AudioRecord 가 시작 직후 HAL 에서 닫히면 조각이 하나도 안 온다 — 09-15 에
+  /// 적어 둔 그 사고(`PCM_RECORD … stream was closed`)가 이것이다. 그때는
+  /// `InterviewRoomService.start()` 맨 앞에서 오디오 모드를 `media` 로 못 박아
+  /// 막았는데, **피어 연결이 선 뒤에** 모드가 다시 통화용으로 뒤집히면 이미 열린
+  /// 마이크가 그 자리에서 죽는다. 담당자가 방에 먼저 들어와 있으면 앱이 붙는 즉시
+  /// offer/answer 가 오가서 그 순간이 `_mic.start()` 와 겹친다 (10-13 실측:
+  /// 권한·오류·안내 한 줄 전부 없는데 서버 `scored` 가 한 번도 안 올랐다).
+  ///
+  /// 바깥에서 세는 쪽이 확실하다. 조각이 멎으면 **모드를 다시 못 박고 마이크를
+  /// 새로 연다.** 한 조각이라도 오면 실패 횟수를 되돌린다.
+  void _watchMic() {
+    _micWatch?.cancel();
+    _micSeen = _micChunks;
+    _micWatch = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      if (!mounted || _liveSocket == null) {
+        timer.cancel();
+        return;
+      }
+      if (_micChunks != _micSeen) {
+        _micSeen = _micChunks;
+        _micRetries = 0;
+        if (_liveNote == _micStuckNote) setState(() => _liveNote = null);
+        return;
+      }
+      if (_micRetries >= _micRetryMax) {
+        timer.cancel();
+        if (mounted) setState(() => _liveNote = _micStuckNote);
+        return;
+      }
+      _micRetries++;
+      await _reopenMic();
+    });
+  }
+
+  /// 마이크를 놓고 다시 연다. **오디오 모드를 먼저 되돌린다** — 그게 뒤집힌 것이
+  /// 조각이 멎은 이유다.
+  Future<void> _reopenMic() async {
+    try {
+      await AndroidNativeAudioManagement.setAndroidAudioConfiguration(
+        AndroidAudioConfiguration.media,
+      );
+    } on Object {
+      // iOS·시뮬레이터에서는 없는 값이다. 무시하고 마이크만 다시 연다
+    }
+    try {
+      await _audio?.cancel();
+      _audio = null;
+      await _mic.stop();
+      if (!mounted || _liveSocket == null) return;
+      final pcm = await _mic.start();
+      if (!mounted || _liveSocket == null) {
+        await _mic.stop();
+        return;
+      }
+      _listenMic(pcm);
+    } on MicUnavailable catch (e) {
+      if (!mounted) return;
+      setState(() => _liveNote = e.message);
+    } on Object {
+      // 다음 주기에 또 해 본다 — 여기서 멈추면 되살릴 길이 없다
     }
   }
 
@@ -334,6 +421,10 @@ class _InterviewLiveScreenState extends State<InterviewLiveScreen> {
   Future<void> _stopLive() async {
     _submitPoll?.cancel();
     _submitPoll = null;
+    // 끝난 면접에 마이크를 다시 열려 들지 않게 시계부터 멈춘다
+    _micWatch?.cancel();
+    _micWatch = null;
+    _micRetries = 0;
     await _audio?.cancel();
     _audio = null;
     await _mic.stop();
@@ -651,6 +742,17 @@ class _TopStatus extends StatelessWidget {
               fontFamily: AppType.fontFamily,
               fontSize: AppType.sm,
               color: AppColors.text,
+            ),
+          ),
+          /* 빌드 꼬리표 — **새 APK 가 실제로 깔렸는지**를 화면에서 바로 가른다.
+             10-13 에 "새 APK 를 깔았는데 새 표시가 안 보인다" 가 설치 문제인지
+             코드 문제인지 못 갈려 한 번을 더 돌았다. */
+          const Text(
+            '  $liveBuildTag',
+            style: TextStyle(
+              fontFamily: AppType.fontFamily,
+              fontSize: AppType.caption,
+              color: AppColors.textSub,
             ),
           ),
         ],

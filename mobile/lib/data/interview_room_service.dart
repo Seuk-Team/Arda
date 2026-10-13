@@ -338,6 +338,25 @@ class InterviewRoomService extends ChangeNotifier {
     );
     _pc = pc;
 
+    /* **오디오 모드를 여기서 한 번 더 못 박는다** (2026-10-13).
+
+       [start] 맨 앞에서 `media` 로 맞춰 두는데, 피어 연결을 만드는 이 자리에서
+       flutter_webrtc 가 안드로이드 AudioManager 를 다시 통화 모드로 돌린다.
+       그러면 **이미 열려 있던 record 의 AudioRecord 가 그 자리에서 죽어** 조각이
+       한 개도 안 온다 — 예외도 안 나고 권한 문제도 아니라 밖에서는 "말이 안
+       들어간다" 로만 보인다(10-13 실측: 담당자가 방에 먼저 있으면 앱이 붙는 즉시
+       offer 가 와서 이 자리가 `_mic.start()` 와 겹친다).
+
+       화면 쪽에도 되보는 시계를 뒀지만(`interview_live_screen._watchMic`), 원인은
+       여기라 여기서 먼저 막는다. */
+    try {
+      await AndroidNativeAudioManagement.setAndroidAudioConfiguration(
+        AndroidAudioConfiguration.media,
+      );
+    } on Object catch (e) {
+      if (kDebugMode) debugPrint('[rtc] 오디오 세션 재설정 실패(무시): $e');
+    }
+
     // 내 카메라·마이크를 붙인다. 지원자는 [start] 에서 이미 켠 상태.
     final local = _localStream;
     if (local != null) {
