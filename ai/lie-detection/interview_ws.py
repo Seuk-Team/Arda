@@ -533,6 +533,9 @@ class InterviewSession:
         self.answer_started: float | None = None
         # 답변 하나를 끝내는 중(전사 대기 포함). 그 사이 버튼·상한이 겹쳐도 한 번만 끝낸다.
         self.finishing = False
+        # 그 끝내기를 돌리는 태스크 (2026-10-13). 소켓을 막지 않으려고 뒤에서 돌리고,
+        # 소켓이 빠질 때 `app.wait_finish` 가 이것을 기다려 답변을 잃지 않는다.
+        self.finish_task: asyncio.Task | None = None
         self.frames: list = []
         self._frame_count = 0
         # 말하는 동안 굴러가는 판정용. 답변이 끝날 때까지 기다리지 않는다 —

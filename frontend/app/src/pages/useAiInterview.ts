@@ -63,6 +63,9 @@ export function useAiInterview(token: string | null) {
   const socketsRef = useRef<WebSocket[]>([])
   const rtcRef = useRef<RtcSender | null>(null)
   const aliveRef = useRef(true)
+  /* 면접이 끝났거나(done) 이미 오류로 멈췄는가. 그 뒤에 소켓이 닫히는 것은 정상이라
+     `onclose` 가 다시 오류를 띄우지 않게 한다. 상태(phase)는 클로저에 갇혀 못 쓴다. */
+  const endedRef = useRef(false)
 
   const cleanup = useCallback(() => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current)
@@ -88,6 +91,7 @@ export function useAiInterview(token: string | null) {
   useEffect(() => {
     if (!token) return
     aliveRef.current = true
+    endedRef.current = false
 
     ;(async () => {
       /* **소켓에 붙기 전에 동의·시작을 REST 로 끝낸다** (PROTOCOL.md).
@@ -173,10 +177,12 @@ export function useAiInterview(token: string | null) {
             setPhase('waiting')
             break
           case 'done':
+            endedRef.current = true
             setPhase('done')
             setQuestion(null)
             break
           case 'error':
+            endedRef.current = true
             setError(m.message ?? '면접을 진행하지 못했습니다')
             setPhase('error')
             break
@@ -185,6 +191,19 @@ export function useAiInterview(token: string | null) {
       askWs.onerror = () => {
         if (!aliveRef.current) return
         setError('서버에 연결하지 못했습니다')
+        setPhase('error')
+      }
+      /* 서버가 소켓을 닫았는데 면접이 끝난 것이 아니면 **멈춰 있지 않고 알린다**
+         (2026-10-13). 그 전에는 닫힘을 아예 안 봐서 "정리하는 중" 이 영영 남았다 —
+         서버가 전사 중에 keepalive 로 소켓을 끊던 사고(워커 쪽 수정)에서 지원자는
+         새로고침 말고는 알 길이 없었다. 답변은 서버에 저장돼 있어 다시 들어오면
+         안 한 질문부터 이어진다(PROTOCOL.md 「끊겼을 때」). `onerror` 와 달리 이쪽은
+         코드가 온다 — 1011 은 서버가 버거운 것, 1006 은 망이 끊긴 것. */
+      askWs.onclose = (e) => {
+        if (!aliveRef.current || endedRef.current) return
+        setError(
+          `서버와 연결이 끊겼습니다 (${e.code}). 새로고침하면 답한 데까지 이어집니다`,
+        )
         setPhase('error')
       }
 
@@ -239,6 +258,7 @@ export function useAiInterview(token: string | null) {
      여기서 또 부르면 두 번이 되는데, 서버가 이미 `done` 이면 그대로 200 을
      주므로 해가 없다 — 그래도 화면이 부르는 것은 **중도 종료뿐**이다. */
   const leave = useCallback(() => {
+    endedRef.current = true
     cleanup()
     setPhase('done')
     if (token) {
