@@ -8,6 +8,8 @@ import type {
   Publication,
   Note,
   Posting,
+  PostingCreate,
+  PostingPublicLink,
   PostingStatus,
   Interview,
   ScheduleStatus,
@@ -95,6 +97,13 @@ export const postings = {
      보낸 필드만 반영되고(exclude_unset) 응답은 바뀐 공고 전체다. 집계는 실리지 않는다 */
   update: (id: number, body: { status?: PostingStatus; deadline?: string | null }) =>
     api.patch<Posting>(`/postings/${id}`, body),
+
+  /* 공고 등록 (POST /postings). 201 로 만들어진 공고 전체를 돌려준다 */
+  create: (body: PostingCreate) => api.post<Posting>('/postings', body),
+
+  /* 공개 지원 링크 발급 (POST /postings/{id}/public-link).
+     부를 때마다 토큰을 새로 만들고 이전 링크는 죽는다 — 재발급은 사용자가 알고 눌러야 한다 */
+  publicLink: (id: number) => api.post<PostingPublicLink>(`/postings/${id}/public-link`, {}),
 }
 
 interface SearchQuery {

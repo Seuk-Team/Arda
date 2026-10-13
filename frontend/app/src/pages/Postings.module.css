@@ -52,7 +52,7 @@
 }
 
 .table tbody tr:hover {
-  background: var(--bg-sunken);
+  background: var(--bg-elev);
 }
 
 /* 공고명에 색을 주지 않는다 — 다른 화면의 표(지원자·평가·면접 일정)와 같은 규격이고,
@@ -110,7 +110,7 @@
   gap: var(--sp-2);
 }
 
-.card:hover { background: var(--bg-sunken); }
+.card:hover { background: var(--bg-elev); }
 
 .cardTop {
   display: flex;
@@ -191,4 +191,125 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.addBtn:hover { background: var(--bg-sunken); }
+.addBtn:hover { background: var(--bg-elev); }
+
+/* ── 공고 등록 모달 ─────────────────────────────────
+   Settings 의 사용자 추가 모달과 같은 규격이다. 두 화면이 다르게 생기면
+   "같은 종류의 창"이라는 신호가 깨진다. */
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: var(--scrim);
+}
+
+.modal {
+  width: min(520px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  border-radius: var(--r-card);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-overlay);
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.field label {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-ctl);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-body);
+}
+
+.textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -1px;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+/* 마감일과 통과 기준은 짧은 값이라 한 줄에 둔다. 좁아지면 쌓인다 */
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+@media (max-width: 560px) {
+  .row { grid-template-columns: 1fr; }
+}
+
+.check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2);
+  align-items: start;
+  font-size: var(--font-body);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.check input { margin-top: 4px; }
+
+.checkHint {
+  display: block;
+  font-style: normal;
+  font-size: var(--font-caption);
+  color: var(--text-sub);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.doneTitle {
+  margin: 0;
+  font-size: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+}

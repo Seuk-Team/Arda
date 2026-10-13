@@ -70,6 +70,29 @@ export interface Posting {
   /* 서버가 응답 시점에 계산해 준다. 마감일이 없으면 null, 지났으면 음수 */
   d_day: number | null
   stage_counts?: Record<string, number>
+  /* 자동 심사 (ADR-0034). manual 이면 아르가 단계를 옮기지 않고 담당자가 직접 옮긴다 */
+  pass_threshold?: number
+  screening_mode?: ScreeningMode
+}
+
+export type ScreeningMode = 'auto' | 'manual'
+
+/* POST /postings 본문. 서버 기본값과 같은 값을 프론트도 갖고 있으면 두 곳이 어긋나므로,
+   화면에서 안 받는 필드(interviewer_ids)는 아예 보내지 않고 서버 기본값에 맡긴다 */
+export interface PostingCreate {
+  title: string
+  description?: string | null
+  status?: PostingStatus
+  deadline?: string | null // YYYY-MM-DD. null = 상시 접수
+  pass_threshold?: number
+  screening_mode?: ScreeningMode
+}
+
+/* POST /postings/{id}/public-link 응답. 부를 때마다 토큰을 새로 발급한다 —
+   이전 링크는 그 순간 죽으므로 화면에서도 "다시 발급"임을 알려야 한다 */
+export interface PostingPublicLink {
+  public_token: string
+  url: string
 }
 
 /* 단계 코드. 01-erd.md 의 applications.current_stage 와 같은 값 */
