@@ -160,13 +160,23 @@ void main() {
       expect(find.text('촬영 중'), findsNothing);
     });
 
-    testWidgets('안내에 카메라 이야기가 있다 — 실제 동작과 맞아야 한다', (tester) async {
+    testWidgets('안내가 기기 밖으로 나가는 것을 말한다 — 실제 동작과 맞아야 한다', (tester) async {
       usePhone(tester);
       final h = host();
       await tester.pumpWidget(h.widget);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('카메라가 켜져 있습니다'), findsOneWidget);
+      // **"카메라가 켜진다" 만으로는 모자란다.** 화면에 미리보기가 보이는 것과
+      // 그 영상이 서버로 간다는 것은 다른 이야기이고, 구글 플레이의 민감 권한
+      // 사전 고지가 요구하는 것은 뒤쪽이다. 여기서 확인하는 것은 문구의 존재가
+      // 아니라 **고지의 범위**다 — 셋 중 하나라도 빠지면 실제 동작과 어긋난다.
+      expect(find.textContaining('카메라 영상과 마이크 음성'), findsOneWidget);
+      expect(find.textContaining('회사 서버로 전송'), findsOneWidget);
+      expect(find.textContaining('영상은 저장하지 않습니다'), findsOneWidget);
+
+      // 받아쓰기 실패분만 음성이 남고 그때 외부로 나갈 수 있다는 예외까지
+      // 적혀 있어야 한다 — 이걸 빼면 "저장하지 않습니다" 가 거짓이 된다.
+      expect(find.textContaining('외부 전사'), findsOneWidget);
     });
 
     testWidgets('동의하면 바로 카메라를 켠다', (tester) async {
