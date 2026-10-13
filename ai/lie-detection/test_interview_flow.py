@@ -43,10 +43,16 @@ def _session(questions=QUESTIONS) -> iw.InterviewSession:
 
 
 async def _speak(ws, session):
-    """말하고 [답변 완료] 를 누른다. **답변은 이 버튼으로만 끝난다** (2026-09-15)."""
+    """말하고 [답변 완료] 를 누른 뒤 **끝내기가 돌아올 때까지** 기다린다.
+
+    답변은 이 버튼으로만 끝난다(2026-09-15). 끝내기는 2026-10-13 부터 뒤에서 돌므로
+    (`_finish_answer` 주석 — 소켓을 막지 않으려고) 버튼 핸들러는 바로 돌아오고, 결과는
+    `wait_finish` 뒤에 본다. 소켓이 빠질 때 `_pump` 가 하는 것과 같다.
+    """
     for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
         session.add_audio(LOUD)
-    return await srv._on_text(ws, None, session, '{"type": "end"}')
+    await srv._on_text(ws, None, session, '{"type": "end"}')
+    await srv.wait_finish(session)
 
 
 async def _pause(ws, session):
@@ -311,6 +317,7 @@ class TestOnlyButtonEnds:
             s.add_audio(LOUD)                        # 첫 말
             await asyncio.sleep(0.25)
             await srv._on_binary(ws, None, s, bytes([srv.KIND_AUDIO]) + LOUD)
+            await srv.wait_finish(s)
             assert ws.sent[-1] == {"type": "question", "seq": 2, "text": "둘째 질문"}
             assert iw.ANSWER_STATS["by_limit"] == before + 1
             assert saved == [(1, "답변입니다")]
@@ -537,3 +544,133 @@ class TestTwoSocketsOneSession:
         )
 
         assert session.frame_stats["recv"] == 1
+
+
+class TestSocketStaysAliveWhileTranscribing:
+    """전사하는 동안 소켓을 막지 않는다 (2026-10-13).
+
+    전에는 [답변 완료] 핸들러가 전사를 그 자리에서 기다려 `_pump` 가 `receive()` 를
+    못 불렀다. uvicorn(websockets-sansio) 은 앱이 읽지 않는 동안 소켓 읽기를 멈추고,
+    그 사이 keepalive pong 도 못 읽어 20초 뒤 `1011 keepalive ping timeout` 으로
+    끊는다. 운영(2 vCPU 로컬 전사 30~100초)에서 [답변 완료] 뒤 20~40초에 지원자
+    소켓이 죽고 웹은 "정리하는 중" 에 멈췄다 — 10-13 세션 5건 전부.
+    """
+
+    class _PumpWS(FakeWS):
+        """`_pump` 가 읽을 메시지를 미리 넣어 두는 소켓."""
+
+        def __init__(self, messages):
+            super().__init__()
+            self.queue: asyncio.Queue = asyncio.Queue()
+            for m in messages:
+                self.queue.put_nowait(m)
+
+        async def receive(self):
+            return await self.queue.get()
+
+    def setup_method(self):
+        srv._SESSIONS.clear()
+        srv._SESSION_REFS.clear()
+
+    def test_버튼_핸들러는_전사를_기다리지_않고_돌아온다(self, monkeypatch, saved):
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _stt("답변입니다", delay=0.3))
+            ws, s = FakeWS(), _session()
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            t = time.monotonic()
+            await srv._on_text(ws, None, s, '{"type": "end"}')
+            assert time.monotonic() - t < 0.3, "핸들러가 전사를 그 자리에서 기다렸다"
+            assert s.finishing and s.finish_task is not None
+            assert saved == [], "아직 전사 중이다"
+
+            await srv.wait_finish(s)
+            assert ws.types() == ["processing", "question"]
+            assert saved == [(1, "답변입니다")]
+            assert s.finish_task is None and not s.finishing
+        asyncio.run(_t())
+
+    def test_전사_중에도_ping에_pong한다(self, monkeypatch, saved):
+        """소켓이 살아 있다는 증거 — 핸들러가 읽고 있어야 pong 이 나간다."""
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _stt(delay=0.3))
+            ws, s = FakeWS(), _session()
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            await srv._on_text(ws, None, s, '{"type": "end"}')
+            await srv._on_text(ws, None, s, '{"type": "ping"}')
+            assert "pong" in ws.types() and "question" not in ws.types()
+
+            await srv.wait_finish(s)
+            assert ws.types()[-1] == "question"
+        asyncio.run(_t())
+
+    def test_전사_중에_온_소리는_다음_답변으로_쌓이고_알림은_없다(self, monkeypatch, saved):
+        """'listening' 을 보내면 화면이 "정리하는 중" 에서 "듣고 있습니다" 로 튄다."""
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _stt(delay=0.3))
+            ws, s = FakeWS(), _session()
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            await srv._on_text(ws, None, s, '{"type": "end"}')
+            assert s.audio == [], "버튼 시점까지의 소리는 이 답변으로 떼어 갔다"
+
+            for _ in range(5):
+                await srv._on_binary(ws, None, s, bytes([srv.KIND_AUDIO]) + LOUD)
+            assert "listening" not in ws.types()
+            assert len(s.audio) == 5, "전사 중에 온 소리는 다음 답변의 앞부분이다"
+
+            await srv.wait_finish(s)
+            assert saved == [(1, "답변입니다")]
+            assert len(s.audio) == 5, "끝내기가 다음 답변의 소리를 건드리지 않는다"
+        asyncio.run(_t())
+
+    def test_펌프는_전사_중에_끊겨도_답변을_저장한다(self, monkeypatch, saved):
+        """지원자가 전사 중에 나가도 답변은 남아야 한다 — `_pump` 가 끝내기를 기다린다.
+
+        `httpx` 클라이언트는 `interview` 핸들러가 돌아가면 닫히므로, 기다리지 않으면
+        저장이 "client has been closed" 로 죽는다(10-11 운영 로그).
+        """
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _stt("답변입니다", delay=0.3))
+            s = srv._acquire_session("tok-pump")
+            s.questions = list(QUESTIONS)
+            for _ in range(12):
+                s.add_audio(QUIET)
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            ws = self._PumpWS([
+                {"type": "websocket.receive", "text": '{"type": "end"}'},
+                {"type": "websocket.receive", "text": '{"type": "ping"}'},
+                {"type": "websocket.disconnect", "code": 1001},
+            ])
+
+            t = time.monotonic()
+            await srv._pump(ws, None, s, "tok-pump", is_recruiter=False)
+
+            assert "pong" in ws.types(), "전사 중에도 읽고 있어야 한다"
+            assert time.monotonic() - t >= 0.3, "끊겼다고 끝내기를 버리면 답변이 사라진다"
+            assert saved == [(1, "답변입니다")]
+            assert "tok-pump" not in srv._SESSIONS, "끝내기를 기다린 뒤에 세션을 놓는다"
+        asyncio.run(_t())
+
+    def test_담당자_소켓은_지원자의_끝내기를_기다리지_않는다(self, monkeypatch, saved):
+        async def _t():
+            monkeypatch.setattr(srv, "transcribe_async", _stt(delay=0.3))
+            s = srv._acquire_session("tok-rec")
+            srv._acquire_session("tok-rec")          # 담당자 방
+            s.questions = list(QUESTIONS)
+            for _ in range(12):
+                s.add_audio(QUIET)
+            for _ in range(int(iw.MIN_SPEECH_SEC / 0.05) + 2):
+                s.add_audio(LOUD)
+            await srv._on_text(FakeWS(), None, s, '{"type": "end"}')
+
+            t = time.monotonic()
+            await srv._pump(
+                self._PumpWS([{"type": "websocket.disconnect", "code": 1001}]),
+                None, s, "tok-rec", is_recruiter=True,
+            )
+            assert time.monotonic() - t < 0.3, "담당자 방이 지원자 전사에 묶였다"
+            await srv.wait_finish(s)
+        asyncio.run(_t())

@@ -443,6 +443,10 @@ async def _pump(
     except Exception:
         logger.exception("면접 처리 중 오류(%s): token=%s", who, token[:8])
     finally:
+        if not is_recruiter:
+            # 전사 중에 나갔어도 **답변은 저장하고** 세션을 놓는다 — 여기는 아직
+            # `interview` 의 `async with httpx.AsyncClient()` 안이라 클라이언트가 살아 있다.
+            await wait_finish(session)
         left = _release_session(token)
         if left:
             logger.info("소켓 하나가 빠졌다 — 남은 %s개: token=%s", left, token[:8])
@@ -538,6 +542,13 @@ async def _on_binary(
 
     event = session.add_audio(payload)
 
+    # 끝내는 중(전사 대기)에는 소리를 **버퍼에만 쌓는다** — 다음 답변의 앞부분이다.
+    # `listening` 을 보내면 화면이 "정리하는 중" 에서 "듣고 있습니다" 로 튀고, 상한도
+    # 이미 끝내는 중이라 다시 끊을 것이 없다. 전에는 소켓이 막혀 있어 이 조각들이
+    # 전사 뒤에야 처리됐다 — 이제 바로 받으니 여기서 같은 결과로 맞춘다.
+    if session.finishing:
+        return
+
     # 말하는 동안 판정을 굴려 담당자에게 민다. 답변이 끝날 때까지 기다리지 않는다 —
     # 담당자는 **면접 중에** 봐야 한다. 지원자 소켓으로는 보내지 않는다(ADR-0029).
     if (
@@ -595,21 +606,71 @@ async def _refresh_questions(client, session: InterviewSession) -> dict | None:
 
 
 async def _finish_answer(ws, client, session: InterviewSession) -> None:
-    """답변 하나를 끝낸다 — **한 번만.** 끝내는 길이 둘이라(버튼 · 상한) 겹칠 수
-    있고, 이제 끝내는 동안 전사를 기다리므로 그 몇 초 사이 버튼 연타도 여기로 온다.
-    두 번째는 버린다 — 그렇지 않으면 방금 비운 버퍼의 몇 조각이 같은 질문의 두 번째
-    답이 되어 "말이 들리지 않았어요" 가 뜬다.
+    """답변 하나를 끝낸다 — **한 번만, 그리고 소켓을 막지 않고.**
+
+    끝내는 길이 둘이라(버튼 · 상한) 겹칠 수 있고, 끝내는 동안 전사를 기다리므로
+    그 사이 버튼 연타도 여기로 온다. 두 번째는 버린다 — 그렇지 않으면 방금 비운
+    버퍼의 몇 조각이 같은 질문의 두 번째 답이 되어 "말이 들리지 않았어요" 가 뜬다.
+
+    **전사는 뒤에서 돌리고 이 함수는 바로 돌아간다** (2026-10-13). 전에는 여기서
+    전사를 기다렸는데, 그동안 `_pump` 가 `receive()` 를 못 부른다. uvicorn
+    (websockets-sansio) 은 앱이 읽지 않는 동안 소켓 읽기를 멈추므로 브라우저가
+    보내는 keepalive pong 도 못 읽고, `ws_ping_timeout`(20초) 뒤 `1011 keepalive
+    ping timeout` 으로 끊는다. 운영 서버는 2 vCPU 로컬 전사라 답변 하나에 30~100초
+    — [답변 완료] 뒤 20~40초에 지원자 소켓이 죽고, 웹은 "정리하는 중" 에 멈춰
+    있었다(10-13 실측 5건 전부 · 다음 질문을 보내려다 `WebSocketDisconnect`).
+    같은 uvicorn 으로 재현: 읽기를 멈추면 38초에 1011, 태스크로 돌리면 45초 뒤 정상.
+
+    소리는 **버튼 시점까지** 를 이 답변으로 잡는다(`take_answer` 를 여기서 바로
+    부른다). 태스크가 도는 동안 들어오는 소리는 버퍼에 쌓여 다음 답변이 된다 —
+    전에 전사 뒤에 처리되던 조각과 같은 운명이다.
     """
     if session.finishing:
         return
     session.finishing = True
+    pcm, rows = session.take_answer()
+    seq = session.current_seq()
+    session.finish_task = asyncio.create_task(
+        _finish_in_background(ws, client, session, pcm, rows, seq)
+    )
+
+
+async def _finish_in_background(
+    ws, client, session: InterviewSession, pcm: bytes, rows: list, seq: int | None
+) -> None:
+    """`_end_answer` 를 태스크로 감싼다 — 예외를 삼키되 로그로 남기고 표시를 푼다."""
     try:
-        await _end_answer(ws, client, session)
+        await _end_answer(ws, client, session, pcm, rows, seq)
+    except WebSocketDisconnect:
+        # 전사하는 사이 지원자가 나갔다. 저장은 보내기 전에 끝나므로 답변은 남아
+        # 있고, 다시 들어오면 안 한 질문부터 이어진다.
+        logger.info(
+            "답변을 끝내는 사이 지원자 소켓이 닫혔다: token=%s seq=%s",
+            session.token[:8], seq,
+        )
+    except Exception:
+        logger.exception("답변 끝내기 실패: token=%s seq=%s", session.token[:8], seq)
     finally:
         session.finishing = False
+        session.finish_task = None
 
 
-async def _end_answer(ws, client, session: InterviewSession) -> None:
+async def wait_finish(session: InterviewSession) -> None:
+    """돌고 있는 끝내기가 있으면 기다린다.
+
+    소켓이 빠질 때 `_pump` 가 부른다 — 지원자가 전사 중에 나가도 **답변은
+    저장돼야** 하고, 그 저장이 쓰는 `httpx` 클라이언트는 `interview` 핸들러가
+    돌아가면 닫히기 때문이다(10-11 운영 로그의 "client has been closed" 가 그 꼴).
+    테스트도 같은 이유로 쓴다.
+    """
+    task = session.finish_task
+    if task is not None and task is not asyncio.current_task():
+        await task
+
+
+async def _end_answer(
+    ws, client, session: InterviewSession, pcm: bytes, rows: list, seq: int | None
+) -> None:
     """말이 끝났다 — **받아쓴 뒤에** 넘긴다 (2026-09-15 개정).
 
     09-11 판은 "답했다" 부터 찍고 다음 질문을 먼저 보낸 뒤 전사를 뒤에서 돌렸다.
@@ -620,9 +681,9 @@ async def _end_answer(ws, client, session: InterviewSession) -> None:
     전사가 API 로 옮겨(ADR-0038) 짧은 답은 1~3초, 3분 답도 ~20초라 기다릴 만하다.
     그래서 **판단은 받아쓴 글 하나로** 한다: 글이 있으면 저장하고 넘기고, 없으면
     같은 질문에 다시 답하게 한다. 소리를 재는 게이트는 두지 않는다.
+
+    `pcm`·`rows`·`seq` 는 `_finish_answer` 가 버튼 시점에 떼어 준 것이다.
     """
-    pcm, rows = session.take_answer()
-    seq = session.current_seq()
     seconds = len(pcm) / (iw.SAMPLE_RATE * iw.SAMPLE_WIDTH)
 
     await ws.send_json({"type": "processing"})
