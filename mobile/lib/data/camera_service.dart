@@ -250,7 +250,22 @@ class DeviceCameraService extends CameraService {
     return out.stream;
   }
 
-  Future<void> _startFrames(StreamController<Uint8List> out) async {
+  /// 이미지 스트림을 켜고 끄는 일을 **한 줄로 세운다** (2026-10-13).
+  ///
+  /// 둘 다 플랫폼 호출이라 await 가 걸리는데, 겹치면 플러그인의
+  /// `isStreamingImages` 를 서로 엇갈려 읽는다 — 아래 [_startFrames] 머리말의
+  /// 사고가 그것이다. 앞의 일이 끝나야 다음 일이 시작한다.
+  Future<void> _streamGate = Future<void>.value();
+
+  Future<void> _serial(Future<void> Function() op) {
+    final next = _streamGate.then((_) => op());
+    // 앞의 실패가 뒤를 막지 않는다 — 한 번 못 멈춘 것 때문에 다음 켜기까지
+    // 영영 안 돌면 증상이 지금과 똑같아진다
+    _streamGate = next.then((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  Future<void> _startFrames(StreamController<Uint8List> out) => _serial(() async {
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) {
       // 카메라가 아직 안 열렸다. **오류로 만들지 않는다** — 소리만으로도 면접은 돈다
@@ -258,7 +273,32 @@ class DeviceCameraService extends CameraService {
       return;
     }
     _frames = out;
-    if (controller.value.isStreamingImages) return;
+
+    /* **이미 돌고 있어도 그냥 넘어가지 않는다** (2026-10-13 실측).
+
+       앞의 구독을 끊고 바로 다시 이으면(`_attachFrames` 가 두 번 불리는 모든
+       경로) `cancel()` → [_stopFrames] 의 `stopImageStream()` 이 아직 안 끝난
+       채로 여기 온다. 그때 플러그인의 `isStreamingImages` 는 **아직 true** 라
+       예전 코드는 "이미 돌고 있으니 됐다"고 빠져나갔고, 곧이어 멈춤이 끝나면서
+       **프레임을 내는 쪽이 사라졌다.**
+
+       증상이 조용한 것이 고약하다: `_frames` 는 멀쩡히 붙어 있고 `_video` 구독도
+       살아 있어 `onDone` 이 안 온다 — 화면의 재연결 경로(`_video == null` 조건)가
+       아예 안 걸린다. 소리는 그대로 가므로 질문·받아쓰기·채점은 멀쩡하고
+       **얼굴만 0장**이다. 앱을 껐다 켜도 같은 경합이라 안 풀린다.
+       (2026-10-13 세션 139: 소리 `scored` 는 계속 오르는데 `frames.recv` 가
+       656 에서 한 장도 안 움직였다.)
+
+       그래서 **확실히 멈추고 확실히 켠다.** 위의 [_serial] 덕에 이 둘 사이에
+       다른 멈춤/켜기가 끼어들지 않는다. */
+    if (controller.value.isStreamingImages) {
+      try {
+        await controller.stopImageStream();
+      } on CameraException {
+        // 이미 멈춘 것을 또 멈추는 것은 실패해도 상관없다
+      }
+    }
+
     try {
       await controller.startImageStream(_onImage);
     } on CameraException catch (e) {
@@ -266,9 +306,9 @@ class DeviceCameraService extends CameraService {
       _frames = null;
       await out.close();
     }
-  }
+  });
 
-  Future<void> _stopFrames(StreamController<Uint8List> out) async {
+  Future<void> _stopFrames(StreamController<Uint8List> out) => _serial(() async {
     if (!identical(_frames, out)) return;
     _frames = null;
     final controller = _controller;
@@ -278,7 +318,7 @@ class DeviceCameraService extends CameraService {
     } on CameraException {
       // 이미 멈춘 것을 또 멈추는 것은 실패해도 상관없다
     }
-  }
+  });
 
   void _onImage(CameraImage image) {
     final out = _frames;
