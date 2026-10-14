@@ -1,0 +1,56 @@
+# 거짓말 탐지 서비스 — **GPU 판** (2026-10-14, infra/compute.sh · infra/gpu/README.md).
+#
+# CPU 판(`Dockerfile`)과 **베이스·파이썬·의존성이 같다.** 다른 것은 둘뿐이다:
+#   1. torch·torchvision 을 CUDA 휠로 깐다 (CPU 판은 CPU 인덱스 — 운영 디스크 때문, 09-10)
+#   2. 그 휠이 끌고 온 NVIDIA 라이브러리(cuBLAS·cuDNN)를 ctranslate2 가 찾게 등록한다
+# nvidia/cuda 베이스를 쓰지 않는 이유: 그쪽은 우분투 파이썬(3.12)이라 CPU 판(3.13)과
+# 휠이 갈린다. 같은 코드가 두 판에서 다른 라이브러리로 도는 것을 피한다.
+# libcuda.so.1 (드라이버) 는 이미지에 없다 — 호스트의 nvidia-container-toolkit 이 넣어 준다.
+#
+# **운영 서버(t3.large)에서 빌드하지 않는다.** 이미지가 CPU 판보다 수 GB 크다. GPU 호스트
+# 에서만 `infra/compute.sh serve` 가 빌드한다 — deploy-arda.sh 는 이 파일을 쓰지 않는다.
+
+FROM python:3.13-slim
+
+# CPU 판과 같은 동적 라이브러리 (이유는 Dockerfile 주석)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libegl1 \
+        libgles2 \
+        libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# CUDA torch 를 **먼저** 깐다. 아래 requirements-vit.txt 는 `torch>=2.5` 만 요구하므로
+# 이미 깔린 CUDA 판을 그대로 두고 transformers·pillow 만 더한다.
+# cu126 = CUDA 12.6 — 드라이버 560 이상이면 돈다 (T4 g4dn · RTX 40 노트북 둘 다).
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cu126
+RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" torch torchvision
+
+COPY requirements-vit.txt .
+RUN pip install --no-cache-dir -r requirements-vit.txt
+
+# ctranslate2(faster-whisper) 는 libcublas.so.12·libcudnn*.so.9 를 dlopen 한다. torch 휠이
+# 받아 온 nvidia-* 패키지 안에 있지만 site-packages 깊숙이라 못 찾는다
+# (`Library libcublas.so.12 is not found`) — 그 폴더들을 링커에 등록한다.
+# 경로를 박지 않고 찾아서 쓴다: 휠 판마다 폴더 이름이 조금씩 다르다.
+RUN python -c "import glob, site; print('\n'.join(sorted(glob.glob(site.getsitepackages()[0] + '/nvidia/*/lib'))))" \
+        > /etc/ld.so.conf.d/nvidia-pip.conf \
+    && ldconfig \
+    && ldconfig -p | grep -q libcublas.so.12 \
+    && ldconfig -p | grep -q libcudnn
+
+# 드라이버 쪽에서 무엇을 넣어 줄지. compute 가 CUDA 계산, utility 가 nvidia-smi.
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+COPY . .
+
+EXPOSE 5000
+
+# 워커 1개 — CPU 판과 같은 이유(세션 방·모델이 프로세스 안에 있다).
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]

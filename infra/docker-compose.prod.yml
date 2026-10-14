@@ -58,8 +58,9 @@ services:
   # 그때 참고할 형태는 이 파일 git blame 의 09-14 폐기 커밋에 남아 있다.
 
   # 거짓말 탐지 (ai/lie-detection). 포트를 밖으로 열지 않는다 — Caddy 가 /ai/* 로만 넘긴다.
-  # GPU 서버가 준비되면 이 서비스를 그쪽으로 옮긴다. 인터페이스(POST /analyze)가 같으므로
-  # Caddyfile 의 reverse_proxy 주소만 바꾸면 되고 부르는 쪽은 바뀌지 않는다.
+  # **이 서버에서는 늘 CPU 판이다.** GPU 로 돌릴 때는 다른 기계(g4dn 등)에 GPU 판을 띄우고
+  # Caddy 가 /ai/* 를 그쪽으로 넘긴다 — 이 컨테이너는 그동안 뒤에서 대기하는 안전판이다.
+  # 전환은 `bash infra/compute.sh gpu <호스트>` / `cpu` 한 줄 (infra/gpu/README.md, 2026-10-14).
   lie-detection:
     build: ../ai/lie-detection
     # 이 컨테이너도 backend/.env 를 읽는다. STT_MODEL 이 없으면 전사가 꺼지고(#95),
@@ -160,6 +161,11 @@ services:
       # n8n 편집 화면 Basic Auth — 팀 전원 공유 (2026-09-07 결정: 누가 빠져도 나머지가 진행할 수 있게)
       N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-arda}
       N8N_BASIC_AUTH_HASH: ${N8N_BASIC_AUTH_HASH:?set in .env — infra/.env.example}
+      # /ai/* 를 어디로 넘기나 (Caddyfile 맨 위 스니펫). **.env 에 적지 않는다** —
+      # infra/compute.sh 가 기록(~/arda/.compute)을 읽어 셸 환경으로 넣는다. deploy-arda.sh 도
+      # 같은 길로 넣으므로 GPU 모드에서 main 이 배포돼도 그대로 유지된다. 없으면 local(CPU).
+      LIE_PROXY: ${LIE_PROXY:-local}
+      LIE_GPU_UPSTREAM: ${LIE_GPU_UPSTREAM:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Caddyfile 은 infra/ 안이라 `./` 그대로, demo 는 저장소 루트라 `../` 로.

@@ -11,6 +11,7 @@ gevent 계열 워커가 필요하고, 그러면 gunicorn 설정과 배포가 같
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -23,10 +24,11 @@ warnings.filterwarnings("ignore")
 
 import httpx
 import numpy as np
-from fastapi import FastAPI, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import interview_ws as iw
+import selftest
 import speaker_match
 from feature_extractor import analyze_timeseries, extract_features
 from interview_ws import (
@@ -129,7 +131,26 @@ def health():
         # "답변 끝" 이 몇 번 답변으로 인정됐나 (2026-09-11). `rejected` 는 목소리가
         # 없어 질문을 넘기지 않은 횟수 — 질문이 안 넘어간다는 말이 나오면 여기부터.
         "answers": dict(iw.ANSWER_STATS),
+        # 어느 장치로 도는가 (2026-10-14, infra/compute.sh). Caddy 가 /ai/* 를 CPU·GPU 중
+        # 어디로 넘기고 있는지 밖에서 `/ai/health` 하나로 갈린다. 설정값이다 — 실제로
+        # 그 장치에서 도는지는 `POST /selftest` 가 모델에게 묻는다.
+        "compute": selftest.devices(),
     }
+
+
+@app.post("/selftest")
+async def selftest_route(request: Request):
+    """모델 4종을 1건씩 돌려 장치·시간을 낸다 (infra/compute.sh 의 스모크).
+
+    **서비스 토큰이 있어야 한다.** /ai/* 로 밖에 열려 있는 자리라 아무나 부르면
+    면접 서버 CPU 를 태울 수 있다. 토큰이 없는 서버(설정 누락)에서는 닫는다.
+    """
+    given = request.headers.get("X-Service-Token", "")
+    if not SERVICE_TOKEN:
+        return JSONResponse({"error": "ARDA_SERVICE_TOKEN 이 없는 서버 — 셀프 테스트를 열지 않는다"}, 503)
+    if not hmac.compare_digest(given.encode(), SERVICE_TOKEN.encode()):
+        return JSONResponse({"error": "토큰이 맞지 않는다"}, 401)
+    return await asyncio.to_thread(selftest.run)
 
 
 @app.get("/", response_class=HTMLResponse)

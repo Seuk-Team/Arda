@@ -5,7 +5,8 @@
 - 로컬 개발 compose 는 저장소 루트 `docker-compose.yml`.
 - CI: `.github/workflows/ci.yml` (백엔드 pytest + 프론트 빌드, 2026-09-02). **배포는 자동**(2026-09-04) — 서버 systemd 타이머가 2분마다 main 을 폴링해 pull→build→alembic→up. 절차·로그 위치는 [07-deploy](../docs/00_overview/07-deploy.md).
 - `anchor-publish.yml` — 매일 09:10 KST 무결성 앵커 게시(Sepolia + OpenTimestamps). 개인키는 Actions secret, 서버엔 없다 (ADR-0028).
-- `deploy-arda.sh` — 서버 `~/deploy-arda.sh` 의 사본(09-07 회수). pull → build → alembic → up → prune. 서버 것이 진실, 바뀌면 같은 커밋에서.
+- `deploy-arda.sh` — 서버 `~/deploy-arda.sh` 의 사본(09-07 회수). pull → build → alembic → up → prune. 서버 것이 진실, 바뀌면 같은 커밋에서. 10-14 부터 연산 모드(CPU/GPU) 를 따른다 — 서버에 다시 복사해야 반영된다.
+- `compute.sh` — 거짓말 탐지(ai/lie-detection) **CPU ↔ GPU 전환 손잡이** (2026-10-14). `gpu <호스트>` / `cpu` / `status`. GPU 판은 다른 기계(g4dn 등)에서 돌고 Caddy `/ai/*` 가 그쪽으로 간다. 오버레이 `docker-compose.gpu.yml` · GPU 호스트용 `docker-compose.gpu-host.yml`. 준비·켜기·끄기 순서는 [gpu/README.md](gpu/README.md).
 - `push-metrics.sh` — 10분마다 디스크 % · 메모리 % · 백업 나이 · API 헬스 · n8n 헬스를 CloudWatch(네임스페이스 `Arda`)로. 알람 → SNS 메일. 상시 무료 구간 (2026-09-07). 설정은 07-deploy "모니터링" 절.
 - `cloudwatch-alarms.yml` — 알람 6개(디스크·백업·API·메모리·n8n·EC2 자동 복구) CloudFormation 템플릿. 콘솔에서 파일 업로드 한 번으로 생성·갱신·삭제 (2026-09-07).
 - `.github/workflows/health-monitor.yml` — 15분마다 공개 주소 헬스체크, 실패 시 이슈 알림·복구 시 자동 닫기 (2026-09-07).

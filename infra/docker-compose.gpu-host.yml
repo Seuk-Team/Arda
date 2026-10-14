@@ -1,0 +1,42 @@
+# GPU 호스트 compose — **lie-detection 하나만** 띄운다 (2026-10-14).
+#
+# 운영 서버(t3.large)에는 GPU 가 없다. GPU 는 켜고 끄는 다른 기계(g4dn.xlarge 등)에서 돌고,
+# 운영 Caddy 가 /ai/* 를 이 기계의 5000 번으로 넘긴다. 이 파일은 그 기계에서만 쓴다.
+#
+#   bash infra/compute.sh serve      # 이 파일 + docker-compose.gpu.yml 로 빌드·기동·스모크
+#
+# 운영 compose(docker-compose.prod.yml) 를 그대로 못 쓰는 이유: 그 파일은 DB 비밀번호·n8n 키가
+# 없으면 해석부터 실패한다(`${DB_PASSWORD:?}`, extends 로 한 서비스만 가져와도 마찬가지 —
+# 2026-10-14 실측). GPU 기계에 쓰지도 않는 비밀을 두지 않으려고 따로 둔다.
+# **lie-detection 정의는 운영 것과 맞춘다** — env_file · VIT_MODEL · 캐시 볼륨 · mem_limit.
+# 운영 쪽을 바꾸면 여기도 같은 커밋에서.
+
+name: arda-gpu
+
+services:
+  lie-detection:
+    build: ../ai/lie-detection
+    # 운영 backend/.env 를 그대로 복사해 둔다 (ARDA_SERVICE_TOKEN 이 같아야 판정을 밀 수 있다)
+    env_file: ../backend/.env
+    environment:
+      VIT_MODEL: cloverky/arda-expression-vit
+      # 판정·답변을 밀 백엔드. 운영에서는 같은 docker 망의 http://api:8000 이지만 여기에는
+      # api 가 없다 — 공개 주소로 간다(/api/v1/internal/* 은 서비스 토큰으로 막혀 있다).
+      ARDA_BACKEND_URL: ${ARDA_BACKEND_URL:-https://api.seuk.suvisdev.cloud}
+    ports:
+      # 운영 Caddy 가 여기로 온다. **보안 그룹에서 운영 서버만 5000 을 열 것** (README).
+      # 시험할 때는 LIE_PUBLISH=127.0.0.1 로 이 기계 안에만 연다.
+      - "${LIE_PUBLISH:-0.0.0.0}:${LIE_PORT:-5000}:5000"
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
+    mem_limit: 5g
+    # 인스턴스를 켜면 docker 와 함께 저절로 뜬다 — 켤 때마다 명령을 칠 필요가 없다
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+volumes:
+  whisper_cache:

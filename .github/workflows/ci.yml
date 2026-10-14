@@ -178,7 +178,7 @@ jobs:
       # 로컬 실측(2026-09-17, python:3.13-slim): 110 passed / 50초
       - name: pytest
         working-directory: ai/lie-detection
-        run: python -m pytest -q test_interview_flow.py test_interview_ws.py test_speaker_match.py
+        run: python -m pytest -q test_interview_flow.py test_interview_ws.py test_speaker_match.py test_compute.py
 
   # 2026-09-17 추가 (Issue #254 · minahdev 원안). 09-15 앱 시험 15건이 깨진 채
   # 며칠 지나갔다 — 아무도 몰랐다. Flutter 3.44.8 로 analyze + test.
