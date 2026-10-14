@@ -1,0 +1,33 @@
+# GPU 오버레이 — lie-detection 을 GPU 판으로 바꾸는 차이만 담는다 (2026-10-14).
+#
+# **손으로 붙이지 않는다.** `bash infra/compute.sh serve` 가 GPU 호스트에서
+# `docker-compose.gpu-host.yml` 위에 얹는다. 운영 서버(t3.large, GPU 없음)의 compose 에는
+# 붙지 않는다 — deploy-arda.sh 는 이 파일을 모른다. 절차는 infra/gpu/README.md.
+#
+# 경로를 하나도 적지 않는다(dockerfile 은 빌드 문맥 기준). 그래서 어느 base 위에 얹어도
+# 같은 뜻이다.
+
+services:
+  lie-detection:
+    build:
+      dockerfile: Dockerfile.gpu
+    # CPU 판(arda-lie-detection) 과 이름을 갈라 둔다 — 한 기계에서 오가도 서로 덮지 않는다
+    image: arda-lie-detection-gpu
+    environment:
+      # 모델 4종의 장치 스위치. 코드 기본은 전부 cpu 이고 `auto` 는 없다 — 여기서만 cuda.
+      STT_DEVICE: cuda
+      STT_COMPUTE_TYPE: float16      # T4·RTX 40 둘 다 float16 이 제일 빠르다
+      VIT_DEVICE: cuda               # 표정 ViT (feature_extractor.py, float16)
+      DECEPTION_DEVICE: cuda         # 참/거짓 ViT·Whisper (deception_*.py, float32)
+      # **GPU 모드 = 전사를 이 GPU 에서 한다.** backend/.env 가 OpenAI API 전사
+      # (STT_BACKEND=openai) 여도 여기서는 로컬 whisper 로 돈다 — 그러려고 켜는 GPU 다.
+      # 모델은 운영 CPU 와 같은 것 (interview_ws.py 주석 · ADR-0032).
+      STT_BACKEND: faster_whisper
+      STT_MODEL: large-v3-turbo
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

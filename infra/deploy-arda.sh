@@ -10,6 +10,7 @@
 #
 # 이력: 09-04 alembic 단계 추가(호스트 마운트 방식) → 09-07 마운트 제거(이미지가 alembic 을
 # 가진다, PR #20) + 빌드 캐시 prune(--keep-storage 3g) 추가. 백업 ~/deploy-arda.sh.bak·.bak2.
+# 10-14 연산 모드(CPU/GPU) 를 따른다 — infra/compute.sh 가 기록한 모드의 Caddy 환경으로 up.
 #
 # main 에 새 커밋이 오면 pull → build → up. systemd 타이머(2분)가 부른다.
 set -euo pipefail
@@ -47,6 +48,8 @@ if echo "$CHANGED" | grep -qE "^ai/lie-detection/"; then
   BUILD_TARGETS="$BUILD_TARGETS lie-detection"
 fi
 BUILD_TARGETS=$(echo "$BUILD_TARGETS" | xargs)  # 앞뒤 공백 정리
+# 이 서버에서 빌드하는 lie-detection 은 **늘 CPU 판**이다 (Dockerfile). GPU 판(Dockerfile.gpu)은
+# GPU 호스트에서만 빌드한다 — 이 서버 디스크로는 못 버틴다(이미지 13GB, 2026-10-14 실측).
 if [ -n "$BUILD_TARGETS" ]; then
   echo "$(date -Is) build 대상: $BUILD_TARGETS" >> "$LOG"
   docker compose -p arda -f infra/docker-compose.prod.yml build $BUILD_TARGETS >> "$LOG" 2>&1
@@ -56,6 +59,27 @@ fi
 # 스키마 이행 (기동 전에) — 컬럼 추가/변경은 create_all 이 못 함. #17
 echo "$(date -Is) alembic upgrade..." >> "$LOG"
 docker compose -p arda -f infra/docker-compose.prod.yml run --rm api /app/.venv/bin/alembic upgrade head >> "$LOG" 2>&1
+# ── 연산 모드 (2026-10-14, infra/compute.sh · infra/gpu/README.md) ──
+# /ai/* 를 이 서버 CPU 로 넘길지 GPU 호스트로 넘길지는 ~/arda/.compute 에 기록돼 있다(없으면 cpu).
+# 그 값을 Caddy 환경변수로 넣어 up 해야 **GPU 모드에서 main 이 배포돼도 CPU 로 돌아가지 않는다**
+# (안 넣으면 compose 기본값 local 로 caddy 가 다시 만들어진다).
+# 반대로 GPU 호스트가 꺼져 있거나, lie-detection 이 바뀌었는데 GPU 호스트를 따라 올리지 못하면
+# on-deploy 가 기록을 cpu 로 바꾸고 아래 up 이 그대로 반영한다 — 죽은 GPU 를 가리킨 채 두지 않는다.
+# compute.sh 가 없거나(옛 커밋) 실패하면 아무것도 안 넣는다 = cpu. 배포는 어느 경우에도 멈추지 않는다.
+if [ -f infra/compute.sh ]; then
+  LIE_CHANGED=0
+  echo "$CHANGED" | grep -qE "^ai/lie-detection/" && LIE_CHANGED=1
+  if bash infra/compute.sh on-deploy "$LIE_CHANGED" >> "$LOG" 2>&1; then
+    COMPUTE_ENV=$(bash infra/compute.sh env 2>> "$LOG") || COMPUTE_ENV="LIE_PROXY=local"
+  else
+    echo "$(date -Is) deploy WARN: compute.sh on-deploy 실패 — 이번 배포는 cpu 로 간다" >> "$LOG"
+    COMPUTE_ENV="LIE_PROXY=local"
+  fi
+  # KEY=VAL 줄들을 그대로 낱말로 쪼갠다 (compute.sh 가 값에 공백이 없게 검증한다)
+  # shellcheck disable=SC2086,SC2163
+  export $COMPUTE_ENV
+  echo "$(date -Is) compute: $(echo $COMPUTE_ENV)" >> "$LOG"
+fi
 # `--remove-orphans` — compose 에서 제거된 서비스의 컨테이너를 자동 정리 (2026-09-14).
 # 없으면 삭제된 서비스가 계속 살아 있다: 09-14 SQS 워커 폐기(#213) 후 이 스크립트가 자동
 # 배포는 했지만 arda-worker-1 이 그대로 남아 SQS 를 계속 폴링했다. 수동 `docker rm -f`

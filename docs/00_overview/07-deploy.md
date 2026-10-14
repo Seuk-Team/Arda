@@ -208,7 +208,7 @@ curl -sL https://raw.githubusercontent.com/Seuk-Team/Arda/main/infra/server-stat
 | SNS 이메일 경보 | 관측 스크립트가 임계 넘으면 SMTP send (또는 Discord) | 폐기 | W4 초 전환 |
 | CloudFormation | (필요 없음) | 스택 삭제 · YAML 파일도 제거 | 10-27 이후 |
 | IAM 정책 (metrics-write · SQS) | (필요 없음) | 삭제 · `arda-server` 는 S3 두 버킷만 | 10-27 이후 |
-| GPU | g4dn.xlarge on/off (EC2 카테고리) · 또는 로컬 GPU PC | `GPU_TARGET=aws\|local` | `infra/gpu/` PR |
+| GPU | g4dn.xlarge on/off (EC2 카테고리) · 또는 로컬 GPU PC | `bash infra/compute.sh gpu <호스트>` / `cpu` (거짓말 탐지 4모델) | 2026-10-14 · [infra/gpu/README.md](../../infra/gpu/README.md) |
 
 **AWS 종료 시 이전**: API·큐·메일·관측·GPU 는 compose 하나로 로컬 서버(또는 온프레미스 GPU PC). S3 는 MinIO(코드는 이미 `S3_ENDPOINT_URL` 스위치). 앵커 게시([ADR-0028](../03_decision/0028-제출물-무결성-앵커.md))는 GitHub Actions Secret 로 유지 — 이전 대상 아님.
 
@@ -454,6 +454,10 @@ STT_MODEL=large-v3-turbo
 STT_DEVICE=cuda
 STT_COMPUTE_TYPE=float16
 ```
+
+**운영에서 GPU 로 옮길 때는 위 값을 손으로 넣지 않는다** (2026-10-14). `infra/docker-compose.gpu.yml` 오버레이가
+GPU 호스트에서만 넣고, 운영 Caddy 전환까지 `bash infra/compute.sh gpu <호스트>` / `cpu` 한 줄이 한다 —
+[infra/gpu/README.md](../../infra/gpu/README.md).
 
 **mem_limit** — 지난 두 주간 시도한 상향(1.5→2→2.5→3→4g) 은 원인 오진이었고, `int8` 로 넘어간 뒤 실사용이 223 MB 뿐이라 `mem_limit: 2g` 로 되돌렸다. 처리 피크·안전 여유 감안한 값이다(대안 1.5g).
 
