@@ -23,8 +23,9 @@ type Role = 'staff' | 'applicant'
 
    `public/` 에 두고 정적으로 내보낸다 — 유튜브·드라이브에 올리면 심사 환경에서
    바깥 망이 막혔을 때 링크가 죽고, S3 presigned 는 만료된다. 프론트가 뜨는
-   곳이면 영상도 같이 뜬다. */
-const INTRO_VIDEO_URL = '/arda-intro.mp4'
+   곳이면 영상도 같이 뜬다.
+   2026-10-16: 본선 데모 영상(1분)으로 교체. 파일 이름을 바꿔 옛 영상 캐시가 남지 않게 했다. */
+const INTRO_VIDEO_URL = '/arda-demo.mp4'
 /* 세션당 한 번. localStorage 로 하면 심사위원이 브라우저를 새로 켜도 안 뜬다 —
    "시작 전에 보라"는 안내라 그 자리에 앉은 사람마다 한 번씩은 보여야 한다. */
 const VIDEO_NOTICE_KEY = 'arda_intro_video_seen'
@@ -483,7 +484,7 @@ function IntroVideoOverlay({ onClose }: { onClose: () => void }) {
           시작 전 Arda 소개 영상 시청
         </h2>
         <p className={styles.videoBody}>
-          로그인하기 전에 2분짜리 소개 영상을 먼저 봐 주세요.
+          로그인하기 전에 1분짜리 소개 영상을 먼저 봐 주세요.
           공고 등록부터 AI 서류 심사·AI 면접·합격 통보까지 전체 흐름이 담겨 있습니다.
         </p>
 
@@ -495,7 +496,7 @@ function IntroVideoOverlay({ onClose }: { onClose: () => void }) {
         >
           소개 영상 보기
         </a>
-        <p className={styles.videoMeta}>약 2분 · 한국어 자막 · 새 탭에서 열립니다</p>
+        <p className={styles.videoMeta}>약 1분 · 새 탭에서 열립니다</p>
 
         <button type="button" className={styles.videoLater} onClick={onClose}>
           나중에 보기
