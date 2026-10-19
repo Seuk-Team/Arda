@@ -150,6 +150,37 @@ class TestModelTag:
         assert AnthropicBackend("claude-haiku-4-5").supports_structured_output is False
 
 
+# ── Anthropic 단발 생성의 temperature ──
+
+
+def _anthropic_complete_kwargs(model: str) -> dict:
+    """AnthropicBackend.complete 가 messages.create 에 넘긴 인자."""
+    client = MagicMock()
+    client.messages.create.return_value = MagicMock(
+        content=[MagicMock(text=" {} ")],
+        usage=MagicMock(input_tokens=10, output_tokens=5),
+        stop_reason="end_turn",
+    )
+    with patch("anthropic.Anthropic", return_value=client):
+        AnthropicBackend(model).complete(prompt="p", max_tokens=100)
+    return client.messages.create.call_args.kwargs
+
+
+class TestAnthropicCompleteTemperature:
+    """같은 지원서에 같은 서류 점수 — 기본 1.0 에서는 최대 10점 흔들렸다 (2026-10-19)."""
+
+    def test_운영_요약_모델은_temperature_0_을_extra_body_로_보낸다(self):
+        # SDK 1.x 는 temperature 키워드를 받지 않는다 (TypeError) — extra_body 여야 한다.
+        kwargs = _anthropic_complete_kwargs("claude-haiku-4-5-20251001")
+        assert "temperature" not in kwargs
+        assert kwargs["extra_body"] == {"temperature": 0}
+
+    def test_temperature_를_거절하는_모델에는_보내지_않는다(self):
+        # Opus 4.7 이후·Sonnet 5 계열은 temperature 가 있으면 400 이다.
+        for model in ("claude-sonnet-5", "claude-opus-5", "claude-opus-4-7"):
+            assert "extra_body" not in _anthropic_complete_kwargs(model), model
+
+
 # ── <think> 제거 ──
 
 

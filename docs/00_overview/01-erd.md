@@ -165,7 +165,7 @@ UNIQUE(job_posting_id, user_id).
 | self_intro | text | | 자기소개서 |
 | ai_summary | text | | 담당자용 AI 요약 — 자소서 요지 + 공고 요건 대비 적합/우려. NULL = 미생성 |
 | ai_summary_at | timestamptz | | 생성 시각. 공고 요건 변경 시 재생성 판단 기준 |
-| doc_score | smallint | NULL 허용 | **아르 서류 점수 0~100 (v2.2, ADR-0034).** 요건·우대·인재상 세 갈래의 회사 가중 평균. 요약 2단계(`chain_evaluate.v2`)가 만든다 |
+| doc_score | smallint | NULL 허용 | **아르 서류 점수 0~100 (v2.2, ADR-0034).** 요건·우대·인재상 세 갈래의 회사 가중 평균. 요약 2단계(`chain_evaluate.v3` — 2026-10-19 부터 이력서·자소서 원문을 근거로 채점, temperature 0)가 만든다 |
 | doc_score_detail | json | NULL 허용 | requirements · preferred · culture(각 0~100) · fit · concerns · evidence · weights · threshold · needs_manual_assignment · aptitude_sent · auto_interviewer_id |
 | doc_decision | varchar(20) | NULL 허용, CHECK | `pass` / `reject` / `hold`. hold = 점수만 있고 안 옮김(수동 모드·사람이 먼저 옮김·점수 없음) |
 | doc_decided_at | timestamptz | NULL 허용 | |
