@@ -247,14 +247,16 @@ export default function Login() {
       {/* 가장자리를 눌러 가운데 카드를 세운다 */}
       <div className={styles.vignette} aria-hidden="true" />
 
+      {/* 2026-10-17 원티드 AI Championship 2026 수상. "6위"는 쓰지 않는다 — 결과 표의
+          줄 순서가 점수 순위인지 공식 표기가 없다. 1,389 는 전체 참가팀 수.
+          카드 안에 두면 줄이 꺾이고 로그인보다 먼저 읽혀서 화면 왼쪽 위 한 줄로 뺀다 */}
+      <p className={styles.award}>
+        🏆 원티드 AI Championship 2026 <strong>인기상</strong> · 1,389팀 중 TOP 20
+      </p>
+
       <div className={styles.stage} ref={stageRef}>
         <form className={styles.card} onSubmit={handleSubmit}>
           <div className={styles.head}>
-            {/* 2026-10-17 원티드 AI Championship 2026 수상. "6위"는 쓰지 않는다 — 결과 표의
-                줄 순서가 점수 순위인지 공식 표기가 없다. 1,389 는 전체 참가팀 수 */}
-            <p className={styles.award}>
-              <span aria-hidden="true">🏆</span> 원티드 AI Championship 2026 인기상 · 1,389팀 중 TOP 20
-            </p>
             <h1 className={styles.logo}>
               <BrandMark size={30} halo className={styles.logoMark} />
               Arda
