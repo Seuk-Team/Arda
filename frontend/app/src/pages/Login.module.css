@@ -77,17 +77,26 @@
   color: var(--text-sub);
 }
 
-/* 수상 배지 — 로고 위 한 줄. 카드 폭이 좁으면 줄바꿈된다 */
+/* 수상 표기 — 화면 왼쪽 위 한 줄. 꾸미지 않고 작게 둔다. 좁은 화면에서는 줄바꿈 대신
+   끝을 말줄임한다. vignette(z 1) 위에 올린다 */
 .award {
-  align-self: flex-start;
-  margin: 0 0 var(--sp-2);
-  padding: var(--sp-1) var(--sp-3);
-  border-radius: var(--r-pill);
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  position: fixed;
+  top: var(--sp-4);
+  left: var(--sp-4);
+  z-index: 2;
+  max-width: calc(100% - 2 * var(--sp-4));
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-sub);
   font-size: var(--font-caption);
-  font-weight: 600;
   line-height: 1.5;
+}
+
+.award strong {
+  color: var(--accent-text);
+  font-weight: 600;
 }
 
 .fields {
