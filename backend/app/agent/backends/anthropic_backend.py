@@ -41,6 +41,28 @@ PRICING = {
 
 _NO_PACKAGE_REPLY = "anthropic 패키지가 설치되지 않았습니다."
 
+# 단발 생성(complete)의 temperature. 같은 지원서에는 같은 서류 점수가 나와야 한다 —
+# 기본값(1.0)에서는 같은 입력 5회에 doc_score 가 최대 10점 흔들렸고 0 에서는 5회가 같았다
+# (2026-10-19 실측, docs/07_eval/doc-score-determinism-2026-10.md). 0 이어도 API 가 완전
+# 결정적이지는 않다 — 흔들림을 줄일 뿐이다. 대화(run_chat)에는 걸지 않는다.
+COMPLETE_TEMPERATURE = 0
+
+# temperature 를 받는 모델. anthropic SDK 1.x 는 create() 시그니처에서 temperature 를 뺐지만
+# API 는 이 모델들에 한해 아직 받는다 — 그래서 extra_body 로 보낸다. Opus 4.7 이후·Sonnet 5
+# 계열·Haiku 5.5 는 0 을 400 으로 거절하므로, 목록에 없는 모델이면 아예 보내지 않는다
+# (요약이 통째로 실패하는 것보다 점수가 흔들리는 편이 낫다).
+_TEMPERATURE_MODELS = (
+    "claude-haiku-4-5",
+    "claude-sonnet-4-6",
+    "claude-sonnet-4-5",
+    "claude-opus-4-6",
+    "claude-opus-4-5",
+)
+
+
+def _accepts_temperature(model: str) -> bool:
+    return model.startswith(_TEMPERATURE_MODELS)
+
 
 def _estimate_cost(
     model: str,
@@ -218,10 +240,16 @@ class AnthropicBackend:
         import anthropic
 
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        extra = (
+            {"extra_body": {"temperature": COMPLETE_TEMPERATURE}}
+            if _accepts_temperature(self.model)
+            else {}
+        )
         response = client.messages.create(
             model=self.model,
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
+            **extra,
         )
         raw = response.content[0].text.strip()
         in_tokens = response.usage.input_tokens

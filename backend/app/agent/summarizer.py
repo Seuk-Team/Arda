@@ -54,7 +54,7 @@ _STEP_SCHEMAS: dict[str, dict] = {
         },
         "required": ["insufficient", "gist", "key_skills", "key_experiences"],
     },
-    # chain_evaluate.v2 (ADR-0034) 의 출력 모양. **프롬프트와 같이 고친다** — 2026-09-15 까지
+    # chain_evaluate.v2·v3 (ADR-0034) 의 출력 모양 (v3 은 입력만 늘었다). **프롬프트와 같이 고친다** — 2026-09-15 까지
     # v1 모양(fit_score 1~5)으로 남아 있었고, 스키마를 강제하는 백엔드(Ollama `format`)에서는
     # 모델이 세 갈래 점수를 낼 수 없어 doc_score 가 fit_score×20 폴백(20점 단위)으로 떨어졌다.
     # Claude 는 스키마를 무시해(anthropic_backend.supports_structured_output=False) 드러나지 않았다.
@@ -366,7 +366,10 @@ def generate_summary(db: Session, application_id: int) -> str | None:
                 extra={"application_id": application_id, "value": ai_years},
             )
 
-    # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v2, ADR-0034) ──
+    # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v3, ADR-0034) ──
+    # v3 부터 원문(이력서·자소서)을 함께 넘긴다. 1단계 요약은 기술 3개·경험 2개로 줄인
+    # 것이라, 요약에서 Docker·pytest 같은 필수 요건이 빠지면 같은 지원서의 요건 점수가
+    # 85↔75 로 갈렸다 (2026-10-19 실측). 요약은 길잡이로만 남긴다.
     try:
         step2_text, step2_tag = render(
             "chain_evaluate",
@@ -374,6 +377,8 @@ def generate_summary(db: Session, application_id: int) -> str | None:
             posting_requirements=prompt_vars["posting_requirements"],
             posting_preferred=prompt_vars["posting_preferred"],
             talent_profile=prompt_vars["talent_profile"],
+            resume_text=prompt_vars["resume_text"],
+            cover_letter_text=prompt_vars["cover_letter_text"],
             profile_summary=json.dumps(step1, ensure_ascii=False),
         )
         prompt_tags.append(step2_tag)

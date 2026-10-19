@@ -263,6 +263,23 @@ class TestGenerateSummary:
 
         assert mock_cls.return_value.messages.create.call_count == 3
 
+    @patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"})
+    @patch("anthropic.Anthropic")
+    def test_평가_단계는_요약만이_아니라_원문도_본다(self, mock_cls, fake_db):
+        """요약(기술 3개·경험 2개)에서 빠진 요건이 점수에서도 빠지던 것 (2026-10-19 실측)."""
+        mock_cls.return_value.messages.create.side_effect = _make_chain_responses()
+
+        db, app = fake_db
+        app.skills = ["Python", "FastAPI", "Docker", "pytest"]
+        generate_summary(db, app.id)
+
+        step2_prompt = mock_cls.return_value.messages.create.call_args_list[1].kwargs[
+            "messages"
+        ][0]["content"]
+        assert "Docker" in step2_prompt and "pytest" in step2_prompt  # 이력서 원문
+        assert app.self_intro in step2_prompt  # 자기소개서 원문
+        assert "chain_evaluate.v3" in app.ai_summary_model
+
     def test_missing_application(self):
         db = MagicMock()
         db.get.return_value = None

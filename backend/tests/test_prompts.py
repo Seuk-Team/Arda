@@ -62,8 +62,19 @@ class TestVariables:
         assert variables("chain_summarize") == {"resume_text", "cover_letter_text"}
 
     def test_chain_evaluate_takes_posting_and_summary(self):
-        # v2 (ADR-0034): 우대·인재상까지 대조해 세 갈래 100점을 낸다.
+        # v3 (2026-10-19): 요약만 보고 채점하면 요약에서 빠진 요건이 점수에서도 빠진다.
+        # 원문(이력서·자소서)을 채점 근거로, 요약은 길잡이로 함께 받는다.
         assert variables("chain_evaluate") == {
+            "posting_title",
+            "posting_requirements",
+            "posting_preferred",
+            "talent_profile",
+            "resume_text",
+            "cover_letter_text",
+            "profile_summary",
+        }
+        # v2 (ADR-0034): 우대·인재상까지 대조해 세 갈래 100점을 낸다.
+        assert variables("chain_evaluate", 2) == {
             "posting_title",
             "posting_requirements",
             "posting_preferred",
