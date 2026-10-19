@@ -278,7 +278,7 @@ class TestGenerateSummary:
         ][0]["content"]
         assert "Docker" in step2_prompt and "pytest" in step2_prompt  # 이력서 원문
         assert app.self_intro in step2_prompt  # 자기소개서 원문
-        assert "chain_evaluate.v3" in app.ai_summary_model
+        assert "chain_evaluate.v4" in app.ai_summary_model
 
     def test_missing_application(self):
         db = MagicMock()

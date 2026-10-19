@@ -62,9 +62,10 @@ class TestVariables:
         assert variables("chain_summarize") == {"resume_text", "cover_letter_text"}
 
     def test_chain_evaluate_takes_posting_and_summary(self):
+        # v4 (2026-10-19): 입력은 v3 그대로, 요건 점수 구간표만 새로 넣었다.
         # v3 (2026-10-19): 요약만 보고 채점하면 요약에서 빠진 요건이 점수에서도 빠진다.
         # 원문(이력서·자소서)을 채점 근거로, 요약은 길잡이로 함께 받는다.
-        assert variables("chain_evaluate") == {
+        v3_vars = {
             "posting_title",
             "posting_requirements",
             "posting_preferred",
@@ -73,6 +74,9 @@ class TestVariables:
             "cover_letter_text",
             "profile_summary",
         }
+        assert resolve("chain_evaluate")[1] == 4
+        assert variables("chain_evaluate") == v3_vars
+        assert variables("chain_evaluate", 3) == v3_vars
         # v2 (ADR-0034): 우대·인재상까지 대조해 세 갈래 100점을 낸다.
         assert variables("chain_evaluate", 2) == {
             "posting_title",
@@ -87,6 +91,12 @@ class TestVariables:
             "posting_requirements",
             "profile_summary",
         }
+
+    def test_chain_evaluate_v4_has_partial_band(self):
+        # 구간표가 빠지면 "일부 충족" 이 요건 25~55 에 흩어져 서류 점수가 C(50 이하)로
+        # 떨어진다 (fit-check 24명 B 11명 중 2명만 B, 2026-10-19 실측).
+        text, _ = load("chain_evaluate", 4)
+        assert "| 60~69 | **일부 충족.**" in text
 
     def test_interview_score_takes_posting_summary_and_transcript(self):
         assert variables("interview_score") == {
