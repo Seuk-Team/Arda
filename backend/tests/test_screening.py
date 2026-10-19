@@ -145,7 +145,9 @@ class TestDecideDocument:
     def test_threshold_is_per_posting(self, db, posting, application):
         posting.pass_threshold = 80
         _score(application, 75)
-        assert screening.decide_document(db, application) == "reject"
+        # 기본 임계 60 이면 통과할 점수가 이 공고에서는 못 넘는다. 50 이상이라 탈락 대신 보류.
+        assert screening.decide_document(db, application) == "hold"
+        assert application.current_stage == "applied"
 
     def test_manual_mode_only_scores(self, db, posting, application):
         posting.screening_mode = "manual"
@@ -166,6 +168,64 @@ class TestDecideDocument:
         application.current_stage = "screening"
         _score(application, 95)
         assert screening.decide_document(db, application) == "hold"
+
+
+class TestReviewBand:
+    """임계 아래지만 50 이상(B) 은 자동 탈락 대신 보류 (ADR-0039, 2026-10-19).
+
+    fit-check 실측: 기대 B 11명 중 8명이 52~58점 — 임계 60 에서 전부 자동 탈락하고 있었다.
+    """
+
+    def test_임계_아래_B_구간은_보류하고_옮기지_않는다(self, db, posting, application):
+        _score(application, 55)
+        before = len(_history(db, application))
+
+        assert screening.decide_document(db, application) == "hold"
+        assert application.current_stage == "applied"
+        assert application.doc_decision == "hold"
+        assert application.decision_source != "human"
+        assert application.doc_decided_at is not None  # 재생성이 다시 판정하지 않게
+        assert application.doc_score_detail["threshold"] == 60
+        assert application.doc_score_detail["review_floor"] == screening.REVIEW_FLOOR
+        assert len(_history(db, application)) == before  # 단계 이동 없음
+        assert db.scalar(select(EmailLog).where(EmailLog.application_id == application.id)) is None
+
+    @pytest.mark.parametrize("score,expected", [(60, "pass"), (59, "hold"), (50, "hold"), (49, "reject")])
+    def test_경계(self, db, posting, application, score, expected):
+        _score(application, score)
+        assert screening.decide_document(db, application) == expected
+
+    def test_임계가_하한_이하인_공고는_보류_구간이_없다(self, db, posting, application):
+        posting.pass_threshold = 45
+        _score(application, 47)
+        assert screening.decide_document(db, application) == "pass"
+
+    def test_임계가_하한_이하면_임계_미만은_탈락(self, db, posting, application):
+        posting.pass_threshold = 45
+        _score(application, 44)
+        assert screening.decide_document(db, application) == "reject"
+
+    def test_보류는_재생성으로_다시_판정하지_않는다(self, db, posting, application):
+        _score(application, 55)
+        screening.decide_document(db, application)
+        _score(application, 80)  # 재생성으로 점수가 올라도 사람이 옮긴다
+        assert screening.decide_if_never_decided(db, application) is None
+        assert application.current_stage == "applied"
+
+    @pytest.mark.parametrize("new_score", [80, 20])
+    def test_이력서가_뒤늦게_붙어_요약이_다시_돌아도_보류로_남는다(self, db, posting, application, new_score):
+        # resume_fetch.after_resume → generate_summary_bg → decide_document 경로.
+        _score(application, 55)
+        screening.decide_document(db, application)
+        _score(application, new_score)
+        assert screening.decide_document(db, application) == "hold"
+        assert application.current_stage == "applied"
+        assert application.doc_decision == "hold"
+
+    def test_보류는_불합격_일괄_메일_대상이_아니다(self, db, posting, application):
+        _score(application, 55)
+        screening.decide_document(db, application)
+        assert screening.send_pending_rejections(db, posting.id) == 0
 
 
 class TestDecideAgainKeepsLabel:

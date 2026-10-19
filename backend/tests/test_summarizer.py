@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.agent.summarizer import _build_prompt_vars, generate_summary
+from app.agent.summarizer import _build_prompt_vars, fit_score_from_doc, generate_summary
 
 
 # ── fixtures ──
@@ -94,6 +94,17 @@ class TestBuildPromptVars:
         result = _build_prompt_vars(db, app)
         assert result["posting_title"] == "공고 정보 없음"
         assert result["posting_requirements"] == "요건 정보 없음"
+
+
+class TestFitScoreFromDoc:
+    """서류 100점 → 1~5점. .5 를 올린다 — round() 는 50 을 2(C), 90 을 4 로 보냈다 (ADR-0039)."""
+
+    @pytest.mark.parametrize(
+        "doc,fit",
+        [(0, 1), (29, 1), (30, 2), (49, 2), (50, 3), (69, 3), (70, 4), (89, 4), (90, 5), (100, 5)],
+    )
+    def test_구간(self, doc, fit):
+        assert fit_score_from_doc(doc) == fit
 
 
 # ── generate_summary (3단계 체이닝) ──
