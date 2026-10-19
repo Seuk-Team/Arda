@@ -54,7 +54,8 @@ _STEP_SCHEMAS: dict[str, dict] = {
         },
         "required": ["insufficient", "gist", "key_skills", "key_experiences"],
     },
-    # chain_evaluate.v2·v3 (ADR-0034) 의 출력 모양 (v3 은 입력만 늘었다). **프롬프트와 같이 고친다** — 2026-09-15 까지
+    # chain_evaluate.v2·v3·v4 (ADR-0034) 의 출력 모양 (v3 은 입력만 늘었고 v4 는 요건 점수 구간표만 넣었다 — 출력은 같다).
+    # **프롬프트와 같이 고친다** — 2026-09-15 까지
     # v1 모양(fit_score 1~5)으로 남아 있었고, 스키마를 강제하는 백엔드(Ollama `format`)에서는
     # 모델이 세 갈래 점수를 낼 수 없어 doc_score 가 fit_score×20 폴백(20점 단위)으로 떨어졌다.
     # Claude 는 스키마를 무시해(anthropic_backend.supports_structured_output=False) 드러나지 않았다.
@@ -366,10 +367,12 @@ def generate_summary(db: Session, application_id: int) -> str | None:
                 extra={"application_id": application_id, "value": ai_years},
             )
 
-    # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v3, ADR-0034) ──
+    # ── Step 2: 평가 — 요건·우대·인재상 세 갈래 100점 (chain_evaluate v4, ADR-0034) ──
     # v3 부터 원문(이력서·자소서)을 함께 넘긴다. 1단계 요약은 기술 3개·경험 2개로 줄인
     # 것이라, 요약에서 Docker·pytest 같은 필수 요건이 빠지면 같은 지원서의 요건 점수가
     # 85↔75 로 갈렸다 (2026-10-19 실측). 요약은 길잡이로만 남긴다.
+    # v4 는 요건 점수 구간표를 넣었다 — "일부 충족" 이 요건 25~55 로 흩어져 서류 점수가
+    # C(50 이하)로 떨어지던 것 (docs/07_eval/doc-score-b-band-2026-10.md).
     try:
         step2_text, step2_tag = render(
             "chain_evaluate",
