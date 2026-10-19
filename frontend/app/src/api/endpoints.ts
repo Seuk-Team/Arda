@@ -10,8 +10,10 @@ import type {
   Posting,
   PostingCreate,
   PostingPublicLink,
-  PostingStatus,
+  PostingUpdate,
   Interview,
+  ScoringSettings,
+  ScoringWeights,
   ScheduleStatus,
   SearchResult,
   StageChangeOut,
@@ -93,10 +95,9 @@ export const postings = {
 
   get: (id: number, signal?: AbortSignal) => api.get<Posting>(`/postings/${id}`, { signal }),
 
-  /* 상태·마감일만 바꾼다 — 공고 마감·다시 열기 (PATCH /postings/{id}, 02-api.md).
+  /* 공고 수정 — 마감·다시 열기, 평가 기준(요건·우대·통과 기준) (PATCH /postings/{id}, 02-api.md).
      보낸 필드만 반영되고(exclude_unset) 응답은 바뀐 공고 전체다. 집계는 실리지 않는다 */
-  update: (id: number, body: { status?: PostingStatus; deadline?: string | null }) =>
-    api.patch<Posting>(`/postings/${id}`, body),
+  update: (id: number, body: PostingUpdate) => api.patch<Posting>(`/postings/${id}`, body),
 
   /* 공고 등록 (POST /postings). 201 로 만들어진 공고 전체를 돌려준다 */
   create: (body: PostingCreate) => api.post<Posting>('/postings', body),
@@ -104,6 +105,15 @@ export const postings = {
   /* 공개 지원 링크 발급 (POST /postings/{id}/public-link).
      부를 때마다 토큰을 새로 만들고 이전 링크는 죽는다 — 재발급은 사용자가 알고 눌러야 한다 */
   publicLink: (id: number) => api.post<PostingPublicLink>(`/postings/${id}/public-link`, {}),
+}
+
+/* 자동 심사 설정 — 회사 인재상과 점수 비중 (GET·PUT /settings/scoring, admin 전용).
+   서류·면접 AI 채점이 인재상 글을 지원서와 대조한다. PUT 은 보낸 키만 바꾸고,
+   weights 를 보내면 7개 전부를 보내야 한다(일부만 바꾸면 합이 어긋난다) */
+export const scoring = {
+  get: (signal?: AbortSignal) => api.get<ScoringSettings>('/settings/scoring', { signal }),
+  save: (body: { weights?: ScoringWeights; talent_profile?: string }) =>
+    api.put<ScoringSettings>('/settings/scoring', body),
 }
 
 interface SearchQuery {

@@ -4,8 +4,8 @@ import PageHead from '../components/PageHead'
 import { useAuth } from '../auth/AuthContext'
 import { useToast } from '../components/Toast'
 import { api, ApiError } from '../api/client'
-import { auth as authApi, mail as mailApi, users as usersApi } from '../api/endpoints'
-import type { MailTemplate, UserItem } from '../api/types'
+import { auth as authApi, mail as mailApi, scoring as scoringApi, users as usersApi } from '../api/endpoints'
+import type { MailTemplate, ScoringWeights, UserItem } from '../api/types'
 import { ROLE_LABEL } from '../lib/stage'
 import styles from './Settings.module.css'
 
@@ -17,7 +17,8 @@ import styles from './Settings.module.css'
    본인 정보 수정과 가용 시간 등록은 역할과 무관하기 때문이다 (G4 결정 5).
    **역할별로 다른 화면을 따로 만들지 않는다.** 탭 구성만 갈린다. */
 const MY_TAB = '내 계정'
-const ADMIN_TABS = ['사용자·권한', '메일 템플릿'] as const
+/* 채점 기준(2026-10-19): 회사 인재상·점수 비중. 서버가 admin 전용이라 탭도 admin 만 */
+const ADMIN_TABS = ['사용자·권한', '메일 템플릿', '채점 기준'] as const
 const AVAILABILITY_TAB = '면접 가능 시간'
 
 /* 문구가 있는 단계 4종 (backend TEMPLATE_STAGES 와 같다).
@@ -72,6 +73,7 @@ export default function Settings() {
         {tab === MY_TAB && <MyAccount />}
         {tab === '사용자·권한' && <Users />}
         {tab === '메일 템플릿' && <MailTemplates />}
+        {tab === '채점 기준' && <ScoringCriteria />}
         {tab === AVAILABILITY_TAB && user && <Availability userId={user.id} />}
       </main>
     </>
@@ -521,6 +523,222 @@ function MailTemplates() {
             {saving ? '저장 중…' : '저장'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── 채점 기준 (2026-10-19) ─────────────────────────────────────────
+   회사마다 뽑고 싶은 사람이 다르다. 인재상 글은 서류·면접 AI 채점 프롬프트의
+   「회사 인재상」 자리에 그대로 들어가고(chain_evaluate · interview_score), 비중은
+   세 점수를 합칠 때 쓴다(screening._weighted). 서버 API 는 ADR-0034 때부터 있었는데
+   입력할 화면이 없어 인재상은 늘 「정보 없음」으로 채점됐다. */
+
+/* part: 이 묶음이 최종 점수의 어느 몫을 나누는가 — 최종 % 를 계산할 때 곱한다 */
+type WeightGroup = {
+  label: string
+  part: 'doc' | 'interview' | null
+  keys: { key: keyof ScoringWeights; label: string }[]
+}
+
+const WEIGHT_GROUPS: WeightGroup[] = [
+  {
+    label: '서류 점수 안의 비중',
+    part: 'doc',
+    keys: [
+      { key: 'doc_requirements', label: '필수 요건' },
+      { key: 'doc_preferred', label: '우대 사항' },
+      { key: 'doc_culture', label: '인재상' },
+    ],
+  },
+  {
+    label: '최종 점수 비중',
+    part: null,
+    keys: [
+      { key: 'doc', label: '서류' },
+      { key: 'interview', label: '면접' },
+    ],
+  },
+  {
+    label: '면접 점수 안의 비중',
+    part: 'interview',
+    keys: [
+      { key: 'itv_answers', label: '답변 내용' },
+      { key: 'itv_truth', label: '진위 일관성' },
+    ],
+  },
+]
+
+/* 서버는 묶음마다 합으로 나눈다(screening._weighted). 그래서 입력값 그대로가 아니라
+   「묶음 안 몇 %」와 「최종 점수에서 몇 %」를 같이 보여 줘야 실제 영향이 보인다.
+   예: 면접 안 진위 30 · 최종 면접 50 → 최종 점수의 15% */
+function shareOf(w: ScoringWeights, g: WeightGroup, key: keyof ScoringWeights) {
+  const sum = (keys: (keyof ScoringWeights)[]) => keys.reduce((s, k) => s + w[k], 0)
+  const groupSum = sum(g.keys.map((k) => k.key))
+  if (groupSum <= 0) return null
+  const inGroup = w[key] / groupSum
+  if (g.part === null) return { inGroup, inFinal: inGroup }
+  const finalSum = w.doc + w.interview
+  if (finalSum <= 0) return { inGroup, inFinal: null }
+  return { inGroup, inFinal: inGroup * (w[g.part] / finalSum) }
+}
+
+const pct = (r: number) => `${Math.round(r * 1000) / 10}%`
+
+function sameWeights(a: ScoringWeights, b: ScoringWeights): boolean {
+  return WEIGHT_GROUPS.every((g) => g.keys.every(({ key }) => a[key] === b[key]))
+}
+
+function ScoringCriteria() {
+  const { show } = useToast()
+  const [talent, setTalent] = useState('')
+  const [weights, setWeights] = useState<ScoringWeights | null>(null)
+  /* 서버에 저장된 값 — 바뀐 것이 있을 때만 저장 버튼을 켠다 */
+  const [saved, setSaved] = useState<{ talent: string; weights: ScoringWeights } | null>(null)
+  const [defaults, setDefaults] = useState<ScoringWeights | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const ac = new AbortController()
+    scoringApi
+      .get(ac.signal)
+      .then((res) => {
+        const t = res.talent_profile ?? ''
+        setTalent(t)
+        setWeights(res.weights)
+        setDefaults(res.defaults)
+        setSaved({ talent: t, weights: res.weights })
+        setError(null)
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setError(err instanceof ApiError ? err.message : '채점 기준을 불러오지 못했습니다')
+      })
+    return () => ac.abort()
+  }, [])
+
+  /* 한 묶음의 비중이 전부 0 이면 그 점수를 계산할 수 없다(합으로 나눈다) */
+  const emptyGroup = weights
+    ? WEIGHT_GROUPS.find((g) => g.keys.every(({ key }) => weights[key] === 0))
+    : undefined
+  const dirty =
+    saved !== null &&
+    weights !== null &&
+    (talent.trim() !== saved.talent.trim() || !sameWeights(weights, saved.weights))
+
+  function setWeight(key: keyof ScoringWeights, raw: string) {
+    const n = Math.round(Number(raw))
+    const value = Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0
+    setWeights((prev) => (prev ? { ...prev, [key]: value } : prev))
+  }
+
+  async function save() {
+    if (!weights) return
+    setSaving(true)
+    try {
+      const res = await scoringApi.save({ weights, talent_profile: talent.trim() })
+      const t = res.talent_profile ?? ''
+      setTalent(t)
+      setWeights(res.weights)
+      setSaved({ talent: t, weights: res.weights })
+      show('ok', '채점 기준을 저장했습니다')
+    } catch (err) {
+      show('fail', err instanceof ApiError ? err.message : '저장하지 못했습니다')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const loading = weights === null && error === null
+
+  return (
+    <div role="tabpanel" className={styles.form}>
+      {error && <p className={styles.error}>{error}</p>}
+
+      <div className={styles.field}>
+        <label htmlFor="sc-talent">회사 인재상</label>
+        <textarea
+          className={styles.textarea}
+          id="sc-talent"
+          rows={8}
+          value={talent}
+          disabled={loading || error !== null}
+          placeholder={'함께 일하고 싶은 사람\n- …\n\n잘 안 맞는 사람\n- …'}
+          onChange={(e) => setTalent(e.target.value)}
+        />
+        <p className={styles.note}>
+          서류·면접 AI 채점이 지원서를 이 글과 대조해 인재상 점수를 매깁니다. 「함께 일하고 싶은
+          사람」과 「잘 안 맞는 사람」을 나눠 적으면 더 잘 가려냅니다. 비워 두면 인재상 점수는 근거
+          없음으로 매겨집니다.
+        </p>
+      </div>
+
+      <hr className={styles.divider} />
+
+      {WEIGHT_GROUPS.map((g) => (
+        <div key={g.label} className={styles.field}>
+          <span className={styles.sessionLabel}>{g.label}</span>
+          <div className={styles.slotForm}>
+            {g.keys.map(({ key, label }) => {
+              const share = weights ? shareOf(weights, g, key) : null
+              return (
+                <div key={key} className={styles.field}>
+                  <label htmlFor={`sc-${key}`}>{label}</label>
+                  <input
+                    className={styles.input}
+                    id={`sc-${key}`}
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={weights?.[key] ?? ''}
+                    disabled={weights === null}
+                    aria-describedby={`sc-${key}-share`}
+                    onChange={(e) => setWeight(key, e.target.value)}
+                  />
+                  <span id={`sc-${key}-share`} className={styles.note}>
+                    {share === null
+                      ? '—'
+                      : g.part === null
+                        ? `최종 ${pct(share.inGroup)}`
+                        : `${g.part === 'doc' ? '서류' : '면접'} 안 ${pct(share.inGroup)} · 최종 ${
+                            share.inFinal === null ? '—' : pct(share.inFinal)
+                          }`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      <p className={styles.note}>
+        묶음 안에서 비율로 나눕니다 — 합이 100 이 아니어도 됩니다. 「최종 점수 비중」은 저장하면
+        바로 모든 지원자의 최종 점수에 반영됩니다. 서류·면접 안의 비중은 다음 채점부터 적용되고,
+        이미 매긴 서류 점수는 지원자 화면의 요약 재생성으로 다시 매깁니다. 진위 일관성 표본이 없는
+        면접은 답변 내용만으로 계산됩니다.
+      </p>
+      {emptyGroup && (
+        <p className={styles.error}>「{emptyGroup.label}」이 전부 0 이면 그 점수를 계산할 수 없습니다.</p>
+      )}
+
+      <div className={styles.formActions}>
+        <button
+          type="button"
+          className="btn"
+          disabled={saving || weights === null || defaults === null || sameWeights(weights, defaults)}
+          onClick={() => defaults && setWeights(defaults)}
+        >
+          기본 비중으로
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={saving || !dirty || emptyGroup !== undefined}
+          onClick={save}
+        >
+          {saving ? '저장 중…' : '저장'}
+        </button>
       </div>
     </div>
   )

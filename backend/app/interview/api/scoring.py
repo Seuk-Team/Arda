@@ -10,7 +10,7 @@ app/application/screening.py 가 원본이다 — 여기서는 저장과 조회�
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.application import screening
@@ -34,6 +34,27 @@ class ScoringWeights(BaseModel):
     itv_truth: int = Field(ge=0, le=100)
 
 
+class ScoringWeightsIn(ScoringWeights):
+    """저장할 때만 묶음 합을 본다 — 이미 저장된 값이 어긋나 있어도 GET 은 열려야 한다."""
+
+    @model_validator(mode="after")
+    def _each_group_counts(self) -> "ScoringWeightsIn":
+        # 한 묶음이 전부 0 이면 _weighted 가 None 을 내고, 서류 점수가 영영 안 생겨
+        # 자동 심사가 전원 "보류" 로 멈춘다. 관리자 화면이 막지만 API 로도 막는다.
+        for name, keys in _WEIGHT_GROUPS.items():
+            if sum(getattr(self, k) for k in keys) <= 0:
+                raise ValueError(f"{name} 비중이 전부 0 이면 점수를 계산할 수 없습니다")
+        return self
+
+
+# 합으로 나누는 묶음 셋 (screening.doc_score_from · interview_score_from · final_score)
+_WEIGHT_GROUPS: dict[str, tuple[str, ...]] = {
+    "서류 점수 안의": ("doc_requirements", "doc_preferred", "doc_culture"),
+    "면접 점수 안의": ("itv_answers", "itv_truth"),
+    "최종 점수의": ("doc", "interview"),
+}
+
+
 class ScoringOut(BaseModel):
     weights: ScoringWeights
     talent_profile: str | None
@@ -42,7 +63,7 @@ class ScoringOut(BaseModel):
 
 
 class ScoringUpdate(BaseModel):
-    weights: ScoringWeights | None = None
+    weights: ScoringWeightsIn | None = None
     talent_profile: str | None = None
 
 

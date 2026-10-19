@@ -5,6 +5,7 @@ import { applications, postings as postingsApi } from '../api/endpoints'
 import type { ApplicationListItem, Posting, PostingStatus, Stage } from '../api/types'
 import { STAGE_LABEL, careerText, fmtDate, stageTone } from '../lib/stage'
 import ApplicantPanel from './ApplicantPanel'
+import { PostingCriteriaModal } from './Postings'
 import { useRightPanel } from '../components/RightPanel'
 import Kanban from './Kanban'
 import styles from './PostingApplicants.module.css'
@@ -125,6 +126,8 @@ export default function PostingApplicants() {
      최종 결과를 낸 뒤 담당자가 여기서 직접 닫는다. 서버는 PATCH 한 번이고(02-api.md),
      닫히면 공개 지원 링크가 410 을 준다(B4). 지원자·결과는 그대로 남고, 되돌릴 수 있다. */
   const [statusBusy, setStatusBusy] = useState(false)
+  /* 평가 기준(요건·우대·통과 기준) 수정 창 (2026-10-19) */
+  const [criteriaOpen, setCriteriaOpen] = useState(false)
   async function changeStatus(next: PostingStatus) {
     if (!posting || statusBusy) return
     const ask =
@@ -252,6 +255,11 @@ export default function PostingApplicants() {
                   : posting.status === 'closed'
                     ? '다시 열기'
                     : '공고 열기'}
+            </button>
+          )}
+          {posting && (
+            <button type="button" className={styles.statusBtn} onClick={() => setCriteriaOpen(true)}>
+              평가 기준
             </button>
           )}
 
@@ -471,6 +479,21 @@ export default function PostingApplicants() {
           applicationId={openId}
           onClose={closeDetail}
           onChanged={() => setTick((n) => n + 1)}
+        />
+      )}
+
+      {criteriaOpen && posting && (
+        <PostingCriteriaModal
+          posting={posting}
+          onClose={() => setCriteriaOpen(false)}
+          /* PATCH 응답에는 단계별 집계가 없다 — 기준 칸만 받는다 */
+          onSaved={(u) =>
+            setPosting((p) =>
+              p
+                ? { ...p, requirements: u.requirements, preferred: u.preferred, pass_threshold: u.pass_threshold, updated_at: u.updated_at }
+                : u,
+            )
+          }
         />
       )}
     </div>
