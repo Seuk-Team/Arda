@@ -73,6 +73,9 @@ export interface Posting {
   /* 자동 심사 (ADR-0034). manual 이면 아르가 단계를 옮기지 않고 담당자가 직접 옮긴다 */
   pass_threshold?: number
   screening_mode?: ScreeningMode
+  /* 서류 채점 기준 (2026-10-19). AI 가 지원서를 이 두 칸과 항목별로 대조한다 */
+  requirements?: string | null
+  preferred?: string | null
 }
 
 export type ScreeningMode = 'auto' | 'manual'
@@ -86,6 +89,32 @@ export interface PostingCreate {
   deadline?: string | null // YYYY-MM-DD. null = 상시 접수
   pass_threshold?: number
   screening_mode?: ScreeningMode
+  requirements?: string | null
+  preferred?: string | null
+}
+
+/* PATCH /postings/{id} 본문 — 보낸 필드만 바뀐다 */
+export type PostingUpdate = Partial<
+  Pick<Posting, 'status' | 'deadline' | 'pass_threshold' | 'requirements' | 'preferred'>
+>
+
+/* 자동 심사 설정 (GET·PUT /settings/scoring, admin). 각 값 0~100,
+   묶음 안에서 합으로 나누므로 합이 100 이 아니어도 된다 (backend screening._weighted) */
+export interface ScoringWeights {
+  doc: number
+  interview: number
+  doc_requirements: number
+  doc_preferred: number
+  doc_culture: number
+  itv_answers: number
+  itv_truth: number
+}
+
+export interface ScoringSettings {
+  weights: ScoringWeights
+  talent_profile: string | null
+  defaults: ScoringWeights
+  grade_bounds: Record<string, number>
 }
 
 /* POST /postings/{id}/public-link 응답. 부를 때마다 토큰을 새로 발급한다 —

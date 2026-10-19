@@ -205,6 +205,8 @@ function NewPostingModal({
   const { show } = useToast()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [requirements, setRequirements] = useState('')
+  const [preferred, setPreferred] = useState('')
   const [deadline, setDeadline] = useState('')
   const [threshold, setThreshold] = useState(60)
   const [mode, setMode] = useState<ScreeningMode>('auto')
@@ -236,6 +238,8 @@ function NewPostingModal({
       const posting = await postingsApi.create({
         title: title.trim(),
         description: description.trim() || null,
+        requirements: requirements.trim() || null,
+        preferred: preferred.trim() || null,
         status: open ? 'open' : 'draft',
         deadline: deadline || null, // 비우면 상시 접수 (B4)
         pass_threshold: threshold,
@@ -337,6 +341,13 @@ function NewPostingModal({
             <p className={styles.hint}>지원자가 지원 화면에서 그대로 보게 됩니다.</p>
           </div>
 
+          <CriteriaFields
+            requirements={requirements}
+            preferred={preferred}
+            onRequirements={setRequirements}
+            onPreferred={setPreferred}
+          />
+
           <div className={styles.row}>
             <div className={styles.field}>
               <label htmlFor="p-deadline">마감일</label>
@@ -435,6 +446,150 @@ function NewPostingModal({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── 평가 기준 (2026-10-19) ─────────────────────────────────────────
+   서류 AI 채점은 지원서를 「필수 요건」「우대 사항」과 항목별로 대조해 점수를 낸다
+   (chain_evaluate). 칸이 비면 요건은 공고 내용만으로 읽고 우대는 「정보 없음」이 된다.
+   등록 창과 공고 화면의 수정 창이 같은 입력칸을 쓴다 — 두 곳의 문구가 갈리지 않게. */
+
+function CriteriaFields({
+  requirements,
+  preferred,
+  onRequirements,
+  onPreferred,
+}: {
+  requirements: string
+  preferred: string
+  onRequirements: (v: string) => void
+  onPreferred: (v: string) => void
+}) {
+  return (
+    <>
+      <div className={styles.field}>
+        <label htmlFor="p-req">필수 요건</label>
+        <textarea
+          className={styles.textarea}
+          id="p-req"
+          rows={4}
+          value={requirements}
+          placeholder={'- …'}
+          onChange={(e) => onRequirements(e.target.value)}
+        />
+      </div>
+      <div className={styles.field}>
+        <label htmlFor="p-pref">우대 사항</label>
+        <textarea
+          className={styles.textarea}
+          id="p-pref"
+          rows={3}
+          value={preferred}
+          placeholder={'- …'}
+          onChange={(e) => onPreferred(e.target.value)}
+        />
+        <p className={styles.hint}>
+          AI 서류 채점이 지원서를 두 칸과 한 줄씩 대조합니다. 한 줄에 한 항목씩 적어 주세요.
+        </p>
+      </div>
+    </>
+  )
+}
+
+/** 등록한 공고의 평가 기준 수정 — 공고의 지원자 화면 머리의 「평가 기준」 버튼이 연다 */
+export function PostingCriteriaModal({
+  posting,
+  onClose,
+  onSaved,
+}: {
+  posting: Posting
+  onClose: () => void
+  onSaved: (p: Posting) => void
+}) {
+  const { show } = useToast()
+  const [requirements, setRequirements] = useState(posting.requirements ?? '')
+  const [preferred, setPreferred] = useState(posting.preferred ?? '')
+  const [threshold, setThreshold] = useState(posting.pass_threshold ?? 60)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const dirty =
+    requirements.trim() !== (posting.requirements ?? '').trim() ||
+    preferred.trim() !== (posting.preferred ?? '').trim() ||
+    threshold !== (posting.pass_threshold ?? 60)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (saving || !dirty) return
+    setSaving(true)
+    try {
+      const updated = await postingsApi.update(posting.id, {
+        requirements: requirements.trim() || null,
+        preferred: preferred.trim() || null,
+        pass_threshold: threshold,
+      })
+      onSaved(updated)
+      show('ok', '평가 기준을 저장했습니다')
+      onClose()
+    } catch (err) {
+      show('fail', err instanceof ApiError ? err.message : '평가 기준을 저장하지 못했습니다')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className={styles.modalScrim} role="presentation" onClick={onClose}>
+      <form
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="평가 기준"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={submit}
+      >
+        <h2 className={styles.modalTitle}>평가 기준</h2>
+        <p className={styles.doneTitle}>{posting.title}</p>
+
+        <CriteriaFields
+          requirements={requirements}
+          preferred={preferred}
+          onRequirements={setRequirements}
+          onPreferred={setPreferred}
+        />
+
+        <div className={styles.field}>
+          <label htmlFor="p-crit-threshold">서류 통과 기준</label>
+          <input
+            className={styles.input}
+            id="p-crit-threshold"
+            type="number"
+            min={0}
+            max={100}
+            value={threshold}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+          />
+          <p className={styles.hint}>
+            100점 만점. 바꾼 기준은 이후 채점부터 적용되고, 이미 매긴 점수는 지원자 화면의 요약
+            재생성으로 다시 매깁니다. 회사 인재상은 설정 › 채점 기준에서 고칩니다.
+          </p>
+        </div>
+
+        <div className={styles.modalActions}>
+          <button type="button" className="btn" onClick={onClose}>취소</button>
+          <button type="submit" className="btn btn-primary" disabled={saving || !dirty}>
+            {saving ? '저장하는 중…' : '저장'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

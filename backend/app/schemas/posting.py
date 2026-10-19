@@ -23,6 +23,11 @@ def _reject_past(value: date | None) -> date | None:
 class PostingCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    # 서류 채점 기준 (2026-10-19). AI 가 지원서를 이 두 칸과 항목별로 대조해 요건·우대 점수를
+    # 낸다(chain_evaluate). 컬럼은 0013 부터 있었는데 API 가 받지 않아, 우대는 늘 "정보 없음"
+    # 으로 채점됐다. 비우면 description 만 요건으로 읽는다.
+    requirements: str | None = None
+    preferred: str | None = None
     status: PostingStatus = "draft"
     deadline: date | None = None  # B4. NULL = 상시 접수
     # 자동 심사 (ADR-0034). 임계 이상이면 아르가 면접으로, 미만이면 불합격으로 옮긴다.
@@ -37,6 +42,8 @@ class PostingCreate(BaseModel):
 class PostingUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    requirements: str | None = None  # 바꾼 기준은 이후 채점부터 적용된다
+    preferred: str | None = None
     status: PostingStatus | None = None
     deadline: date | None = None
     pass_threshold: int | None = Field(default=None, ge=0, le=100)
@@ -54,6 +61,8 @@ class PostingOut(BaseModel):
     id: int
     title: str
     description: str | None
+    requirements: str | None = None
+    preferred: str | None = None
     status: str
     deadline: date | None = None
     created_by: int | None

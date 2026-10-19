@@ -36,9 +36,9 @@
 | 메서드 | 경로 | 기능 | 비고 |
 |---|---|---|---|
 | GET | /postings | 공고 목록 (+ 지원자 수) | B1·B3 |
-| POST | /postings | 공고 생성 | B1 |
+| POST | /postings | 공고 생성 | B1. **2026-10-19**: `requirements`(필수 요건)·`preferred`(우대 사항) text 를 받는다 — 서류 AI 채점이 이 두 칸과 항목별로 대조한다(비우면 null, 요건은 `description` 만으로 읽는다) |
 | GET | /postings/{id} | 공고 상세 | |
-| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 · 자동 심사 설정 | B1·B2·B4. `deadline`(date, null 허용) — 과거 날짜는 422. **ADR-0034**: `pass_threshold`(0~100, 기본 60) · `screening_mode`(`auto`/`manual`) · `interviewer_ids`(기본 면접관 풀, 보내면 통째로 교체). POST 도 같은 필드. 응답 `PostingOut` 에 세 값이 실린다 |
+| PATCH | /postings/{id} | 수정 · 상태 변경(draft/open/closed) · 마감일 · 자동 심사 설정 | B1·B2·B4. `deadline`(date, null 허용) — 과거 날짜는 422. **ADR-0034**: `pass_threshold`(0~100, 기본 60) · `screening_mode`(`auto`/`manual`) · `interviewer_ids`(기본 면접관 풀, 보내면 통째로 교체). POST 도 같은 필드. 응답 `PostingOut` 에 세 값이 실린다. **2026-10-19**: `requirements`·`preferred` 도 수정 가능, 응답에도 실린다(바꾼 기준은 이후 채점부터 적용 — 이미 매긴 점수는 요약 재생성 때 다시 매겨진다) |
 | POST | /postings/{id}/send-rejections | 아르가 불합격시킨 지원자에게 불합격 메일 일괄 발행 | **ADR-0034**. 자동 판정은 메일을 즉시 안 보낸다(마감 전 번복 여지). 이미 보낸 사람·사람이 직접 불합격시킨 사람은 건너뜀. 응답 `{queued}` |
 | DELETE | /postings/{id} | 삭제 | B1 |
 | POST | /postings/{id}/public-link | 공개 지원 링크 토큰 발급·재발급 | B6. 재발급하면 이전 토큰 즉시 무효 |
@@ -377,7 +377,7 @@
 | 메서드 | 경로 | 설명 | 비고 |
 |---|---|---|---|
 | GET | /settings/scoring | 가중치 7개 · 인재상 · 기본값 · 등급 경계 | admin. 값이 없으면 기본값(`app/application/screening.py DEFAULT_WEIGHTS`)이 채워져 온다 |
-| PUT | /settings/scoring | 가중치·인재상 변경 | admin. `weights`(7개 전부, 각 0~100 — 묶음 합이 100 이 아니어도 됨, 합으로 나눈다) · `talent_profile`(text). 보낸 키만 반영 |
+| PUT | /settings/scoring | 가중치·인재상 변경 | admin. `weights`(7개 전부, 각 0~100 — 묶음 합이 100 이 아니어도 됨, 합으로 나눈다) · `talent_profile`(text). 보낸 키만 반영. **2026-10-19**: 한 묶음(서류 안 3개 · 면접 안 2개 · 최종 2개)이 전부 0 이면 422 — 그 점수를 계산할 수 없다. 관리자 화면 설정 → 「채점 기준」 탭이 이 API 를 쓴다 |
 
 점수 규칙(원본은 [N1 지시서](../02_tasks/N1-자동심사-파이프라인.md)): 서류 = 요건·우대·인재상 가중 평균 → `applications.doc_score` · 임계(`job_postings.pass_threshold`) 이상이면 아르가 `applied→screening→interview`, 미만이면 `→rejected`(이력 `changed_by` NULL + 점수 사유, 메일은 `send-rejections` 로 일괄) · 면접 = 답변 대조 + 진위 일관성 → `interview_sessions.ai_score` · 최종 = 서류×w + 면접×w → 상세의 `final_score`·`grade`. 사람이 단계를 옮기면 `decision_source=human` 이 되어 그 뒤 자동은 손대지 않는다. `accepted` 는 사람만.
 
