@@ -250,6 +250,11 @@ export default function Login() {
       <div className={styles.stage} ref={stageRef}>
         <form className={styles.card} onSubmit={handleSubmit}>
           <div className={styles.head}>
+            {/* 2026-10-17 원티드 AI Championship 2026 수상. "6위"는 쓰지 않는다 — 결과 표의
+                줄 순서가 점수 순위인지 공식 표기가 없다. 1,389 는 전체 참가팀 수 */}
+            <p className={styles.award}>
+              <span aria-hidden="true">🏆</span> 원티드 AI Championship 2026 인기상 · 1,389팀 중 TOP 20
+            </p>
             <h1 className={styles.logo}>
               <BrandMark size={30} halo className={styles.logoMark} />
               Arda

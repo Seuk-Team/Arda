@@ -77,6 +77,19 @@
   color: var(--text-sub);
 }
 
+/* 수상 배지 — 로고 위 한 줄. 카드 폭이 좁으면 줄바꿈된다 */
+.award {
+  align-self: flex-start;
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .fields {
   display: flex;
   flex-direction: column;
