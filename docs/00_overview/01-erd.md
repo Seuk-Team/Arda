@@ -94,7 +94,7 @@ erDiagram
 | created_by | bigint | FK → users.id | |
 | created_at / updated_at | timestamptz | NOT NULL | |
 | location · employment_type · experience_min/max · salary_min/max · remote_policy · requirements · preferred · benefits | — | NULL 허용 | 상세 필드 (0013). `requirements`·`preferred` 는 v2.2 부터 아르의 서류 채점 재료 |
-| pass_threshold | smallint | NOT NULL, 기본 60, 0~100 | **자동 심사 임계 (v2.2, ADR-0034).** `applications.doc_score` 가 이 값 이상이면 아르가 면접 단계로, 미만이면 불합격으로 옮긴다 |
+| pass_threshold | smallint | NOT NULL, 기본 60, 0~100 | **자동 심사 임계 (v2.2, ADR-0034).** `applications.doc_score` 가 이 값 이상이면 아르가 면접 단계로 옮긴다. 미만이면 50점 이상은 보류(`doc_decision='hold'`, 사람 확인 — [ADR-0039](../03_decision/0039-서류-B구간-보류.md)), 50점 미만은 불합격으로 옮긴다 |
 | screening_mode | varchar(20) | NOT NULL, 기본 `auto` | `auto` / `manual`. manual 이면 점수만 매기고 단계는 사람이 옮긴다 |
 
 비고: B3 지원자 수는 집계 쿼리로(컬럼 안 둠).
@@ -167,7 +167,7 @@ UNIQUE(job_posting_id, user_id).
 | ai_summary_at | timestamptz | | 생성 시각. 공고 요건 변경 시 재생성 판단 기준 |
 | doc_score | smallint | NULL 허용 | **아르 서류 점수 0~100 (v2.2, ADR-0034).** 요건·우대·인재상 세 갈래의 회사 가중 평균. 요약 2단계(`chain_evaluate.v4` — 2026-10-19 부터 이력서·자소서 원문을 근거로 채점, temperature 0, 요건 점수는 구간표(일부 충족 60~69 등)로 고름)가 만든다 |
 | doc_score_detail | json | NULL 허용 | requirements · preferred · culture(각 0~100) · fit · concerns · evidence · weights · threshold · needs_manual_assignment · aptitude_sent · auto_interviewer_id |
-| doc_decision | varchar(20) | NULL 허용, CHECK | `pass` / `reject` / `hold`. hold = 점수만 있고 안 옮김(수동 모드·사람이 먼저 옮김·점수 없음) |
+| doc_decision | varchar(20) | NULL 허용, CHECK | `pass` / `reject` / `hold`. hold = 점수만 있고 안 옮김(수동 모드·사람이 먼저 옮김·점수 없음·**임계 미만이지만 50점 이상** — ADR-0039, 2026-10-19) |
 | doc_decided_at | timestamptz | NULL 허용 | |
 | decision_source | varchar(10) | NULL 허용, CHECK | `agent` / `human`. **사람이 한 번이라도 단계를 옮기면 human** — 그 뒤 자동 판정은 이 지원자를 건드리지 않는다(`stage_service.apply_stage_change` 가 changed_by 유무로 정한다) |
 | ai_summary_model | varchar(200) | | 생성 모델명 + 프롬프트 태그 — 발표 때 근거 제시용. 값 예: `claude-haiku-4-5-20251001/chain_summarize.v1+chain_evaluate.v1+chain_recommend.v1` (81자). **50 이던 것을 2026-09-01 에 200 으로 고쳤다** — models.py 는 이미 String(200) 인데 이 표만 50 으로 남아 낡아 있었고, 50 인 DB 에서는 요약이 생성된 뒤 저장에서 StringDataRightTruncation 으로 죽는다 |

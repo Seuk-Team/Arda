@@ -8,7 +8,8 @@
 - 가중치 읽기(`company_profile.scoring_weights`)와 세 가지 합산: 서류·면접·최종.
 - 서류 판정 `decide_document`: 요약이 끝난 뒤 백그라운드에서 한 번 불린다.
   임계 이상 → applied→screening→interview(두 칸을 한 번에 건너뛸 수 없어 두 번 옮긴다),
-  미만 → rejected. 이력에는 changed_by=NULL(시스템) + 점수 사유.
+  임계 미만이지만 50 이상(B) → 옮기지 않고 hold(ADR-0039), 50 미만 → rejected.
+  이력에는 changed_by=NULL(시스템) + 점수 사유.
 - 서류 합격 뒤 자동으로 붙는 것: 인적성 세션+메일, 면접관 1명 자동 배정, 일정 제안.
 - 불합격 메일 일괄 발송 `send_pending_rejections`: 마감 뒤 담당자가 한 번 누른다.
 
@@ -66,6 +67,12 @@ DEFAULT_WEIGHTS: dict[str, int] = {
 # 문화 35 가 총점을 결정한다 — 요건이 확실하면 그 하나로 판정을 흔들지 않게 한다.
 CULTURE_FLOOR_WHEN_REQUIREMENTS_HIGH = 50
 REQUIREMENTS_HIGH_THRESHOLD = 70
+
+# 서류 자동 탈락의 하한 (ADR-0039, 2026-10-19). 임계 미만이어도 이 점수 이상이면
+# 탈락시키지 않고 보류(hold)로 남겨 사람이 본다. 50~69 는 요약의 적합도 3(B, 추천
+# "추가 확인")이다 — 아르가 스스로 "확인이 더 필요하다" 고 본 지원자를 아르 혼자 떨어뜨리지
+# 않는다. 그래서 자동 탈락은 50 미만(C)만 남는다. 임계가 50 이하인 공고는 보류 구간이 없다.
+REVIEW_FLOOR = 50
 
 # 등급 경계 (final_score 기준). 아래 것부터 맞는 첫 등급.
 GRADE_BOUNDS: tuple[tuple[int, str], ...] = ((85, "S"), (70, "A"), (55, "B"))
@@ -316,7 +323,7 @@ def decide_document(db: Session, application: Application, now: datetime | None 
     """서류 자동 판정. `doc_score` 가 이미 저장된 뒤에 부른다. 커밋한다.
 
     돌려주는 값: pass · reject · hold. hold 는 "이번엔 안 옮겼다" — 점수 없음, 수동 모드,
-    사람이 이미 옮김, applied 가 아님.
+    사람이 이미 옮김, applied 가 아님, 임계 아래지만 B 구간(`REVIEW_FLOOR` 이상).
     """
     now = now or datetime.now(timezone.utc)
     posting = PgHiringRepository(db).get_posting(application.job_posting_id)
@@ -326,6 +333,10 @@ def decide_document(db: Session, application: Application, now: datetime | None 
         posting is None
         or application.decision_source == "human"
         or application.current_stage != "applied"
+        # 판정 시각이 있는 보류(B 구간·수동 모드)는 사람 몫이다 — 이력서가 뒤늦게 붙어
+        # 요약이 다시 돌아도(resume_fetch.after_resume) 아르가 옮기지 않는다 (ADR-0039).
+        # 재생성 경로(decide_if_never_decided)가 이미 이렇게 거른다.
+        or (application.doc_decision == "hold" and application.doc_decided_at is not None)
     ):
         # 이미 판정이 난 지원자(합격·불합격·수동 보류 — 시각이 있다)의 표시는 덮지 않는다.
         # 요약을 다시 만들며 이 함수를 또 부르면 "통과" 배지가 "보류"로 바뀌었다
@@ -382,6 +393,22 @@ def decide_document(db: Session, application: Application, now: datetime | None 
     detail = dict(application.doc_score_detail or {})
     detail["threshold"] = threshold
     log_ids: list[int] = []
+
+    # 임계 아래지만 B 구간(REVIEW_FLOOR 이상) — 옮기지 않고 사람에게 남긴다 (ADR-0039).
+    # 시각을 남기므로 재생성(decide_if_never_decided)이 다시 판정하지 않는다. 메일도 없다 —
+    # 불합격 일괄 메일은 아르가 rejected 로 옮긴 사람만 고른다.
+    if REVIEW_FLOOR <= score < threshold:
+        detail["review_floor"] = REVIEW_FLOOR
+        application.doc_score_detail = detail
+        application.doc_decision = "hold"
+        application.doc_decided_at = now
+        db.commit()
+        logger.info(
+            "screening_decided",
+            extra={"application_id": application.id, "score": score, "threshold": threshold,
+                   "decision": "hold"},
+        )
+        return "hold"
 
     try:
         if score >= threshold:

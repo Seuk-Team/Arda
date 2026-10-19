@@ -171,6 +171,16 @@ def _clamp_score(value: object) -> int | None:
     return max(0, min(100, int(round(value))))
 
 
+def fit_score_from_doc(doc_score: int) -> int:
+    """서류 100점 → 옛 화면·추천(chain_recommend)용 1~5점. 구간은 20점씩, .5 는 올린다.
+
+    1: 0~29 · 2: 30~49 · 3(B): 50~69 · 4: 70~89 · 5: 90~100.
+    `round()` 는 .5 를 짝수로 보내서 50 이 2(C), 90 이 4 가 됐다 — B 하한이 51 로 밀려
+    자동 판정의 보류 하한(screening.REVIEW_FLOOR = 50)과 어긋났다 (2026-10-19, ADR-0039).
+    """
+    return max(1, min(5, int(doc_score / 20 + 0.5)))
+
+
 def _call_llm(
     backend, prompt_text: str, step_name: str
 ) -> tuple[str, int, int, float, str | None]:
@@ -409,7 +419,7 @@ def generate_summary(db: Session, application_id: int) -> str | None:
     doc_score = screening.doc_score_from(parts, screening.weights(db))
     legacy_fit = step2.get("fit_score")
     if doc_score is not None:
-        fit_score = max(1, min(5, int(round(doc_score / 20)) or 1))
+        fit_score = fit_score_from_doc(doc_score)
     elif isinstance(legacy_fit, (int, float)):
         fit_score = int(legacy_fit)
         doc_score = max(0, min(100, int(round(float(legacy_fit) * 20))))

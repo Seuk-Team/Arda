@@ -379,7 +379,7 @@
 | GET | /settings/scoring | 가중치 7개 · 인재상 · 기본값 · 등급 경계 | admin. 값이 없으면 기본값(`app/application/screening.py DEFAULT_WEIGHTS`)이 채워져 온다 |
 | PUT | /settings/scoring | 가중치·인재상 변경 | admin. `weights`(7개 전부, 각 0~100 — 묶음 합이 100 이 아니어도 됨, 합으로 나눈다) · `talent_profile`(text). 보낸 키만 반영 |
 
-점수 규칙(원본은 [N1 지시서](../02_tasks/N1-자동심사-파이프라인.md)): 서류 = 요건·우대·인재상 가중 평균 → `applications.doc_score` · 임계(`job_postings.pass_threshold`) 이상이면 아르가 `applied→screening→interview`, 미만이면 `→rejected`(이력 `changed_by` NULL + 점수 사유, 메일은 `send-rejections` 로 일괄) · 면접 = 답변 대조 + 진위 일관성 → `interview_sessions.ai_score` · 최종 = 서류×w + 면접×w → 상세의 `final_score`·`grade`. 사람이 단계를 옮기면 `decision_source=human` 이 되어 그 뒤 자동은 손대지 않는다. `accepted` 는 사람만.
+점수 규칙(원본은 [N1 지시서](../02_tasks/N1-자동심사-파이프라인.md)): 서류 = 요건·우대·인재상 가중 평균 → `applications.doc_score` · 임계(`job_postings.pass_threshold`) 이상이면 아르가 `applied→screening→interview`, 미만이지만 50점 이상이면 옮기지 않고 `doc_decision=hold`(사람 확인, `doc_score_detail.review_floor`=50 — ADR-0039), 50점 미만이면 `→rejected`(이력 `changed_by` NULL + 점수 사유, 메일은 `send-rejections` 로 일괄) · 면접 = 답변 대조 + 진위 일관성 → `interview_sessions.ai_score` · 최종 = 서류×w + 면접×w → 상세의 `final_score`·`grade`. 사람이 단계를 옮기면 `decision_source=human` 이 되어 그 뒤 자동은 손대지 않는다. `accepted` 는 사람만.
 
 ## 종합 평가 (2026-09-14)
 
