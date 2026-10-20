@@ -124,6 +124,12 @@ class _InterviewScreenState extends State<InterviewScreen>
   StreamSubscription<Uint8List>? _audio;
   StreamSubscription<Uint8List>? _video;
 
+  /// 얼굴이 실제로 나가고 있는지 되보는 시계. [_watchFrames] 참고
+  Timer? _frameWatch;
+  int _framesSeen = 0;
+  int _frameRetries = 0;
+  static const int _frameRetryMax = 10;
+
   LivePhase? _phase;
 
   /// 다시 붙어 본 횟수. **한없이 시도하지 않는다** — 서버가 정말 죽었으면
@@ -198,6 +204,24 @@ class _InterviewScreenState extends State<InterviewScreen>
   }
 
   void _onCamera() {
+    /* **카메라가 소켓보다 늦게 열리면 얼굴이 영영 안 간다** (2026-10-13 실측).
+
+       `_attachFrames` 는 소켓이 열리는 순간 불리는데, 그때 카메라 컨트롤러가 아직
+       초기화 중이면 `CameraService.frames()` 가 스트림을 **그냥 닫는다**(소리만으로도
+       면접은 도니까 오류로 만들지 않는 쪽을 골랐다). 닫히면 `_video` 가 null 이 되고,
+       그 뒤 카메라가 살아나도 다시 잇는 곳이 없었다 — 앱을 뒤로 보냈다 돌아오는
+       경로(`didChangeAppLifecycleState`)가 유일했다.
+
+       증상은 조용하다: 받아쓰기·질문·채점은 멀쩡하고 **표정·음성 판정만 0건**이라
+       종합 평가의 실시간 분석 칸이 빈다. 판정 서버 `/health` 로 재 보면 웹 지원자는
+       `recv` 가 오르는데 앱은 한 장도 안 올라간다.
+
+       그래서 카메라가 `live` 가 된 순간 다시 잇는다. `_attachFrames` 가 앞의
+       구독을 취소하므로 두 번 불려도 겹치지 않는다. */
+    final socket = _socket;
+    if (socket != null && _video == null && _camera.status == CameraStatus.live) {
+      _attachFrames(socket);
+    }
     if (mounted) setState(() {});
   }
 
@@ -392,6 +416,46 @@ class _InterviewScreenState extends State<InterviewScreen>
       onDone: () => _video = null,
       cancelOnError: false,
     );
+    _watchFrames();
+  }
+
+  /// 얼굴이 실제로 나가는지 **4초마다 되본다**. 안 나가면 다시 잇는다 (2026-10-13).
+  ///
+  /// **구독이 살아 있는 것과 프레임이 나가는 것은 다르다.** 플러그인의 이미지
+  /// 스트림이 멈춘 채로 구독만 남으면 `onDone` 이 안 오고, 그러면 `_video == null`
+  /// 을 보는 재연결 경로가 영영 안 걸린다. 10-13 리허설에서 소리만 가고 얼굴이
+  /// 한 장도 안 간 것이 이 상태였고, 앱을 껐다 켜도 안 풀렸다.
+  ///
+  /// 원인 하나([CameraService] 의 start/stop 겹침)는 그쪽에서 막았지만, **면접
+  /// 중에 얼굴이 끊기면 담당자는 복구할 길이 없다.** 그래서 밖에서 한 겹 더 본다 —
+  /// 재는 값은 지원자 화면이 이미 보여 주고 있는 `framesSent` 다.
+  ///
+  /// 한 장이라도 나가면 실패 횟수를 0 으로 되돌린다. 열 번 연속 실패하면 멈춘다 —
+  /// 그 기기는 이미지 스트림 자체를 못 주는 것이라 더 눌러도 소용이 없다.
+  void _watchFrames() {
+    _frameWatch?.cancel();
+    _framesSeen = _camera.framesSent;
+    _frameWatch = Timer.periodic(const Duration(seconds: 4), (timer) {
+      final socket = _socket;
+      if (!mounted || socket == null) {
+        timer.cancel();
+        return;
+      }
+      if (_camera.status != CameraStatus.live) return;
+
+      final sent = _camera.framesSent;
+      if (sent != _framesSeen) {
+        _framesSeen = sent;
+        _frameRetries = 0;
+        return;
+      }
+      if (_frameRetries >= _frameRetryMax) {
+        timer.cancel();
+        return;
+      }
+      _frameRetries++;
+      _attachFrames(socket); // 타이머도 여기서 새로 걸린다
+    });
   }
 
   /// 끊긴 소켓을 다시 잇는다. **마이크·카메라는 놓지 않는다.**
@@ -502,6 +566,10 @@ class _InterviewScreenState extends State<InterviewScreen>
     _video = null;
     _events = null;
     _socket = null;
+    // 끝난 면접에 얼굴을 다시 이으려 들지 않게 시계부터 멈춘다
+    _frameWatch?.cancel();
+    _frameWatch = null;
+    _frameRetries = 0;
 
     audio?.cancel().ignore();
     video?.cancel().ignore();
@@ -655,6 +723,62 @@ class _InterviewScreenState extends State<InterviewScreen>
 /// 미리보기 상자. 켜지는 중·거부·실패까지 여기서 다 그린다 —
 /// **꺼진 것을 조용히 넘기지 않는다.** 카메라가 죽은 줄 모르고 말하면
 /// 그 면접은 다시 볼 수 없다
+/// 지금까지 서버로 보낸 얼굴 장수. [CameraService] 가 세고 있던 값을 꺼내 보인다.
+///
+/// 1초마다 다시 그린다 — 프레임마다 `setState` 를 때리면 초당 10번이라 아깝다.
+class _FrameCount extends StatefulWidget {
+  const _FrameCount({required this.camera});
+
+  final CameraService camera;
+
+  @override
+  State<_FrameCount> createState() => _FrameCountState();
+}
+
+class _FrameCountState extends State<_FrameCount> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sent = widget.camera.framesSent;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.s2,
+        vertical: AppSpace.s1,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.bgChrome,
+        borderRadius: AppShape.pill,
+        border: Border.all(color: AppColors.border, width: AppShape.borderW),
+      ),
+      child: Text(
+        '얼굴 $sent장',
+        style: const TextStyle(
+          fontFamily: AppType.fontFamily,
+          fontSize: AppType.caption,
+          fontWeight: AppType.wSemiBold,
+          color: AppColors.textSub,
+          fontFeatures: AppType.tabularNums,
+        ),
+      ),
+    );
+  }
+}
+
 class _CameraBox extends StatelessWidget {
   const _CameraBox({required this.camera});
 
@@ -682,6 +806,17 @@ class _CameraBox extends StatelessWidget {
                   left: AppSpace.s3,
                   top: AppSpace.s3,
                   child: _LiveDot(),
+                ),
+                // **얼굴이 실제로 나가는지 숫자로 보여 준다** (2026-10-13).
+                //
+                // 미리보기가 나오는 것과 프레임이 서버로 가는 것은 **다른 일**이다.
+                // 10-13 리허설에서 얼굴은 멀쩡히 보이는데 한 장도 안 나가고 있었고,
+                // 화면에 아무 표시가 없어 그걸 가리는 데만 한 시간을 썼다. 0 에서
+                // 안 움직이면 지원자도 담당자도 그 자리에서 안다.
+                Positioned(
+                  right: AppSpace.s3,
+                  top: AppSpace.s3,
+                  child: _FrameCount(camera: camera),
                 ),
               ],
             ),
