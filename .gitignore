@@ -40,3 +40,8 @@ infra/local/*.tar.gz
 
 # 로컬 전체 스택(infra/local) 용 프론트 모드 — 시크릿 없음, 커밋한다
 !frontend/app/.env.localstack
+
+# 노트북 온프레미스(infra/onprem) — 백업에서 만든 시크릿과 저장소 키. 절대 커밋하지 않는다
+infra/onprem/.env
+infra/onprem/.env.backend
+infra/onprem/s3.json
