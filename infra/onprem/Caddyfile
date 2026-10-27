@@ -1,0 +1,32 @@
+# 노트북 온프레미스용 Caddyfile — infra/Caddyfile(운영)과 라우팅이 같고, TLS 는 Cloudflare
+# 터널이 맡으므로 터널 안쪽 http :8080 만 연다. 호스트 이름을 묶지 않는다(터널이 api.seuk
+# 요청만 보낸다). 운영 Caddyfile 을 고치면 여기도 맞춘다.
+
+:8080 {
+	# 거짓말 탐지 — /ai/analyze 가 서비스의 /analyze 로 (handle_path 가 앞을 뗀다)
+	handle_path /ai/* {
+		request_body {
+			max_size 200MB
+		}
+		reverse_proxy lie-detection:5000 {
+			transport http {
+				read_timeout 300s
+				write_timeout 300s
+			}
+		}
+	}
+
+	# n8n 편집 화면·웹훅. handle_path + N8N_PATH=/n8n/ 조합 (운영과 동일)
+	handle_path /n8n/* {
+		basic_auth {
+			{env.N8N_BASIC_AUTH_USER} {env.N8N_BASIC_AUTH_HASH}
+		}
+		reverse_proxy n8n:5678
+	}
+
+	reverse_proxy api:8000 {
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		fail_duration 0s
+	}
+}

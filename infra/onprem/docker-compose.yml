@@ -1,0 +1,128 @@
+# AWS 종료(2026-10-27) 뒤 Arda 를 노트북에서 돌리는 compose — "켤 때만" 운영.
+#
+# 운영(infra/docker-compose.prod.yml)과 다른 점:
+#   1. S3 → SeaweedFS(S3 호환). 브라우저가 presigned URL 로 직접 올리고 받아야 해서
+#      저장소도 터널로 연다(files-seuk.suvisdev.cloud). api 도 같은 공개 주소로 서명해야
+#      서명 호스트가 맞는다 — S3_ENDPOINT_URL 이 그 주소다.
+#   2. 공인 IP·TLS 대신 Cloudflare Tunnel. caddy 는 터널 안쪽 http :8080 만 연다.
+#      호스트 포트는 하나도 열지 않는다(노트북 k3s 가 80/443 을 쓴다).
+#   3. restart: "no" — 노트북을 켤 때마다 저절로 뜨지 않게. 켜고 끄기는 README.
+#
+# 처음 한 번: bash infra/onprem/setup.sh <백업 폴더>   (시크릿·데이터 복원)
+# 시크릿(.env · .env.backend)과 터널 자격은 저장소에 없다(.gitignore).
+
+name: arda-onprem
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run infra/onprem/setup.sh first}
+      POSTGRES_DB: arda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d arda"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # S3 호환 저장소. MinIO 는 2025 년 말부터 공식 이미지를 내려 받을 수 없어 SeaweedFS 로 한다
+  # (2026-10-28 실측: docker.io·quay.io 둘 다 pull 거부). 키는 s3.json(setup.sh 가 만든다).
+  # 버킷 생성·백업 업로드는 setup.sh 가 aws-cli 컨테이너로 한다.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.50
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/seaweedfs/s3.json -s3.allowedOrigins=https://seuk.suvisdev.cloud
+    volumes:
+      - s3data:/data
+      - ./s3.json:/etc/seaweedfs/s3.json:ro
+    logging: *default-logging
+
+  api:
+    build: ../../backend
+    env_file: ./.env.backend
+    # 운영과 같은 단일 워커 — 세션 방·티켓·로그인 잠금이 프로세스 인메모리다(prod compose 주석)
+    command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+
+  lie-detection:
+    build: ../../ai/lie-detection
+    env_file: ./.env.backend
+    environment:
+      VIT_MODEL: cloverky/arda-expression-vit
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
+    mem_limit: 5g
+    logging: *default-logging
+
+  n8n:
+    image: n8nio/n8n:2.37.11
+    environment:
+      N8N_HOST: api-seuk.suvisdev.cloud
+      N8N_PROTOCOL: https
+      N8N_PORT: "5678"
+      N8N_PATH: /n8n/
+      WEBHOOK_URL: https://api-seuk.suvisdev.cloud/n8n/
+      N8N_EDITOR_BASE_URL: https://api-seuk.suvisdev.cloud/n8n/
+      N8N_PROXY_HOPS: "1"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?run infra/onprem/setup.sh first}
+      GENERIC_TIMEZONE: Asia/Seoul
+      TZ: Asia/Seoul
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "336"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      ARDA_INTERNAL_URL: http://api:8000
+      ARDA_SERVICE_TOKEN: ${ARDA_SERVICE_TOKEN:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    mem_limit: 768m
+    logging: *default-logging
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-arda}
+      N8N_BASIC_AUTH_HASH: ${N8N_BASIC_AUTH_HASH:?run infra/onprem/setup.sh first}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    logging: *default-logging
+    depends_on:
+      - api
+      - lie-detection
+      - n8n
+
+  # api.seuk → caddy:8080, files.seuk → seaweedfs:8333 (설정은 TUNNEL_DIR/config.yml)
+  cloudflared:
+    image: cloudflare/cloudflared:2026.7.3
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ${TUNNEL_DIR:?run infra/onprem/tunnel.sh first}:/etc/cloudflared:ro
+    logging: *default-logging
+    depends_on:
+      - caddy
+      - seaweedfs
+
+volumes:
+  pgdata:
+  s3data:
+  n8n_data:
+  caddy_data:
+  whisper_cache:
