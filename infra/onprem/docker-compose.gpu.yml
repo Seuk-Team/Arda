@@ -1,0 +1,28 @@
+# 노트북 온프레미스 — 거짓말 탐지(음성 인식·표정·참/거짓 모델)를 노트북 GPU(RTX 4060 8GB)로.
+#   켜기: docker compose -f infra/onprem/docker-compose.yml -f infra/onprem/docker-compose.gpu.yml up -d lie-detection
+#   끄기(CPU 로): docker compose -f infra/onprem/docker-compose.yml up -d lie-detection
+# 관리자 페이지 버튼은 ops-agent(suvisdev k8s/ops-agent)가 이 두 명령을 대신 친다.
+#
+# 이미지·환경은 운영 GPU 덮어쓰기(infra/docker-compose.gpu.yml, 2026-10-14)와 같다. 다른 점은 하나:
+# STT_COMPUTE_TYPE=int8_float16 — 같은 GPU 에 메인 채팅 EXAONE 7.8B(약 5.7GB)가 올라가므로
+# Whisper large-v3-turbo 를 float16(약 1.6GB) 대신 int8_float16(약 1GB)으로 줄여 둘이 같이 들어가게 한다.
+services:
+  lie-detection:
+    build:
+      context: ../../ai/lie-detection
+      dockerfile: Dockerfile.gpu
+    image: arda-lie-detection-gpu
+    environment:
+      STT_DEVICE: cuda
+      STT_COMPUTE_TYPE: int8_float16
+      VIT_DEVICE: cuda
+      DECEPTION_DEVICE: cuda
+      STT_BACKEND: faster_whisper
+      STT_MODEL: large-v3-turbo
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
