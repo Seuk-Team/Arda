@@ -1,6 +1,6 @@
 # Arda 노트북 온프레미스 (2026-10-28~)
 
-AWS 는 2026-10-27 발표 뒤 종료했다. 그 뒤 Arda 는 **노트북에서 켤 때만** 돈다.
+AWS 는 2026-10-27 발표 뒤 종료했다. 그 뒤 Arda 는 **노트북에서** 돈다 — 노트북이 켜지면 저절로 뜨고, 꺼지면 같이 멈춘다.
 프론트(seuk.suvisdev.cloud)는 Vercel 그대로, API 와 파일은 Cloudflare 터널로 노트북에 들어온다.
 
 ```
@@ -17,8 +17,8 @@ docker compose -f infra/onprem/docker-compose.yml stop      # 끄기 (데이터�
 docker compose -f infra/onprem/docker-compose.yml ps        # 상태
 ```
 
-꺼져 있으면 api.seuk 가 530 이라 프론트는 뜨지만 로그인이 안 된다.
-`restart: "no"` 라 노트북을 켜도 저절로 뜨지 않는다 — 시연·면접 때만 켠다.
+꺼져 있으면 api-seuk 가 530 이라 프론트는 뜨지만 로그인이 안 된다.
+`restart: unless-stopped` 라 노트북을 켜면(로그온 작업이 WSL 을 올림) 저절로 뜬다. `stop` 으로 내려 두면 다음 부팅에도 꺼진 채 남는다.
 
 ## 처음 한 번
 
@@ -34,7 +34,7 @@ docker compose -f infra/onprem/docker-compose.yml up -d --build
 |---|---|---|
 | 파일 | S3 `arda-resumes-seuk` | SeaweedFS 같은 이름 버킷(MinIO 공식 이미지는 더 이상 받을 수 없다) |
 | 입구 | 공인 IP + Caddy TLS | Cloudflare 터널, Caddy 는 http :8080 |
-| 자동 기동 | systemd + `restart: unless-stopped` | 없음(켤 때만) |
+| 자동 기동 | systemd + `restart: unless-stopped` | 로그온 작업이 WSL 을 켜면 `restart: unless-stopped` 로 |
 | 자동 배포·매일 백업·CloudWatch 알람 | 있음 | 없음. 코드가 바뀌면 `up -d --build` |
 | AI | Claude API | 같음 — 호출마다 Anthropic 잔액이 줄어든다 |
 
