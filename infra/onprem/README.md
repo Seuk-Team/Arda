@@ -20,6 +20,19 @@ docker compose -f infra/onprem/docker-compose.yml ps        # 상태
 꺼져 있으면 api-seuk 가 530 이라 프론트는 뜨지만 로그인이 안 된다.
 `restart: unless-stopped` 라 노트북을 켜면(로그온 작업이 WSL 을 올림) 저절로 뜬다. `stop` 으로 내려 두면 다음 부팅에도 꺼진 채 남는다.
 
+## 거짓말 탐지 GPU · CPU
+
+음성 인식(Whisper large-v3-turbo)·표정·참/거짓 모델을 노트북 GPU(RTX 4060)로 돌린다.
+
+```bash
+docker compose -f infra/onprem/docker-compose.yml -f infra/onprem/docker-compose.gpu.yml up -d lie-detection   # GPU
+docker compose -f infra/onprem/docker-compose.yml up -d lie-detection                                           # CPU 로
+```
+
+관리자 페이지 버튼은 ops-agent(suvisdev `k8s/ops-agent`)가 이 명령을 대신 치고, 고른 모드를 기억해 다음 켜기에도 쓴다.
+2026-10-28 실측: 5초 오디오 전사 0.62초(cuda, int8_float16), VRAM 약 1.3GB. CPU 일 때는 답변 하나에 30~100초.
+메인 채팅 EXAONE 7.8B(약 5.7GB)와 같은 GPU 를 나눠 쓰므로 Whisper 는 int8_float16 으로 줄였다.
+
 ## 처음 한 번
 
 ```bash
