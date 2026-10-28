@@ -1,4 +1,4 @@
-# AWS 종료(2026-10-27) 뒤 Arda 를 노트북에서 돌리는 compose — "켤 때만" 운영.
+# AWS 종료(2026-10-27) 뒤 Arda 를 노트북에서 돌리는 compose — 노트북이 켜지면 저절로 뜬다.
 #
 # 운영(infra/docker-compose.prod.yml)과 다른 점:
 #   1. S3 → SeaweedFS(S3 호환). 브라우저가 presigned URL 로 직접 올리고 받아야 해서
@@ -6,7 +6,8 @@
 #      서명 호스트가 맞는다 — S3_ENDPOINT_URL 이 그 주소다.
 #   2. 공인 IP·TLS 대신 Cloudflare Tunnel. caddy 는 터널 안쪽 http :8080 만 연다.
 #      호스트 포트는 하나도 열지 않는다(노트북 k3s 가 80/443 을 쓴다).
-#   3. restart: "no" — 노트북을 켤 때마다 저절로 뜨지 않게. 켜고 끄기는 README.
+#   3. restart: unless-stopped — 노트북이 켜져 WSL·docker 가 올라오면 저절로 뜬다(2026-10-28 사용자 결정).
+#      `stop` 으로 내려 두면 다음 부팅에도 꺼진 채 남는다. 켜고 끄기는 README.
 #
 # 처음 한 번: bash infra/onprem/setup.sh <백업 폴더>   (시크릿·데이터 복원)
 # 시크릿(.env · .env.backend)과 터널 자격은 저장소에 없다(.gitignore).
@@ -29,6 +30,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     logging: *default-logging
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d arda"]
       interval: 3s
@@ -45,6 +47,7 @@ services:
       - s3data:/data
       - ./s3.json:/etc/seaweedfs/s3.json:ro
     logging: *default-logging
+    restart: unless-stopped
 
   api:
     build: ../../backend
@@ -52,6 +55,7 @@ services:
     # 운영과 같은 단일 워커 — 세션 방·티켓·로그인 잠금이 프로세스 인메모리다(prod compose 주석)
     command: /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
     logging: *default-logging
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -65,6 +69,7 @@ services:
       - whisper_cache:/root/.cache/huggingface
     mem_limit: 5g
     logging: *default-logging
+    restart: unless-stopped
 
   n8n:
     image: n8nio/n8n:2.37.11
@@ -92,6 +97,7 @@ services:
       - n8n_data:/home/node/.n8n
     mem_limit: 768m
     logging: *default-logging
+    restart: unless-stopped
     depends_on:
       - api
 
@@ -104,6 +110,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     logging: *default-logging
+    restart: unless-stopped
     depends_on:
       - api
       - lie-detection
@@ -116,6 +123,7 @@ services:
     volumes:
       - ${TUNNEL_DIR:?run infra/onprem/tunnel.sh first}:/etc/cloudflared:ro
     logging: *default-logging
+    restart: unless-stopped
     depends_on:
       - caddy
       - seaweedfs
